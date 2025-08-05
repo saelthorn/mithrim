@@ -1,121 +1,105 @@
-import random
+import random  
 
 class Monster:
-    def __init__(self, x, y, char, name, color, blocks_movement=True):
-        self.base_xp = 50
-        self.alive = True
-        self.hp = 5
-        self.max_hp = 5
-        self.attack_power = 3
-        self.defense = 0 # Added for combat calculations
-
+    def __init__(self, x, y, char, name, color):
         self.x = x
         self.y = y
         self.char = char
         self.name = name
         self.color = color
-        self.blocks_movement = blocks_movement
-        self.initiative = 0
-        
-        # AI state
-        self.last_seen_player_x = None
-        self.last_seen_player_y = None
-        self.turns_since_seen_player = 0
+        self.alive = True
+        self.hp = 10
+        self.max_hp = 10
+        self.attack_power = 3  # Base damage
+        self.defense = 1       # Damage reduction
+        self.base_xp = 10      # XP awarded when killed
+        self.initiative = 0    # For turn order
 
     def roll_initiative(self):
+        """Roll for turn order"""
         self.initiative = random.randint(1, 20)
 
-    def is_adjacent_to(self, other):
-        """Check if adjacent to another entity"""
-        return abs(self.x - other.x) <= 1 and abs(self.y - other.y) <= 1 and (abs(self.x - other.x) + abs(self.y - other.y)) == 1
-
-    def can_see_player(self, player, fov):
-        """Check if this monster can see the player (simple line of sight)"""
-        # For simplicity, monsters can see the player if the player can see them
-        return fov.is_visible(self.x, self.y) and fov.is_visible(player.x, player.y)
-
-    def take_turn(self, player, game_map, fov=None):
-        """Take this monster's turn with smarter AI"""
+    def take_turn(self, player, game_map, game):
+        """Handle monster's combat and movement"""
         if not self.alive:
             return
 
-        # Check if we can see the player
-        can_see = fov is None or self.can_see_player(player, fov)
-        
-        if can_see:
-            # Update last known player position
-            self.last_seen_player_x = player.x
-            self.last_seen_player_y = player.y
-            self.turns_since_seen_player = 0
-            
-            # If adjacent, attack
-            if self.is_adjacent_to(player):
-                self.attack(player)
-                return
-            else:
-                # Move toward player
-                self.move_toward(player.x, player.y, game_map, [player])
-        else:
-            # Can't see player - check if we remember where they were
-            self.turns_since_seen_player += 1
-            
-            if (self.last_seen_player_x is not None and 
-                self.turns_since_seen_player < 5):  # Remember for 5 turns
-                # Move toward last known position
-                if (self.x != self.last_seen_player_x or 
-                    self.y != self.last_seen_player_y):
-                    self.move_toward(self.last_seen_player_x, self.last_seen_player_y, 
-                                   game_map, [player])
-                else:
-                    # Reached last known position - forget it
-                    self.last_seen_player_x = None
-                    self.last_seen_player_y = None
-            else:
-                # Wander randomly or stand still
-                if random.randint(1, 3) == 1:  # 33% chance to move randomly
-                    dx = random.randint(-1, 1)
-                    dy = random.randint(-1, 1)
-                    if dx != 0 or dy != 0:
-                        self.move_toward(self.x + dx, self.y + dy, game_map, [player])
+        # Check if adjacent to player (including diagonals)
+        if self.is_adjacent_to(player):
+            self.attack(player, game)
+            return
 
-    def attack(self, target):
-        """Attack target and return damage dealt"""
-        # Simple attack - no dice roll for monsters (or add if you want)
-        damage = random.randint(1, 4) + self.attack_power // 2
-   
+        # Otherwise move toward player
+        self.move_toward_player(player, game_map)
+
+    def is_adjacent_to(self, other):
+        """Check if next to another entity (cardinal directions + diagonals)"""
+        dx = abs(self.x - other.x)
+        dy = abs(self.y - other.y)
+        return dx <= 1 and dy <= 1 and (dx != 0 or dy != 0)
+
+    def attack(self, target, game):
+        """Attack a target and show combat messages"""
+        if not target.alive:
+            return
+
+        # Damage calculation
+        damage = max(1, random.randint(1, 4) + self.attack_power)  # 1d4 + attack power
         damage_dealt = target.take_damage(damage)
-        return damage_dealt
+        
+        # Combat messages
+        game.message_log.add_message(
+            f"The {self.name} attacks {target.name} for {damage_dealt} damage!", 
+            (255, 50, 50)  # Red color for damage
+        )
+        
+        if not target.alive:
+            game.message_log.add_message(
+                f"{target.name} has been slain!",
+                (200, 0, 0)  # Dark red for kill
+            )
+        else:
+            game.message_log.add_message(
+                f"{target.name} has {target.hp}/{target.max_hp} HP remaining.",
+                (255, 200, 0)  # Yellow for HP display
+            )
 
     def take_damage(self, amount):
-        """Take damage and return actual damage taken"""
-        damage_taken = max(1, amount - self.defense)
+        """Handle taking damage and return actual damage taken"""
+        damage_taken = max(1, amount - self.defense)  # Minimum 1 damage
         self.hp -= damage_taken
         
         if self.hp <= 0:
+            self.hp = 0
             self.alive = False
-            return self.base_xp  # Return XP when killed
+            
         return damage_taken
-        
+
     def die(self):
-        """Handle monster death and return XP to be awarded."""
-        # This method should only be called when the monster is already dead (hp <= 0, alive = False)
-        # It simply returns the XP value for this monster.
+        """Handle death and return XP value"""
         return self.base_xp
 
-    def move_toward(self, target_x, target_y, game_map, entities):
-        """Move toward target position"""
-        dx = target_x - self.x
-        dy = target_y - self.y
+    def move_toward_player(self, player, game_map):
+        """Simple pathfinding - move toward player"""
+        # Calculate direction
+        dx = 1 if player.x > self.x else -1 if player.x < self.x else 0
+        dy = 1 if player.y > self.y else -1 if player.y < self.y else 0
         
-        # Determine step direction
-        step_x = 0 if dx == 0 else (1 if dx > 0 else -1)
-        step_y = 0 if dy == 0 else (1 if dy > 0 else -1)
-
-        new_x = self.x + step_x
-        new_y = self.y + step_y
-
-        # Check if position is valid and not occupied
-        if (game_map.is_walkable(new_x, new_y) and 
-            not any(e.x == new_x and e.y == new_y and e != self and e.alive for e in entities)):
-            self.x = new_x
-            self.y = new_y
+        # Try primary direction first
+        new_x, new_y = self.x + dx, self.y + dy
+        if game_map.is_walkable(new_x, new_y):
+            self.x, self.y = new_x, new_y
+            return
+            
+        # If primary direction blocked, try secondary
+        if dx != 0:
+            new_x, new_y = self.x, self.y + dy
+            if game_map.is_walkable(new_x, new_y):
+                self.x, self.y = new_x, new_y
+                return
+                
+        if dy != 0:
+            new_x, new_y = self.x + dx, self.y
+            if game_map.is_walkable(new_x, new_y):
+                self.x, self.y = new_x, new_y
+                return

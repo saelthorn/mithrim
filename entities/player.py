@@ -4,7 +4,7 @@ class Player:
     def __init__(self, x, y, char, name, color):
         self.level = 1
         self.current_xp = 0
-        self.xp_to_next_level = 100
+        self.xp_to_next_level = 50
         self.alive = True
         self.hp = 40
         self.max_hp = 40
