@@ -1,6 +1,7 @@
-from random import randint
+import random
+from random import randint, choice
 from world import tile
-from world.tile import stairs_down, stairs_up, dungeon_door
+from world.tile import stairs_down, stairs_up, dungeon_door, rubble, bones, torch, crate, barrel, well, wall, floor # Import all necessary tiles
 
 class RectRoom:
     def __init__(self, x, y, w, h):
@@ -34,6 +35,16 @@ def dig_tunnel_y(game_map, y1, y2, x):
 def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_max_size=10):
     rooms = []
     stairs_positions = {}
+    
+    # Decorations that can be placed anywhere in a room (on floor tiles)
+    floor_decoration_tiles = [rubble, bones, crate, barrel, well]
+    floor_decoration_chance = 0.05 # 5% chance for floor decorations
+
+    # Torches will be placed separately on walls
+    torch_placement_chance = 0.15 # 15% chance to place a torch on a suitable wall spot
+
+    # List to store torch positions for FOV
+    torch_light_sources = []
 
     for _ in range(max_rooms):
         w = randint(room_min_size, room_max_size)
@@ -44,9 +55,40 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
         new_room = RectRoom(x, y, w, h)
 
         if any(new_room.intersects(other) for other in rooms):
-            continue  # Skip overlapping
+            continue
 
         dig_room(game_map, new_room)
+
+        # --- Add Floor Decorations to the new room ---
+        for ry in range(new_room.y1 + 1, new_room.y2):
+            for rx in range(new_room.x1 + 1, new_room.x2):
+                if game_map.tiles[ry][rx] == floor and random.random() < floor_decoration_chance:
+                    game_map.tiles[ry][rx] = random.choice(floor_decoration_tiles)
+
+        # --- Add Torches to the walls of the new room ---
+        # Iterate through the perimeter of the room (excluding corners for simplicity)
+        for rx in range(new_room.x1, new_room.x2 + 1):
+            for ry in range(new_room.y1, new_room.y2 + 1):
+                # Check if it's a wall tile on the room's perimeter
+                is_perimeter_wall = (
+                    (rx == new_room.x1 or rx == new_room.x2) and (new_room.y1 < ry < new_room.y2) or
+                    (ry == new_room.y1 or ry == new_room.y2) and (new_room.x1 < rx < new_room.x2)
+                )
+                
+                if is_perimeter_wall and game_map.tiles[ry][rx] == wall:
+                    # Check if this wall tile is adjacent to a floor tile (inside the room)
+                    # This ensures the torch is placed on a wall *facing* the room
+                    adjacent_to_floor = False
+                    for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]: # Cardinal directions
+                        nx, ny = rx + dx, ry + dy
+                        if (new_room.x1 < nx < new_room.x2 and new_room.y1 < ny < new_room.y2 and
+                            game_map.tiles[ny][nx] == floor):
+                            adjacent_to_floor = True
+                            break
+                    
+                    if adjacent_to_floor and random.random() < torch_placement_chance:
+                        game_map.tiles[ry][rx] = torch
+                        torch_light_sources.append((rx, ry)) # Add torch position to list
 
         if rooms:
             # Connect to previous room
@@ -88,4 +130,4 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
                 game_map.tiles[stairs_up_y][stairs_up_x] = stairs_up
                 stairs_positions['up'] = (stairs_up_x, stairs_up_y)
 
-    return rooms, stairs_positions
+    return rooms, stairs_positions, torch_light_sources # Return torch positions

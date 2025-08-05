@@ -1,3 +1,4 @@
+# MultipleFiles/fov.py
 import math
 
 class FOV:
@@ -8,8 +9,12 @@ class FOV:
     
     def compute_fov(self, origin_x, origin_y, radius=8):
         """Compute field of view from origin point using simple raycasting"""
-        self.visible.clear()
-        
+        # IMPORTANT: This should clear visible for each new computation
+        # If you want to accumulate visible areas (e.g., from multiple light sources),
+        # you'd clear it once before the first compute_fov call in update_fov.
+        # For now, let's assume update_fov handles the overall clearing.
+        # self.visible.clear() # <--- This line might be problematic if called here for each torch
+
         # Origin is always visible
         self.visible.add((origin_x, origin_y))
         self.explored.add((origin_x, origin_y))

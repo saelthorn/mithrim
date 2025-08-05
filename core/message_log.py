@@ -1,4 +1,3 @@
-# core/message_log.py
 import pygame
 from pygame import Rect
 
@@ -43,7 +42,16 @@ class MessageBox:
         """Render the message log to the given surface"""
         # Draw background
         pygame.draw.rect(surface, (0, 0, 0), self.rect)
-        pygame.draw.rect(surface, (255, 255, 255), self.rect, 2)
+        
+        # Draw only the top border line
+        # Start point: (self.rect.left, self.rect.top)
+        # End point: (self.rect.right, self.rect.top)
+        # Color: (50, 50, 50) for subtle gray
+        # Thickness: 1 pixel
+        pygame.draw.line(surface, (50, 50, 50), 
+                         (self.rect.left, self.rect.top), 
+                         (self.rect.right, self.rect.top), 
+                         1)
 
         # Render messages
         y_offset = 5  # Padding from top
