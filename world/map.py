@@ -6,6 +6,7 @@ class GameMap:
         self.height = height
         # Initialize with walls
         self.tiles = [[wall for _ in range(width)] for _ in range(height)]
+        self.items_on_ground = [] # <--- NEW: List to hold items dropped or generated on the map
 
     def is_walkable(self, x, y):
         """Check if a position is walkable"""
