@@ -150,7 +150,7 @@ class Monster:
             if self.can_poison and target.alive:
                 game.message_log.add_message(f"The {self.name} attempts to poison {target.name}!", (255, 150, 0))
                 if not target.make_saving_throw("CON", self.poison_dc, game):
-                    poison_effect = Poisoned(duration=self.poison_duration, damage_per_turn=self.poison_damage_per_turn)
+                    poison_effect = Poisoned(duration=self.poison_duration, source=self, damage_per_turn=self.poison_damage_per_turn)
                     target.add_status_effect(poison_effect, game)
                 else:
                     game.message_log.add_message(f"{target.name} resists the poison!", (150, 255, 150))

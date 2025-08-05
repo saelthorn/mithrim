@@ -1,50 +1,35 @@
+
 class StatusEffect:
-    def __init__(self, name, duration, description=""):
+    def __init__(self, name, duration, source=None):
         self.name = name
-        self.duration = duration  # Duration in turns
-        self.description = description
+        self.duration = duration
         self.turns_left = duration
+        self.source = source # Who applied the effect (e.g., a monster)
 
-    def apply(self, target, game_instance):
-        """Called when the effect is first applied to the target."""
-        game_instance.message_log.add_message(f"{target.name} is now {self.name}!", (255, 100, 0))
-        # Override in subclasses for specific initial effects
+    def apply_effect(self, target, game_instance):
+        """Applies the effect to the target each turn."""
+        pass # To be overridden by specific effects
 
-    def tick(self, target, game_instance):
-        """Called each turn the effect is active."""
+    def tick_down(self):
+        """Decrements the duration of the effect."""
         self.turns_left -= 1
-        # Override in subclasses for specific per-turn effects
 
-    def remove(self, target, game_instance):
-        """Called when the effect is removed from the target."""
-        game_instance.message_log.add_message(f"{target.name} is no longer {self.name}.", (100, 255, 0))
-        # Override in subclasses for specific removal effects
-
-    def __eq__(self, other):
-        # Used to check if an effect of the same type is already active
-        return isinstance(other, type(self)) and self.name == other.name
-
-    def __hash__(self):
-        return hash(self.name)
+    def on_end(self, target, game_instance):
+        """Called when the effect ends."""
+        game_instance.message_log.add_message(f"{target.name} is no longer {self.name.lower()}.", (150, 150, 150))
 
 class Poisoned(StatusEffect):
-    def __init__(self, duration=3, damage_per_turn=2):
-        super().__init__("Poisoned", duration, f"Takes {damage_per_turn} damage per turn.")
-        self.damage_per_turn = damage_per_turn
-
-    def apply(self, target, game_instance):
-        super().apply(target, game_instance)
-        game_instance.message_log.add_message(f"{target.name} feels a burning sensation!", (255, 150, 0))
-
-    def tick(self, target, game_instance):
-        super().tick(target, game_instance)
-        if target.alive:
-            damage_dealt = target.take_damage(self.damage_per_turn)
-            game_instance.message_log.add_message(f"{target.name} takes {damage_dealt} poison damage. ({self.turns_left} turns left)", (255, 0, 0))
+    def __init__(self, duration, source=None, damage_per_turn=2): # <--- ADD damage_per_turn here
+        super().__init__("Poisoned", duration, source)
+        self.damage_per_turn = damage_per_turn # <--- Assign it here
+    
+    def apply_effect(self, target, game_instance):
+        if self.turns_left > 0:
+            game_instance.message_log.add_message(f"{target.name} is poisoned! Takes {self.damage_per_turn} damage.", (255, 0, 0))
+            target.take_damage(self.damage_per_turn)
+            
             if not target.alive:
-                game_instance.message_log.add_message(f"{target.name} succumbed to the poison!", (200, 0, 0))
-
-    def remove(self, target, game_instance):
-        super().remove(target, game_instance)
-        game_instance.message_log.add_message(f"{target.name} shakes off the poison.", (150, 255, 150))
-
+                game_instance.message_log.add_message(f"{target.name} succumbed to poison!", (200, 0, 0))
+    
+    def on_end(self, target, game_instance):
+        super().on_end(target, game_instance)

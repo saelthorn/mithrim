@@ -12,7 +12,7 @@ from entities.monster import Mimic
 from entities.tavern_npcs import create_tavern_npcs
 from entities.dungeon_npcs import DungeonHealer
 from entities.tavern_npcs import NPC # Keep this import for NPC type checking
-
+from core.abilities import SecondWind
 from core.message_log import MessageBox
 from items.items import Potion, Weapon, Armor, Chest
 from core.pathfinding import astar # Keep this import
@@ -59,6 +59,7 @@ class Game:
         self.game_state = GameState.TAVERN
         self.current_level = 1
         self.max_level_reached = 1
+        self.player_has_acted = False # Flag to prevent spamming actions in dungeon
 
         self.message_log = MessageBox(
             0,
@@ -123,27 +124,28 @@ class Game:
         self.font_info = pygame.font.SysFont('consolas', int(temp_tile_size * 0.9))
         self.font_small = pygame.font.SysFont('consolas', int(temp_tile_size * 0.8))
 
+
     def generate_tavern(self):
         self.game_state = GameState.TAVERN
         self.game_map = GameMap(40, 24)
         self.fov = FOV(self.game_map)
         self.door_position = generate_tavern(self.game_map)
-
+        
         start_x, start_y = self.game_map.width // 2, self.game_map.height // 2 + 2
-
+        
         if hasattr(self, 'player'):
             self.player.x = start_x
             self.player.y = start_y
         else:
             self.player = Player(start_x, start_y, '@', 'Hero', (255, 255, 255))
-
+        
         self.camera.update(start_x, start_y, self.game_map.width, self.game_map.height)
         self.npcs = create_tavern_npcs(self.game_map, self.door_position)
         self.entities = [self.player] + self.npcs
         self.turn_order = []
         self.current_turn_index = 0
-        self.update_fov()
-
+        self.update_fov() # Call update_fov after entities are set up
+        
         self.message_log.add_message("=== WELCOME TO THE PRANCING PONY TAVERN ===", (255, 215, 0))
         self.message_log.add_message("Walk to the door (+) and press any movement key to enter the dungeon!", (150, 150, 255))
 
@@ -151,18 +153,19 @@ class Game:
         self.game_state = GameState.DUNGEON
         self.current_level = level_number
         self.max_level_reached = max(self.max_level_reached, level_number)
-
+        
         self.game_map = GameMap(80, 45)
         self.fov = FOV(self.game_map)
-
-        # dungeon_generator now returns rooms, stairs_positions, and torch_light_sources
+        # IMPORTANT: Clear explored only when generating a *new* level
+        # self.fov.explored.clear() # This is handled by FOV.__init__ for new FOV object
+        
         rooms, self.stairs_positions, self.torch_light_sources = generate_dungeon(self.game_map, level_number)
-
+        
         if spawn_on_stairs_up and 'up' in self.stairs_positions:
             start_x, start_y = self.stairs_positions['up']
         else:
             start_x, start_y = rooms[0].center()
-
+        
         self.player.x = start_x
         self.player.y = start_y
         self.camera.update(start_x, start_y, self.game_map.width, self.game_map.height)
@@ -257,14 +260,15 @@ class Game:
         # Initialize turn system
         for entity in self.entities:
             entity.roll_initiative()
-
+        
         self.turn_order = sorted(self.entities, key=lambda e: e.initiative, reverse=True)
         self.current_turn_index = 0
-        self.update_fov()
-
-        self.message_log.add_message(f"=== ENTERED DUNGEON LEVEL {level_number} ===", (0, 255, 255))
+        self.update_fov() # Call update_fov after entities are set up
+        
+        self.message_log.add_message(f"=== ENTERED DUNGEON LEVEL {level_number} ===", (0, 255, 255))        
         if hasattr(self, 'stairs_positions'):
             self.message_log.add_message(f"Stairs down at {self.stairs_positions.get('down')}", (150, 150, 255))
+
 
     def check_tavern_door_interaction(self):
         if self.game_state == GameState.TAVERN:
@@ -316,43 +320,72 @@ class Game:
 
     def update_fov(self):
         if self.game_state == GameState.TAVERN:
-            self.fov.visible.clear()
-            self.fov.explored.clear()
+            # In tavern, everything is always visible and explored
+            self.fov.visible_sources.clear() # Clear current visible sources
+            self.fov.explored.clear() # Clear explored for tavern
             for y in range(self.game_map.height):
                 for x in range(self.game_map.width):
-                    self.fov.visible.add((x, y))
+                    self.fov.visible_sources[(x, y)] = 'player' # Treat all as player light
                     self.fov.explored.add((x, y))
         else:
-            # Compute FOV from player
-            self.fov.compute_fov(self.player.x, self.player.y, radius=8)
-
-            # Additionally, compute FOV from each torch
+            # For dungeon levels, clear only the 'visible_sources' each turn
+            # 'explored' should persist across turns
+            self.fov.visible_sources.clear() # <--- Clear current visible sources
+            
+            # Compute FOV from player (strongest light source)
+            self.fov.compute_fov(self.player.x, self.player.y, radius=8, light_source_type='player')
+            
+            # Additionally, compute FOV from each torch (weaker light source)
             for tx, ty in self.torch_light_sources:
-                self.fov.compute_fov(tx, ty, radius=5) # Torches have a smaller light radius
+                self.fov.compute_fov(tx, ty, radius=5, light_source_type='torch')
 
     def get_current_entity(self):
         if not self.turn_order or self.game_state == GameState.TAVERN:
             return self.player
+        # Ensure current_turn_index is always valid
+        if self.current_turn_index >= len(self.turn_order):
+            self.current_turn_index = 0 # Wrap around if somehow out of bounds
         return self.turn_order[self.current_turn_index]
 
     def next_turn(self):
         if self.game_state == GameState.TAVERN:
+            # In tavern, next_turn just handles ambient messages, no turn order advancement
             if random.random() < 0.3:
                 ambient_msgs = [
                     "The torch flickers, casting long shadows...",
                     "Distant drips echo through the stone halls..."
                 ]
                 self.message_log.add_message(random.choice(ambient_msgs), (150, 150, 150))
+            # In tavern, player actions don't consume a "turn" in the combat sense,
+            # so no cooldowns tick down here.
             return
+
+        # --- Dungeon turn logic below ---
+        # IMPORTANT: Cleanup entities BEFORE advancing the turn index
+        self.cleanup_entities()
+
+        # Get the entity whose turn it *was* before advancing
+        previous_current_entity = self.get_current_entity()
 
         if not self.turn_order:
-            return
+            # If no entities left (e.g., all monsters dead), ensure player's turn
+            self.current_turn_index = 0
+            current = self.get_current_entity() # This will be the player
+        else:
+            # Advance to the next entity in the turn order
+            self.current_turn_index = (self.current_turn_index + 1) % len(self.turn_order)
+            current = self.get_current_entity()
 
-        self.current_turn_index = (self.current_turn_index + 1) % len(self.turn_order)
-        current = self.get_current_entity()
+        # --- NEW: Process player's status effects and cooldowns when player's turn ends ---
+        # This ensures cooldowns tick down only after the player has acted.
+        # This is called *after* the turn has advanced, so it applies to the entity
+        # whose turn just finished.
+        if previous_current_entity == self.player:
+            self.player.process_status_effects(self) # This will now tick down cooldowns
 
         if current == self.player:
             self.update_fov()
+            self.player_has_acted = False # Reset flag at start of player's turn in dungeon
             if random.random() < 0.25:
                 ambient_msgs = [
                     "The dungeon emits an eerie glow...",
@@ -360,27 +393,60 @@ class Game:
                 ]
                 self.message_log.add_message(random.choice(ambient_msgs), (180, 180, 180))
 
-        self.cleanup_entities()
-
     def cleanup_entities(self):
+        """Removes dead entities from the game's entity list and turn order,
+        and adjusts the current_turn_index if necessary."""
+        
+        # Store the entity whose turn it currently is (before cleanup)
+        current_entity_before_cleanup = None
+        if self.turn_order and 0 <= self.current_turn_index < len(self.turn_order):
+            current_entity_before_cleanup = self.turn_order[self.current_turn_index]
+
+        # Filter out dead entities from the main list
         alive_entities = [e for e in self.entities if e.alive]
+        
+        # If the list of entities has changed (i.e., something died)
         if len(alive_entities) != len(self.entities):
             self.entities = alive_entities
-            self.turn_order = [e for e in self.turn_order if e.alive]
-            if self.current_turn_index >= len(self.turn_order):
-                self.current_turn_index = 0
+            
+            # Rebuild the turn_order list, ensuring only alive entities are present
+            # and maintaining the original relative order as much as possible.
+            new_turn_order = []
+            for entity in self.turn_order: # Iterate over the *old* turn_order
+                if entity.alive:
+                    new_turn_order.append(entity)
+            self.turn_order = new_turn_order
+            
+            # Now, adjust current_turn_index based on the new turn_order.
+            # If the entity whose turn it was is still in the new list,
+            # we try to keep the index pointing to it.
+            if current_entity_before_cleanup and current_entity_before_cleanup in self.turn_order:
+                self.current_turn_index = self.turn_order.index(current_entity_before_cleanup)
+            else:
+                # If the entity whose turn it was died or is no longer in the list,
+                # we need to reset the index. The next_turn() logic will then
+                # correctly advance it.
+                # If the turn_order is now empty, current_turn_index will be 0,
+                # and get_current_entity() will correctly return the player.
+                self.current_turn_index = 0 
+        
+        # If turn_order becomes empty (all monsters dead), ensure player is the only one
+        if not self.turn_order and self.player.alive:
+            self.turn_order = [self.player]
+            self.current_turn_index = 0 # Player's turn
+
 
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
-
+            
             if event.type == pygame.VIDEORESIZE:
                 self.screen = pygame.display.set_mode(event.size, pygame.RESIZABLE)
                 self._recalculate_dimensions()
                 self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height)
                 self.render()
-
+            
             if event.type == pygame.KEYDOWN:
                 # --- Handle 'i' key for Inventory/Inventory Menu (always accessible) ---
                 if event.key == pygame.K_i:
@@ -390,69 +456,82 @@ class Game:
                     elif self.game_state == GameState.INVENTORY:
                         self.game_state = GameState.DUNGEON
                         self.message_log.add_message("Closing Inventory.", (100, 200, 255))
-                        self.selected_inventory_item = None # Clear selected item when closing
+                        self.selected_inventory_item = None
                     elif self.game_state == GameState.INVENTORY_MENU:
-                        self.game_state = GameState.INVENTORY # Go back to inventory list
+                        self.game_state = GameState.INVENTORY
                         self.selected_inventory_item = None
                         self.message_log.add_message("Returning to Inventory.", (100, 200, 255))
-                    continue # Consume the 'i' key event here
+                    continue
 
-                # --- Only process other inputs if it's the player's turn ---
-                if self.get_current_entity() == self.player:
-                    # If in inventory states, only handle specific inventory inputs
-                    if self.game_state == GameState.INVENTORY:
-                        self.handle_inventory_input(event.key)
-                        continue # Don't process movement/attack if in inventory
-                    elif self.game_state == GameState.INVENTORY_MENU:
-                        self.handle_inventory_menu_input(event.key)
-                        continue # Don't process movement/attack if in inventory menu
+                # --- Handle input based on game state ---
+                if self.game_state == GameState.INVENTORY:
+                    self.handle_inventory_input(event.key)
+                    continue
+                elif self.game_state == GameState.INVENTORY_MENU:
+                    self.handle_inventory_menu_input(event.key)
+                    continue
 
-                    # --- Normal Dungeon/Tavern Gameplay Inputs ---
+                # --- Player's turn logic (for Dungeon and Tavern) ---
+                # In Tavern, player can always act. In Dungeon, only if it's player's turn and they haven't acted.
+                can_player_act_this_turn = (self.game_state == GameState.TAVERN) or \
+                                           (self.get_current_entity() == self.player and not self.player_has_acted)
+
+                if can_player_act_this_turn:
                     dx, dy = 0, 0
+                    action_taken = False # Flag for successful action that consumes a turn
 
                     if event.key in (pygame.K_UP, pygame.K_k):
                         dy = -1
+                        action_taken = self.handle_player_action(dx, dy)
                     elif event.key in (pygame.K_DOWN, pygame.K_j):
                         dy = 1
+                        action_taken = self.handle_player_action(dx, dy)
                     elif event.key in (pygame.K_LEFT, pygame.K_h):
                         dx = -1
+                        action_taken = self.handle_player_action(dx, dy)
                     elif event.key in (pygame.K_RIGHT, pygame.K_l):
                         dx = 1
+                        action_taken = self.handle_player_action(dx, dy)
                     elif event.key == pygame.K_SPACE:
                         if self.game_state == GameState.TAVERN:
                             npc = self.check_npc_interaction()
                             if npc:
                                 self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
+                                action_taken = True # Talking takes an action
                         elif self.game_state == GameState.DUNGEON:
-                            # Check for chests/mimics at player's position first
                             interactable_item = self.get_interactable_item_at(self.player.x, self.player.y)
                             if interactable_item:
                                 if isinstance(interactable_item, Mimic):
-                                    # If it's a mimic, reveal it and remove from items_on_ground
                                     interactable_item.reveal(self)
                                     self.game_map.items_on_ground.remove(interactable_item)
-                                    self.next_turn() # Interacting with a mimic takes a turn
+                                    action_taken = True # Interacting with a mimic takes a turn
                                 elif isinstance(interactable_item, Chest):
-                                    # If it's a regular chest, open it
                                     interactable_item.open(self.player, self)
-                                    self.next_turn() # Opening a chest takes a turn
+                                    action_taken = True # Opening a chest takes a turn
                                 else:
-                                    # This case should ideally not happen if only Chests/Mimics are interactable this way
                                     self.message_log.add_message("You can't interact with that item.", (150, 150, 150))
                             else:
-                                # If no interactable item, then check for attack or pickup
                                 target = self.get_adjacent_target()
                                 if target:
                                     self.handle_player_attack(target)
-                                    self.next_turn()
+                                    action_taken = True # Attacking takes a turn
                                 else:
-                                    self.handle_item_pickup()
-
-                    if dx != 0 or dy != 0:
+                                    action_taken = self.handle_item_pickup() # Pickup returns True if successful
+                    elif event.key == pygame.K_1: # Example: Use '1' for Second Wind
                         if self.game_state == GameState.DUNGEON:
-                            self.handle_player_action(dx, dy)
-                        elif self.game_state == GameState.TAVERN:
-                            self.handle_player_action(dx, dy)
+                            second_wind_ability = self.player.abilities.get("second_wind")
+                            if second_wind_ability:
+                                if second_wind_ability.use(self.player, self):
+                                    action_taken = True # Ability use takes a turn
+                            else:
+                                self.message_log.add_message("You don't have Second Wind.", (150, 150, 150))
+                    # Add more elif blocks for other abilities (e.g., K_2, K_3)                    
+
+                    # If an action was successfully taken, set player_has_acted and advance turn
+                    if action_taken:
+                        if self.game_state == GameState.DUNGEON: # Only set player_has_acted in dungeon
+                            self.player_has_acted = True
+                        self.next_turn() # Advance turn (this will handle dungeon turn order or tavern ambient)
 
         return True
 
@@ -478,11 +557,12 @@ class Game:
             item_to_pick_up = items_at_player_pos[0] # Pick up the first item found
             if self.player.inventory.add_item(item_to_pick_up):
                 item_to_pick_up.on_pickup(self.player, self) # Item's on_pickup handles removal from map
-                self.next_turn() # Picking up an item takes a turn
+                return True # Picking up an item takes a turn
             else:
                 self.message_log.add_message("Your inventory is full!", (255, 0, 0))
         else:
             self.message_log.add_message("Nothing to pick up here.", (150, 150, 150))
+        return False # No item picked up, no turn consumed
 
     def handle_inventory_input(self, key):
         """Handles input when in the inventory screen."""
@@ -510,18 +590,19 @@ class Game:
             self.game_state = GameState.INVENTORY # Should not happen, but as a safeguard
             return
 
+        action_taken_in_menu = False # Flag for actions that consume a turn
         if key == pygame.K_u: # Use item
             if self.player.use_item(self.selected_inventory_item, self):
                 self.selected_inventory_item = None
                 self.game_state = GameState.DUNGEON # Exit inventory after use
-                self.next_turn() # Using an item takes a turn
+                action_taken_in_menu = True # Using an item takes a turn
             else:
                 self.message_log.add_message(f"Cannot use {self.selected_inventory_item.name}.", (255, 100, 100))
         elif key == pygame.K_e: # Equip item
             if self.player.equip_item(self.selected_inventory_item, self):
                 self.selected_inventory_item = None
                 self.game_state = GameState.DUNGEON # Exit inventory after equip
-                self.next_turn() # Equipping an item takes a turn
+                action_taken_in_menu = True # Equipping an item takes a turn
             else:
                 self.message_log.add_message(f"Cannot equip {self.selected_inventory_item.name}.", (255, 100, 100))
         elif key == pygame.K_d: # Drop item
@@ -532,10 +613,14 @@ class Game:
             self.message_log.add_message(f"You drop the {self.selected_inventory_item.name}.", self.selected_inventory_item.color)
             self.selected_inventory_item = None
             self.game_state = GameState.DUNGEON # Exit inventory after drop
-            self.next_turn() # Dropping an item takes a turn
+            action_taken_in_menu = True # Dropping an item takes a turn
         elif key == pygame.K_c: # Cancel
             self.selected_inventory_item = None
             self.game_state = GameState.INVENTORY # Go back to inventory list
+        
+        if action_taken_in_menu:
+            self.player_has_acted = True # Set flag if action consumed turn
+            self.next_turn() # Advance turn
 
     def get_target_at(self, x, y):
         for entity in self.entities:
@@ -554,29 +639,52 @@ class Game:
         new_x = self.player.x + dx
         new_y = self.player.y + dy
 
-        if self.game_state == GameState.TAVERN and (new_x, new_y) == self.door_position:
-            self.message_log.add_message("You enter the dark dungeon...", (100, 255, 100))
-            self.generate_level(1)
-            return True
+        # --- Tavern-specific movement logic ---
+        if self.game_state == GameState.TAVERN:
+            # Check for door interaction first
+            if (new_x, new_y) == self.door_position:
+                self.message_log.add_message("You enter the dark dungeon...", (100, 255, 100))
+                self.generate_level(1)
+                return True # Player successfully moved to door and transitioned
+            
+            # Check if new position is blocked by an NPC in tavern
+            for npc in self.npcs:
+                if npc.x == new_x and npc.y == new_y and npc.alive:
+                    self.message_log.add_message(f"You can't move onto {npc.name}.", (255, 150, 0))
+                    return False # Blocked by NPC
 
-        target = self.get_target_at(new_x, new_y)
-        if target:
-            self.handle_player_attack(target)
-            self.next_turn()
-            return True
-        elif self.game_map.is_walkable(new_x, new_y):
-            self.player.x = new_x
-            self.player.y = new_y
-            self.update_fov()
+            # Check if new position is walkable in tavern
+            if self.game_map.is_walkable(new_x, new_y):
+                self.player.x = new_x
+                self.player.y = new_y
+                self.update_fov() # Update FOV even in tavern for consistency
+                return True # Player successfully moved in tavern
 
-            stairs_dir = self.check_stairs_interaction()
-            if stairs_dir:
-                self.handle_level_transition(stairs_dir)
+            # If not door, not blocked by NPC, and not walkable
+            self.message_log.add_message("You can't move there.", (255, 150, 0))
+            return False # Cannot move
+
+        # --- Dungeon-specific movement logic (original) ---
+        elif self.game_state == GameState.DUNGEON:
+            target = self.get_target_at(new_x, new_y)
+            if target:
+                self.handle_player_attack(target)
+                return True # Return True for successful action (attack)
+            elif self.game_map.is_walkable(new_x, new_y):
+                self.player.x = new_x
+                self.player.y = new_y
+                self.update_fov()
+
+                stairs_dir = self.check_stairs_interaction()
+                if stairs_dir:
+                    self.handle_level_transition(stairs_dir)
+                # No else here, as handle_level_transition will call generate_level which resets game state
+                return True # Return True for successful action (movement)
             else:
-                self.next_turn()
-            return True
+                self.message_log.add_message("You can't move there.", (255, 150, 0))
+                return False # Cannot move (blocked by wall/obstacle)
 
-        return False
+        return False # Default return if game_state is not handled (shouldn't happen)
 
     def handle_player_attack(self, target):
         """Handle player attacking an enemy with full combat feedback, including dice rolls, crits, and fumbles."""
@@ -687,10 +795,9 @@ class Game:
     def update(self, dt):
         """Handle non-player turns and game updates"""
         self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height)
-
-        # Check if player is alive before processing turns
+        
         if not self.player.alive:
-            if not hasattr(self, '_game_over_displayed'): # Prevent spamming message
+            if not hasattr(self, '_game_over_displayed'):
                 death_messages = [
                     "Your journey ends here, adventurer. The dungeon claims another soul.",
                     "The light fades from your eyes. Darkness embraces you.",
@@ -698,117 +805,119 @@ class Game:
                     "Your spirit departs this mortal coil. Game Over.",
                     "The dungeon's embrace is cold and final. You have fallen."
                 ]
-                # Choose a random death message
                 chosen_death_message = random.choice(death_messages)
                 self.message_log.add_message(chosen_death_message, (255, 0, 0))
                 self._game_over_displayed = True
-            return # IMPORTANT: Exit the update method
-
-        if self.game_state == GameState.TAVERN:
             return
-
-        # Process player's status effects at the start of their turn (or before monster turns)
-        self.player.process_status_effects(self)
-        if not self.player.alive: # Check if player died from status effect
+        
+        if self.game_state == GameState.TAVERN:
+            # In tavern, player doesn't have status effects or abilities with cooldowns
+            # that tick down per game turn. So we can return here.
             return
 
         current = self.get_current_entity()
         if current and current != self.player and current.alive:
-            # Monster's turn - they can now attack back!
-            current.take_turn(self.player, self.game_map, self) # Pass 'self' (game object) to monster's turn
+            current.take_turn(self.player, self.game_map, self)
             self.next_turn()
-            # The example poison logic was moved into monster.py's attack method
-            # if isinstance(current, Monster) and random.random() < 0.1: # 10% chance for a special ability
-            #     if current.is_adjacent_to(self.player):
-            #         self.message_log.add_message(f"The {current.name} attempts to poison you!", (255, 150, 0))
-            #         poison_dc = 10 + current.attack_power # Example DC
-            #         if not self.player.make_saving_throw("CON", poison_dc, self):
-            #             self.message_log.add_message("You are poisoned! Take 2 damage.", (255, 0, 0))
-            #             self.player.take_damage(2)
-
+        # The 'elif current == self.player:' block is no longer needed here
+        # because player.process_status_effects is now called unconditionally above.
+        # The player's turn is handled by input in handle_events.
+            
     def render(self):
         """Main render method - draws everything"""
         self.screen.fill((0, 0, 0))
-
-        if self.game_state == GameState.INVENTORY: # Render inventory screen
+        
+        if self.game_state == GameState.INVENTORY:
             self.render_inventory_screen()
-        elif self.game_state == GameState.INVENTORY_MENU: # Render inventory menu
-            self.render_inventory_screen() # Reuse inventory screen, but add menu options
+        elif self.game_state == GameState.INVENTORY_MENU:
+            self.render_inventory_screen()
             self.render_inventory_menu()
         else:
             self.render_map_with_fov()
-            self.render_entities()
-            self.render_items_on_ground() # Render items on the ground
-
+            self.render_items_on_ground() # Render items before entities so entities are on top
+            self.render_entities() # Render entities last so they are on top
+        
         self.draw_ui()
         self.message_log.render(self.screen)
-
+        
         pygame.display.flip()
 
     def render_map_with_fov(self):
         map_render_height = config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT
-
+        
         for y in range(self.camera.y, min(self.camera.y + self.camera.viewport_height, self.game_map.height)):
             for x in range(self.camera.x, min(self.camera.x + self.camera.viewport_width, self.game_map.width)):
                 screen_x, screen_y = self.camera.world_to_screen(x, y)
-
                 draw_x = screen_x * config.TILE_SIZE
                 draw_y = screen_y * config.TILE_SIZE
-
                 if draw_y < map_render_height:
-                    if self.game_state == GameState.TAVERN:
-                        tile = self.game_map.tiles[y][x]
-                        char_surface = self.font.render(tile.char, True, tile.color)
-                        self.screen.blit(char_surface, (draw_x, draw_y))
-                    else:
-                        if self.fov.is_visible(x, y):
-                            tile = self.game_map.tiles[y][x]
-                            char_surface = self.font.render(tile.char, True, tile.color)
-                            self.screen.blit(char_surface, (draw_x, draw_y))
-                        elif self.fov.is_explored(x, y):
-                            tile = self.game_map.tiles[y][x]
-                            char_surface = self.font.render(tile.char, True, tile.dark_color)
-                            self.screen.blit(char_surface, (draw_x, draw_y))
+                    visibility_type = self.fov.get_visibility_type(x, y) # NEW: Get visibility type
+                    if visibility_type == 'unexplored':
+                        continue # Don't render unexplored areas
+                    tile = self.game_map.tiles[y][x]
+                    render_color = tile.color # Default to full color
+                    if visibility_type == 'player':
+                        render_color = tile.color # Full brightness
+                    elif visibility_type == 'torch':
+                        # Darken torch FOV compared to player FOV
+                        render_color = tuple(c // 2 for c in tile.color) # Example: Half brightness
+                    elif visibility_type == 'explored':
+                        render_color = tile.dark_color # Dimmed color
+                    
+                    char_surface = self.font.render(tile.char, True, render_color)
+                    self.screen.blit(char_surface, (draw_x, draw_y))
 
     def render_entities(self):
         map_render_height = config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT
-
+        
         for entity in self.entities:
             if entity.alive and self.camera.is_in_viewport(entity.x, entity.y):
                 screen_x, screen_y = self.camera.world_to_screen(entity.x, entity.y)
-
                 draw_x = screen_x * config.TILE_SIZE
                 draw_y = screen_y * config.TILE_SIZE
-
+                
                 if draw_y < map_render_height:
-                    if self.game_state == GameState.TAVERN:
-                        entity_surface = self.font.render(entity.char, True, entity.color)
-                        self.screen.blit(entity_surface, (draw_x, draw_y))
-                    else:
-                        if self.fov.is_visible(entity.x, entity.y):
-                            entity_surface = self.font.render(entity.char, True, entity.color)
-                            self.screen.blit(entity_surface, (draw_x, draw_y))
+                    visibility_type = self.fov.get_visibility_type(entity.x, entity.y) # NEW: Get visibility type
+                    if visibility_type == 'unexplored' or visibility_type == 'explored':
+                        continue # Don't render entities if not currently visible
+                    render_color = entity.color # Default to full color
+                    
+                    if visibility_type == 'player':
+                        render_color = entity.color # Full brightness
+                    elif visibility_type == 'torch':
+                        # Darken torch FOV for entities too
+                        render_color = tuple(c // 2 for c in entity.color) # Example: Half brightness
+                    
+                    entity_surface = self.font.render(entity.char, True, render_color)
+                    self.screen.blit(entity_surface, (draw_x, draw_y))
 
     def render_items_on_ground(self):
         """Render items lying on the dungeon floor."""
         map_render_height = config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT
-
+        
         for item in self.game_map.items_on_ground:
             if self.camera.is_in_viewport(item.x, item.y):
                 screen_x, screen_y = self.camera.world_to_screen(item.x, item.y)
-
                 draw_x = screen_x * config.TILE_SIZE
                 draw_y = screen_y * config.TILE_SIZE
-
                 if draw_y < map_render_height:
-                    if self.fov.is_visible(item.x, item.y):
-                        item_surface = self.font.render(item.char, True, item.color)
-                        self.screen.blit(item_surface, (draw_x, draw_y))
-                    elif self.fov.is_explored(item.x, item.y):
+                    visibility_type = self.fov.get_visibility_type(item.x, item.y) # NEW: Get visibility type
+                    if visibility_type == 'unexplored':
+                        continue # Don't render unexplored items
+                    
+                    render_color = item.color # Default to full color
+                    
+                    if visibility_type == 'player':
+                        render_color = item.color # Full brightness
+                    elif visibility_type == 'torch':
+                        # Darken torch FOV for items too
+                        render_color = tuple(c // 2 for c in item.color) # Example: Half brightness
+                    elif visibility_type == 'explored':
                         # Render a darker version of the item if explored but not visible
-                        dark_item_color = tuple(c // 3 for c in item.color)
-                        item_surface = self.font.render(item.char, True, dark_item_color)
-                        self.screen.blit(item_surface, (draw_x, draw_y))
+                        render_color = tuple(c // 3 for c in item.color) # Use a slightly darker version for explored items
+                    
+                    item_surface = self.font.render(item.char, True, render_color)
+                    self.screen.blit(item_surface, (draw_x, draw_y))
 
     def render_inventory_screen(self):
         """Renders the inventory screen."""
@@ -921,6 +1030,16 @@ class Game:
         pygame.draw.rect(self.screen, hp_color, (panel_offset_x, current_y, fill_width, bar_height))
         current_y += bar_height + 15
         
+        # --- NEW: Abilities Section in UI ---
+        self._draw_text(self.font_header, "ABILITIES", (255, 215, 0), panel_offset_x, current_y)
+        current_y += self.font_header.get_linesize() + 10
+        
+        for ab_key, ability in self.player.abilities.items():
+            cooldown_str = f" (CD: {ability.current_cooldown})" if ability.current_cooldown > 0 else ""
+            self._draw_text(self.font_info, f"{ability.name}{cooldown_str}", (255, 255, 255), panel_offset_x, current_y)
+            current_y += self.font_info.get_linesize() + 5
+        current_y += self.font_info.get_linesize() + 15 # Add some space
+
         # --- ABILITY SCORES SECTION ---
         self._draw_text(self.font_header, "ABILITIES", (255, 215, 0), panel_offset_x, current_y)
         current_y += self.font_header.get_linesize() + 10

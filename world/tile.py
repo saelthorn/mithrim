@@ -4,8 +4,14 @@ class Tile:
         self.block_sight = block_sight if block_sight is not None else blocked
         self.char = char
         self.color = color
-        # Make dark_color even darker
-        self.dark_color = tuple(c // 4 for c in color) # Or c // 5 for even darker
+        # Make dark_color significantly darker
+        # Option 1: Divide by a larger number (e.g., 8 or 10)
+        self.dark_color = tuple(c // 5 for c in color) # Or c // 10 for even darker
+        # Option 2: Set a fixed dark color for all explored tiles (simpler, but less nuanced)
+        # self.dark_color = (30, 30, 30) # A very dark gray
+        # Option 3: Mix with black (more sophisticated dimming)
+        # dark_factor = 0.2 # 20% of original color, 80% black
+        # self.dark_color = tuple(int(c * dark_factor) for c in color)
 
 # Dungeon tile templates
 floor = Tile(blocked=False, char='.', color=(200, 180, 50))
