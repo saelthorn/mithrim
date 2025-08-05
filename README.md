@@ -73,10 +73,3 @@ Pull requests are welcome! For major changes, please open an issue first to disc
 * **Darkest Dungeon**, **Stoneshard**, **Rogue Legacy** – Roguelike & turn-based inspirations
 * **Baldur’s Gate 3**, **Divinity: Original Sin II** – Tactical combat & party dynamics
 
-## 📖 License
-
-This project is licensed under the [MIT License](LICENSE).
-
----
-
-Let me know if you'd like a version more tailored to Unity, Godot, or another engine/framework — or if you want the README to reflect your actual folder structure or code organization.
