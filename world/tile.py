@@ -21,7 +21,7 @@ bones = Tile(blocked=False, char='&', color=(200, 200, 180))
 torch = Tile(blocked=True, char='!', color=(255, 165, 0), block_sight=False)
 altar = Tile(blocked=True, char='^', color=(150, 0, 150))
 statue = Tile(blocked=True, char='S', color=(120, 120, 120))
-crate = Tile(blocked=True, char='C', color=(139, 69, 19), block_sight=False)
+crate = Tile(blocked=True, char='B', color=(139, 69, 19), block_sight=False)
 barrel = Tile(blocked=True, char='O', color=(100, 50, 0), block_sight=False)
 well = Tile(blocked=True, char='W', color=(0, 150, 255), block_sight=False)
 

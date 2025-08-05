@@ -1,6 +1,6 @@
 import random
 from core.inventory import Inventory
-from items.items import Weapon, Armor, Potion
+from core.status_effects import Poisoned # <--- NEW IMPORT
 
 class Player:
     _ability_name_map = {
@@ -19,13 +19,13 @@ class Player:
 
         self.level = 1
         self.current_xp = 0
-        self.xp_to_next_level = 30
+        self.xp_to_next_level = 20
         self.alive = True
 
         # --- D&D 5e Ability Scores ---
         self.strength = 10
         self.dexterity = 14
-        self.constitution = 13
+        self.constitution = 130
         self.intelligence = 10
         self.wisdom = 12
         self.charisma = 8
@@ -40,14 +40,12 @@ class Player:
             "CHA": False,
         }
 
-        # --- Derived Stats (now safe to calculate) ---
+        # --- Derived Stats ---
         self.proficiency_bonus = 2
         self.max_hp = self._calculate_max_hp()
         self.hp = self.max_hp
 
-        # Call update_derived_stats to set initial combat stats correctly
-        # This will use the newly initialized equipped_weapon/armor (which are None)
-        self.update_derived_stats()
+        self.update_derived_stats() # This will calculate attack_power, attack_bonus, armor_class
 
         self.x = x
         self.y = y
@@ -55,9 +53,12 @@ class Player:
         self.name = name
         self.color = color
         self.initiative = 0
+        self.blocks_movement = True # Player blocks movement
 
         self.inventory = Inventory(capacity=10)
-        self.inventory.owner = self # Set the owner of the inventory
+        self.inventory.owner = self
+
+        self.active_status_effects = [] # <--- NEW: List to hold active status effects
 
     def get_ability_modifier(self, score):
         """Calculates the D&D 5e ability modifier from a score."""
@@ -111,39 +112,25 @@ class Player:
         return base_hp_at_level_1 + (self.level - 1) * (6 + con_modifier)
 
     def _calculate_ac(self):
-        # Base AC is 10 + DEX modifier
         base_ac = 10 + self.get_ability_modifier(self.dexterity)
         if self.equipped_armor:
             base_ac += self.equipped_armor.ac_bonus
         return base_ac
 
-    def _calculate_attack_bonus(self):
-        # Base attack bonus is DEX modifier + proficiency bonus
-        bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus
-        if self.equipped_weapon:
-            bonus += self.equipped_weapon.attack_bonus
-        return bonus
-
-    def _calculate_attack_power(self):
-        # Base attack power is 8, modified by equipped weapon
-        power = 8 # Base value
-        if self.equipped_weapon:
-            # For simplicity, let's say weapon damage_modifier adds to attack_power
-            # In a full D&D system, this would be more complex (damage dice, etc.)
-            power += self.equipped_weapon.damage_modifier
-        return power
-
     def update_derived_stats(self):
-        """Recalculate stats that depend on equipped items or abilities."""
-        self.max_hp = self._calculate_max_hp() # Max HP can change with CON
-        self.armor_class = self._calculate_ac()
-        self.attack_bonus = self._calculate_attack_bonus()
-        self.attack_power = self._calculate_attack_power() # Update attack power based on weapon
+        """Recalculates combat stats based on current abilities and equipment."""
+        # For now, attack_power is fixed, but could be based on STR/DEX + weapon
+        self.attack_power = 8 # Base attack power
+        if self.equipped_weapon:
+            # Assuming weapon damage_dice is handled in Game.handle_player_attack
+            # This attack_power could be a flat bonus from the weapon
+            self.attack_power += self.equipped_weapon.damage_modifier
 
-    def attack(self, target):
-        # This method seems to be a placeholder, returning 0.
-        # Actual attack logic is in Game.handle_player_attack.
-        return 0
+        self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus
+        if self.equipped_weapon:
+            self.attack_bonus += self.equipped_weapon.attack_bonus
+
+        self.armor_class = self._calculate_ac()
 
     def gain_xp(self, amount, game_instance=None):
         self.current_xp += amount
@@ -155,6 +142,7 @@ class Player:
         self.hp -= damage_taken
 
         if self.hp <= 0:
+            self.hp = 0 # Ensure HP doesn't go negative
             self.alive = False
         return damage_taken
 
@@ -185,8 +173,10 @@ class Player:
 
         self.max_hp = self._calculate_max_hp()
         self.hp = self.max_hp
-        self.attack_power += 1 # Base attack power increase
-        self.update_derived_stats() # Recalculate all derived stats
+        self.update_derived_stats() # Recalculate stats after level up
+
+        if game_instance:
+            game_instance.message_log.add_message(f"You reached Level {self.level}!", (0, 255, 0))
 
     def roll_initiative(self):
         self.initiative = random.randint(1, 20) + self.get_ability_modifier(self.dexterity)
@@ -207,6 +197,7 @@ class Player:
         return False
 
     def move_or_attack(self, dx, dy, game_map, entities):
+        # This method is largely deprecated now that Game.handle_player_action handles movement/attack
         new_x = self.x + dx
         new_y = self.y + dy
 
@@ -225,43 +216,67 @@ class Player:
 
         return False
 
-    # --- NEW METHODS FOR ITEM MANAGEMENT ---
-    def equip_item(self, item, game_instance):
-        if isinstance(item, Weapon):
-            if self.equipped_weapon:
-                self.unequip_item(self.equipped_weapon, game_instance)
-            self.equipped_weapon = item
-            game_instance.message_log.add_message(f"You equip the {item.name}.", (100, 255, 100))
-        elif isinstance(item, Armor):
-            if self.equipped_armor:
-                self.unequip_item(self.equipped_armor, game_instance)
-            self.equipped_armor = item
-            game_instance.message_log.add_message(f"You equip the {item.name}.", (100, 255, 100))
-        else:
-            game_instance.message_log.add_message(f"You cannot equip {item.name}.", (255, 100, 100))
-            return False
-
-        self.update_derived_stats() # Recalculate stats after equipping
-        return True
-
-    def unequip_item(self, item, game_instance):
-        if item == self.equipped_weapon:
-            self.equipped_weapon = None
-            game_instance.message_log.add_message(f"You unequip the {item.name}.", (150, 150, 150))
-        elif item == self.equipped_armor:
-            self.equipped_armor = None
-            game_instance.message_log.add_message(f"You unequip the {item.name}.", (150, 150, 150))
-        else:
-            game_instance.message_log.add_message(f"You don't have {item.name} equipped.", (255, 100, 100))
-            return False
-
-        self.update_derived_stats() # Recalculate stats after unequipping
-        return True
-
     def use_item(self, item, game_instance):
-        if isinstance(item, Potion):
-            item.use(self, game_instance) # Potion's use method handles healing and removal
+        """Attempts to use an item from inventory."""
+        if hasattr(item, 'use'):
+            item.use(self, game_instance)
+            self.update_derived_stats() # Update stats if item affects them (e.g., potion)
             return True
         else:
-            game_instance.message_log.add_message(f"You cannot use {item.name} this way.", (255, 100, 100))
+            game_instance.message_log.add_message(f"You cannot use the {item.name}.", (255, 100, 100))
             return False
+
+    def equip_item(self, item, game_instance):
+        """Attempts to equip an item from inventory."""
+        from items.items import Weapon, Armor # Import locally to avoid circular dependency
+
+        if isinstance(item, Weapon):
+            if self.equipped_weapon:
+                # Unequip current weapon first
+                self.inventory.add_item(self.equipped_weapon)
+                game_instance.message_log.add_message(f"You unequip {self.equipped_weapon.name}.", (150, 150, 150))
+            self.equipped_weapon = item
+            self.inventory.remove_item(item) # Remove from inventory after equipping
+            game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
+            self.update_derived_stats()
+            return True
+        elif isinstance(item, Armor):
+            if self.equipped_armor:
+                # Unequip current armor first
+                self.inventory.add_item(self.equipped_armor)
+                game_instance.message_log.add_message(f"You unequip {self.equipped_armor.name}.", (150, 150, 150))
+            self.equipped_armor = item
+            self.inventory.remove_item(item) # Remove from inventory after equipping
+            game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
+            self.update_derived_stats()
+            return True
+        else:
+            game_instance.message_log.add_message(f"You cannot equip the {item.name}.", (255, 100, 100))
+            return False
+
+    # --- Status Effect Management Methods ---
+    def add_status_effect(self, effect, game_instance):
+        """Adds a status effect to the player."""
+        # Check if an effect of the same type is already active
+        for existing_effect in self.active_status_effects:
+            if existing_effect == effect: # Uses the __eq__ method of StatusEffect
+                # If it's the same type, refresh duration or stack (for now, just refresh)
+                existing_effect.turns_left = effect.duration
+                game_instance.message_log.add_message(f"{self.name}'s {effect.name} effect is refreshed.", (200, 200, 255))
+                return
+
+        self.active_status_effects.append(effect)
+        effect.apply(self, game_instance)
+
+    def process_status_effects(self, game_instance):
+        """Processes all active status effects on the player."""
+        effects_to_remove = []
+        for effect in self.active_status_effects:
+            effect.tick(self, game_instance)
+            if effect.turns_left <= 0:
+                effects_to_remove.append(effect)
+
+        for effect in effects_to_remove:
+            self.active_status_effects.remove(effect)
+            effect.remove(self, game_instance)
+
