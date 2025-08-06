@@ -41,7 +41,7 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
     floor_decoration_tiles = [rubble, bones, crate, barrel, well]
     floor_decoration_chance = 0.05
 
-    torch_placement_chance = 0.15
+    torch_placement_chance = 0.1
     torch_light_sources = []
 
     # List to store chests (and later mimics)
@@ -136,6 +136,7 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
             if stairs_up_x < game_map.width and stairs_up_y < game_map.height:
                 game_map.tiles[stairs_up_y][stairs_up_x] = stairs_up
                 stairs_positions['up'] = (stairs_up_x, stairs_up_y)
+    
     # Add generated chests and mimics to items_on_ground
     # Mimics are initially treated as items on the ground for rendering and interaction
     game_map.items_on_ground.extend(chests_and_mimics)

@@ -11,6 +11,9 @@ UI_PANEL_WIDTH_RATIO = 0.25 # UI panel takes 25% of screen width
 # Message log height as a ratio of the total screen height
 MESSAGE_LOG_HEIGHT_RATIO = 0.25 # Increased to 25% for a taller box
 
+# Set TILE_SIZE to match your tileset's individual tile size (e.g., 12x12)
+TILE_SIZE = 12 # <--- CHANGE THIS TO 12
+
 # Minimum tile size to prevent elements from becoming too small
 MIN_TILE_SIZE = 12
 

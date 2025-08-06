@@ -1,4 +1,3 @@
-# MultipleFiles/core/abilities.py
 
 class Ability:
     def __init__(self, name, description, cost=0, cooldown=0):
@@ -37,7 +36,7 @@ class Ability:
 
 class SecondWind(Ability):
     def __init__(self):
-        super().__init__("Second Wind", "Heal yourself for a small amount of HP.", cooldown=5) # 5-turn cooldown
+        super().__init__("Second Wind", "Heal yourself for a small amount of HP.", cooldown=50) # 50-turn cooldown
 
     def use(self, user, game_instance):
         # Call base class use to handle cooldown and initial checks.

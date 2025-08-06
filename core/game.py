@@ -12,7 +12,7 @@ from entities.monster import Mimic
 from entities.tavern_npcs import create_tavern_npcs
 from entities.dungeon_npcs import DungeonHealer
 from entities.tavern_npcs import NPC # Keep this import for NPC type checking
-from core.abilities import SecondWind
+from core.abilities import SecondWind, PowerAttack
 from core.message_log import MessageBox
 from items.items import Potion, Weapon, Armor, Chest
 from core.pathfinding import astar # Keep this import
@@ -180,21 +180,37 @@ class Game:
             if (0 <= x < self.game_map.width and 0 <= y < self.game_map.height and
                 self.game_map.is_walkable(x, y)):
 
-                if level_number <= 2:
-                    monster = Monster(x, y, 'o', f'Orc{i+1}', (63, 127, 63))
+                if level_number <= 3:
+                    monster = Monster(x, y, 'g', f'Goblin{i+1}', (0, 130, 8))
+                    monster.can_poison = True
+                    monster.poison_dc = 12
+                    monster.hp = 7 + level_number
+                    monster.max_hp = 8 + level_number
+                    monster.attack_power = 2 + (level_number - 1)
+                    monster.armor_class = 12
+                    monster.base_xp = 6 + (level_number * 2)
+                elif level_number <= 6:
+                    monster = Monster(x, y, '&', f'Skeleton{i+1}', (215, 152, 152))
+                    monster.hp = 9 + level_number
+                    monster.max_hp = 10 + level_number
+                    monster.attack_power = 3 + (level_number - 1)
+                    monster.armor_class = 12
+                    monster.base_xp = 8 + (level_number * 2)
+                elif level_number <= 8:
+                    monster = Monster(x, y, 'O', f'Orc{i+1}', (63, 127, 63))
                     # Make Orcs capable of poisoning for testing
                     monster.can_poison = True
                     monster.poison_dc = 12
-                    monster.hp = 8 + level_number
-                    monster.max_hp = 8 + level_number
-                    monster.attack_power = 3 + (level_number - 1)
+                    monster.hp = 11 + level_number
+                    monster.max_hp = 12 + level_number
+                    monster.attack_power = 4 + (level_number - 1)
                     monster.armor_class = 13
                     monster.base_xp = 10 + (level_number * 2)
-                elif level_number <= 4:
+                elif level_number <= 12:
                     monster = Monster(x, y, 'T', f'Troll{i+1}', (127, 63, 63))
-                    monster.hp = 12 + level_number * 2
-                    monster.max_hp = 12 + level_number * 2
-                    monster.attack_power = 4 + level_number
+                    monster.hp = 14 + level_number * 2
+                    monster.max_hp = 15 + level_number * 2
+                    monster.attack_power = 5 + level_number
                     monster.armor_class = 15
                     monster.base_xp = 20 + (level_number * 3)
                 else:
@@ -517,6 +533,8 @@ class Game:
                                     action_taken = True # Attacking takes a turn
                                 else:
                                     action_taken = self.handle_item_pickup() # Pickup returns True if successful
+                    
+                    
                     elif event.key == pygame.K_1: # Example: Use '1' for Second Wind
                         if self.game_state == GameState.DUNGEON:
                             second_wind_ability = self.player.abilities.get("second_wind")
@@ -526,6 +544,16 @@ class Game:
                             else:
                                 self.message_log.add_message("You don't have Second Wind.", (150, 150, 150))
                     # Add more elif blocks for other abilities (e.g., K_2, K_3)                    
+                    elif event.key == pygame.K_2: # Example: Use '2' for Power Attack
+                        if self.game_state == GameState.DUNGEON:
+                            power_attack_ability = self.player.abilities.get("power_attack")
+                            if power_attack_ability:
+                                if power_attack_ability.use(self.player, self):
+                                    action_taken = True # Ability use takes a turn
+                            else:
+                                self.message_log.add_message("You don't have Power Attack.", (150, 150, 150))
+                    # Add more elif blocks for other abilities (e.g., K_2, K_3)                    
+
 
                     # If an action was successfully taken, set player_has_acted and advance turn
                     if action_taken:

@@ -1,5 +1,3 @@
-# MultipleFiles/items/items.py
-
 import random # Add this import for potential random loot generation later
 
 class Item:
@@ -102,13 +100,22 @@ class Chest(Item):
             game_instance.message_log.add_message("Your inventory is full, you couldn't take anything.", (255, 0, 0))
 
 # --- Pre-defined Items (Examples) ---
-healing_potion = Potion(
-    name="Healing Potion",
+lesser_healing_potion = Potion(
+    name="Lesser Healing Potion",
     char="!",
-    color=(255, 0, 0),
+    color=(255, 80, 80),
     description="Restores a small amount of health.",
     effect_type="heal",
     effect_value=8 # Heals 8 HP
+)
+
+greater_healing_potion = Potion(
+    name="Greater Healing Potion",
+    char="!",
+    color=(240, 0, 0),
+    description="Restores a small amount of health.",
+    effect_type="heal",
+    effect_value=24 # Heals 8 HP
 )
 
 short_sword = Weapon(
@@ -121,6 +128,16 @@ short_sword = Weapon(
     attack_bonus=0
 )
 
+long_sword = Weapon(
+    name="Long Sword",
+    char="|",
+    color=(150, 150, 150),
+    description="A adventurer's sword.",
+    damage_dice="1d6",
+    damage_modifier=1,
+    attack_bonus=2
+)
+
 leather_armor = Armor(
     name="Leather Armor",
     char="[",
@@ -129,14 +146,22 @@ leather_armor = Armor(
     ac_bonus=1 # Adds 1 to base AC
 )
 
+chainmail_armor = Armor(
+    name="Chainmail Armor",
+    char="[",
+    color=(175, 175, 175),
+    description="Chainmail armor.",
+    ac_bonus=3 # Adds 1 to base AC
+)
+
 # Example function to create random loot for a chest
 def generate_random_loot(level_number):
     loot = []
     # Basic loot pool
-    loot_pool = [healing_potion, short_sword, leather_armor]
+    loot_pool = [lesser_healing_potion, greater_healing_potion, short_sword, long_sword, leather_armor, chainmail_armor]
 
     # Add 1-3 random items
-    num_items = random.randint(1, 3)
+    num_items = random.randint(1, 2)
     for _ in range(num_items):
         chosen_item_template = random.choice(loot_pool)
         # Create a new instance of the item

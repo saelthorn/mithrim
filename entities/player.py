@@ -1,6 +1,6 @@
 import random
 from core.inventory import Inventory
-from core.abilities import SecondWind # <--- NEW IMPORT
+from core.abilities import SecondWind, PowerAttack # <--- NEW IMPORT
 from core.status_effects import StatusEffect, Poisoned # Ensure StatusEffect is imported
 
 
@@ -17,7 +17,7 @@ class Player:
     def __init__(self, x, y, char, name, color):
         self.level = 1
         self.current_xp = 0
-        self.xp_to_next_level = 10
+        self.xp_to_next_level = 20
         self.alive = True
        
         # --- D&D 5e Ability Scores ---
@@ -49,7 +49,7 @@ class Player:
         self.max_hp = self._calculate_max_hp() # This calls get_ability_modifier
         self.hp = self.max_hp
         
-        self.attack_power = 8
+        self.attack_power = 6
         self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus # This calls get_ability_modifier
         self.armor_class = self._calculate_ac() # This calls get_ability_modifier
         
