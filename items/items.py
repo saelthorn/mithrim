@@ -70,21 +70,17 @@ class Chest(Item):
         self.y = y
         self.opened = False
         self.contents = contents if contents is not None else [] # List of Item objects
-
     def open(self, opener, game_instance):
         """Opens the chest and transfers its contents to the opener's inventory."""
         if self.opened:
             game_instance.message_log.add_message("This chest is already empty.", (150, 150, 150))
             return
-
         game_instance.message_log.add_message("You open the chest...", (255, 215, 0))
         self.opened = True
-        self.char = 'c' # Change appearance to open chest
-
+        self.char = 'O' # <--- CHANGE THIS LINE to the new character for open chest
         if not self.contents:
             game_instance.message_log.add_message("It's empty!", (150, 150, 150))
             return
-
         items_given = []
         for item in list(self.contents): # Iterate over a copy as we modify the list
             if opener.inventory.add_item(item):
@@ -93,7 +89,6 @@ class Chest(Item):
             else:
                 game_instance.message_log.add_message(f"Your inventory is full! You couldn't pick up the {item.name}.", (255, 0, 0))
                 # Leave item in chest if inventory is full
-
         if items_given:
             game_instance.message_log.add_message(f"You found: {', '.join(items_given)}!", (0, 255, 0))
         else:
@@ -130,7 +125,7 @@ short_sword = Weapon(
 
 long_sword = Weapon(
     name="Long Sword",
-    char="|",
+    char="/",
     color=(150, 150, 150),
     description="A adventurer's sword.",
     damage_dice="1d6",

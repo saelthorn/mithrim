@@ -2,13 +2,15 @@ import pygame
 from pygame import Rect
 
 class MessageBox:
-    def __init__(self, x, y, width, height, font=None, font_size=16):
+    def __init__(self, x, y, width, height, font=None):
         self.rect = Rect(x, y, width, height)
         self.messages = []
+        
         if font is None:
-            self.font = pygame.font.Font(None, font_size)
+            self.font = pygame.font.Font(None, 16)
         else:
-            self.font = pygame.font.Font(font, font_size)
+            self.font = pygame.font.Font(font, 16)
+
         self.line_height = self.font.get_linesize()
         self.max_lines = height // self.line_height
 

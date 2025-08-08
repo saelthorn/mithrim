@@ -38,7 +38,7 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
     rooms = []
     stairs_positions = {}
     
-    floor_decoration_tiles = [rubble, bones, crate, barrel, well]
+    floor_decoration_tiles = [rubble, crate, barrel, well]
     floor_decoration_chance = 0.05
 
     torch_placement_chance = 0.1
