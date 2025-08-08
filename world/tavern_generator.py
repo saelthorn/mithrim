@@ -42,10 +42,12 @@ def generate_tavern(game_map):
                     game_map.tiles[chair_y][chair_x] = chair
     
     # Add fireplace on the left wall
-    fireplace_x = 2
-    fireplace_y = height // 3
+    fireplace_x = 1
+    fireplace_y = height // 2
     if fireplace_y > 2 and fireplace_y < height - 2:
         game_map.tiles[fireplace_y][fireplace_x] = fireplace
+    if fireplace_y > 2:
+        game_map.tiles[fireplace_y - 1][fireplace_x] = fireplace         
     
     # Add exit door on the bottom wall
     door_x = width // 2

@@ -1,27 +1,28 @@
 # MultipleFiles/main.py
 import pygame
-import config # Import config to get initial screen dimensions
-from core.game import Game # Ensure Game class is imported
+import config
+from core.game import Game
+import graphics
 
 def main():
     pygame.init()
     
-    # Set the display mode to the initial base resolution and make it RESIZABLE.
-    # This will create a windowed screen that can be resized.
-    # Do NOT include pygame.FULLSCREEN here.
+    # --- MODIFIED: Removed pygame.SCALED flag ---
     screen = pygame.display.set_mode((config.BASE_SCREEN_WIDTH, config.BASE_SCREEN_HEIGHT), pygame.RESIZABLE)
-    pygame.display.set_caption("D&D Roguelike")
+    
+    pygame.display.set_caption("Varethis")
+    
+    graphics.load_tileset('assets/tile_set.png') 
+    graphics.setup_tile_mapping() 
     clock = pygame.time.Clock()
-
-    game = Game(screen)
-
+    game = Game(screen) 
+    
     running = True
     while running:
-        dt = clock.tick(config.FPS) / 1000  # Delta time in seconds
+        dt = clock.tick(config.FPS) / 1000
         running = game.handle_events()
         game.update(dt)
         game.render()
-
     pygame.quit()
 
 if __name__ == "__main__":
