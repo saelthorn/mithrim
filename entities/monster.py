@@ -6,7 +6,7 @@ class Monster:
     def __init__(self, x, y, char, name, color):
         self.x = x
         self.y = y
-        self.char = char
+        self.char = char # This is the character that will be drawn
         self.name = name
         self.color = color
         self.alive = True
@@ -17,13 +17,12 @@ class Monster:
         self.base_xp = 10
         self.initiative = 0
         self.blocks_movement = True
-        self.active_status_effects = [] # <--- NEW: List to hold active status effects
-
-        # --- Poison specific attributes (for testing) ---
-        self.can_poison = False # Default
-        self.poison_dc = 10 # DC for player's CON save
-        self.poison_duration = 3 # Turns
-        self.poison_damage_per_turn = 2 # Damage
+        self.active_status_effects = []
+        
+        self.can_poison = False
+        self.poison_dc = 10
+        self.poison_duration = 3
+        self.poison_damage_per_turn = 2
 
     def roll_initiative(self):
         """Roll for turn order"""
@@ -217,43 +216,74 @@ class Monster:
 
 
 
+
 class Mimic(Monster):
-    def __init__(self, x, y):
-        # Mimics start disguised as a chest
-        super().__init__(x, y, 'C', 'Chest', (139, 69, 19)) # Same char and color as Chest
-        self.name = "Mimic" # Actual name
+    def __init__(self, x, y, disguise_char, initial_color): 
+        super().__init__(x, y, disguise_char, 'Mimic', initial_color) 
         self.disguised = True
+        
+        self._disguise_char = disguise_char 
+        self._disguise_color = initial_color 
+        if disguise_char == 'K':
+            self.revealed_char = 'K' 
+        elif disguise_char == 'B':
+            self.revealed_char = 'B' 
+        elif disguise_char == 'C':
+            self.revealed_char = 'M' # This is correct for a chest mimic to become 'M'
+        else:
+            self.revealed_char = 'M' 
+        self.revealed_color = (255, 0, 0) 
+        
         self.hp = 20
         self.max_hp = 20
         self.attack_power = 5
         self.armor_class = 14
-        self.base_xp = 30 # More XP for a trickier monster
-        self.blocks_movement = True # Mimics block movement even when disguised
-    
+        self.base_xp = 30
+        self.blocks_movement = True # Mimics block movement when disguised
+
     def reveal(self, game_instance):
-        """Mimic reveals its true form."""
+        """Mimic fully reveals its true form (Stage 2)."""
         if self.disguised:
+            print(f"DEBUG: Mimic at ({self.x},{self.y}) revealing. Current char (before change): {self.char}")
             self.disguised = False
-            self.char = 'M' # Change character to 'M' for Mimic
-            self.color = (255, 0, 0) # Change color to red
-            game_instance.message_log.add_message("The chest suddenly sprouts teeth and eyes! It's a MIMIC!", (255, 0, 0))
+            
+            # --- MODIFIED: Use self.revealed_char for the revealed form ---
+            self.char = self.revealed_char 
+            self.color = self.revealed_color 
+            
+            game_instance.message_log.add_message("The object suddenly sprouts teeth and eyes! It's a MIMIC!", (255, 0, 0))
             game_instance.message_log.add_message("Prepare for battle!", (255, 100, 100))
+            print(f"DEBUG: Mimic at ({self.x},{self.y}) revealed. New char: {self.char}, color: {self.color}")
+
             # Mimic immediately attacks the player if adjacent after revealing
             if self.is_adjacent_to(game_instance.player):
                 self.attack(game_instance.player, game_instance)
+            
             # Ensure it's added to the turn order if it wasn't already (e.g., if it was just an item)
-            if self not in game_instance.turn_order:
+            if self not in game_instance.entities:
                 game_instance.entities.append(self)
+                print(f"DEBUG: Mimic added to game.entities.")
+            if self not in game_instance.turn_order:
                 self.roll_initiative()
                 game_instance.turn_order.append(self)
                 game_instance.turn_order = sorted(game_instance.turn_order, key=lambda e: e.initiative, reverse=True)
+                print(f"DEBUG: Mimic added to game.turn_order.")
+
+            # Remove revealed mimic from items_on_ground upon reveal
+            if self in game_instance.game_map.items_on_ground:
+                game_instance.game_map.items_on_ground.remove(self)
+                print(f"DEBUG: Mimic removed from game_map.items_on_ground upon reveal.")
 
     def take_turn(self, player, game_map, game):
         """Mimic's turn logic."""
         if not self.alive:
             return
-        if self.disguised:
-            # Disguised mimics don't move or attack on their own turn
+        
+        if self.disguised: # Should not happen if handle_player_action works
             return
-        # If not disguised, behave like a normal monster
-        super().take_turn(player, game_map, game)
+        
+        # If not disguised, behave like a normal monster (Stage 2 combat form)
+        super().take_turn(player, game_map, game)                
+
+
+

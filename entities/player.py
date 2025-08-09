@@ -111,7 +111,7 @@ class Player:
             return False
 
     def _calculate_max_hp(self):
-        base_hp_at_level_1 = 10
+        base_hp_at_level_1 = 12  # D&D 5e Player starts with 12 HP at level 1
         con_modifier = self.get_ability_modifier(self.constitution)
         return base_hp_at_level_1 + (self.level - 1) * (6 + con_modifier)
 

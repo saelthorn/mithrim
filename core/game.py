@@ -8,7 +8,7 @@ from world.dungeon_generator import generate_dungeon
 from world.tavern_generator import generate_tavern
 from entities.player import Player
 from entities.monster import Monster
-from entities.monster import Mimic
+from entities.monster import Mimic # <--- Ensure Mimic is imported
 from entities.tavern_npcs import create_tavern_npcs
 from entities.dungeon_npcs import DungeonHealer
 from entities.tavern_npcs import NPC # Keep this import for NPC type checking
@@ -16,7 +16,7 @@ from core.abilities import SecondWind, PowerAttack
 from core.message_log import MessageBox
 from items.items import Potion, Weapon, Armor, Chest
 from core.pathfinding import astar # Keep this import
-from world.tile import floor
+from world.tile import floor, MimicTile
 import graphics # Import the graphics module
 
 
@@ -76,6 +76,7 @@ class Game:
         self._init_fonts() # Fonts depend on TILE_SIZE and screen dimensions
         
         self.game_state = GameState.TAVERN
+        self._previous_game_state = GameState.TAVERN # NEW: Initialize previous state
         self.current_level = 1
         self.max_level_reached = 1
         self.player_has_acted = False
@@ -231,7 +232,16 @@ class Game:
             if (0 <= x < self.game_map.width and 0 <= y < self.game_map.height and
                 self.game_map.is_walkable(x, y)):
 
-                if level_number <= 3:
+                if level_number <= 2:
+                    monster = Monster(x, y, 'r', f'Giant Rat{i+1}', (0, 130, 8))
+                    monster.can_poison = True
+                    monster.poison_dc = 12
+                    monster.hp = 4 + level_number
+                    monster.max_hp = 5 + level_number
+                    monster.attack_power = 1 + (level_number - 1)
+                    monster.armor_class = 10
+                    monster.base_xp = 4 + (level_number * 2)
+                elif level_number <= 4:
                     monster = Monster(x, y, 'g', f'Goblin{i+1}', (0, 130, 8))
                     monster.can_poison = True
                     monster.poison_dc = 12
@@ -256,7 +266,7 @@ class Game:
                     monster.attack_power = 4 + (level_number - 1)
                     monster.armor_class = 13
                     monster.base_xp = 10 + (level_number * 2)
-                elif level_number <= 12:
+                elif level_number <= 10:
                     monster = Monster(x, y, 'T', f'Troll{i+1}', (127, 63, 63))
                     monster.hp = 14 + level_number * 2
                     monster.max_hp = 15 + level_number * 2
@@ -271,21 +281,48 @@ class Game:
                     monster.armor_class = 17
                     monster.base_xp = 50 + (level_number * 5)
 
-                self.entities.append(monster)
-                self.message_log.add_message(f"A {monster.name} appears!", (255, 150, 0))
+                if not isinstance(monster, Mimic): # <--- NEW CHECK
+                    self.entities.append(monster)
+                    self.message_log.add_message(f"A {monster.name} appears!", (255, 150, 0))
 
         # Dungeon Healer Spawning Logic
-        if len(rooms) > 2 and random.random() < 0.9:
-            healer_room = random.choice(rooms[1:-1])
-            healer_x, healer_y = healer_room.center()
-
-            if self.game_map.is_walkable(healer_x, healer_y) and \
-               not any(e.x == healer_x and e.y == healer_y for e in self.entities):
-
-                dungeon_healer = DungeonHealer(healer_x, healer_y)
-                self.entities.append(dungeon_healer)
-                self.message_log.add_message(f"You sense a benevolent presence nearby...", (0, 255, 255))
-                self.message_log.add_message(f"A {dungeon_healer.name} is at ({healer_x}, {healer_y})", (0, 255, 255))
+        if len(rooms) > 2 and random.random() < 0.6: # High probability to attempt spawn
+            # Shuffle rooms to try different ones if the first choice is blocked
+            shuffled_healer_rooms = list(rooms[1:-1]) # Get eligible rooms (not first/last)
+            random.shuffle(shuffled_healer_rooms)
+            healer_spawned = False
+            for healer_room in shuffled_healer_rooms:
+                # Try to find an empty spot within the chosen room
+                possible_spawn_points = []
+                # Iterate over the inner part of the room, avoiding edges that might be near tunnels
+                for y_coord in range(healer_room.y1 + 2, healer_room.y2 - 1): # +2 and -1 to avoid 1-tile border
+                    for x_coord in range(healer_room.x1 + 2, healer_room.x2 - 1): # +2 and -1 to avoid 1-tile border
+                        if self.game_map.is_walkable(x_coord, y_coord) and \
+                           not any(e.x == x_coord and e.y == y_coord for e in self.entities):
+                            # Further check: avoid spots directly adjacent to tunnels
+                            is_near_tunnel = False
+                            for dx, dy in [(-1,0), (1,0), (0,-1), (0,1)]: # Cardinal directions
+                                neighbor_x, neighbor_y = x_coord + dx, y_coord + dy
+                                # If neighbor is a floor tile but its original room is different, it's a tunnel
+                                # This is a heuristic, not perfect, but helps avoid direct tunnel entrances
+                                if self.game_map.tiles[neighbor_y][neighbor_x] == floor and \
+                                   not (healer_room.x1 < neighbor_x < healer_room.x2 and healer_room.y1 < neighbor_y < healer_room.y2):
+                                    is_near_tunnel = True
+                                    break
+                            if not is_near_tunnel:
+                                possible_spawn_points.append((x_coord, y_coord))
+                
+                if possible_spawn_points:
+                    healer_x, healer_y = random.choice(possible_spawn_points)
+                    dungeon_healer = DungeonHealer(healer_x, healer_y)
+                    self.entities.append(dungeon_healer)
+                    self.message_log.add_message(f"You sense a benevolent presence nearby...", (0, 255, 255))
+                    self.message_log.add_message(f"A {dungeon_healer.name} is at ({healer_x}, {healer_y})", (0, 255, 255))
+                    healer_spawned = True
+                    break # Healer spawned, exit loop over rooms
+            
+            if not healer_spawned:
+                self.message_log.add_message("DEBUG: Dungeon Healer could not find a suitable spawn spot.", (100, 100, 100)) # Optional debug message
 
         # Item Spawning Logic
         item_templates = [
@@ -299,9 +336,31 @@ class Game:
         for room in rooms:
             if random.random() < item_spawn_chance:
                 item_x, item_y = room.center()
+                
+                # Check if the spot is occupied by a non-item entity (like a monster or NPC)
+                # We need to be careful here: Mimics are entities, but they are also items on the ground.
+                # The goal is to allow items to spawn on the same tile as a disguised mimic (which is an item).
+                # So, we should only block if a *non-item entity* is there.
+                is_blocked_by_non_item_entity = False
+                for e in self.entities:
+                    # If it's a monster (and not a mimic) or an NPC, it blocks.
+                    # Mimics are handled by the items_on_ground list for initial placement.
+                    if e.x == item_x and e.y == item_y and \
+                       (isinstance(e, Monster) and not isinstance(e, Mimic) or isinstance(e, NPC)):
+                        is_blocked_by_non_item_entity = True
+                        break
+
+                # Also check if the spot is already occupied by another item (including mimics)
+                is_occupied_by_another_item = False
+                for existing_item in self.game_map.items_on_ground:
+                    if existing_item.x == item_x and existing_item.y == item_y:
+                        is_occupied_by_another_item = True
+                        break
+
                 if (item_x, item_y) != (self.player.x, self.player.y) and \
                    (item_x, item_y) not in self.stairs_positions.values() and \
-                   not any(e.x == item_x and e.y == item_y for e in self.entities):
+                   not is_blocked_by_non_item_entity and \
+                   not is_occupied_by_another_item: # <--- NEW/MODIFIED CONDITIONS
 
                     chosen_template = random.choice(item_templates)
                     item_to_add = chosen_template.__class__(
@@ -318,10 +377,12 @@ class Game:
                     self.message_log.add_message(f"You spot a {item_to_add.name} on the ground.", item_to_add.color)
 
         # Initialize turn system
-        for entity in self.entities:
+        # Only add entities that are *not* disguised mimics to the initial turn order
+        self.turn_order = [e for e in self.entities if not (isinstance(e, Mimic) and e.disguised)]
+        for entity in self.turn_order: # Roll initiative only for those in turn order
             entity.roll_initiative()
         
-        self.turn_order = sorted(self.entities, key=lambda e: e.initiative, reverse=True)
+        self.turn_order = sorted(self.turn_order, key=lambda e: e.initiative, reverse=True)
         self.current_turn_index = 0
         self.update_fov()
         
@@ -468,13 +529,15 @@ class Game:
                 self.render()
             
             if event.type == pygame.KEYDOWN:
+                
                 # --- Handle 'i' key for Inventory/Inventory Menu (always accessible) ---
                 if event.key == pygame.K_i:
-                    if self.game_state == GameState.DUNGEON:
+                    if self.game_state == GameState.DUNGEON or self.game_state == GameState.TAVERN:
+                        self._previous_game_state = self.game_state # Save current state before changing
                         self.game_state = GameState.INVENTORY
                         self.message_log.add_message("Opening Inventory...", (100, 200, 255))
                     elif self.game_state == GameState.INVENTORY:
-                        self.game_state = GameState.DUNGEON
+                        self.game_state = self._previous_game_state # Return to saved state
                         self.message_log.add_message("Closing Inventory.", (100, 200, 255))
                         self.selected_inventory_item = None
                     elif self.game_state == GameState.INVENTORY_MENU:
@@ -482,22 +545,25 @@ class Game:
                         self.selected_inventory_item = None
                         self.message_log.add_message("Returning to Inventory.", (100, 200, 255))
                     elif self.game_state == GameState.CHARACTER_MENU: # Allow closing character menu with 'i'
-                        self.game_state = GameState.DUNGEON
+                        self.game_state = self._previous_game_state # Return to state before CHARACTER_MENU
                         self.message_log.add_message("Closing Character Menu.", (100, 200, 255))
                     continue
 
                 # --- Handle 'c' key for Character Menu (always accessible) ---
                 if event.key == pygame.K_c:
-                    if self.game_state == GameState.DUNGEON:
+                    if self.game_state == GameState.DUNGEON or self.game_state == GameState.TAVERN:
+                        self._previous_game_state = self.game_state # Save current state before changing
                         self.game_state = GameState.CHARACTER_MENU
                         self.message_log.add_message("Opening Character Menu...", (100, 200, 255))
                     elif self.game_state == GameState.CHARACTER_MENU:
-                        self.game_state = GameState.DUNGEON
+                        self.game_state = self._previous_game_state # Return to saved state
                         self.message_log.add_message("Closing Character Menu.", (100, 200, 255))
                     elif self.game_state == GameState.INVENTORY: # Allow switching from inventory to character
+                        self._previous_game_state = GameState.INVENTORY # Save INVENTORY as previous
                         self.game_state = GameState.CHARACTER_MENU
                         self.message_log.add_message("Switching to Character Menu.", (100, 200, 255))
                     elif self.game_state == GameState.INVENTORY_MENU: # Allow switching from inventory menu to character
+                        self._previous_game_state = GameState.INVENTORY_MENU # Save INVENTORY_MENU as previous
                         self.game_state = GameState.CHARACTER_MENU
                         self.selected_inventory_item = None # Clear selected item
                         self.message_log.add_message("Switching to Character Menu.", (100, 200, 255))
@@ -517,21 +583,19 @@ class Game:
                 # --- Player's turn logic (for Dungeon and Tavern) ---
                 can_player_act_this_turn = (self.game_state == GameState.TAVERN) or \
                                            (self.get_current_entity() == self.player and not self.player_has_acted)
-
                 if can_player_act_this_turn:
                     dx, dy = 0, 0
                     action_taken = False
-
-                    if event.key in (pygame.K_UP, pygame.K_k):
+                    if event.key in (pygame.K_UP, pygame.K_w):
                         dy = -1
                         action_taken = self.handle_player_action(dx, dy)
-                    elif event.key in (pygame.K_DOWN, pygame.K_j):
+                    elif event.key in (pygame.K_DOWN, pygame.K_s):
                         dy = 1
                         action_taken = self.handle_player_action(dx, dy)
-                    elif event.key in (pygame.K_LEFT, pygame.K_h):
+                    elif event.key in (pygame.K_LEFT, pygame.K_a):
                         dx = -1
                         action_taken = self.handle_player_action(dx, dy)
-                    elif event.key in (pygame.K_RIGHT, pygame.K_l):
+                    elif event.key in (pygame.K_RIGHT, pygame.K_d):
                         dx = 1
                         action_taken = self.handle_player_action(dx, dy)
                     elif event.key == pygame.K_SPACE:
@@ -541,11 +605,11 @@ class Game:
                                 self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
                                 action_taken = True
                         elif self.game_state == GameState.DUNGEON:
+                            # Check for interactable items (Chests, Mimics) at player's current position
                             interactable_item = self.get_interactable_item_at(self.player.x, self.player.y)
                             if interactable_item:
                                 if isinstance(interactable_item, Mimic):
                                     interactable_item.reveal(self)
-                                    self.game_map.items_on_ground.remove(interactable_item)
                                     action_taken = True
                                 elif isinstance(interactable_item, Chest):
                                     interactable_item.open(self.player, self)
@@ -553,13 +617,22 @@ class Game:
                                 else:
                                     self.message_log.add_message("You can't interact with that item.", (150, 150, 150))
                             else:
+                                # If no interactable item, check for adjacent target
                                 target = self.get_adjacent_target()
                                 if target:
-                                    self.handle_player_attack(target)
-                                    action_taken = True
+                                    # --- MODIFIED LOGIC HERE ---
+                                    if isinstance(target, Monster): # If it's a monster, attack it
+                                        self.handle_player_attack(target)
+                                        action_taken = True
+                                    elif isinstance(target, DungeonHealer): # If it's a healer, interact with it
+                                        target.offer_rest(self.player, self)
+                                        action_taken = True
+                                    else: # For any other unexpected adjacent entity
+                                        self.message_log.add_message(f"You can't interact with {target.name} that way.", (150, 150, 150))
                                 else:
+                                    # If no target, try to pick up items
                                     action_taken = self.handle_item_pickup()
-                                
+
 
                     # --- Ability Hotkeys ---
                     sorted_abilities = sorted(self.player.abilities.values(), key=lambda ab: ab.name)
@@ -602,7 +675,7 @@ class Game:
             if (isinstance(item, Chest) or isinstance(item, Mimic)) and item.x == x and item.y == y:
                 return item
         return None
-
+    
     def get_chest_at(self, x, y):
         """Checks if there's a chest at the given coordinates."""
         for item in self.game_map.items_on_ground:
@@ -613,17 +686,17 @@ class Game:
     def handle_item_pickup(self):
         """Check for items at player's position and pick them up."""
         items_at_player_pos = [item for item in self.game_map.items_on_ground if item.x == self.player.x and item.y == self.player.y]
-
         if items_at_player_pos:
             item_to_pick_up = items_at_player_pos[0]
-            if self.player.inventory.add_item(item_to_pick_up):
-                item_to_pick_up.on_pickup(self.player, self)
-                return True
+            # Call the item's on_pickup method, which now handles inventory add and map removal
+            if item_to_pick_up.on_pickup(self.player, self): # This call now returns True/False
+                return True # Indicate action was taken (successful pickup)
             else:
-                self.message_log.add_message("Your inventory is full!", (255, 0, 0))
+                # The on_pickup method already adds a message if inventory is full
+                return False # Indicate action was not fully successful
         else:
             self.message_log.add_message("Nothing to pick up here.", (150, 150, 150))
-        return False
+            return False # No item to pick up
 
     def handle_inventory_input(self, key):
         """Handles input when in the inventory screen."""
@@ -719,11 +792,42 @@ class Game:
         elif self.game_state == GameState.DUNGEON:
             target = self.get_target_at(new_x, new_y)
             if target:
-                self.handle_player_attack(target)
-                return True
-            # NEW: Check if the target tile is a destructible object
-            elif self.game_map.tiles[new_y][new_x].destructible: # <--- NEW CHECK
-                self.destroy_tile(new_x, new_y) # <--- NEW CALL
+                if isinstance(target, Monster):
+                    self.handle_player_attack(target)
+                    return True
+                elif isinstance(target, DungeonHealer):
+                    target.offer_rest(self.player, self)
+                    return True
+                else:
+                    self.message_log.add_message(f"You can't attack {target.name}.", (255, 150, 0))
+                    return False
+                
+            # Check if the target tile is a MimicTile
+            target_tile = self.game_map.tiles[new_y][new_x]
+            #print(f"DEBUG: handle_player_action: Player moving to ({new_x},{new_y}). Tile char: {target_tile.char}, type: {type(target_tile).__name__}")
+            
+            if isinstance(target_tile, MimicTile): # <--- NEW CHECK
+                #print(f"DEBUG: handle_player_action: MimicTile detected. Mimic entity char: {target_tile.mimic_entity.char}")
+                mimic_entity = target_tile.mimic_entity
+                
+                # --- SIMPLIFIED REVEAL LOGIC (Two Stages) ---
+                if mimic_entity.disguised: # If it's still disguised (Stage 1)
+                    mimic_entity.reveal(self) # Call the reveal method. This method now handles removing itself from items_on_ground.
+                    
+                    # Replace the MimicTile with a floor tile so the player can move onto it after the reveal
+                    self.game_map.tiles[new_y][new_x] = floor
+                    #print(f"DEBUG: handle_player_action: MimicTile replaced with floor.")
+                    return True # Action taken, end player turn
+                else:
+                    # If it's already revealed (e.g., player moved away and came back)
+                    # This path should ideally not be hit if the MimicTile is replaced by floor
+                    # but as a fallback, if player moves onto an already revealed mimic, it does nothing
+                    self.message_log.add_message(f"The {mimic_entity.name} is already revealed.", (150, 150, 150))
+                    return False # No new action taken
+
+            elif target_tile.destructible: # <--- Existing check for static destructible tiles
+                #print(f"DEBUG: handle_player_action: Destructible tile detected (not MimicTile).")
+                self.destroy_tile(new_x, new_y)
                 return True
             elif self.game_map.is_walkable(new_x, new_y):
                 self.player.x = new_x
@@ -736,7 +840,7 @@ class Game:
             else:
                 self.message_log.add_message("You can't move there.", (255, 150, 0))
                 return False
-        return False
+        return False                
 
     def destroy_tile(self, x, y):
         """
@@ -978,60 +1082,95 @@ class Game:
                 screen_x, screen_y = self.camera.world_to_screen(x, y)
                 draw_x = screen_x * config.TILE_SIZE
                 draw_y = screen_y * config.TILE_SIZE                
-
                 if (0 <= draw_x < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
                     0 <= draw_y < map_render_height):
                     
                     visibility_type = self.fov.get_visibility_type(x, y)
                     if visibility_type == 'unexplored':
-                        continue
+                        continue # Do not render unexplored tiles
+                    
                     tile = self.game_map.tiles[y][x]
                     
                     render_color_tint = None
                     if visibility_type == 'player':
-                        render_color_tint = None
+                        render_color_tint = None # Full brightness
                     elif visibility_type == 'torch':
-                        render_color_tint = (128, 128, 128, 255)
+                        # Slightly dimmed, but still visible
+                        render_color_tint = (128, 128, 128, 255) # Example: 50% gray tint
                     elif visibility_type == 'explored':
-                        render_color_tint = (60, 60, 60, 255)
+                        # Significantly dimmed, only outlines/memory
+                        render_color_tint = (60, 60, 60, 255) # Example: Very dark gray tint
                     
+                    # Draw the tile with the determined tint
                     graphics.draw_tile(self.internal_surface, screen_x, screen_y, tile.char, color_tint=render_color_tint)
 
     def render_entities(self):
         map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT 
         
         for entity in self.entities:
+            # Skip drawing disguised mimics here, as MimicTiles handle their rendering
+            if isinstance(entity, Mimic) and entity.disguised:
+                continue 
+            
             visibility_type = self.fov.get_visibility_type(entity.x, entity.y)
             
+            # Only render if in viewport AND visible (player/torch) or explored
             if entity.alive and self.camera.is_in_viewport(entity.x, entity.y) and \
-               (visibility_type == 'player' or visibility_type == 'torch'):
+               (visibility_type == 'player' or visibility_type == 'torch' or visibility_type == 'explored'):
                 
                 screen_x, screen_y = self.camera.world_to_screen(entity.x, entity.y)
                 
                 if (0 <= screen_x * config.TILE_SIZE < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
                     0 <= screen_y * config.TILE_SIZE < map_render_height):
                     
-                    graphics.draw_tile(self.internal_surface, screen_x, screen_y, floor.char, color_tint=None)
-                    graphics.draw_tile(self.internal_surface, screen_x, screen_y, entity.char, color_tint=None)
+                    # Determine tint based on visibility
+                    entity_color_tint = None
+                    if visibility_type == 'player':
+                        entity_color_tint = None # Full brightness
+                    elif visibility_type == 'torch':
+                        entity_color_tint = (128, 128, 128, 255) # Dimmed by torchlight
+                    elif visibility_type == 'explored':
+                        entity_color_tint = (60, 60, 60, 255) # Very dim, just a memory
+                    
+                    # Draw the floor tile first (important for proper layering)
+                    graphics.draw_tile(self.internal_surface, screen_x, screen_y, floor.char, color_tint=entity_color_tint)
+                    # Then draw the entity character on top
+                    graphics.draw_tile(self.internal_surface, screen_x, screen_y, entity.char, color_tint=entity_color_tint)
 
     def render_items_on_ground(self):
         """Render items lying on the dungeon floor."""
         map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT 
         
         for item in self.game_map.items_on_ground:
+            # Only render items that are NOT disguised mimics here, as MimicTiles handle their rendering
+            # A revealed mimic should NOT be in items_on_ground, so this check is primarily for safety.
+            if isinstance(item, Mimic) and item.disguised:
+                continue 
+            
             visibility_type = self.fov.get_visibility_type(item.x, item.y)
             
+            # Only render if in viewport AND visible (player/torch) or explored
             if self.camera.is_in_viewport(item.x, item.y) and \
-               (visibility_type == 'player' or visibility_type == 'torch'):
+               (visibility_type == 'player' or visibility_type == 'torch' or visibility_type == 'explored'):
                 
                 screen_x, screen_y = self.camera.world_to_screen(item.x, item.y)
                 
                 if (0 <= screen_x * config.TILE_SIZE < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
                     0 <= screen_y * config.TILE_SIZE < map_render_height):
                     
-                    graphics.draw_tile(self.internal_surface, screen_x, screen_y, floor.char, color_tint=None)
-                    graphics.draw_tile(self.internal_surface, screen_x, screen_y, item.char, color_tint=None)
-
+                    # Determine tint based on visibility
+                    item_color_tint = None
+                    if visibility_type == 'player':
+                        item_color_tint = None # Full brightness
+                    elif visibility_type == 'torch':
+                        item_color_tint = (128, 128, 128, 255) # Dimmed by torchlight
+                    elif visibility_type == 'explored':
+                        item_color_tint = (60, 60, 60, 255) # Very dim, just a memory
+                    
+                    # Draw the floor tile first (important for proper layering)
+                    graphics.draw_tile(self.internal_surface, screen_x, screen_y, floor.char, color_tint=item_color_tint)
+                    # Then draw the item character on top
+                    graphics.draw_tile(self.internal_surface, screen_x, screen_y, item.char, color_tint=item_color_tint)
 
     def render_inventory_screen(self):
         """Renders the inventory screen."""

@@ -37,33 +37,45 @@ def setup_tile_mapping():
     # So, we multiply the grid column/row by CELL_DIM (13).
 
     TILE_MAPPING = {
-        # Map Tiles (assuming first row)
+        # Map Tiles
         '.': (0 * CELL_DIM, 1 * CELL_DIM),  # Floor
         '#': (1 * CELL_DIM, 1 * CELL_DIM),  # Wall
         '>': (8 * CELL_DIM, 1 * CELL_DIM),  # Stairs Down
         '<': (9 * CELL_DIM, 1 * CELL_DIM),  # Stairs Up
         '+': (2 * CELL_DIM, 1 * CELL_DIM),  # Tavern Door
         '`': (0 * CELL_DIM, 2 * CELL_DIM),  # Dungeon Grass
-        'C': (7 * CELL_DIM, 2 * CELL_DIM),  # Chest (Closed) - This was the issue!
-        'O': (8 * CELL_DIM, 2 * CELL_DIM),  # Open Chest (Placeholder, adjust if needed)
-        'c': (3 * CELL_DIM, 1 * CELL_DIM),  # Chair
-        't': (4 * CELL_DIM, 1 * CELL_DIM),  # Table
+        
+        # IMPORTANT: Ensure 'C' is your *closed* chest graphic
+        'C': (7 * CELL_DIM, 2 * CELL_DIM),  # Chest (Closed)
+        'O': (8 * CELL_DIM, 2 * CELL_DIM),  # Open Chest
+        'c': (3 * CELL_DIM, 1 * CELL_DIM),  # Chair (Tavern)
+        't': (4 * CELL_DIM, 1 * CELL_DIM),  # Table (Tavern)
         '=': (5 * CELL_DIM, 1 * CELL_DIM),  # Bar Counter
         'F': (6 * CELL_DIM, 1 * CELL_DIM), # Fireplace
         ';': (1 * CELL_DIM, 2 * CELL_DIM), # Bones
-        'b': (5 * CELL_DIM, 1 * CELL_DIM), # Crate
-        'o': (3 * CELL_DIM, 2 * CELL_DIM), # Barrel
         'i': (7 * CELL_DIM, 1 * CELL_DIM), # Torch
+
+        # Static Decorations (using distinct chars)
+        'b': (3 * CELL_DIM, 2 * CELL_DIM), # Static Barrel (original graphic)
+        'k': (2 * CELL_DIM, 2 * CELL_DIM), # Static Crate (original graphic)
+
+        # Mimic disguised as Crate/Barrel (using distinct chars)
+        # These should point to your *disguised* mimic graphics (e.g., barrel with eyes)
+        'B': (5* CELL_DIM, 2 * CELL_DIM),  # Mimic Barrel
+        'K': (4 * CELL_DIM, 2 * CELL_DIM),  # Mimic Crate
 
         # Entity Characters
         '@': (0 * CELL_DIM, 0 * CELL_DIM),  # Player
+        'r': (5 * CELL_DIM, 4 * CELL_DIM),  # Rat (Monster)
         'g': (0 * CELL_DIM, 4 * CELL_DIM),  # Goblin
         '&': (1 * CELL_DIM, 4 * CELL_DIM),  # Skeleton (Monster)
-        'R': (2 * CELL_DIM, 4 * CELL_DIM),  # Orc (Monster) - Changed from 'O' to 'R'
+        'R': (2 * CELL_DIM, 4 * CELL_DIM),  # Orc (Monster)
         'T': (3 * CELL_DIM, 4 * CELL_DIM),  # Troll
         'D': (4 * CELL_DIM, 4 * CELL_DIM),  # Dragon (Monster)
-        'M': (9 * CELL_DIM, 2 * CELL_DIM),  # Mimic
-        'B': (5 * CELL_DIM, 0 * CELL_DIM),  # Bartender (NPC)
+
+        # IMPORTANT: Ensure 'M' is your *generic revealed mimic* graphic
+        'M': (9 * CELL_DIM, 2 * CELL_DIM),  # Mimic (Generic Revealed Form)
+        'A': (5 * CELL_DIM, 0 * CELL_DIM),  # Bartender (NPC)
         'p': (3 * CELL_DIM, 0 * CELL_DIM),  # Patron (NPC)
         'H': (4 * CELL_DIM, 0 * CELL_DIM),  # Healer (NPC)
         
@@ -72,7 +84,9 @@ def setup_tile_mapping():
         '/': (1 * CELL_DIM, 3 * CELL_DIM),  # Weapon
         '[': (2 * CELL_DIM, 3 * CELL_DIM),  # Armor
     }
-    print("Tile mapping setup complete.")
+    print("Tile mapping setup complete.")        
+
+
 
 def get_tile_surface(char):
     """
@@ -109,13 +123,15 @@ def get_tile_surface(char):
     else:
         return subsurface
 
+
 def draw_tile(screen_surface, screen_x, screen_y, char, color_tint=None):
     tile_surface = get_tile_surface(char)
     
     if color_tint:
         tinted_surface = tile_surface.copy()
+        # Apply the tint color using multiplication blend mode
         tinted_surface.fill(color_tint, special_flags=pygame.BLEND_RGBA_MULT)
         tile_surface = tinted_surface
     
     screen_surface.blit(tile_surface, (screen_x * config.TILE_SIZE, screen_y * config.TILE_SIZE))
-
+    
