@@ -1,4 +1,4 @@
-# Varethis
+# Mithrim
 
 **Varethis** is a roguelike, turn-based RPG steeped in the mechanics and flavor of **Dungeons & Dragons 5th Edition**. Explore procedurally generated dungeons, engage in tactical combat, build your character through meaningful choices, and uncover the secrets of a world torn by arcane war.
 
