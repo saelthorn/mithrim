@@ -219,16 +219,26 @@ class Player:
         from items.items import Weapon, Armor # Import here to avoid circular dependency
         if isinstance(item, Weapon):
             if self.equipped_weapon:
-                self.inventory.add_item(self.equipped_weapon) # Put old weapon back in inventory
+                # If there's an old weapon, put it back in inventory
+                self.inventory.add_item(self.equipped_weapon) 
                 game_instance.message_log.add_message(f"You unequip {self.equipped_weapon.name}.", (150, 150, 150))
+            
+            # Remove the new item from inventory BEFORE equipping it
+            self.inventory.remove_item(item) # <--- ADD THIS LINE
+            
             self.equipped_weapon = item
             self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus + item.attack_bonus
             game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
             return True
         elif isinstance(item, Armor):
             if self.equipped_armor:
-                self.inventory.add_item(self.equipped_armor) # Put old armor back in inventory
+                # If there's old armor, put it back in inventory
+                self.inventory.add_item(self.equipped_armor) 
                 game_instance.message_log.add_message(f"You unequip {self.equipped_armor.name}.", (150, 150, 150))
+            
+            # Remove the new item from inventory BEFORE equipping it
+            self.inventory.remove_item(item) # <--- ADD THIS LINE
+            
             self.equipped_armor = item
             self.armor_class = self._calculate_ac() # Recalculate AC
             game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))

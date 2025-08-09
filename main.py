@@ -12,7 +12,7 @@ def main():
     
     pygame.display.set_caption("Varethis")
     
-    graphics.load_tileset('assets/tile_set.png') 
+    graphics.load_tileset('assets/Vector.png') 
     graphics.setup_tile_mapping() 
     clock = pygame.time.Clock()
     game = Game(screen) 
