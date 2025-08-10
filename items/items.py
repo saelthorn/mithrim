@@ -161,6 +161,24 @@ chainmail_armor = Armor(
     ac_bonus=3 # Adds 1 to base AC
 )
 
+# --- NEW: Dagger and Robes for Wizard ---
+dagger = Weapon(
+    name="Dagger",
+    char="/", # Using same char as other weapons for now
+    color=(180, 180, 180),
+    description="A small, light blade.",
+    damage_dice="1d4",
+    damage_modifier=0,
+    attack_bonus=0
+)
+robes = Armor(
+    name="Robes",
+    char="[", # Using same char as other armor for now
+    color=(100, 100, 200),
+    description="Simple cloth robes.",
+    ac_bonus=0 # Robes typically provide no AC bonus, relying on Dex
+)
+
 # Example function to create random loot for a chest
 def generate_random_loot(level_number):
     loot = []

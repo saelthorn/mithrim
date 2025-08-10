@@ -202,7 +202,7 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
             continue # Skip if stairs_up are at the center of this room
 
         if random.random() < 0.6: # Increased overall chest spawn chance to 90%
-            if random.random() < 0.5: # 75% chance for a chest to be a mimic
+            if random.random() < 0.2: # 75% chance for a chest to be a mimic
                 new_mimic = Mimic(chest_spawn_x, chest_spawn_y, 'C', (139, 69, 19))
                 new_mimic.name = "Disguised Chest Mimic"
                 game_map.tiles[chest_spawn_y][chest_spawn_x] = MimicTile(new_mimic, 'C', (139, 69, 19), "Chest")

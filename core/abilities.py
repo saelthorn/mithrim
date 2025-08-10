@@ -1,3 +1,5 @@
+from core.status_effects import PowerAttackBuff, EvasionBuff
+
 
 class Ability:
     def __init__(self, name, description, cost=0, cooldown=0):
@@ -49,15 +51,44 @@ class SecondWind(Ability):
         game_instance.message_log.add_message(f"{user.name} regains {amount_healed} HP!", (0, 255, 0))
         return True # Indicate successful use
 
+
 class PowerAttack(Ability):
     def __init__(self):
         super().__init__("Power Attack", "Sacrifice accuracy for increased damage on your next attack.", cooldown=3)
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+        
+        # Apply the PowerAttackBuff to the user
+        # Apply the PowerAttackBuff to the user using its string name
+        user.add_status_effect("PowerAttackBuff", duration=3, game_instance=game_instance) # <--- MODIFIED
+        game_instance.message_log.add_message(f"{user.name} prepares a powerful strike!", (255, 165, 0))
+        return True
+
+class CunningAction(Ability):
+    def __init__(self):
+        super().__init__("Cunning Action", "Use a bonus action to Dash.", cooldown=1)  # Removed Disengage option
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
             return False
         
-        # Apply a temporary buff to the player
-        user.add_status_effect("PowerAttackBuff", duration=1) # Needs a status effect system
-        game_instance.message_log.add_message(f"{user.name} prepares a powerful strike!", (255, 165, 0))
+        # Set the player's action state to indicate a choice is pending
+        user.current_action_state = "cunning_action_dash"  # Changed to only allow Dash
+        game_instance.message_log.add_message(f"{user.name} prepares a Cunning Action: Dash!", (100, 255, 255))
+        return True  # Indicate successful use of the ability (bonus action consumed)
+    
+
+class Evasion(Ability):
+    def __init__(self):
+        super().__init__("Evasion", "Become incredibly agile, greatly increasing dodge chance and taking half damage if hit. Lasts 3 turns.", cooldown=50)
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+        
+        user.add_status_effect("EvasionBuff", duration=3, game_instance=game_instance)
+        game_instance.message_log.add_message(f"{user.name} activates Evasion!", (100, 255, 255))
         return True
+
+
