@@ -11,6 +11,8 @@ class NPC:
         self.alive = True
         self.blocks_movement = True
         self.initiative = 0
+        # NPCs don't have active status effects in this game, but we need the method
+        self.active_status_effects = [] 
 
     def roll_initiative(self):
         self.initiative = random.randint(1, 20)
@@ -25,3 +27,8 @@ class NPC:
         """NPCs generally don't take active turns in the same way as monsters.
         This method is a placeholder to prevent AttributeError."""
         pass # Do nothing for most NPCs
+
+    def process_status_effects(self, game_instance):
+        """Placeholder for NPCs who don't have status effects."""
+        # If you ever add status effects to NPCs, this method would be implemented.
+        pass 

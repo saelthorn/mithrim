@@ -9,7 +9,8 @@ class GameState:
     INVENTORY = "inventory"
     INVENTORY_MENU = "inventory_menu"
     CHARACTER_MENU = "character_menu"
-    TARGETING = "targeting"     
+    TARGETING = "targeting"  
+    CHARACTER_CREATION = "character_creation"   
 
 
 from core.fov import FOV
@@ -22,6 +23,7 @@ from entities.monster import Mimic
 from entities.tavern_npcs import create_tavern_npcs
 from entities.dungeon_npcs import DungeonHealer
 from entities.tavern_npcs import NPC
+from entities.races import Human, HillDwarf
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt
 from core.message_log import MessageBox
 from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff
@@ -70,19 +72,19 @@ class Game:
         self.inventory_ui_surface = None
         self.camera = None
         self.message_log = None
-
+        
         self._recalculate_dimensions() 
         print(f"After initial recalculation, TILE_SIZE: {config.TILE_SIZE}, SCREEN_WIDTH: {config.SCREEN_WIDTH}, SCREEN_HEIGHT: {config.SCREEN_HEIGHT}")
         print(f"Initialized internal_surface: {self.internal_surface.get_size()}")
         
         self._init_fonts()
         
-        self.game_state = GameState.TAVERN
-        self._previous_game_state = GameState.TAVERN
+        # NEW: Start in character creation state
+        self.game_state = GameState.CHARACTER_CREATION 
+        self._previous_game_state = GameState.CHARACTER_CREATION # Or None, depending on desired flow
         self.current_level = 1
         self.max_level_reached = 1
         self.player_has_acted = False
-
         self.message_log = MessageBox(
             0,
             config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT,
@@ -90,18 +92,80 @@ class Game:
             config.MESSAGE_LOG_HEIGHT
         )
         self._recalculate_dimensions()
-
+        
         self.ability_in_use = None
         self.targeting_ability_range = 0
         self.targeting_cursor_x = 0
         self.targeting_cursor_y = 0
-        
+            
         self.message_log.add_message("Welcome to the dungeon!", (100, 255, 100))
         
-        self.player = Wizard(0, 0, '@', 'Shadowblade', (255, 255, 255))
-
-        self.generate_tavern() 
+        # REMOVED: Player creation moved to character_creation_start
+        self.player = None 
+        # REMOVED: Race application moved to character_creation_start
+        # if self.player.race:
+        #     self.player.race.apply_traits(self.player, self)
+        #     self.player.has_darkvision = self.player.race.has_darkvision 
+        #     self.player.damage_resistances.extend(self.player.race.damage_resistances)
+        #     self.player.skill_proficiencies.extend(self.player.race.skill_proficiencies)
+        #     self.player.weapon_proficiencies.extend(self.player.race.weapon_proficiencies)
+        #     self.player.armor_proficiencies.extend(self.player.race.armor_proficiencies)
+        #     self.player.max_hp = self.player._calculate_max_hp()
+        #     self.player.hp = self.player.max_hp
+        #     self.player.armor_class = self.player._calculate_ac()
+        #     self.player.attack_power = self.player.get_ability_modifier(self.player.dexterity) + self.player.equipped_weapon.damage_modifier
+        #     self.player.attack_bonus = self.player.get_ability_modifier(self.player.dexterity) + self.player.proficiency_bonus + self.player.equipped_weapon.attack_bonus
+        
+        # self.generate_tavern() # This will now be called AFTER character creation
         self.selected_inventory_item = None
+        
+        # NEW: Character creation specific variables
+        self.available_races = [Human(), HillDwarf()] # List of race objects
+        self.selected_race_index = 0 # Index of currently highlighted race
+        self.character_name = "Shadowblade" # Default name, could be input later
+        self.character_class = Wizard # Default class, could be input later
+        
+        # Call a method to start character creation
+        self.start_character_creation()
+
+    def start_character_creation(self):
+        self.game_state = GameState.CHARACTER_CREATION
+        self.message_log.add_message("--- CHARACTER CREATION ---", (255, 215, 0))
+        self.message_log.add_message("Choose your Race (Arrow Keys to navigate, Enter to select):", (200, 200, 255))
+        self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
+        self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
+
+    def finalize_character_creation(self):
+        chosen_race = self.available_races[self.selected_race_index]
+        
+        # Create the player instance with the chosen class and name
+        self.player = self.character_class(0, 0, '@', self.character_name, (255, 255, 255))
+        
+        # Apply race traits
+        self.player.race = chosen_race
+        self.player.race.apply_traits(self.player, self)
+        
+        # Apply racial attributes to player (redundant if apply_traits handles it, but good for clarity)
+        self.player.has_darkvision = self.player.race.has_darkvision 
+        self.player.damage_resistances.extend(self.player.race.damage_resistances)
+        self.player.skill_proficiencies.extend(self.player.race.skill_proficiencies)
+        self.player.weapon_proficiencies.extend(self.player.race.weapon_proficiencies)
+        self.player.armor_proficiencies.extend(self.player.race.armor_proficiencies)
+        
+        # Recalculate derived stats after all racial traits are applied
+        self.player.max_hp = self.player._calculate_max_hp()
+        self.player.hp = self.player.max_hp
+        self.player.armor_class = self.player._calculate_ac()
+        
+        # Recalculate attack power and bonus based on potentially modified ability scores
+        # This part needs to be careful about the player's class's primary attack stat.
+        # For Wizard, it's DEX for weapon attacks.
+        self.player.attack_power = self.player.get_ability_modifier(self.player.dexterity) + self.player.equipped_weapon.damage_modifier
+        self.player.attack_bonus = self.player.get_ability_modifier(self.player.dexterity) + self.player.proficiency_bonus + self.player.equipped_weapon.attack_bonus
+        self.message_log.add_message(f"You have chosen to be a {chosen_race.name} {self.player.class_name} named {self.player.name}!", (0, 255, 0))
+        
+        # Transition to tavern
+        self.generate_tavern() # Now call generate_tavern after character is ready
 
     def _recalculate_dimensions(self):
         """Recalculate all dynamic dimensions based on current screen size."""
@@ -428,7 +492,8 @@ class Game:
                     self.fov.explored.add((x, y))
         else:
             self.fov.visible_sources.clear()
-            self.fov.compute_fov(self.player.x, self.player.y, radius=8, light_source_type='player')
+            # NEW: Pass player_has_darkvision to compute_fov
+            self.fov.compute_fov(self.player.x, self.player.y, radius=8, light_source_type='player', player_has_darkvision=self.player.has_darkvision)
             for tx, ty in self.torch_light_sources:
                 self.fov.compute_fov(tx, ty, radius=5, light_source_type='torch')
 
@@ -448,58 +513,84 @@ class Game:
                 ]
                 self.message_log.add_message(random.choice(ambient_msgs), (150, 150, 150))
             return
-
-        self.cleanup_entities()
-
-        previous_current_entity = self.get_current_entity()
-
-        if not self.turn_order:
-            self.current_turn_index = 0
-            current = self.get_current_entity()
-        else:
-            self.current_turn_index = (self.current_turn_index + 1) % len(self.turn_order)
-            current = self.get_current_entity()
-
-        # MOVED: Process status effects for the player *only if it was their turn*
+        
+        # Get the entity whose turn it *just was* or *is currently* before advancing the index
+        current_acting_entity = self.get_current_entity()
+        
+        # Process status effects for the entity that just completed its turn (or was about to)
         # This ensures effects tick down AFTER their actions, but before the next entity's turn.
-        if previous_current_entity == self.player:
-            self.player.process_status_effects(self)
+        if current_acting_entity:
+            current_acting_entity.process_status_effects(self)
 
+        self.cleanup_entities() # <--- This is called first to remove dead entities
+
+        # If after cleanup, there are no entities left (e.g., all monsters died)
+        if not self.turn_order:
+            # This state should ideally not be reached if player is alive, but as a safeguard
+            if self.player.alive:
+                self.turn_order = [self.player] # Ensure player is in turn order
+                self.current_turn_index = 0
+                self.player_has_acted = False # Reset for player's next turn
+                self.update_fov()
+            return # No more turns to process if no entities
+
+        # Advance the turn index to the next entity
+        # The index should point to the entity whose turn it *will be*
+        # This handles wrapping around to the beginning of the list
+        self.current_turn_index = (self.current_turn_index + 1) % len(self.turn_order)
+        
+        # Get the entity whose turn it is now (after advancing the index)
+        current = self.get_current_entity() 
+
+        # If it's the player's turn, reset their action flag and update FOV
         if current == self.player:
             self.update_fov()
-            self.player_has_acted = False
+            self.player_has_acted = False # This is correctly reset for player's turn
             if random.random() < 0.25:
                 ambient_msgs = [
                     "The dungeon emits an eerie glow...",
                     "Something shuffles in the darkness..."
                 ]
                 self.message_log.add_message(random.choice(ambient_msgs), (180, 180, 180))
+        # If it's a monster's turn, it will be handled by the update loop in Game.update()
+
 
     def cleanup_entities(self):
-        current_entity_before_cleanup = None
+        # Store the entity whose turn it *was* or *is about to be*
+        entity_whose_turn_it_was = None
         if self.turn_order and 0 <= self.current_turn_index < len(self.turn_order):
-            current_entity_before_cleanup = self.turn_order[self.current_turn_index]
-
-        alive_entities = [e for e in self.entities if e.alive]
+            entity_whose_turn_it_was = self.turn_order[self.current_turn_index]
+        # Filter out dead entities from the main entities list
+        self.entities = [e for e in self.entities if e.alive]
         
-        if len(alive_entities) != len(self.entities):
-            self.entities = alive_entities
-            
-            new_turn_order = []
-            for entity in self.turn_order:
-                if entity.alive:
-                    new_turn_order.append(entity)
-            self.turn_order = new_turn_order
-            
-            if current_entity_before_cleanup and current_entity_before_cleanup in self.turn_order:
-                self.current_turn_index = self.turn_order.index(current_entity_before_cleanup)
-            else:
-                self.current_turn_index = 0 
+        # Rebuild the turn_order list with only alive entities
+        new_turn_order = []
+        for entity in self.turn_order:
+            if entity.alive:
+                new_turn_order.append(entity)
+        self.turn_order = new_turn_order
         
+        # If the player is the only one left, ensure they are in turn_order
         if not self.turn_order and self.player.alive:
             self.turn_order = [self.player]
             self.current_turn_index = 0
-
+            return # Nothing else to do if only player remains
+        # Adjust current_turn_index based on who was supposed to act
+        if entity_whose_turn_it_was and entity_whose_turn_it_was in self.turn_order:
+            # If the entity whose turn it was is still alive, maintain its position
+            self.current_turn_index = self.turn_order.index(entity_whose_turn_it_was)
+        else:
+            # If the entity whose turn it was died or was removed,
+            # move the index back one to compensate for the next_turn increment,
+            # or wrap around if it was the last entity.
+            # This ensures the *next* entity in the sequence gets its turn.
+            self.current_turn_index = (self.current_turn_index - 1 + len(self.turn_order)) % len(self.turn_order)
+            # If the list became empty, this would cause an error, but we handle that above.
+            # If the list is not empty, this will point to the entity that is now at the "previous" spot.
+            # next_turn() will then increment it to the correct "next" entity.
+        # Ensure index is within bounds after cleanup
+        if self.current_turn_index >= len(self.turn_order):
+            self.current_turn_index = 0 # Reset if somehow out of bounds (e.g., all entities died except player)
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -512,7 +603,21 @@ class Game:
                 self.render()
             
             if event.type == pygame.KEYDOWN:
-                
+
+                # --- NEW: Handle Character Creation Input ---
+                if self.game_state == GameState.CHARACTER_CREATION:
+                    if event.key == pygame.K_UP:
+                        self.selected_race_index = (self.selected_race_index - 1) % len(self.available_races)
+                        self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
+                        self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
+                    elif event.key == pygame.K_DOWN:
+                        self.selected_race_index = (self.selected_race_index + 1) % len(self.available_races)
+                        self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
+                        self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
+                    elif event.key == pygame.K_RETURN: # Enter key to confirm selection
+                        self.finalize_character_creation()
+                    return True # Consume event, don't process other game states
+
                 # --- Always accessible menus ---
                 if event.key == pygame.K_i:
                     if self.game_state == GameState.DUNGEON or self.game_state == GameState.TAVERN:
@@ -530,7 +635,20 @@ class Game:
                     elif self.game_state == GameState.CHARACTER_MENU:
                         self.game_state = self._previous_game_state
                         self.message_log.add_message("Closing Character Menu.", (100, 200, 255))
-                    continue
+                    # NEW: If opening inventory from TARGETING mode, cancel targeting
+                    elif self.game_state == GameState.TARGETING:
+                        self.message_log.add_message("Targeting cancelled (Inventory opened).", (150, 150, 150))
+                        # Determine the state to return to after targeting was cancelled
+                        # This should be the state *before* targeting was initiated
+                        return_state_after_targeting = GameState.DUNGEON if self._previous_game_state == GameState.DUNGEON else GameState.TAVERN
+                        
+                        self.game_state = return_state_after_targeting # Exit targeting cleanly
+                        self.ability_in_use = None # Clear the ability
+                        
+                        self._previous_game_state = return_state_after_targeting # Set previous for when inventory closes
+                        self.game_state = GameState.INVENTORY # Then open inventory
+                        self.message_log.add_message("Opening Inventory...", (100, 200, 255))
+                    continue # Consume event, don't process other game states
                 
                 if event.key == pygame.K_c:
                     if self.game_state == GameState.DUNGEON or self.game_state == GameState.TAVERN:
@@ -549,7 +667,19 @@ class Game:
                         self.game_state = GameState.CHARACTER_MENU
                         self.selected_inventory_item = None
                         self.message_log.add_message("Switching to Character Menu.", (100, 200, 255))
-                    continue
+                    # NEW: If opening character menu from TARGETING mode, cancel targeting
+                    elif self.game_state == GameState.TARGETING:
+                        self.message_log.add_message("Targeting cancelled (Character Menu opened).", (150, 150, 150))
+                        # Determine the state to return to after targeting was cancelled
+                        return_state_after_targeting = GameState.DUNGEON if self._previous_game_state == GameState.DUNGEON else GameState.TAVERN
+                        
+                        self.game_state = return_state_after_targeting # Exit targeting cleanly
+                        self.ability_in_use = None # Clear the ability
+                        
+                        self._previous_game_state = return_state_after_targeting # Set previous for when character menu closes
+                        self.game_state = GameState.CHARACTER_MENU # Then open character menu
+                        self.message_log.add_message("Opening Character Menu...", (100, 200, 255))
+                    continue # Consume event, don't process other game states
 
                 # --- Handle input based on game state ---
                 if self.game_state == GameState.INVENTORY:
@@ -568,6 +698,9 @@ class Game:
                 can_player_act_this_turn = (self.game_state == GameState.TAVERN) or \
                                            (self.get_current_entity() == self.player and not self.player_has_acted)
                 
+                if self.game_state == GameState.TARGETING:
+                    continue
+
                 if not can_player_act_this_turn:
                     continue
 
@@ -678,17 +811,24 @@ class Game:
 
                     sorted_abilities = sorted(self.player.abilities.values(), key=lambda ab: ab.name)
                     
+
                     if pygame.K_1 <= event.key <= pygame.K_9:
                         ability_index = event.key - pygame.K_1
                         if 0 <= ability_index < len(sorted_abilities):
                             ability_to_use = sorted_abilities[ability_index]
-                            if self.game_state == GameState.DUNGEON:
+                            if self.game_state == GameState.DUNGEON:    
+                                # If ability.use() returns True (meaning it was successfully used)
+                                # and it's not a targeting ability (which handles its own state transition)
                                 if ability_to_use.use(self.player, self):
-                                    action_taken = True
+                                    # If the ability puts us into TARGETING mode, we don't call next_turn yet.
+                                    # The next_turn call will happen after targeting is resolved.
+                                    if self.game_state != GameState.TARGETING: # ADD THIS CHECK
+                                        action_taken = True
+                                    # else: action_taken remains False, as targeting is pending
                             else:
                                 self.message_log.add_message("Abilities can only be used in the dungeon.", (150, 150, 150))
                         else:
-                            self.message_log.add_message("No ability assigned to that hotkey.", (150, 150, 150))                   
+                            self.message_log.add_message("No ability assigned to that hotkey.", (150, 150, 150))                
                     
                     elif event.key == pygame.K_F11:
                         flags = self.screen.get_flags()
@@ -707,6 +847,7 @@ class Game:
                         self.player_has_acted = True
                     self.next_turn()
         return True
+    
 
     def handle_targeting_input(self, key):
         dx, dy = 0, 0
@@ -744,8 +885,8 @@ class Game:
             self.message_log.add_message("Targeting cancelled.", (150, 150, 150))
             self.game_state = self._previous_game_state # Return to previous state (DUNGEON)
             self.ability_in_use = None # Clear the ability
-            self.player_has_acted = False # Player didn't act if cancelled
-            self.next_turn() # Still consume turn if player initiated targeting
+            # self.player_has_acted = False # Player didn't act if cancelled
+            # self.next_turn() # Still consume turn if player initiated targeting
             return # Input handled
 
     def execute_targeted_ability(self):
@@ -839,6 +980,10 @@ class Game:
         self.game_state = self._previous_game_state
         self.ability_in_use = None
         self.player_has_acted = True
+
+        pygame.event.pump() 
+        pygame.display.flip()
+
         self.next_turn()
 
     def check_line_of_sight(self, x1, y1, x2, y2):
@@ -1165,7 +1310,7 @@ class Game:
                 (255, 200, 100)
             )
 
-            damage_dealt = target.take_damage(damage_total)
+            damage_dealt = target.take_damage(damage_total, damage_type='physical')
 
             self.message_log.add_message(
                 f"You hit the {target.name} for {damage_dealt} damage!",
@@ -1204,15 +1349,18 @@ class Game:
         self.message_log.add_message(random.choice(messages), (170, 170, 170))
 
     def update(self, dt):
-        self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height)
+        # NEW: Only update camera and process turns if player exists and game is in an active state
+        if self.player and (self.game_state == GameState.DUNGEON or self.game_state == GameState.TAVERN):
+            self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height)
         
+        if not self.player: # If player hasn't been created yet (e.g., in character creation)
+            return # Do nothing else in update
         if not self.player.alive:
             if not hasattr(self, '_game_over_displayed'):
                 death_messages = [
                     "Your journey ends here, adventurer. The dungeon claims another soul.",
                     "The light fades from your eyes. Darkness embraces you.",
                     "You fought bravely, but the dungeon proved too strong. Rest now.",
-                    "Your spirit departs this mortal coil. Game Over.",
                     "The dungeon's embrace is cold and final. You have fallen."
                 ]
                 chosen_death_message = random.choice(death_messages)
@@ -1220,13 +1368,17 @@ class Game:
                 self._game_over_displayed = True
             return
         
+        # This condition was already here, but now it's after the player check
         if self.game_state == GameState.TAVERN or \
            self.game_state == GameState.INVENTORY or \
            self.game_state == GameState.INVENTORY_MENU or \
-           self.game_state == GameState.CHARACTER_MENU:
+           self.game_state == GameState.CHARACTER_MENU or \
+           self.game_state == GameState.TARGETING or \
+           self.game_state == GameState.CHARACTER_CREATION: # Added CHARACTER_CREATION
             return
-
+        
         current = self.get_current_entity()
+        
         if current and current != self.player and current.alive:
             current.take_turn(self.player, self.game_map, self)
             self.next_turn()
@@ -1251,15 +1403,16 @@ class Game:
         self.internal_surface.fill((0, 0, 0))
         
         self.inventory_ui_surface.fill((0,0,0,0))
-        if self.game_state == GameState.INVENTORY:
+        if self.game_state == GameState.CHARACTER_CREATION: # NEW: Character Creation Render
+            self.render_character_creation_screen()
+            self.screen.blit(self.inventory_ui_surface, (0, 0)) # Use inventory_ui_surface for overlay
+        elif self.game_state == GameState.INVENTORY:
             self.render_inventory_screen() 
             self.screen.blit(self.inventory_ui_surface, (0, 0))
         elif self.game_state == GameState.INVENTORY_MENU:
             self.render_inventory_screen() 
             self.screen.blit(self.inventory_ui_surface, (0, 0))
-            
             self.render_inventory_menu_popup()
-            
         elif self.game_state == GameState.CHARACTER_MENU:
             self.render_character_menu()
             self.screen.blit(self.inventory_ui_surface, (0, 0))
@@ -1268,20 +1421,11 @@ class Game:
             self.render_items_on_ground()
             self.render_entities()
             
-            # --- NEW: Draw Targeting Cursor ---
             if self.game_state == GameState.TARGETING:
                 screen_x, screen_y = self.camera.world_to_screen(self.targeting_cursor_x, self.targeting_cursor_y)
-                # Draw a distinct cursor, e.g., a yellow 'X' or a highlighted square
-                # We can use graphics.draw_tile with a special character or just draw a rect
-                
-                # Option 1: Draw a simple rectangle
                 cursor_rect = pygame.Rect(screen_x * config.TILE_SIZE, screen_y * config.TILE_SIZE, config.TILE_SIZE, config.TILE_SIZE)
-                pygame.draw.rect(self.internal_surface, (255, 255, 0), cursor_rect, 2) # Yellow outline
-                
-                # Option 2: Draw a special tile character (if you have one in your tileset)
-                # graphics.draw_tile(self.internal_surface, screen_x, screen_y, 'X', color_tint=(255, 255, 0)) # Assuming 'X' is a cursor tile
-            # --- END NEW ---
-
+                pygame.draw.rect(self.internal_surface, (255, 255, 0), cursor_rect, 2)
+            
             available_width = config.GAME_AREA_WIDTH
             available_height = config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT
             
@@ -1301,7 +1445,10 @@ class Game:
             
             scaled_game_area = pygame.transform.scale(self.internal_surface, target_rect.size)
             self.screen.blit(scaled_game_area, target_rect.topleft)
-        self.draw_ui()
+        
+        # Only draw UI if player exists (after character creation)
+        if self.player: 
+            self.draw_ui()
         self.message_log.render(self.screen)
         
         pygame.display.flip()
@@ -1328,6 +1475,8 @@ class Game:
                         render_color_tint = None
                     elif visibility_type == 'torch':
                         render_color_tint = (128, 128, 128, 255)
+                    elif visibility_type == 'darkvision': # NEW: Darkvision tint
+                        render_color_tint = (90, 90, 90, 255) # Slightly darker than torch, but still visible
                     elif visibility_type == 'explored':
                         render_color_tint = (60, 60, 60, 255)
                     
@@ -1343,7 +1492,7 @@ class Game:
             visibility_type = self.fov.get_visibility_type(entity.x, entity.y)
             
             if entity.alive and self.camera.is_in_viewport(entity.x, entity.y) and \
-               (visibility_type == 'player' or visibility_type == 'torch' or visibility_type == 'explored'):
+               (visibility_type == 'player' or visibility_type == 'torch' or visibility_type == 'explored' or visibility_type == 'darkvision'): # NEW: Add darkvision
                 
                 screen_x, screen_y = self.camera.world_to_screen(entity.x, entity.y)
                 
@@ -1355,12 +1504,14 @@ class Game:
                         entity_color_tint = None
                     elif visibility_type == 'torch':
                         entity_color_tint = (128, 128, 128, 255)
+                    elif visibility_type == 'darkvision': # NEW: Darkvision tint
+                        entity_color_tint = (90, 90, 90, 255)
                     elif visibility_type == 'explored':
                         entity_color_tint = (60, 60, 60, 255)
                     
                     graphics.draw_tile(self.internal_surface, screen_x, screen_y, floor.char, color_tint=entity_color_tint)
                     graphics.draw_tile(self.internal_surface, screen_x, screen_y, entity.char, color_tint=entity_color_tint)
-
+    
     def render_items_on_ground(self):
         """Render items lying on the dungeon floor."""
         map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT 
@@ -1372,7 +1523,7 @@ class Game:
             visibility_type = self.fov.get_visibility_type(item.x, item.y)
             
             if self.camera.is_in_viewport(item.x, item.y) and \
-               (visibility_type == 'player' or visibility_type == 'torch' or visibility_type == 'explored'):
+               (visibility_type == 'player' or visibility_type == 'torch' or visibility_type == 'explored' or visibility_type == 'darkvision'): # NEW: Add darkvision
                 
                 screen_x, screen_y = self.camera.world_to_screen(item.x, item.y)
                 
@@ -1384,11 +1535,56 @@ class Game:
                         item_color_tint = None
                     elif visibility_type == 'torch':
                         item_color_tint = (128, 128, 128, 255)
+                    elif visibility_type == 'darkvision': # NEW: Darkvision tint
+                        item_color_tint = (90, 90, 90, 255)
                     elif visibility_type == 'explored':
                         item_color_tint = (60, 60, 60, 255)
                     
                     graphics.draw_tile(self.internal_surface, screen_x, screen_y, floor.char, color_tint=item_color_tint)
                     graphics.draw_tile(self.internal_surface, screen_x, screen_y, item.char, color_tint=item_color_tint)
+
+    def render_character_creation_screen(self):
+        target_surface = self.inventory_ui_surface # Use this surface for drawing
+        target_surface.fill((0,0,0,0)) # Clear it
+        
+        # Draw a background box for the menu
+        menu_width = int(target_surface.get_width() * 0.7)
+        menu_height = int(target_surface.get_height() * 0.8)
+        menu_x = (target_surface.get_width() - menu_width) // 2
+        menu_y = (target_surface.get_height() - menu_height) // 2
+        menu_rect = pygame.Rect(menu_x, menu_y, menu_width, menu_height)
+        pygame.draw.rect(target_surface, (30, 30, 30), menu_rect)
+        pygame.draw.rect(target_surface, (100, 100, 100), menu_rect, 2)
+        
+        title_text = "CHOOSE YOUR RACE"
+        title_surface = self.inventory_font_header.render(title_text, True, (255, 215, 0))
+        title_rect = title_surface.get_rect(center=(menu_rect.centerx, menu_y + self.inventory_font_header.get_linesize() // 2 + 10))
+        target_surface.blit(title_surface, title_rect)
+        
+        current_y = title_rect.bottom + 30
+        item_start_x = menu_x + 40
+        line_spacing = self.inventory_font_info.get_linesize() + 8
+        
+        for i, race in enumerate(self.available_races):
+            race_text = f"{i+1}. {race.name}"
+            color = (255, 255, 0) if i == self.selected_race_index else (200, 200, 200)
+            race_surface = self.inventory_font_section.render(race_text, True, color)
+            target_surface.blit(race_surface, (item_start_x, current_y))
+            current_y += line_spacing
+        
+            if i == self.selected_race_index:
+                wrapped_desc = self._wrap_text(race.description, self.inventory_font_small, menu_width - 80)
+        
+                for line in wrapped_desc:
+                    desc_surface = self.inventory_font_small.render(line, True, (150, 150, 150))
+                    target_surface.blit(desc_surface, (item_start_x + 20, current_y))
+                    current_y += self.inventory_font_small.get_linesize() + 2
+        
+                current_y += 10 # Extra space after description
+        
+        instructions_y = menu_rect.bottom - (self.inventory_font_small.get_linesize() * 2) - 20
+        self._draw_text(target_surface, self.inventory_font_small, "Use UP/DOWN arrows to select.", (150, 150, 150), item_start_x, instructions_y)
+        self._draw_text(target_surface, self.inventory_font_small, "Press ENTER to confirm.", (150, 150, 150), item_start_x, instructions_y + self.inventory_font_small.get_linesize() + 5)    
 
     def render_inventory_screen(self):
         """Renders the inventory screen."""

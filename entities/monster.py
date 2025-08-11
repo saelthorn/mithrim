@@ -36,9 +36,9 @@ class Monster:
             return
 
         # Process status effects at the start of the monster's turn
-        self.process_status_effects(game)
-        if not self.alive: # Check if monster died from status effect
-            return
+        # self.process_status_effects(game)
+        # if not self.alive: # Check if monster died from status effect
+        #    return
 
         # Check if adjacent to player (including diagonals)
         if self.is_adjacent_to(player):
@@ -151,7 +151,7 @@ class Monster:
                 (255, 170, 100)
             )
 
-            damage_dealt = target.take_damage(damage_total, game)
+            damage_dealt = target.take_damage(damage_total, game, damage_type='physical') 
             
             game.message_log.add_message(
                 f"The {self.name} attacks {target.name} for {damage_dealt} damage!", 
@@ -187,7 +187,7 @@ class Monster:
             ]
             game.message_log.add_message(random.choice(monster_miss_messages), (200, 200, 200))
 
-    def take_damage(self, amount): # <--- REMOVE game_instance FROM HERE
+    def take_damage(self, amount, game_instance=None, damage_type=None): 
         """Handle taking damage and return actual damage taken"""
         damage_taken = amount 
         self.hp -= damage_taken
@@ -252,7 +252,7 @@ class Mimic(Monster):
         self.base_xp = 30
         self.blocks_movement = True
 
-    def take_damage(self, amount, game_instance): # This method *does* take game_instance
+    def take_damage(self, amount, game_instance, damage_type=None): # This method *does* take game_instance
         """
         Mimic's take_damage method.
         If disguised and takes damage, it reveals itself.
@@ -261,7 +261,7 @@ class Mimic(Monster):
             game_instance.message_log.add_message(f"You strike the {self.name}!", (255, 165, 0))
             self.reveal(game_instance) 
             
-        damage_taken = super().take_damage(amount) # <--- REMOVE game_instance FROM HERE
+        damage_taken = super().take_damage(amount, game_instance, damage_type) # <--- REMOVE game_instance FROM HERE
 
         # Add any Mimic-specific damage messages or effects here if needed
         if not self.alive and not self.disguised: # Only if it died and was already revealed

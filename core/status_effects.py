@@ -27,14 +27,15 @@ class Poisoned(StatusEffect):
     def apply_effect(self, target, game_instance):
         if self.turns_left > 0:
             game_instance.message_log.add_message(f"{target.name} is poisoned! Takes {self.damage_per_turn} damage.", (255, 0, 0))
-            target.take_damage(self.damage_per_turn, game_instance) # <--- ADD game_instance HERE
+            # NEW: Pass damage_type='poison'
+            target.take_damage(self.damage_per_turn, game_instance, damage_type='poison') 
             
             if not target.alive:
                 game_instance.message_log.add_message(f"{target.name} succumbed to poison!", (200, 0, 0))
     
     def on_end(self, target, game_instance):
         super().on_end(target, game_instance)
-
+    
 
 class PowerAttackBuff(StatusEffect):
     def __init__(self, duration=1): # Typically lasts for 1 turn (the next attack)

@@ -3,6 +3,8 @@ from core.inventory import Inventory
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt
 from core.status_effects import StatusEffect, Poisoned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff
 from items.items import long_sword, chainmail_armor, short_sword, leather_armor, dagger, robes
+from entities.races import Human, HillDwarf # Import the races you've defined
+    
 
 class Player: # This is our base class for playable characters
     _ability_name_map = {
@@ -37,6 +39,16 @@ class Player: # This is our base class for playable characters
         self.intelligence = 10
         self.wisdom = 10
         self.charisma = 10
+
+        # --- Race (Base value, will be overridden by subclasses) ---
+        self.race = None
+        self.has_darkvision = False 
+        self.damage_resistances = []
+
+        # --- NEW: Racial Proficiencies ---
+        self.skill_proficiencies = []
+        self.weapon_proficiencies = [] # e.g., ["shortsword", "longsword"]
+        self.armor_proficiencies = []  # e.g., ["light", "medium"]        
        
         # --- Saving Throw Proficiencies (Base values, will be overridden by subclasses) ---
         self.saving_throw_proficiencies = {
@@ -144,9 +156,18 @@ class Player: # This is our base class for playable characters
         while self.current_xp >= self.xp_to_next_level:
             self.level_up(game_instance)
 
-    def take_damage(self, amount, game_instance): 
+    def take_damage(self, amount, game_instance, damage_type=None): 
         damage_taken = amount
         
+        # NEW: Apply damage resistance
+        if damage_type and damage_type in self.damage_resistances:
+            original_damage = damage_taken
+            damage_taken = int(damage_taken / 2) # Halve the damage
+            game_instance.message_log.add_message(
+                f"{self.name} resists the {damage_type} damage! ({original_damage} -> {damage_taken})",
+                (100, 255, 100)
+            )
+
         evasion_buff = None
         for effect in self.active_status_effects:
             if isinstance(effect, EvasionBuff):
@@ -200,11 +221,16 @@ class Player: # This is our base class for playable characters
         self.max_hp = self._calculate_max_hp()
         self.hp = self.max_hp # Heal to full on level up
         
-        # Recalculate combat stats based on new level/proficiency/abilities
-        # These calculations should be consistent with how they are done in __init__
+        # --- NEW: Re-evaluate proficiency penalty on level up ---
+        proficiency_penalty = 0
+        if self.equipped_weapon:
+            standardized_weapon_name = self.equipped_weapon.name.lower().replace(" ", "")
+            if standardized_weapon_name not in self.weapon_proficiencies:
+                proficiency_penalty = -4 # Same penalty as in equip_item
+        
         self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus # Base attack bonus
         if self.equipped_weapon: # Add weapon's bonus if equipped
-            self.attack_bonus += self.equipped_weapon.attack_bonus
+            self.attack_bonus += self.equipped_weapon.attack_bonus + proficiency_penalty # Apply penalty here
         
         # Recalculate attack_power based on primary attack stat and equipped weapon
         # This needs to be dynamic based on class's primary attack stat
@@ -213,7 +239,7 @@ class Player: # This is our base class for playable characters
         self.attack_power = self.get_ability_modifier(self.dexterity)
         if self.equipped_weapon:
             self.attack_power += self.equipped_weapon.damage_modifier
-
+        
         self.armor_class = self._calculate_ac() # Recalculate AC
 
     def roll_initiative(self):
@@ -277,30 +303,28 @@ class Player: # This is our base class for playable characters
             self.inventory.remove_item(item)
             
             self.equipped_weapon = item
-            # Recalculate attack bonus based on new weapon
+            
+            # --- NEW: Check for weapon proficiency ---
+            proficiency_penalty = 0
+            # Convert weapon name to a standardized format for proficiency check (e.g., lowercase, no spaces)
+            standardized_weapon_name = item.name.lower().replace(" ", "") 
+            
+            # Check if the player is proficient with this specific weapon
+            # For now, we'll assume proficiency names match item names (e.g., "shortsword" proficiency for "Short Sword")
+            if standardized_weapon_name not in self.weapon_proficiencies:
+                proficiency_penalty = -4 # Example penalty for non-proficiency
+                game_instance.message_log.add_message(f"You are not proficient with {item.name}. Attack rolls with it will be penalized by {proficiency_penalty}.", (255, 100, 100))
+            else:
+                game_instance.message_log.add_message(f"You are proficient with {item.name}.", (100, 255, 100))
+            # Recalculate attack bonus based on new weapon and proficiency
             # This should be based on the class's primary attack stat
             # For now, assuming DEX for base class, subclasses will override.
-            self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus + item.attack_bonus
+            self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus + item.attack_bonus + proficiency_penalty
             
             # Recalculate attack_power based on primary attack stat and equipped weapon
             self.attack_power = self.get_ability_modifier(self.dexterity) + item.damage_modifier
-
             game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
             return True
-        elif isinstance(item, Armor):
-            if self.equipped_armor:
-                self.inventory.add_item(self.equipped_armor) 
-                game_instance.message_log.add_message(f"You unequip {self.equipped_armor.name}.", (150, 150, 150))
-            
-            self.inventory.remove_item(item)
-            
-            self.equipped_armor = item
-            self.armor_class = self._calculate_ac()
-            game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
-            return True
-        game_instance.message_log.add_message(f"You can't equip {item.name}.", (255, 100, 100))
-        return False
-
 
     def add_status_effect(self, effect_name, duration, game_instance, source=None):
         """Adds a status effect to the player."""
@@ -444,22 +468,32 @@ class Wizard(Player):
             "STR": False, "DEX": False, "CON": False, "CHA": False,
         }
 
+        # --- NEW: Set and apply race traits ---
+        # For now, hardcode Human. This will be chosen by the player later.
+        self.race = HillDwarf() # Or HillDwarf() to test that race
+        # Pass 'self' (the player instance) and 'game_instance' (which is not available here yet)
+        # We'll need to pass game_instance from Game.__init__ to Player.__init__
+        # For now, we'll apply traits in Game.__init__ after player creation.
+        # This is a temporary workaround for Phase 1 simplicity.
+        # The proper place for apply_traits is after player is fully initialized and game_instance is available.
+        # So, we'll move the apply_traits call to Game.__init__ for now.
+        
         # Set starting equipment
         self.equipped_weapon = dagger
         self.equipped_armor = robes
-
+        
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
+        # These calculations MUST happen AFTER race traits are applied.
         self.max_hp = self._calculate_max_hp()
         self.hp = self.max_hp
         self.armor_class = self._calculate_ac()
-
+        
         # Wizard's primary attack stat is Intelligence (for spells) or Dexterity (for weapons)
         # For basic weapon attacks, let's use Dexterity for now.
         # For spell attack rolls, it would be Intelligence.
         self.attack_power = self.get_ability_modifier(self.dexterity) + self.equipped_weapon.damage_modifier
         self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus + self.equipped_weapon.attack_bonus
-
+        
         # Wizard abilities (e.g., Spellcasting - will be complex)
         # self.abilities["spellcasting"] = Spellcasting()
         self.abilities["fire_bolt"] = FireBolt()
-
