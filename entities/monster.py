@@ -42,7 +42,11 @@ class Monster:
 
         # Check if adjacent to player (including diagonals)
         if self.is_adjacent_to(player):
-            self.attack(player, game)
+            # For testing monster advantage/disadvantage, uncomment one of these:
+            # self.attack(player, game, advantage=True)
+            # self.attack(player, game, disadvantage=True)
+            # self.attack(player, game, advantage=True, disadvantage=True) # Should cancel out
+            self.attack(player, game) # Default call
             return
 
         # Otherwise move toward player using A* pathfinding
@@ -72,15 +76,31 @@ class Monster:
         dy = abs(self.y - other.y)
         return dx <= 1 and dy <= 1 and (dx != 0 or dy != 0)
 
-    def attack(self, target, game):
+    def attack(self, target, game, advantage=False, disadvantage=False):
         """Attack a target and show combat messages, including dice rolls, crits, and fumbles."""
         if not target.alive:
             return
 
         # --- Monster Attack Roll ---
-        d20_roll = random.randint(1, 20)
-        monster_attack_bonus = 2
-        attack_roll_total = d20_roll + monster_attack_bonus
+        roll1 = random.randint(1, 20)
+        roll2 = random.randint(1, 20) 
+
+        final_d20_roll = roll1
+        roll_message_part = f"a d20: {roll1}"
+
+        if advantage and disadvantage:
+            game.message_log.add_message(f"The {self.name} rolls with neither Advantage nor Disadvantage.", (150, 150, 150))
+        elif advantage:
+            final_d20_roll = max(roll1, roll2)
+            roll_message_part = f"2d20 (Advantage): {roll1}, {roll2} -> {final_d20_roll}"
+            game.message_log.add_message(f"The {self.name} rolls with Advantage!", (255, 200, 100))
+        elif disadvantage:
+            final_d20_roll = min(roll1, roll2)
+            roll_message_part = f"2d20 (Disadvantage): {roll1}, {roll2} -> {final_d20_roll}"
+            game.message_log.add_message(f"The {self.name} rolls with Disadvantage!", (150, 150, 255))
+        
+        monster_attack_bonus = 2 # Keep this as is for now
+        attack_roll_total = final_d20_roll + monster_attack_bonus # Use final_d20_roll
 
         # --- Apply EvasionBuff to target's AC if present ---
         target_ac = target.armor_class
@@ -96,12 +116,13 @@ class Monster:
             game.message_log.add_message(f"The {target.name} is evasive! Target AC: {target_ac}", (100, 255, 255))
 
         game.message_log.add_message(
-            f"The {self.name} rolls a d20: {d20_roll} + {monster_attack_bonus} (Attack Bonus) = {attack_roll_total}",
+            f"The {self.name} rolls {roll_message_part} + {monster_attack_bonus} (Attack Bonus) = {attack_roll_total}",
             (255, 150, 150)
         )
 
-        is_critical_hit = (d20_roll == 20)
-        is_critical_fumble = (d20_roll == 1)
+        is_critical_hit = (final_d20_roll == 20) # Use final_d20_roll
+        is_critical_fumble = (final_d20_roll == 1) # Use final_d20_roll
+
 
         if is_critical_hit:
             game.message_log.add_message(
@@ -131,17 +152,25 @@ class Monster:
             game.message_log.add_message(random.choice(monster_hit_messages), (255, 100, 100))
 
 
-            # --- Damage Calculation (already in place) ---
-            damage_dice_roll_1 = random.randint(1, 4)
-            damage_dice_roll_2 = 0
+            # --- Damage Calculation ---
+            # For monsters, let's assume a base damage die of 1d4 for now.
+            # You can make this more sophisticated later (e.g., monster.damage_dice = "1d6")
+            monster_die_type = 4 # Assuming 1d4 for monsters
+
+            damage_rolls = []
+            total_dice_rolled = 1 # Default to 1 die
 
             if is_critical_hit:
-                damage_dice_roll_2 = random.randint(1, 4)
-                damage_dice_rolls_sum = damage_dice_roll_1 + damage_dice_roll_2
-                damage_message_dice_part = f"2d4 ({damage_dice_roll_1} + {damage_dice_roll_2})"
-            else:
-                damage_dice_rolls_sum = damage_dice_roll_1
-                damage_message_dice_part = f"1d4 ({damage_dice_roll_1})"
+                total_dice_rolled *= 2 # Double the number of dice rolled for critical hits
+                game.message_log.add_message(f"Critical Hit! The {self.name} rolls {total_dice_rolled}d{monster_die_type} for damage!", (255, 100, 100))
+
+            for _ in range(total_dice_rolled):
+                damage_rolls.append(random.randint(1, monster_die_type))
+            
+            damage_dice_rolls_sum = sum(damage_rolls)
+            
+            # Construct the message part for dice rolls
+            damage_message_dice_part = f"{total_dice_rolled}d{monster_die_type} ({' + '.join(map(str, damage_rolls))})"
 
             damage_modifier = self.attack_power
             damage_total = max(1, damage_dice_rolls_sum + damage_modifier)
@@ -261,7 +290,7 @@ class Mimic(Monster):
             game_instance.message_log.add_message(f"You strike the {self.name}!", (255, 165, 0))
             self.reveal(game_instance) 
             
-        damage_taken = super().take_damage(amount, game_instance, damage_type) # <--- REMOVE game_instance FROM HERE
+        damage_taken = super().take_damage(amount, damage_type) # <--- REMOVE game_instance FROM HERE
 
         # Add any Mimic-specific damage messages or effects here if needed
         if not self.alive and not self.disguised: # Only if it died and was already revealed
@@ -321,6 +350,5 @@ class Mimic(Monster):
         
         # If not disguised, behave like a normal monster (Stage 2 combat form)
         super().take_turn(player, game_map, game)
-
 
 

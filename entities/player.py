@@ -1,8 +1,8 @@
 import random
 from core.inventory import Inventory
-from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt
+from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep
 from core.status_effects import StatusEffect, Poisoned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff
-from items.items import long_sword, chainmail_armor, short_sword, leather_armor, dagger, robes
+from items.items import long_sword, chainmail_armor, short_sword, leather_armor, dagger, robes, lesser_healing_potion, greater_healing_potion
 from entities.races import Human, HillDwarf # Import the races you've defined
     
 
@@ -66,6 +66,8 @@ class Player: # This is our base class for playable characters
         # --- Initialize equipped items BEFORE calculating AC/HP ---
         self.equipped_weapon = None
         self.equipped_armor = None
+
+        self.starting_equipment = None 
         
         # Recalculate max HP and AC based on base stats and equipped gear
         self.max_hp = 0 # Will be set by subclass
@@ -422,7 +424,7 @@ class Rogue(Player):
 
         self.strength = 8
         self.dexterity = 15
-        self.constitution = 130
+        self.constitution = 13
         self.intelligence = 12
         self.wisdom = 10
         self.charisma = 14
@@ -433,6 +435,8 @@ class Rogue(Player):
         }
 
         # Set starting equipment
+        self.inventory.add_item(lesser_healing_potion)
+
         self.equipped_weapon = short_sword
         self.equipped_armor = leather_armor
 
@@ -479,6 +483,9 @@ class Wizard(Player):
         # So, we'll move the apply_traits call to Game.__init__ for now.
         
         # Set starting equipment
+        self.inventory.add_item(lesser_healing_potion)
+        self.inventory.add_item(greater_healing_potion)
+
         self.equipped_weapon = dagger
         self.equipped_armor = robes
         
@@ -497,3 +504,4 @@ class Wizard(Player):
         # Wizard abilities (e.g., Spellcasting - will be complex)
         # self.abilities["spellcasting"] = Spellcasting()
         self.abilities["fire_bolt"] = FireBolt()
+        self.abilities["misty_step"] = MistyStep()

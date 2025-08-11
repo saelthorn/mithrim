@@ -24,7 +24,7 @@ from entities.tavern_npcs import create_tavern_npcs
 from entities.dungeon_npcs import DungeonHealer
 from entities.tavern_npcs import NPC
 from entities.races import Human, HillDwarf
-from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt
+from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep
 from core.message_log import MessageBox
 from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff
 from items.items import Potion, Weapon, Armor, Chest
@@ -66,7 +66,6 @@ class Camera:
 class Game:
     def __init__(self, screen):
         self.screen = screen
-        print(f"Initializing game with screen size: {screen.get_size()}")
         
         self.internal_surface = None
         self.inventory_ui_surface = None
@@ -74,8 +73,6 @@ class Game:
         self.message_log = None
         
         self._recalculate_dimensions() 
-        print(f"After initial recalculation, TILE_SIZE: {config.TILE_SIZE}, SCREEN_WIDTH: {config.SCREEN_WIDTH}, SCREEN_HEIGHT: {config.SCREEN_HEIGHT}")
-        print(f"Initialized internal_surface: {self.internal_surface.get_size()}")
         
         self._init_fonts()
         
@@ -123,7 +120,7 @@ class Game:
         self.available_races = [Human(), HillDwarf()] # List of race objects
         self.selected_race_index = 0 # Index of currently highlighted race
         self.character_name = "Shadowblade" # Default name, could be input later
-        self.character_class = Wizard # Default class, could be input later
+        self.character_class = Wizard # Available classes: Fighter, Rogue, Wizard
         
         # Call a method to start character creation
         self.start_character_creation()
@@ -170,7 +167,6 @@ class Game:
     def _recalculate_dimensions(self):
         """Recalculate all dynamic dimensions based on current screen size."""
         config.SCREEN_WIDTH, config.SCREEN_HEIGHT = self.screen.get_size()
-        print(f"Recalculating dimensions. New screen size: {config.SCREEN_WIDTH}x{config.SCREEN_HEIGHT}")
         
         config.UI_PANEL_WIDTH = int(config.SCREEN_WIDTH * config.UI_PANEL_WIDTH_RATIO)
         config.GAME_AREA_WIDTH = config.SCREEN_WIDTH - config.UI_PANEL_WIDTH
@@ -190,8 +186,7 @@ class Game:
         config.INTERNAL_GAME_AREA_PIXEL_HEIGHT = config.INTERNAL_GAME_AREA_HEIGHT_TILES * config.TILE_SIZE
         
         self.internal_surface = pygame.Surface((config.INTERNAL_GAME_AREA_PIXEL_WIDTH, config.INTERNAL_GAME_AREA_PIXEL_HEIGHT)).convert_alpha()
-        print(f"Re-initialized internal_surface in _recalculate_dimensions: {self.internal_surface.get_size()}")
-
+        
         self.inventory_ui_surface = pygame.Surface((config.GAME_AREA_WIDTH, config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT)).convert_alpha()
         self.inventory_ui_surface.fill((0,0,0,0))
 
@@ -201,8 +196,7 @@ class Game:
         self.camera.tile_size = config.TILE_SIZE 
         self.camera.viewport_width = config.INTERNAL_GAME_AREA_WIDTH_TILES
         self.camera.viewport_height = config.INTERNAL_GAME_AREA_HEIGHT_TILES
-        print(f"Camera viewport (after recalculation): {self.camera.viewport_width}x{self.camera.viewport_height}")
-
+        
         if self.message_log is not None: 
             self.message_log.rect.x = 0
             self.message_log.rect.y = config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT
@@ -222,7 +216,6 @@ class Game:
 
     def _init_fonts(self):
         """Initializes or re-initializes fonts based on current TILE_SIZE and screen dimensions."""
-        print(f"DEBUG: _init_fonts called. Current config.TILE_SIZE: {config.TILE_SIZE}")
         
         temp_tile_size = max(1, config.TILE_SIZE)
         self.font = pygame.font.SysFont('consolas', temp_tile_size)
@@ -237,7 +230,6 @@ class Game:
         self.font_info = pygame.font.SysFont('consolas', 14)
         self.font_small = pygame.font.SysFont('consolas', 14)
         
-        print("DEBUG: All fonts initialized successfully.")
 
     def generate_tavern(self):
         self.game_state = GameState.TAVERN
@@ -592,6 +584,7 @@ class Game:
         if self.current_turn_index >= len(self.turn_order):
             self.current_turn_index = 0 # Reset if somehow out of bounds (e.g., all entities died except player)
 
+
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -600,10 +593,10 @@ class Game:
             if event.type == pygame.VIDEORESIZE:
                 self.screen = pygame.display.set_mode(event.size, pygame.RESIZABLE)
                 self._recalculate_dimensions()
-                self.render()
-            
-            if event.type == pygame.KEYDOWN:
+                self.render()            
 
+            if event.type == pygame.KEYDOWN:
+                print(f"  KEYDOWN event: {pygame.key.name(event.key)} (value: {event.key})") # MODIFIED THIS LINE
                 # --- NEW: Handle Character Creation Input ---
                 if self.game_state == GameState.CHARACTER_CREATION:
                     if event.key == pygame.K_UP:
@@ -614,115 +607,96 @@ class Game:
                         self.selected_race_index = (self.selected_race_index + 1) % len(self.available_races)
                         self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
                         self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
-                    elif event.key == pygame.K_RETURN: # Enter key to confirm selection
+                    elif event.key == pygame.K_RETURN:
                         self.finalize_character_creation()
-                    return True # Consume event, don't process other game states
+                    return True  # Consume event so no other input is processed
 
                 # --- Always accessible menus ---
+                # Handle 'I' key for Inventory
                 if event.key == pygame.K_i:
-                    if self.game_state == GameState.DUNGEON or self.game_state == GameState.TAVERN:
-                        self._previous_game_state = self.game_state
-                        self.game_state = GameState.INVENTORY
-                        self.message_log.add_message("Opening Inventory...", (100, 200, 255))
-                    elif self.game_state == GameState.INVENTORY:
+                    if self.game_state == GameState.INVENTORY: # If already in inventory, close it
                         self.game_state = self._previous_game_state
                         self.message_log.add_message("Closing Inventory.", (100, 200, 255))
                         self.selected_inventory_item = None
-                    elif self.game_state == GameState.INVENTORY_MENU:
+                    elif self.game_state == GameState.INVENTORY_MENU: # If in inventory menu, go back to main inventory
                         self.game_state = GameState.INVENTORY
                         self.selected_inventory_item = None
                         self.message_log.add_message("Returning to Inventory.", (100, 200, 255))
-                    elif self.game_state == GameState.CHARACTER_MENU:
-                        self.game_state = self._previous_game_state
-                        self.message_log.add_message("Closing Character Menu.", (100, 200, 255))
-                    # NEW: If opening inventory from TARGETING mode, cancel targeting
-                    elif self.game_state == GameState.TARGETING:
-                        self.message_log.add_message("Targeting cancelled (Inventory opened).", (150, 150, 150))
-                        # Determine the state to return to after targeting was cancelled
-                        # This should be the state *before* targeting was initiated
-                        return_state_after_targeting = GameState.DUNGEON if self._previous_game_state == GameState.DUNGEON else GameState.TAVERN
+                    else: # If not in inventory, open it (from dungeon, tavern, character menu, or targeting)
+                        # Only store _previous_game_state if we are coming from a non-menu state
+                        if self.game_state not in [GameState.INVENTORY, GameState.INVENTORY_MENU, GameState.CHARACTER_MENU]:
+                            self._previous_game_state = self.game_state # Store the actual game state (DUNGEON/TAVERN/TARGETING)
                         
-                        self.game_state = return_state_after_targeting # Exit targeting cleanly
-                        self.ability_in_use = None # Clear the ability
+                        # If coming from targeting, cancel targeting first
+                        if self.game_state == GameState.TARGETING:
+                            self.message_log.add_message("Targeting cancelled (Inventory opened).", (150, 150, 150))
+                            self.ability_in_use = None # Clear the ability
+                            self.player_has_acted = False # Ensure player can act after cancelling targeting
                         
-                        self._previous_game_state = return_state_after_targeting # Set previous for when inventory closes
-                        self.game_state = GameState.INVENTORY # Then open inventory
+                        self.game_state = GameState.INVENTORY
                         self.message_log.add_message("Opening Inventory...", (100, 200, 255))
-                    continue # Consume event, don't process other game states
-                
+
+                    return True # Consume event, don't process other game states
+
+                # Handle 'C' key for Character Menu
                 if event.key == pygame.K_c:
-                    if self.game_state == GameState.DUNGEON or self.game_state == GameState.TAVERN:
-                        self._previous_game_state = self.game_state
-                        self.game_state = GameState.CHARACTER_MENU
-                        self.message_log.add_message("Opening Character Menu...", (100, 200, 255))
-                    elif self.game_state == GameState.CHARACTER_MENU:
+                    if self.game_state == GameState.CHARACTER_MENU: # If already in character menu, close it
                         self.game_state = self._previous_game_state
                         self.message_log.add_message("Closing Character Menu.", (100, 200, 255))
-                    elif self.game_state == GameState.INVENTORY:
-                        self._previous_game_state = GameState.INVENTORY
-                        self.game_state = GameState.CHARACTER_MENU
-                        self.message_log.add_message("Switching to Character Menu.", (100, 200, 255))
-                    elif self.game_state == GameState.INVENTORY_MENU:
-                        self._previous_game_state = GameState.INVENTORY_MENU
-                        self.game_state = GameState.CHARACTER_MENU
-                        self.selected_inventory_item = None
-                        self.message_log.add_message("Switching to Character Menu.", (100, 200, 255))
-                    # NEW: If opening character menu from TARGETING mode, cancel targeting
-                    elif self.game_state == GameState.TARGETING:
-                        self.message_log.add_message("Targeting cancelled (Character Menu opened).", (150, 150, 150))
-                        # Determine the state to return to after targeting was cancelled
-                        return_state_after_targeting = GameState.DUNGEON if self._previous_game_state == GameState.DUNGEON else GameState.TAVERN
+                    else: # If not in character menu, open it (from dungeon, tavern, inventory, or targeting)
+                        # Only store _previous_game_state if we are coming from a non-menu state
+                        if self.game_state not in [GameState.INVENTORY, GameState.INVENTORY_MENU, GameState.CHARACTER_MENU]:
+                            self._previous_game_state = self.game_state # Store the actual game state (DUNGEON/TAVERN/TARGETING)
                         
-                        self.game_state = return_state_after_targeting # Exit targeting cleanly
-                        self.ability_in_use = None # Clear the ability
+                        # If coming from targeting, cancel targeting first
+                        if self.game_state == GameState.TARGETING:
+                            self.message_log.add_message("Targeting cancelled (Character Menu opened).", (150, 150, 150))
+                            self.ability_in_use = None # Clear the ability
+                            self.player_has_acted = False # Ensure player can act after cancelling targeting
                         
-                        self._previous_game_state = return_state_after_targeting # Set previous for when character menu closes
-                        self.game_state = GameState.CHARACTER_MENU # Then open character menu
+                        self.game_state = GameState.CHARACTER_MENU
                         self.message_log.add_message("Opening Character Menu...", (100, 200, 255))
-                    continue # Consume event, don't process other game states
+                    return True # Consume event, don't process other game states
 
                 # --- Handle input based on game state ---
+                # These blocks should only be entered if the game_state is specifically that menu
+                # or if it's the main game (DUNGEON/TAVERN)
                 if self.game_state == GameState.INVENTORY:
                     self.handle_inventory_input(event.key)
-                    continue
+                    return True
                 elif self.game_state == GameState.INVENTORY_MENU:
                     self.handle_inventory_menu_input(event.key)
-                    continue
+                    return True
                 elif self.game_state == GameState.CHARACTER_MENU:
-                    continue
+                    return True
                 elif self.game_state == GameState.TARGETING: # <--- NEW TARGETING STATE HANDLING
                     self.handle_targeting_input(event.key)
-                    continue                
-
+                    # handle_targeting_input will call execute_targeted_ability, which then calls next_turn.
+                    # If targeting is cancelled, we want to fall through to normal movement.
+                    # If targeting is confirmed, it will call next_turn and we can return True.
+                    if self.game_state != GameState.TARGETING: # If state changed (i.e., targeting was cancelled or executed)
+                        # Do NOT return True immediately. Let the rest of handle_events process the input
+                        # if the state is now DUNGEON/TAVERN.
+                        pass 
+                    else: # Still in TARGETING state (e.g., invalid target chosen)
+                        return True # Consume event, stay in targeting mode
+                
                 # --- Player's turn logic (for Dungeon and Tavern) ---
+                # This block will now be reached if TARGETING was cancelled and game_state reverted.
                 can_player_act_this_turn = (self.game_state == GameState.TAVERN) or \
                                            (self.get_current_entity() == self.player and not self.player_has_acted)
                 
-                if self.game_state == GameState.TARGETING:
+                if self.game_state not in [GameState.DUNGEON, GameState.TAVERN]:
                     continue
-
                 if not can_player_act_this_turn:
                     continue
-
+                
                 dx, dy = 0, 0
                 action_taken = False
+              
 
-                # --- Cunning Action State Handling ---
-                if self.player.current_action_state == "cunning_action_choice":
-                    if event.key == pygame.K_q: # Choose Dash
-                        self.player.current_action_state = "cunning_action_dash"
-                        self.player.add_status_effect("CunningActionDashBuff", duration=1, game_instance=self)
-                        self.message_log.add_message(f"{self.player.name} is ready to Dash!", (100, 255, 100))
-                        continue 
-                    elif event.key == pygame.K_ESCAPE: # Cancel Cunning Action choice
-                        self.player.current_action_state = None
-                        self.message_log.add_message("Cunning Action cancelled.", (150, 150, 150))
-                        continue
-                    else:
-                        self.message_log.add_message("Invalid choice. Choose Dash (Q) or Disengage (E), or ESC to cancel.", (255, 150, 0))
-                        continue
-
-                elif self.player.current_action_state == "cunning_action_dash":
+                # --- Rogue Skill ---
+                if self.player.current_action_state == "cunning_action_dash":
                     if event.key in (pygame.K_UP, pygame.K_w):
                         dy = -1
                     elif event.key in (pygame.K_DOWN, pygame.K_s):
@@ -776,6 +750,7 @@ class Game:
                     elif event.key in (pygame.K_RIGHT, pygame.K_d):
                         dx = 1
                     
+
                     if dx != 0 or dy != 0:
                         action_taken = self.handle_player_action(dx, dy)
                     elif event.key == pygame.K_SPACE:
@@ -809,27 +784,25 @@ class Game:
                                 else:
                                     action_taken = self.handle_item_pickup()
 
-                    sorted_abilities = sorted(self.player.abilities.values(), key=lambda ab: ab.name)
-                    
+                    sorted_abilities = sorted(self.player.abilities.values(), key=lambda ab: ab.name)                    
 
+
+                    # For abilities:
                     if pygame.K_1 <= event.key <= pygame.K_9:
                         ability_index = event.key - pygame.K_1
                         if 0 <= ability_index < len(sorted_abilities):
                             ability_to_use = sorted_abilities[ability_index]
                             if self.game_state == GameState.DUNGEON:    
-                                # If ability.use() returns True (meaning it was successfully used)
-                                # and it's not a targeting ability (which handles its own state transition)
                                 if ability_to_use.use(self.player, self):
-                                    # If the ability puts us into TARGETING mode, we don't call next_turn yet.
-                                    # The next_turn call will happen after targeting is resolved.
-                                    if self.game_state != GameState.TARGETING: # ADD THIS CHECK
+                                    if self.game_state != GameState.TARGETING:
                                         action_taken = True
-                                    # else: action_taken remains False, as targeting is pending
+                                else:
+                                    pass # Debug print removed
                             else:
                                 self.message_log.add_message("Abilities can only be used in the dungeon.", (150, 150, 150))
                         else:
-                            self.message_log.add_message("No ability assigned to that hotkey.", (150, 150, 150))                
-                    
+                            self.message_log.add_message("No ability assigned to that hotkey.", (150, 150, 150)) 
+
                     elif event.key == pygame.K_F11:
                         flags = self.screen.get_flags()
                         if flags & pygame.FULLSCREEN:
@@ -840,18 +813,19 @@ class Game:
                         self._recalculate_dimensions()
                         self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height) 
                         self.render()
-                        continue
+                        return True
                 
                 if action_taken:
                     if self.game_state == GameState.DUNGEON:
                         self.player_has_acted = True
                     self.next_turn()
-        return True
+                    return True
+        return True 
     
 
     def handle_targeting_input(self, key):
-        dx, dy = 0, 0
-        
+        dx, dy = 0, 0    
+
         # Move targeting cursor
         if key in (pygame.K_UP, pygame.K_w):
             dy = -1
@@ -874,20 +848,21 @@ class Game:
             else:
                 self.message_log.add_message("Targeting cursor cannot move off the map.", (255, 150, 0))
             return # Input handled, don't proceed to confirm/cancel
-
+    
         # Confirm target
         if key == pygame.K_RETURN: # Enter key
             self.execute_targeted_ability()
             return # Input handled
-
+    
         # Cancel targeting
         if key == pygame.K_ESCAPE:
             self.message_log.add_message("Targeting cancelled.", (150, 150, 150))
             self.game_state = self._previous_game_state # Return to previous state (DUNGEON)
             self.ability_in_use = None # Clear the ability
-            # self.player_has_acted = False # Player didn't act if cancelled
-            # self.next_turn() # Still consume turn if player initiated targeting
+            self.player_has_acted = False # Player didn't act if cancelled
+            self.player.current_action_state = None # <--- THIS LINE MUST BE HERE
             return # Input handled
+
 
     def execute_targeted_ability(self):
         if not self.ability_in_use:
@@ -903,7 +878,7 @@ class Game:
         if distance > self.targeting_ability_range:
             self.message_log.add_message(f"{self.ability_in_use.name} target is out of range ({int(distance)} tiles away, max {self.targeting_ability_range}).", (255, 150, 0))
             return # Stay in targeting mode
-
+        
         # Check Line of Sight
         if not self.check_line_of_sight(self.player.x, self.player.y, target_x, target_y):
             self.message_log.add_message(f"Cannot target {self.ability_in_use.name}: No clear line of sight.", (255, 150, 0))
@@ -916,11 +891,6 @@ class Game:
             
             # Fire Bolt damage calculation (example: 1d10)
             damage_roll = random.randint(1, 10)
-
-            self.message_log.add_message(
-                f"You roll 1d10 for Fire Bolt: {damage_roll} damage!",
-                (255, 200, 100) # Orange-yellow color for fire damage
-            )                               
 
             if target_monster and isinstance(target_monster, Monster):
                 # Check if the target is specifically a Mimic
@@ -974,16 +944,36 @@ class Game:
             else:
                 self.message_log.add_message("Fire Bolt requires a monster target or a destructible object.", (255, 150, 0))
                 return # Stay in targeting mode
+            pass
+
+        elif self.ability_in_use.name == "Misty Step": 
+            target_x = self.targeting_cursor_x
+            target_y = self.targeting_cursor_y
+         
+            # Check if the target tile is walkable and not blocked by an entity
+            if not self.game_map.is_walkable(target_x, target_y):
+                self.message_log.add_message("Cannot Misty Step to an unwalkable space.", (255, 150, 0))
+                return # Stay in targeting mode
+           
+            # Check if the target tile is occupied by another entity
+            entity_at_target = self.get_target_at(target_x, target_y) # Re-using get_target_at
+            if entity_at_target:
+                self.message_log.add_message("Cannot Misty Step to an occupied space.", (255, 150, 0))
+                return # Stay in targeting mode
+            
+            # Perform the teleport
+            self.player.x = target_x
+            self.player.y = target_y
+            self.message_log.add_message(f"{self.player.name} vanishes in a silvery mist and reappears!", (100, 255, 255))
+            self.update_fov() # Update FOV after teleporting
 
         # If ability successfully executed, end targeting mode
-        # self.message_log.add_message(f"{self.player.name} casts {self.ability_in_use.name}!", (100, 255, 255))
         self.game_state = self._previous_game_state
         self.ability_in_use = None
+        self.player.current_action_state = None # Ensure any pending action state is cleared
         self.player_has_acted = True
-
         pygame.event.pump() 
         pygame.display.flip()
-
         self.next_turn()
 
     def check_line_of_sight(self, x1, y1, x2, y2):
@@ -1146,13 +1136,14 @@ class Game:
         elif self.game_state == GameState.DUNGEON:
             # --- Step 1: Identify potential targets at the new position ---
             target_at_new_pos = self.get_target_at(new_x, new_y)
-
+            
             # --- Step 2: Identify monsters adjacent to player *before* moving ---
             monsters_adjacent_before_move = []
             for entity in self.entities:
+                # Ensure it's a monster, alive, and adjacent to the player
                 if isinstance(entity, Monster) and entity.alive and self.player.is_adjacent_to(entity):
                     monsters_adjacent_before_move.append(entity)
-
+            
             # --- Step 3: Handle interaction with an entity at the new position ---
             if target_at_new_pos:
                 if isinstance(target_at_new_pos, Monster):
@@ -1167,22 +1158,25 @@ class Game:
 
             # --- Step 4: Handle movement to an empty, walkable tile ---
             if self.game_map.is_walkable(new_x, new_y):
-                # --- Opportunity Attack Check ---
-                for monster in monsters_adjacent_before_move:
-                    is_still_adjacent_to_monster = (abs(new_x - monster.x) <= 1 and abs(new_y - monster.y) <= 1)
-
-                    # Check if the player is disengaged
-                    if not self.player.disengaged and not is_still_adjacent_to_monster:
-                        self.message_log.add_message(f"The {monster.name} takes an Opportunity Attack!", (255, 100, 0))
-                        monster.attack(self.player, self)  # Monster attacks player
-                        if not self.player.alive:
-                            return False  # Player died from opportunity attack
-
-                # Now, actually move the player
+                original_player_x, original_player_y = self.player.x, self.player.y
                 self.player.x = new_x
                 self.player.y = new_y
+                
+                # --- Opportunity Attack Check ---
+                # Iterate through monsters that were adjacent before the move
+                for monster in monsters_adjacent_before_move:
+                    # Check if the monster is still adjacent to the player's *new* position
+                    is_still_adjacent_to_monster = (abs(self.player.x - monster.x) <= 1 and abs(self.player.y - monster.y) <= 1)
+                    
+                    # If the monster was adjacent AND is no longer adjacent after the move,
+                    # it gets an opportunity attack.
+                    if not is_still_adjacent_to_monster:
+                        self.message_log.add_message(f"The {monster.name} makes an Opportunity Attack!", (255, 100, 0))
+                        monster.attack(self.player, self) # Monster attacks the player
+                        # Important: If the player dies from an OA, the game state should reflect that.
+                        if not self.player.alive:
+                            return True # Player died, action taken, end turn.
                 self.update_fov()
-
                 stairs_dir = self.check_stairs_interaction()
                 if stairs_dir:
                     self.handle_level_transition(stairs_dir)
@@ -1233,11 +1227,28 @@ class Game:
             self.message_log.add_message(f"You fail to smash the {target_tile.name}. It's tougher than it looks!", (255, 100, 100))
             return False
 
-    def handle_player_attack(self, target):
+    def handle_player_attack(self, target, advantage=False, disadvantage=False):
         if not target.alive:
             return
 
-        d20_roll = random.randint(1, 20)
+        # Determine the actual d20 roll based on advantage/disadvantage
+        roll1 = random.randint(1, 20)
+        roll2 = random.randint(1, 20) # Always roll a second for simplicity
+        final_d20_roll = roll1
+        roll_message_part = f"a d20: {roll1}"
+        if advantage and disadvantage: # They cancel each other out
+            self.message_log.add_message("Advantage and Disadvantage cancel out.", (150, 150, 150))
+            # final_d20_roll remains roll1
+        elif advantage:
+            final_d20_roll = max(roll1, roll2)
+            roll_message_part = f"2d20 (Advantage): {roll1}, {roll2} -> {final_d20_roll}"
+            self.message_log.add_message("You roll with Advantage!", (100, 255, 100))
+        elif disadvantage:
+            final_d20_roll = min(roll1, roll2)
+            roll_message_part = f"2d20 (Disadvantage): {roll1}, {roll2} -> {final_d20_roll}"
+            self.message_log.add_message("You roll with Disadvantage!", (255, 100, 100))
+
+        # Use final_d20_roll for the attack calculation
         attack_modifier = self.player.attack_bonus
         
         power_attack_buff = None
@@ -1250,16 +1261,16 @@ class Game:
             attack_modifier += power_attack_buff.attack_modifier
             self.message_log.add_message(f"Power Attack: -{abs(power_attack_buff.attack_modifier)} to hit.", (255, 165, 0))
             
-        attack_roll_total = d20_roll + attack_modifier
-
+        attack_roll_total = final_d20_roll + attack_modifier # Use final_d20_roll here
         self.message_log.add_message(
-            f"You roll a d20: {d20_roll} + {attack_modifier} (Attack Bonus) = {attack_roll_total}",
+            f"You roll {roll_message_part} + {attack_modifier} (Attack Bonus) = {attack_roll_total}",
             (200, 200, 255)
         )
 
-        is_critical_hit = (d20_roll == 20)
-        is_critical_fumble = (d20_roll == 1)
-
+        # Critical hit/fumble based on the final_d20_roll
+        is_critical_hit = (final_d20_roll == 20)
+        is_critical_fumble = (final_d20_roll == 1)
+        
         if is_critical_hit:
             self.message_log.add_message(
                 "CRITICAL HIT! You strike a vital spot!",
@@ -1286,32 +1297,41 @@ class Game:
             ]
             self.message_log.add_message(random.choice(hit_messages), (100, 255, 100))
 
-            damage_dice_roll_1 = random.randint(1, 6)
-            damage_dice_roll_2 = 0
-
+            # Parse weapon damage dice (e.g., "1d6")
+            dice_count_str, die_type_str = self.player.equipped_weapon.damage_dice.split('d')
+            num_dice = int(dice_count_str)
+            die_type = int(die_type_str)
+            
+            damage_rolls = []
+            total_dice_rolled = num_dice
+            
             if is_critical_hit:
-                damage_dice_roll_2 = random.randint(1, 6)
-                damage_dice_rolls_sum = damage_dice_roll_1 + damage_dice_roll_2
-                damage_message_dice_part = f"2d6 ({damage_dice_roll_1} + {damage_dice_roll_2})"
-            else:
-                damage_dice_rolls_sum = damage_dice_roll_1
-                damage_message_dice_part = f"1d6 ({damage_dice_roll_1})"
-
+                total_dice_rolled *= 2 # Double the number of dice rolled for critical hits
+                self.message_log.add_message(f"Critical Hit! Rolling {total_dice_rolled}d{die_type} for damage!", (255, 255, 0))
+            
+            for _ in range(total_dice_rolled):
+                damage_rolls.append(random.randint(1, die_type))
+            
+            damage_dice_rolls_sum = sum(damage_rolls)
+            
+            # Construct the message part for dice rolls
+            damage_message_dice_part = f"{total_dice_rolled}d{die_type} ({' + '.join(map(str, damage_rolls))})"
+            
             damage_modifier = self.player.attack_power
             
             if power_attack_buff:
                 damage_modifier += power_attack_buff.damage_modifier
                 self.message_log.add_message(f"Power Attack: +{power_attack_buff.damage_modifier} damage.", (255, 165, 0))
-
+            
             damage_total = max(1, damage_dice_rolls_sum + damage_modifier)
-
+            
             self.message_log.add_message(
                 f"You roll {damage_message_dice_part} + {damage_modifier} (Attack Power) = {damage_total} damage!",
                 (255, 200, 100)
             )
 
-            damage_dealt = target.take_damage(damage_total, damage_type='physical')
-
+            damage_dealt = target.take_damage(damage_total, self, damage_type='physical') 
+            
             self.message_log.add_message(
                 f"You hit the {target.name} for {damage_dealt} damage!",
                 (255, 100, 100)
@@ -1379,9 +1399,20 @@ class Game:
         
         current = self.get_current_entity()
         
-        if current and current != self.player and current.alive:
+        # --- NEW: Explicitly reset player_has_acted at the start of player's turn ---
+        if current == self.player and self.player_has_acted:
+            self.player_has_acted = False
+            self.message_log.add_message("Your turn begins!", (100, 255, 100))
+            self.update_fov()
+        elif current == self.player and not self.player_has_acted:
+            # Player's turn, waiting for input. Do nothing here.
+            pass
+        elif current and current != self.player and current.alive:
             current.take_turn(self.player, self.game_map, self)
             self.next_turn()
+        else:
+            pass # No active entity or entity is dead.
+        
 
     def handle_window_resize(self):
         old_scale = self.scale
@@ -1389,9 +1420,6 @@ class Game:
         self.scale_x = self.screen.get_width() / INTERNAL_WIDTH
         self.scale_y = self.screen.get_height() / INTERNAL_HEIGHT
         self.scale = min(self.scale_x, self.scale_y)
-        
-        print(f"Resized to: {self.screen.get_size()}")
-        print(f"New scale: {self.scale}")
         
         if abs(old_scale - self.scale) > 0.1:
             self.internal_surface = pygame.Surface((INTERNAL_WIDTH, INTERNAL_HEIGHT))
@@ -1952,7 +1980,7 @@ class Game:
         pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
         current_y += 15
         
-        draw_centered_header(self.screen, self.font_header, "INVENTORY", (255, 215, 0), current_y)
+        draw_centered_header(self.screen, font_header, "INVENTORY", (255, 215, 0), current_y)
         current_y += self.font_header.get_linesize() + 10
         inventory_count = len(self.player.inventory.items)
         inventory_capacity = self.player.inventory.capacity

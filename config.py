@@ -21,8 +21,8 @@ FPS = 30
 # --- NEW: Message Log Font Scaling ---
 # This factor will be multiplied by the actual_scale_factor of the game area
 # to determine the message log's font size.
-MESSAGE_LOG_FONT_BASE_SIZE = 6 # Base size for the font (e.g., 12px)
-MESSAGE_LOG_FONT_SCALE_FACTOR = 1.25 # Multiplier for the base size, relative to game scale
+MESSAGE_LOG_FONT_BASE_SIZE = 5 # Base size for the font (e.g., 12px)
+MESSAGE_LOG_FONT_SCALE_FACTOR = 1.5 # Multiplier for the base size, relative to game scale
 
 # --- NEW: Internal Game Area Resolution ---
 # These values will now be dynamically calculated, but we keep them here as initial
@@ -42,7 +42,7 @@ MIN_GAME_AREA_TILES_HEIGHT = 18 # Ensure at least 18 tiles high are always shown
 # This determines the "base" zoom level. E.g., 2 means each 12px tile will try to be 24px.
 # A value of 1 means each 12px tile will try to be 12px (most zoomed out, smallest tiles).
 # A value of 3 means each 12px tile will try to be 36px (more zoomed in, larger tiles).
-TARGET_EFFECTIVE_TILE_SCALE = 2.5 # <--- ADD THIS LINE
+TARGET_EFFECTIVE_TILE_SCALE = 3 # <--- ADD THIS LINE
 
 # These will be calculated dynamically in game.py
 SCREEN_WIDTH = 0

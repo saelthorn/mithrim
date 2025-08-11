@@ -68,7 +68,7 @@ class PowerAttack(Ability):
 
 class CunningAction(Ability):
     def __init__(self):
-        super().__init__("Cunning Action", "Use a bonus action to Dash.", cooldown=1)  # Removed Disengage option
+        super().__init__("Cunning Action", "Use a bonus action to Dash.", cooldown=2)  # Removed Disengage option
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
@@ -116,5 +116,29 @@ class FireBolt(Ability):
         
         game_instance.message_log.add_message(f"{user.name} prepares Fire Bolt! Select a target (Arrow Keys, Enter to confirm, Esc to cancel).", (255, 100, 0))
         return True # Indicate successful initiation of targeting
+
+
+class MistyStep(Ability):
+    def __init__(self):
+        super().__init__("Misty Step", "The caster is briefly surrounded by silvery mist then vanishes, reappearing in an unoccupied space up to 6 tiles away.", cooldown=5)
+        self.range = 6 # Max teleport distance in tiles
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+        
+        # Set the player's action state to indicate a choice is pending
+        user.current_action_state = "misty_step_teleport" # A new state for Misty Step
+        game_instance.message_log.add_message(f"{user.name} prepares to Misty Step! Select a destination (Arrow Keys, Enter to confirm, Esc to cancel).", (100, 255, 255))
+        
+        # Initialize targeting cursor at player's position for selection
+        game_instance.targeting_cursor_x = user.x
+        game_instance.targeting_cursor_y = user.y
+        game_instance.targeting_ability_range = self.range # Set the range for the cursor
+        game_instance.ability_in_use = self # Store the ability for targeting context
+        game_instance.game_state = GameState.TARGETING # Enter targeting mode
+
+        return True # Indicate successful initiation of the ability
+
 
 
