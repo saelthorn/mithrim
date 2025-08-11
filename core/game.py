@@ -2,6 +2,16 @@ import pygame
 import random
 import config
 
+
+class GameState:
+    TAVERN = "tavern"
+    DUNGEON = "dungeon"
+    INVENTORY = "inventory"
+    INVENTORY_MENU = "inventory_menu"
+    CHARACTER_MENU = "character_menu"
+    TARGETING = "targeting"     
+
+
 from core.fov import FOV
 from world.map import GameMap
 from world.dungeon_generator import generate_dungeon
@@ -12,7 +22,7 @@ from entities.monster import Mimic
 from entities.tavern_npcs import create_tavern_npcs
 from entities.dungeon_npcs import DungeonHealer
 from entities.tavern_npcs import NPC
-from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion
+from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt
 from core.message_log import MessageBox
 from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff
 from items.items import Potion, Weapon, Armor, Chest
@@ -25,13 +35,6 @@ INTERNAL_WIDTH = 800
 INTERNAL_HEIGHT = 600
 ASPECT_RATIO = INTERNAL_WIDTH / INTERNAL_HEIGHT
 
-
-class GameState:
-    TAVERN = "tavern"
-    DUNGEON = "dungeon"
-    INVENTORY = "inventory"
-    INVENTORY_MENU = "inventory_menu"
-    CHARACTER_MENU = "character_menu"
 
 class Camera:
     def __init__(self, screen_width, screen_height, tile_size, message_log_height):
@@ -87,10 +90,15 @@ class Game:
             config.MESSAGE_LOG_HEIGHT
         )
         self._recalculate_dimensions()
+
+        self.ability_in_use = None
+        self.targeting_ability_range = 0
+        self.targeting_cursor_x = 0
+        self.targeting_cursor_y = 0
         
         self.message_log.add_message("Welcome to the dungeon!", (100, 255, 100))
         
-        self.player = Rogue(0, 0, '@', 'Shadowblade', (255, 255, 255))
+        self.player = Wizard(0, 0, '@', 'Shadowblade', (255, 255, 255))
 
         self.generate_tavern() 
         self.selected_inventory_item = None
@@ -169,6 +177,7 @@ class Game:
 
     def generate_tavern(self):
         self.game_state = GameState.TAVERN
+        self._previous_game_state = GameState.TAVERN
         self.game_map = GameMap(40, 24)
         self.fov = FOV(self.game_map)
         self.door_position = generate_tavern(self.game_map)
@@ -191,6 +200,7 @@ class Game:
 
     def generate_level(self, level_number, spawn_on_stairs_up=False):
         self.game_state = GameState.DUNGEON
+        self._previous_game_state = GameState.DUNGEON
         self.current_level = level_number
         self.max_level_reached = max(self.max_level_reached, level_number)
         
@@ -550,6 +560,9 @@ class Game:
                     continue
                 elif self.game_state == GameState.CHARACTER_MENU:
                     continue
+                elif self.game_state == GameState.TARGETING: # <--- NEW TARGETING STATE HANDLING
+                    self.handle_targeting_input(event.key)
+                    continue                
 
                 # --- Player's turn logic (for Dungeon and Tavern) ---
                 can_player_act_this_turn = (self.game_state == GameState.TAVERN) or \
@@ -689,13 +702,185 @@ class Game:
                         self.render()
                         continue
                 
-                # --- End of handle_events: Consume turn if action_taken ---
                 if action_taken:
                     if self.game_state == GameState.DUNGEON:
                         self.player_has_acted = True
                     self.next_turn()
         return True
 
+    def handle_targeting_input(self, key):
+        dx, dy = 0, 0
+        
+        # Move targeting cursor
+        if key in (pygame.K_UP, pygame.K_w):
+            dy = -1
+        elif key in (pygame.K_DOWN, pygame.K_s):
+            dy = 1
+        elif key in (pygame.K_LEFT, pygame.K_a):
+            dx = -1
+        elif key in (pygame.K_RIGHT, pygame.K_d):
+            dx = 1
+        
+        if dx != 0 or dy != 0:
+            new_cursor_x = self.targeting_cursor_x + dx
+            new_cursor_y = self.targeting_cursor_y + dy
+            
+            # Keep cursor within map bounds
+            if 0 <= new_cursor_x < self.game_map.width and \
+               0 <= new_cursor_y < self.game_map.height:
+                self.targeting_cursor_x = new_cursor_x
+                self.targeting_cursor_y = new_cursor_y
+            else:
+                self.message_log.add_message("Targeting cursor cannot move off the map.", (255, 150, 0))
+            return # Input handled, don't proceed to confirm/cancel
+
+        # Confirm target
+        if key == pygame.K_RETURN: # Enter key
+            self.execute_targeted_ability()
+            return # Input handled
+
+        # Cancel targeting
+        if key == pygame.K_ESCAPE:
+            self.message_log.add_message("Targeting cancelled.", (150, 150, 150))
+            self.game_state = self._previous_game_state # Return to previous state (DUNGEON)
+            self.ability_in_use = None # Clear the ability
+            self.player_has_acted = False # Player didn't act if cancelled
+            self.next_turn() # Still consume turn if player initiated targeting
+            return # Input handled
+
+    def execute_targeted_ability(self):
+        if not self.ability_in_use:
+            self.message_log.add_message("No ability selected for targeting.", (255, 0, 0))
+            self.game_state = self._previous_game_state
+            return
+
+        target_x = self.targeting_cursor_x
+        target_y = self.targeting_cursor_y
+        
+        # Check range
+        distance = self.player.distance_to(target_x, target_y)
+        if distance > self.targeting_ability_range:
+            self.message_log.add_message(f"{self.ability_in_use.name} target is out of range ({int(distance)} tiles away, max {self.targeting_ability_range}).", (255, 150, 0))
+            return # Stay in targeting mode
+
+        # Check Line of Sight
+        if not self.check_line_of_sight(self.player.x, self.player.y, target_x, target_y):
+            self.message_log.add_message(f"Cannot target {self.ability_in_use.name}: No clear line of sight.", (255, 150, 0))
+            return # Stay in targeting mode
+
+        # --- Execute the specific ability's effect ---
+        if self.ability_in_use.name == "Fire Bolt":
+            target_monster = self.get_target_at(target_x, target_y)
+            target_tile = self.game_map.tiles[target_y][target_x] # Get the tile object at target
+            
+            # Fire Bolt damage calculation (example: 1d10)
+            damage_roll = random.randint(1, 10)
+
+            self.message_log.add_message(
+                f"You roll 1d10 for Fire Bolt: {damage_roll} damage!",
+                (255, 200, 100) # Orange-yellow color for fire damage
+            )                               
+
+            if target_monster and isinstance(target_monster, Monster):
+                # Check if the target is specifically a Mimic
+
+                hit_messages = [
+                    f"A searing bolt of fire streaks towards the {target_monster.name}!",
+                    f"Flames erupt as your spell connects with the {target_monster.name}!",
+                    f"The {target_monster.name} is engulfed in magical fire!",
+                ]
+                self.message_log.add_message(random.choice(hit_messages), (255, 165, 0))
+
+                if isinstance(target_monster, Mimic):
+                    # Mimic.take_damage expects 'amount' and 'game_instance'
+                    damage_dealt = target_monster.take_damage(damage_roll, self) 
+                else:
+                    # Monster.take_damage (for generic monsters) only expects 'amount'
+                    damage_dealt = target_monster.take_damage(damage_roll) 
+                
+                self.message_log.add_message(f"A bolt of fire strikes {target_monster.name} for {damage_dealt} damage!", (255, 165, 0))
+                if not target_monster.alive:
+                    xp_gained = target_monster.die()
+                    self.player.gain_xp(xp_gained, self)
+                    self.message_log.add_message(f"The {target_monster.name} dies! [+{xp_gained} XP]", (100, 255, 100))
+            elif target_tile.destructible: # <--- NEW: Check if the tile is destructible
+                
+                destructible_messages = [
+                    f"Your Fire Bolt incinerates the {target_tile.name}!",
+                    f"The {target_tile.name} explodes in a burst of flame!",
+                    f"A magical inferno consumes the {target_tile.name}!",
+                ]
+                self.message_log.add_message(random.choice(destructible_messages), (255, 165, 0))                
+                
+                # For simplicity, we'll assume Fire Bolt instantly destroys destructible tiles
+                # In a more complex system, destructible tiles might have HP.
+                self.message_log.add_message(f"Your Fire Bolt smashes the {target_tile.name}!", (255, 165, 0))
+                self.game_map.tiles[target_y][target_x] = floor # Replace with floor tile
+                
+                # If it was a MimicTile, ensure the Mimic entity is also handled
+                if isinstance(target_tile, MimicTile):
+                    mimic_entity = target_tile.mimic_entity
+                    if mimic_entity.disguised:
+                        mimic_entity.reveal(self) # Reveal the mimic
+                        # If revealed, the mimic is now a monster and will take its turn.
+                        # For now, we'll let the player's next attack handle damage.
+                        # If you want Fire Bolt to damage the revealed mimic immediately:
+                        # mimic_entity.take_damage(damage_roll, self)
+                        # self.message_log.add_message(f"The revealed {mimic_entity.name} takes {damage_roll} damage!", (255, 165, 0))
+                    else:
+                        self.message_log.add_message(f"The {mimic_entity.name} is already revealed and takes no further damage from smashing its disguise.", (150, 150, 150))
+
+            else:
+                self.message_log.add_message("Fire Bolt requires a monster target or a destructible object.", (255, 150, 0))
+                return # Stay in targeting mode
+
+        # If ability successfully executed, end targeting mode
+        # self.message_log.add_message(f"{self.player.name} casts {self.ability_in_use.name}!", (100, 255, 255))
+        self.game_state = self._previous_game_state
+        self.ability_in_use = None
+        self.player_has_acted = True
+        self.next_turn()
+
+    def check_line_of_sight(self, x1, y1, x2, y2):
+        """
+        Basic line of sight check using a simplified Bresenham-like approach.
+        Checks if there are any sight-blocking tiles between (x1, y1) and (x2, y2).
+        """
+        # If start or end is blocked, no LOS
+        if self.game_map.tiles[y1][x1].block_sight or self.game_map.tiles[y2][x2].block_sight:
+            return False
+
+        # Simple case: same tile
+        if x1 == x2 and y1 == y2:
+            return True
+
+        # Use a simple step-by-step check
+        points = []
+        dx = abs(x2 - x1)
+        dy = abs(y2 - y1)
+        sx = 1 if x1 < x2 else -1
+        sy = 1 if y1 < y2 else -1
+        err = dx - dy
+
+        current_x, current_y = x1, y1
+
+        while True:
+            points.append((current_x, current_y))
+            if current_x == x2 and current_y == y2:
+                break
+            e2 = 2 * err
+            if e2 > -dy:
+                err -= dy
+                current_x += sx
+            if e2 < dx:
+                err += dx
+                current_y += sy
+        
+        # Check all points along the line (excluding start and end)
+        for px, py in points[1:-1]: # Exclude start and end points
+            if self.game_map.tiles[py][px].block_sight:
+                return False
+        return True
 
     def get_interactable_item_at(self, x, y):
         """Checks if there's an interactable item (like a Chest or Mimic) at the given coordinates."""
@@ -980,7 +1165,7 @@ class Game:
                 (255, 200, 100)
             )
 
-            damage_dealt = target.take_damage(damage_total, self)
+            damage_dealt = target.take_damage(damage_total)
 
             self.message_log.add_message(
                 f"You hit the {target.name} for {damage_dealt} damage!",
@@ -1078,11 +1263,25 @@ class Game:
         elif self.game_state == GameState.CHARACTER_MENU:
             self.render_character_menu()
             self.screen.blit(self.inventory_ui_surface, (0, 0))
-        else:
+        else: # This block handles DUNGEON and TAVERN, and now TARGETING
             self.render_map_with_fov()
             self.render_items_on_ground()
             self.render_entities()
             
+            # --- NEW: Draw Targeting Cursor ---
+            if self.game_state == GameState.TARGETING:
+                screen_x, screen_y = self.camera.world_to_screen(self.targeting_cursor_x, self.targeting_cursor_y)
+                # Draw a distinct cursor, e.g., a yellow 'X' or a highlighted square
+                # We can use graphics.draw_tile with a special character or just draw a rect
+                
+                # Option 1: Draw a simple rectangle
+                cursor_rect = pygame.Rect(screen_x * config.TILE_SIZE, screen_y * config.TILE_SIZE, config.TILE_SIZE, config.TILE_SIZE)
+                pygame.draw.rect(self.internal_surface, (255, 255, 0), cursor_rect, 2) # Yellow outline
+                
+                # Option 2: Draw a special tile character (if you have one in your tileset)
+                # graphics.draw_tile(self.internal_surface, screen_x, screen_y, 'X', color_tint=(255, 255, 0)) # Assuming 'X' is a cursor tile
+            # --- END NEW ---
+
             available_width = config.GAME_AREA_WIDTH
             available_height = config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT
             

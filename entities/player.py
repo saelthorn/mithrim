@@ -1,6 +1,6 @@
 import random
 from core.inventory import Inventory
-from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion
+from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt
 from core.status_effects import StatusEffect, Poisoned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff
 from items.items import long_sword, chainmail_armor, short_sword, leather_armor, dagger, robes
 
@@ -347,6 +347,12 @@ class Player: # This is our base class for playable characters
         for ability_name, ability_obj in self.abilities.items():
             ability_obj.tick_cooldown()
 
+    def distance_to(self, other_x, other_y):
+        """Calculate the Chebyshev distance to another point."""
+        dx = abs(self.x - other_x)
+        dy = abs(self.y - other_y)
+        return max(dx, dy) # Chebyshev distance (for grid-based movement)
+
 
 class Fighter(Player):
     def __init__(self, x, y, char, name, color):
@@ -455,3 +461,5 @@ class Wizard(Player):
 
         # Wizard abilities (e.g., Spellcasting - will be complex)
         # self.abilities["spellcasting"] = Spellcasting()
+        self.abilities["fire_bolt"] = FireBolt()
+

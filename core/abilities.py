@@ -1,4 +1,5 @@
 from core.status_effects import PowerAttackBuff, EvasionBuff
+from core.game import GameState
 
 
 class Ability:
@@ -90,5 +91,30 @@ class Evasion(Ability):
         user.add_status_effect("EvasionBuff", duration=3, game_instance=game_instance)
         game_instance.message_log.add_message(f"{user.name} activates Evasion!", (100, 255, 255))
         return True
+
+
+class FireBolt(Ability):
+    def __init__(self):
+        # Cantrips have no cost and no cooldown (they are "at-will")
+        super().__init__("Fire Bolt", "Hurl a searing bolt of fire at a foe.", cost=0, cooldown=0)
+        self.range = 8 # Example range in tiles
+
+    def use(self, user, game_instance):
+        # Cantrips don't have cooldowns, but we'll still call super().use for consistency
+        # and to potentially handle future cost mechanics if we add them to cantrips.
+        if not super().use(user, game_instance):
+            return False
+        
+        # Set the game state to targeting mode
+        game_instance.game_state = GameState.TARGETING
+        game_instance.ability_in_use = self # Store which ability is being used
+        game_instance.targeting_ability_range = self.range
+        
+        # Initialize targeting cursor at player's position
+        game_instance.targeting_cursor_x = user.x
+        game_instance.targeting_cursor_y = user.y
+        
+        game_instance.message_log.add_message(f"{user.name} prepares Fire Bolt! Select a target (Arrow Keys, Enter to confirm, Esc to cancel).", (255, 100, 0))
+        return True # Indicate successful initiation of targeting
 
 

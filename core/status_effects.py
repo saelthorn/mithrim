@@ -27,7 +27,7 @@ class Poisoned(StatusEffect):
     def apply_effect(self, target, game_instance):
         if self.turns_left > 0:
             game_instance.message_log.add_message(f"{target.name} is poisoned! Takes {self.damage_per_turn} damage.", (255, 0, 0))
-            target.take_damage(self.damage_per_turn)
+            target.take_damage(self.damage_per_turn, game_instance) # <--- ADD game_instance HERE
             
             if not target.alive:
                 game_instance.message_log.add_message(f"{target.name} succumbed to poison!", (200, 0, 0))

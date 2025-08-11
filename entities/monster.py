@@ -4,16 +4,18 @@ from core.status_effects import Poisoned, PowerAttackBuff, EvasionBuff
 
 class Monster:
     def __init__(self, x, y, char, name, color):
+        super().__init__()   
+        
         self.x = x
         self.y = y
-        self.char = char # This is the character that will be drawn
+        self.char = char
         self.name = name
         self.color = color
         self.alive = True
-        self.hp = 10 
-        self.max_hp = 10 
+        self.hp = 10
+        self.max_hp = 10
         self.attack_power = 2
-        self.armor_class = 11 
+        self.armor_class = 11
         self.base_xp = 10
         self.initiative = 0
         self.blocks_movement = True
@@ -62,8 +64,6 @@ class Monster:
                 self.x, self.y = new_x, new_y
             else:
                 game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
-        else:
-            game.message_log.add_message(f"The {self.name} has no clear path and waits.", (100, 100, 100))
 
 
     def is_adjacent_to(self, other):
@@ -187,8 +187,7 @@ class Monster:
             ]
             game.message_log.add_message(random.choice(monster_miss_messages), (200, 200, 200))
 
-
-    def take_damage(self, amount, game_instance):
+    def take_damage(self, amount): # <--- REMOVE game_instance FROM HERE
         """Handle taking damage and return actual damage taken"""
         damage_taken = amount 
         self.hp -= damage_taken
@@ -231,6 +230,7 @@ class Monster:
 class Mimic(Monster):
     def __init__(self, x, y, disguise_char, initial_color): 
         super().__init__(x, y, disguise_char, 'Mimic', initial_color) 
+        
         self.disguised = True
         
         self._disguise_char = disguise_char 
@@ -240,17 +240,34 @@ class Mimic(Monster):
         elif disguise_char == 'B':
             self.revealed_char = 'B' 
         elif disguise_char == 'C':
-            self.revealed_char = 'M' # This is correct for a chest mimic to become 'M'
+            self.revealed_char = 'M' 
         else:
             self.revealed_char = 'M' 
         self.revealed_color = (255, 0, 0) 
         
-        self.hp = 20
+        self.hp = 20 # Mimic specific HP
         self.max_hp = 20
         self.attack_power = 5
         self.armor_class = 14
         self.base_xp = 30
-        self.blocks_movement = True # Mimics block movement when disguised
+        self.blocks_movement = True
+
+    def take_damage(self, amount, game_instance): # This method *does* take game_instance
+        """
+        Mimic's take_damage method.
+        If disguised and takes damage, it reveals itself.
+        """
+        if self.disguised:
+            game_instance.message_log.add_message(f"You strike the {self.name}!", (255, 165, 0))
+            self.reveal(game_instance) 
+            
+        damage_taken = super().take_damage(amount) # <--- REMOVE game_instance FROM HERE
+
+        # Add any Mimic-specific damage messages or effects here if needed
+        if not self.alive and not self.disguised: # Only if it died and was already revealed
+            game_instance.message_log.add_message(f"The {self.name} shudders and collapses!", (255, 0, 0))
+
+        return damage_taken
 
     def reveal(self, game_instance):
         """Mimic fully reveals its true form."""
