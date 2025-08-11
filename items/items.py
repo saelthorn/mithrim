@@ -1,4 +1,4 @@
-import random # Add this import for potential random loot generation later
+import random
 
 class Item:
     """Base class for all items."""
@@ -16,11 +16,22 @@ class Item:
 
     def on_pickup(self, picker, game_instance):
         """Called when the item is picked up."""
-        game_instance.message_log.add_message(f"You pick up the {self.name}.", self.color)
-        picker.inventory.add_item(self)
-        # Remove from map if it was on the ground
-        if self in game_instance.game_map.items_on_ground:
-            game_instance.game_map.items_on_ground.remove(self)
+        # First, try to add to inventory.
+        # The add_item method returns True on success, False if inventory is full.
+        if picker.inventory.add_item(self):
+            game_instance.message_log.add_message(f"You pick up the {self.name}.", self.color)
+            
+            # Only remove from map if successfully added to inventory
+            if self in game_instance.game_map.items_on_ground:
+                game_instance.game_map.items_on_ground.remove(self)
+            
+            # Force a redraw of the tile where the item was
+            game_instance.update_fov() 
+            return True # Indicate successful pickup
+        else:
+            # If inventory is full, don't pick up and don't remove from map
+            game_instance.message_log.add_message("Your inventory is full! Cannot pick up.", (255, 150, 0))
+            return False # Indicate failed pickup
 
     def on_drop(self, dropper, game_instance):
         """Called when the item is dropped."""
@@ -30,6 +41,7 @@ class Item:
         self.x = dropper.x
         self.y = dropper.y
         game_instance.game_map.items_on_ground.append(self)
+        game_instance.update_fov() # Update FOV to show dropped item
 
 class Potion(Item):
     """A consumable item that provides an effect."""
@@ -147,6 +159,24 @@ chainmail_armor = Armor(
     color=(175, 175, 175),
     description="Chainmail armor.",
     ac_bonus=3 # Adds 1 to base AC
+)
+
+# --- NEW: Dagger and Robes for Wizard ---
+dagger = Weapon(
+    name="Dagger",
+    char="/", # Using same char as other weapons for now
+    color=(180, 180, 180),
+    description="A small, light blade.",
+    damage_dice="1d4",
+    damage_modifier=0,
+    attack_bonus=0
+)
+robes = Armor(
+    name="Robes",
+    char="[", # Using same char as other armor for now
+    color=(100, 100, 200),
+    description="Simple cloth robes.",
+    ac_bonus=0 # Robes typically provide no AC bonus, relying on Dex
 )
 
 # Example function to create random loot for a chest

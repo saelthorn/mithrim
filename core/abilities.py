@@ -1,3 +1,6 @@
+from core.status_effects import PowerAttackBuff, EvasionBuff
+from core.game import GameState
+
 
 class Ability:
     def __init__(self, name, description, cost=0, cooldown=0):
@@ -36,7 +39,7 @@ class Ability:
 
 class SecondWind(Ability):
     def __init__(self):
-        super().__init__("Second Wind", "Heal yourself for a small amount of HP.", cooldown=5) # 50-turn cooldown
+        super().__init__("Second Wind", "Heal yourself for a small amount of HP.", cooldown=15) # 15 turns cooldown
 
     def use(self, user, game_instance):
         # Call base class use to handle cooldown and initial checks.
@@ -49,15 +52,93 @@ class SecondWind(Ability):
         game_instance.message_log.add_message(f"{user.name} regains {amount_healed} HP!", (0, 255, 0))
         return True # Indicate successful use
 
+
 class PowerAttack(Ability):
     def __init__(self):
         super().__init__("Power Attack", "Sacrifice accuracy for increased damage on your next attack.", cooldown=3)
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+        
+        # Apply the PowerAttackBuff to the user
+        # Apply the PowerAttackBuff to the user using its string name
+        user.add_status_effect("PowerAttackBuff", duration=3, game_instance=game_instance) # <--- MODIFIED
+        game_instance.message_log.add_message(f"{user.name} prepares a powerful strike!", (255, 165, 0))
+        return True
+
+class CunningAction(Ability):
+    def __init__(self):
+        super().__init__("Cunning Action", "Use a bonus action to Dash.", cooldown=2)  # Removed Disengage option
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
             return False
         
-        # Apply a temporary buff to the player
-        user.add_status_effect("PowerAttackBuff", duration=1) # Needs a status effect system
-        game_instance.message_log.add_message(f"{user.name} prepares a powerful strike!", (255, 165, 0))
+        # Set the player's action state to indicate a choice is pending
+        user.current_action_state = "cunning_action_dash"  # Changed to only allow Dash
+        game_instance.message_log.add_message(f"{user.name} prepares a Cunning Action: Dash!", (100, 255, 255))
+        return True  # Indicate successful use of the ability (bonus action consumed)
+    
+
+class Evasion(Ability):
+    def __init__(self):
+        super().__init__("Evasion", "Become incredibly agile, greatly increasing dodge chance and taking half damage if hit. Lasts 3 turns.", cooldown=50)
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+        
+        user.add_status_effect("EvasionBuff", duration=3, game_instance=game_instance)
+        game_instance.message_log.add_message(f"{user.name} activates Evasion!", (100, 255, 255))
         return True
+
+
+class FireBolt(Ability):
+    def __init__(self):
+        # Cantrips have no cost and no cooldown (they are "at-will")
+        super().__init__("Fire Bolt", "Hurl a searing bolt of fire at a foe.", cost=0, cooldown=0)
+        self.range = 8 # Example range in tiles
+
+    def use(self, user, game_instance):
+        # Cantrips don't have cooldowns, but we'll still call super().use for consistency
+        # and to potentially handle future cost mechanics if we add them to cantrips.
+        if not super().use(user, game_instance):
+            return False
+        
+        # Set the game state to targeting mode
+        game_instance.game_state = GameState.TARGETING
+        game_instance.ability_in_use = self # Store which ability is being used
+        game_instance.targeting_ability_range = self.range
+        
+        # Initialize targeting cursor at player's position
+        game_instance.targeting_cursor_x = user.x
+        game_instance.targeting_cursor_y = user.y
+        
+        game_instance.message_log.add_message(f"{user.name} prepares Fire Bolt! Select a target (Arrow Keys, Enter to confirm, Esc to cancel).", (255, 100, 0))
+        return True # Indicate successful initiation of targeting
+
+
+class MistyStep(Ability):
+    def __init__(self):
+        super().__init__("Misty Step", "The caster is briefly surrounded by silvery mist then vanishes, reappearing in an unoccupied space up to 6 tiles away.", cooldown=5)
+        self.range = 6 # Max teleport distance in tiles
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+        
+        # Set the player's action state to indicate a choice is pending
+        user.current_action_state = "misty_step_teleport" # A new state for Misty Step
+        game_instance.message_log.add_message(f"{user.name} prepares to Misty Step! Select a destination (Arrow Keys, Enter to confirm, Esc to cancel).", (100, 255, 255))
+        
+        # Initialize targeting cursor at player's position for selection
+        game_instance.targeting_cursor_x = user.x
+        game_instance.targeting_cursor_y = user.y
+        game_instance.targeting_ability_range = self.range # Set the range for the cursor
+        game_instance.ability_in_use = self # Store the ability for targeting context
+        game_instance.game_state = GameState.TARGETING # Enter targeting mode
+
+        return True # Indicate successful initiation of the ability
+
+
+

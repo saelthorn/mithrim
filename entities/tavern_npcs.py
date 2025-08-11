@@ -37,7 +37,7 @@ class Bartender(NPC):
             "Be careful out there. Many who enter don't return.",
             "Need a drink before you face the depths?",
         ]
-        super().__init__(x, y, 'B', 'Bartender', (255, 215, 0), dialogue)
+        super().__init__(x, y, 'A', 'Bartender', (255, 215, 0), dialogue)
 
 class Patron(NPC):
     def __init__(self, x, y, name):

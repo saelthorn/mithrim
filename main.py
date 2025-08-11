@@ -1,4 +1,3 @@
-# MultipleFiles/main.py
 import pygame
 import config
 from core.game import Game
@@ -10,7 +9,7 @@ def main():
     # --- MODIFIED: Removed pygame.SCALED flag ---
     screen = pygame.display.set_mode((config.BASE_SCREEN_WIDTH, config.BASE_SCREEN_HEIGHT), pygame.RESIZABLE)
     
-    pygame.display.set_caption("Varethis")
+    pygame.display.set_caption("Mithrim")
     
     graphics.load_tileset('assets/tile_set.png') 
     graphics.setup_tile_mapping() 

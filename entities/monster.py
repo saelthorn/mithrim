@@ -1,9 +1,11 @@
 import random
 from core.pathfinding import astar
-from core.status_effects import Poisoned # <--- NEW IMPORT
+from core.status_effects import Poisoned, PowerAttackBuff, EvasionBuff
 
 class Monster:
     def __init__(self, x, y, char, name, color):
+        super().__init__()   
+        
         self.x = x
         self.y = y
         self.char = char
@@ -17,13 +19,12 @@ class Monster:
         self.base_xp = 10
         self.initiative = 0
         self.blocks_movement = True
-        self.active_status_effects = [] # <--- NEW: List to hold active status effects
-
-        # --- Poison specific attributes (for testing) ---
-        self.can_poison = False # Default
-        self.poison_dc = 10 # DC for player's CON save
-        self.poison_duration = 3 # Turns
-        self.poison_damage_per_turn = 2 # Damage
+        self.active_status_effects = []
+        
+        self.can_poison = False
+        self.poison_dc = 10
+        self.poison_duration = 3
+        self.poison_damage_per_turn = 2
 
     def roll_initiative(self):
         """Roll for turn order"""
@@ -35,13 +36,17 @@ class Monster:
             return
 
         # Process status effects at the start of the monster's turn
-        self.process_status_effects(game)
-        if not self.alive: # Check if monster died from status effect
-            return
+        # self.process_status_effects(game)
+        # if not self.alive: # Check if monster died from status effect
+        #    return
 
         # Check if adjacent to player (including diagonals)
         if self.is_adjacent_to(player):
-            self.attack(player, game)
+            # For testing monster advantage/disadvantage, uncomment one of these:
+            # self.attack(player, game, advantage=True)
+            # self.attack(player, game, disadvantage=True)
+            # self.attack(player, game, advantage=True, disadvantage=True) # Should cancel out
+            self.attack(player, game) # Default call
             return
 
         # Otherwise move toward player using A* pathfinding
@@ -63,8 +68,6 @@ class Monster:
                 self.x, self.y = new_x, new_y
             else:
                 game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
-        else:
-            game.message_log.add_message(f"The {self.name} has no clear path and waits.", (100, 100, 100))
 
 
     def is_adjacent_to(self, other):
@@ -73,23 +76,53 @@ class Monster:
         dy = abs(self.y - other.y)
         return dx <= 1 and dy <= 1 and (dx != 0 or dy != 0)
 
-    def attack(self, target, game):
+    def attack(self, target, game, advantage=False, disadvantage=False):
         """Attack a target and show combat messages, including dice rolls, crits, and fumbles."""
         if not target.alive:
             return
 
         # --- Monster Attack Roll ---
-        d20_roll = random.randint(1, 20)
-        monster_attack_bonus = 2
-        attack_roll_total = d20_roll + monster_attack_bonus
+        roll1 = random.randint(1, 20)
+        roll2 = random.randint(1, 20) 
+
+        final_d20_roll = roll1
+        roll_message_part = f"a d20: {roll1}"
+
+        if advantage and disadvantage:
+            game.message_log.add_message(f"The {self.name} rolls with neither Advantage nor Disadvantage.", (150, 150, 150))
+        elif advantage:
+            final_d20_roll = max(roll1, roll2)
+            roll_message_part = f"2d20 (Advantage): {roll1}, {roll2} -> {final_d20_roll}"
+            game.message_log.add_message(f"The {self.name} rolls with Advantage!", (255, 200, 100))
+        elif disadvantage:
+            final_d20_roll = min(roll1, roll2)
+            roll_message_part = f"2d20 (Disadvantage): {roll1}, {roll2} -> {final_d20_roll}"
+            game.message_log.add_message(f"The {self.name} rolls with Disadvantage!", (150, 150, 255))
+        
+        monster_attack_bonus = 2 # Keep this as is for now
+        attack_roll_total = final_d20_roll + monster_attack_bonus # Use final_d20_roll
+
+        # --- Apply EvasionBuff to target's AC if present ---
+        target_ac = target.armor_class
+        evasion_buff = None
+        if hasattr(target, 'active_status_effects'): # Ensure target is a Player or similar
+            for effect in target.active_status_effects:
+                if isinstance(effect, EvasionBuff):
+                    evasion_buff = effect
+                    break
+
+        if evasion_buff:
+            target_ac += evasion_buff.dodge_bonus
+            game.message_log.add_message(f"The {target.name} is evasive! Target AC: {target_ac}", (100, 255, 255))
 
         game.message_log.add_message(
-            f"The {self.name} rolls a d20: {d20_roll} + {monster_attack_bonus} (Attack Bonus) = {attack_roll_total}",
+            f"The {self.name} rolls {roll_message_part} + {monster_attack_bonus} (Attack Bonus) = {attack_roll_total}",
             (255, 150, 150)
         )
 
-        is_critical_hit = (d20_roll == 20)
-        is_critical_fumble = (d20_roll == 1)
+        is_critical_hit = (final_d20_roll == 20) # Use final_d20_roll
+        is_critical_fumble = (final_d20_roll == 1) # Use final_d20_roll
+
 
         if is_critical_hit:
             game.message_log.add_message(
@@ -103,7 +136,7 @@ class Monster:
                 (150, 150, 150)
             )
             hit_successful = False
-        elif attack_roll_total >= target.armor_class:
+        elif attack_roll_total >= target_ac:
             hit_successful = True
         else:
             hit_successful = False
@@ -119,17 +152,25 @@ class Monster:
             game.message_log.add_message(random.choice(monster_hit_messages), (255, 100, 100))
 
 
-            # --- Damage Calculation (already in place) ---
-            damage_dice_roll_1 = random.randint(1, 4)
-            damage_dice_roll_2 = 0
+            # --- Damage Calculation ---
+            # For monsters, let's assume a base damage die of 1d4 for now.
+            # You can make this more sophisticated later (e.g., monster.damage_dice = "1d6")
+            monster_die_type = 4 # Assuming 1d4 for monsters
+
+            damage_rolls = []
+            total_dice_rolled = 1 # Default to 1 die
 
             if is_critical_hit:
-                damage_dice_roll_2 = random.randint(1, 4)
-                damage_dice_rolls_sum = damage_dice_roll_1 + damage_dice_roll_2
-                damage_message_dice_part = f"2d4 ({damage_dice_roll_1} + {damage_dice_roll_2})"
-            else:
-                damage_dice_rolls_sum = damage_dice_roll_1
-                damage_message_dice_part = f"1d4 ({damage_dice_roll_1})"
+                total_dice_rolled *= 2 # Double the number of dice rolled for critical hits
+                game.message_log.add_message(f"Critical Hit! The {self.name} rolls {total_dice_rolled}d{monster_die_type} for damage!", (255, 100, 100))
+
+            for _ in range(total_dice_rolled):
+                damage_rolls.append(random.randint(1, monster_die_type))
+            
+            damage_dice_rolls_sum = sum(damage_rolls)
+            
+            # Construct the message part for dice rolls
+            damage_message_dice_part = f"{total_dice_rolled}d{monster_die_type} ({' + '.join(map(str, damage_rolls))})"
 
             damage_modifier = self.attack_power
             damage_total = max(1, damage_dice_rolls_sum + damage_modifier)
@@ -139,7 +180,7 @@ class Monster:
                 (255, 170, 100)
             )
 
-            damage_dealt = target.take_damage(damage_total)
+            damage_dealt = target.take_damage(damage_total, game, damage_type='physical') 
             
             game.message_log.add_message(
                 f"The {self.name} attacks {target.name} for {damage_dealt} damage!", 
@@ -150,8 +191,8 @@ class Monster:
             if self.can_poison and target.alive:
                 game.message_log.add_message(f"The {self.name} attempts to poison {target.name}!", (255, 150, 0))
                 if not target.make_saving_throw("CON", self.poison_dc, game):
-                    poison_effect = Poisoned(duration=self.poison_duration, source=self, damage_per_turn=self.poison_damage_per_turn)
-                    target.add_status_effect(poison_effect, game)
+                    # MODIFIED: Pass string name "Poisoned" instead of the object
+                    target.add_status_effect("Poisoned", duration=self.poison_duration, game_instance=game, source=self) # <--- MODIFIED
                 else:
                     game.message_log.add_message(f"{target.name} resists the poison!", (150, 255, 150))
             
@@ -175,8 +216,7 @@ class Monster:
             ]
             game.message_log.add_message(random.choice(monster_miss_messages), (200, 200, 200))
 
-
-    def take_damage(self, amount):
+    def take_damage(self, amount, game_instance=None, damage_type=None): 
         """Handle taking damage and return actual damage taken"""
         damage_taken = amount 
         self.hp -= damage_taken
@@ -191,69 +231,124 @@ class Monster:
         """Handle death and return XP value"""
         return self.base_xp
 
-    # --- Status Effect Management Methods (similar to Player) ---
     def add_status_effect(self, effect, game_instance):
         """Adds a status effect to the monster."""
         for existing_effect in self.active_status_effects:
-            if existing_effect == effect:
+            if type(existing_effect) is type(effect): # Check if it's the same class of effect
                 existing_effect.turns_left = effect.duration
                 game_instance.message_log.add_message(f"{self.name}'s {effect.name} effect is refreshed.", (200, 200, 255))
                 return
-
+        
         self.active_status_effects.append(effect)
-        effect.apply(self, game_instance)
+        effect.apply_effect(self, game_instance) # Call apply_effect immediately upon adding
 
     def process_status_effects(self, game_instance):
         """Processes all active status effects on the monster."""
         effects_to_remove = []
         for effect in self.active_status_effects:
-            effect.tick(self, game_instance)
+            effect.apply_effect(self, game_instance) # Ensure apply_effect is called
+            effect.tick_down()
             if effect.turns_left <= 0:
                 effects_to_remove.append(effect)
-
+        
         for effect in effects_to_remove:
             self.active_status_effects.remove(effect)
-            effect.remove(self, game_instance)
-
+            effect.on_end(self, game_instance)
 
 
 class Mimic(Monster):
-    def __init__(self, x, y):
-        # Mimics start disguised as a chest
-        super().__init__(x, y, 'C', 'Chest', (139, 69, 19)) # Same char and color as Chest
-        self.name = "Mimic" # Actual name
+    def __init__(self, x, y, disguise_char, initial_color): 
+        super().__init__(x, y, disguise_char, 'Mimic', initial_color) 
+        
         self.disguised = True
-        self.hp = 20
+        
+        self._disguise_char = disguise_char 
+        self._disguise_color = initial_color 
+        if disguise_char == 'K':
+            self.revealed_char = 'K' 
+        elif disguise_char == 'B':
+            self.revealed_char = 'B' 
+        elif disguise_char == 'C':
+            self.revealed_char = 'M' 
+        else:
+            self.revealed_char = 'M' 
+        self.revealed_color = (255, 0, 0) 
+        
+        self.hp = 20 # Mimic specific HP
         self.max_hp = 20
         self.attack_power = 5
         self.armor_class = 14
-        self.base_xp = 30 # More XP for a trickier monster
-        self.blocks_movement = True # Mimics block movement even when disguised
-    
-    def reveal(self, game_instance):
-        """Mimic reveals its true form."""
+        self.base_xp = 30
+        self.blocks_movement = True
+
+    def take_damage(self, amount, game_instance, damage_type=None): # This method *does* take game_instance
+        """
+        Mimic's take_damage method.
+        If disguised and takes damage, it reveals itself.
+        """
         if self.disguised:
+            game_instance.message_log.add_message(f"You strike the {self.name}!", (255, 165, 0))
+            self.reveal(game_instance) 
+            
+        damage_taken = super().take_damage(amount, damage_type) # <--- REMOVE game_instance FROM HERE
+
+        # Add any Mimic-specific damage messages or effects here if needed
+        if not self.alive and not self.disguised: # Only if it died and was already revealed
+            game_instance.message_log.add_message(f"The {self.name} shudders and collapses!", (255, 0, 0))
+
+        return damage_taken
+
+    def reveal(self, game_instance):
+        """Mimic fully reveals its true form."""
+        if self.disguised:
+            print(f"DEBUG: Mimic at ({self.x},{self.y}) revealing. Current char (before change): {self.char}")
             self.disguised = False
-            self.char = 'M' # Change character to 'M' for Mimic
-            self.color = (255, 0, 0) # Change color to red
-            game_instance.message_log.add_message("The chest suddenly sprouts teeth and eyes! It's a MIMIC!", (255, 0, 0))
+            
+            # --- MODIFIED: Use self.revealed_char for the revealed form ---
+            self.char = self.revealed_char 
+            self.color = self.revealed_color 
+            
+            game_instance.message_log.add_message("The object suddenly sprouts teeth and eyes! It's a MIMIC!", (255, 0, 0))
             game_instance.message_log.add_message("Prepare for battle!", (255, 100, 100))
+            print(f"DEBUG: Mimic at ({self.x},{self.y}) revealed. New char: {self.char}, color: {self.color}")
             # Mimic immediately attacks the player if adjacent after revealing
             if self.is_adjacent_to(game_instance.player):
                 self.attack(game_instance.player, game_instance)
+            
             # Ensure it's added to the turn order if it wasn't already (e.g., if it was just an item)
-            if self not in game_instance.turn_order:
+            if self not in game_instance.entities:
                 game_instance.entities.append(self)
+                print(f"DEBUG: Mimic added to game.entities.")
+            if self not in game_instance.turn_order:
                 self.roll_initiative()
                 game_instance.turn_order.append(self)
                 game_instance.turn_order = sorted(game_instance.turn_order, key=lambda e: e.initiative, reverse=True)
+                print(f"DEBUG: Mimic added to game.turn_order.")
+            
+            # Remove revealed mimic from items_on_ground upon reveal
+            # This is correct for the *item* aspect, but not the *tile* aspect.
+            if self in game_instance.game_map.items_on_ground:
+                game_instance.game_map.items_on_ground.remove(self)
+                print(f"DEBUG: Mimic removed from game_map.items_on_ground upon reveal.")
+            
+            # --- NEW CRITICAL STEP: Replace the MimicTile with a floor tile ---
+            # This removes the "static crate" visual from the map
+            from world.tile import floor # Import floor tile
+            game_instance.game_map.tiles[self.y][self.x] = floor
+            print(f"DEBUG: MimicTile at ({self.x},{self.y}) replaced with floor tile.")
+            
+            # Update FOV to ensure the map redraws correctly
+            game_instance.update_fov()
 
     def take_turn(self, player, game_map, game):
         """Mimic's turn logic."""
         if not self.alive:
             return
-        if self.disguised:
-            # Disguised mimics don't move or attack on their own turn
+        
+        if self.disguised: # Should not happen if handle_player_action works
             return
-        # If not disguised, behave like a normal monster
+        
+        # If not disguised, behave like a normal monster (Stage 2 combat form)
         super().take_turn(player, game_map, game)
+
+
