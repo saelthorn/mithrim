@@ -78,18 +78,26 @@ def setup_tile_mapping():
         # These should point to your *disguised* mimic graphics (e.g., barrel with eyes)
         'B': (3* CELL_DIM, 5 * CELL_DIM),  # Mimic Barrel
         'K': (1 * CELL_DIM, 5 * CELL_DIM),  # Mimic Crate
+        'M': (6 * CELL_DIM, 5 * CELL_DIM),  # Mimic (Generic Revealed Form)
 
         # Entity Characters
         '@': (0 * CELL_DIM, 0 * CELL_DIM),  # Player
         'r': (0 * CELL_DIM, 7 * CELL_DIM),  # Rat (Monster)
         'g': (1 * CELL_DIM, 7 * CELL_DIM),  # Goblin
-        '&': (2 * CELL_DIM, 7 * CELL_DIM),  # Skeleton (Monster)
-        'R': (3 * CELL_DIM, 7 * CELL_DIM),  # Orc (Monster)
+        'S': (2 * CELL_DIM, 7 * CELL_DIM),  # Skeleton (Monster)
+        'OR': (3 * CELL_DIM, 7 * CELL_DIM),  # Orc (Monster)
         'T': (4 * CELL_DIM, 7 * CELL_DIM),  # Troll
-        'D': (5 * CELL_DIM, 7 * CELL_DIM),  # Dragon (Monster)
+        'D': (6 * CELL_DIM, 7 * CELL_DIM),  # Dragon (Monster)
+        
+        's': (0 * CELL_DIM, 8 * CELL_DIM),  # Slime
+        'ga': (1 * CELL_DIM, 8 * CELL_DIM),  # Goblin Archer
+        'SA': (2 * CELL_DIM, 8 * CELL_DIM),  # Skeleton Archer
+        'CT': (3 * CELL_DIM, 8 * CELL_DIM),  # Centaur
+        'L': (4 * CELL_DIM, 8 * CELL_DIM),  # Lizardfolk
+        'GS': (5 * CELL_DIM, 7 * CELL_DIM),  # Giant Spider
+        'BH': (5 * CELL_DIM, 8 * CELL_DIM),  # Beholder
 
         # IMPORTANT: Ensure 'M' is your *generic revealed mimic* graphic
-        'M': (6 * CELL_DIM, 5 * CELL_DIM),  # Mimic (Generic Revealed Form)
         'A': (5 * CELL_DIM, 0 * CELL_DIM),  # Bartender (NPC)
         'p': (6 * CELL_DIM, 0 * CELL_DIM),  # Patron (NPC)
         'H': (4 * CELL_DIM, 0 * CELL_DIM),  # Healer (NPC)

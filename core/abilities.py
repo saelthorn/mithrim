@@ -39,7 +39,7 @@ class Ability:
 
 class SecondWind(Ability):
     def __init__(self):
-        super().__init__("Second Wind", "Heal yourself for a small amount of HP.", cooldown=15) # 15 turns cooldown
+        super().__init__("Second Wind", "Heal yourself for a small amount of HP.", cooldown=30) # 15 turns cooldown
 
     def use(self, user, game_instance):
         # Call base class use to handle cooldown and initial checks.
@@ -55,7 +55,7 @@ class SecondWind(Ability):
 
 class PowerAttack(Ability):
     def __init__(self):
-        super().__init__("Power Attack", "Sacrifice accuracy for increased damage on your next attack.", cooldown=3)
+        super().__init__("Power Attack", "Sacrifice accuracy for increased damage on your next attack.", cooldown=10)
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
             return False
@@ -68,7 +68,7 @@ class PowerAttack(Ability):
 
 class CunningAction(Ability):
     def __init__(self):
-        super().__init__("Cunning Action", "Use a bonus action to Dash.", cooldown=2)  # Removed Disengage option
+        super().__init__("Cunning Action", "Use a bonus action to Dash.", cooldown=5)  # Removed Disengage option
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
@@ -120,7 +120,7 @@ class FireBolt(Ability):
 
 class MistyStep(Ability):
     def __init__(self):
-        super().__init__("Misty Step", "The caster is briefly surrounded by silvery mist then vanishes, reappearing in an unoccupied space up to 6 tiles away.", cooldown=5)
+        super().__init__("Misty Step", "The caster is briefly surrounded by silvery mist then vanishes, reappearing in an unoccupied space up to 6 tiles away.", cooldown=10)
         self.range = 6 # Max teleport distance in tiles
 
     def use(self, user, game_instance):

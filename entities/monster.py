@@ -1,10 +1,11 @@
+# MultipleFiles/monster.py
 import random
 from core.pathfinding import astar
 from core.status_effects import Poisoned, PowerAttackBuff, EvasionBuff
 
 class Monster:
     def __init__(self, x, y, char, name, color):
-        super().__init__()   
+        # super().__init__() # This line is not needed if Monster does not inherit from another class
         
         self.x = x
         self.y = y
@@ -14,13 +15,19 @@ class Monster:
         self.alive = True
         self.hp = 10
         self.max_hp = 10
-        self.attack_power = 2
+        self.attack_power = 2 # Melee attack power
         self.armor_class = 11
         self.base_xp = 10
         self.initiative = 0
         self.blocks_movement = True
         self.active_status_effects = []
         
+        # Ranged attack specific attributes (default to 0/False)
+        self.is_ranged = False
+        self.ranged_attack_power = 0
+        self.range = 0 # Max range for ranged attacks
+
+        # Poison specific attributes
         self.can_poison = False
         self.poison_dc = 10
         self.poison_duration = 3
@@ -30,26 +37,35 @@ class Monster:
         """Roll for turn order"""
         self.initiative = random.randint(1, 20)
 
+    def distance_to(self, target_x, target_y):
+        """Calculate the Chebyshev distance to another point."""
+        dx = abs(self.x - target_x)
+        dy = abs(self.y - target_y)
+        return max(dx, dy) # Chebyshev distance (for grid-based movement)
+
     def take_turn(self, player, game_map, game):
         """Handle monster's combat and movement"""
         if not self.alive:
             return
 
         # Process status effects at the start of the monster's turn
-        # self.process_status_effects(game)
-        # if not self.alive: # Check if monster died from status effect
-        #    return
+        self.process_status_effects(game)
+        if not self.alive: # Check if monster died from status effect
+           return
 
         # Check if adjacent to player (including diagonals)
         if self.is_adjacent_to(player):
-            # For testing monster advantage/disadvantage, uncomment one of these:
-            # self.attack(player, game, advantage=True)
-            # self.attack(player, game, disadvantage=True)
-            # self.attack(player, game, advantage=True, disadvantage=True) # Should cancel out
-            self.attack(player, game) # Default call
+            self.attack(player, game) # Use base melee attack
             return
 
-        # Otherwise move toward player using A* pathfinding
+        # If monster has ranged attack, check if player is in range and line of sight
+        if self.is_ranged:
+            distance_to_player = self.distance_to(player.x, player.y)
+            if distance_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
+                self.ranged_attack(player, game)
+                return
+
+        # Otherwise, move toward player using A* pathfinding
         other_entities = [e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement]
 
         path = astar(game_map, (self.x, self.y), (player.x, player.y), entities=other_entities)
@@ -153,10 +169,7 @@ class Monster:
 
 
             # --- Damage Calculation ---
-            # For monsters, let's assume a base damage die of 1d4 for now.
-            # You can make this more sophisticated later (e.g., monster.damage_dice = "1d6")
             monster_die_type = 4 # Assuming 1d4 for monsters
-
             damage_rolls = []
             total_dice_rolled = 1 # Default to 1 die
 
@@ -191,8 +204,7 @@ class Monster:
             if self.can_poison and target.alive:
                 game.message_log.add_message(f"The {self.name} attempts to poison {target.name}!", (255, 150, 0))
                 if not target.make_saving_throw("CON", self.poison_dc, game):
-                    # MODIFIED: Pass string name "Poisoned" instead of the object
-                    target.add_status_effect("Poisoned", duration=self.poison_duration, game_instance=game, source=self) # <--- MODIFIED
+                    target.add_status_effect("Poisoned", duration=self.poison_duration, game_instance=game, source=self)
                 else:
                     game.message_log.add_message(f"{target.name} resists the poison!", (150, 255, 150))
             
@@ -216,6 +228,26 @@ class Monster:
             ]
             game.message_log.add_message(random.choice(monster_miss_messages), (200, 200, 200))
 
+    def ranged_attack(self, target, game):
+        """Performs a ranged attack. Override for specific ranged monsters."""
+        if not target.alive:
+            return
+        
+        game.message_log.add_message(f"The {self.name} makes a ranged attack at {target.name}!", (255, 150, 0))
+        
+        # Simplified ranged attack roll (you can make this more complex later)
+        attack_roll = random.randint(1, 20) + 2 # Example: +2 to hit for ranged
+        
+        if attack_roll >= target.armor_class:
+            damage = random.randint(1, 6) + self.ranged_attack_power # Example: 1d6 + ranged_attack_power
+            damage_dealt = target.take_damage(damage, game, damage_type='piercing')
+            game.message_log.add_message(f"The projectile hits {target.name} for {damage_dealt} damage!", (255, 50, 50))
+            if not target.alive:
+                game.message_log.add_message(f"{target.name} has been slain by a ranged attack!", (200, 0, 0))
+        else:
+            game.message_log.add_message(f"The {self.name}'s projectile misses {target.name}.", (200, 200, 200))
+
+
     def take_damage(self, amount, game_instance=None, damage_type=None): 
         """Handle taking damage and return actual damage taken"""
         damage_taken = amount 
@@ -231,16 +263,26 @@ class Monster:
         """Handle death and return XP value"""
         return self.base_xp
 
-    def add_status_effect(self, effect, game_instance):
+    def add_status_effect(self, effect_name, duration, game_instance, source=None):
         """Adds a status effect to the monster."""
-        for existing_effect in self.active_status_effects:
-            if type(existing_effect) is type(effect): # Check if it's the same class of effect
-                existing_effect.turns_left = effect.duration
-                game_instance.message_log.add_message(f"{self.name}'s {effect.name} effect is refreshed.", (200, 200, 255))
-                return
+        new_effect = None
+        if effect_name == "Poisoned":
+            new_effect = Poisoned(duration, source)
+        # Add other status effects here if monsters can get them
         
-        self.active_status_effects.append(effect)
-        effect.apply_effect(self, game_instance) # Call apply_effect immediately upon adding
+        if new_effect:
+            for existing_effect in self.active_status_effects:
+                if type(existing_effect) is type(new_effect): # Check if it's the same class of effect
+                    existing_effect.turns_left = new_effect.duration
+                    game_instance.message_log.add_message(f"{self.name}'s {new_effect.name} effect is refreshed.", (200, 200, 255))
+                    return
+            
+            self.active_status_effects.append(new_effect)
+            new_effect.apply_effect(self, game_instance) # Call apply_effect immediately upon adding
+        else:
+            game_instance.message_log.add_message(f"Warning: Attempted to add unknown status effect to monster: {effect_name}", (255, 0, 0))
+            print(f"Warning: Attempted to add unknown status effect to monster: {effect_name}")
+
 
     def process_status_effects(self, game_instance):
         """Processes all active status effects on the monster."""
@@ -264,11 +306,11 @@ class Mimic(Monster):
         
         self._disguise_char = disguise_char 
         self._disguise_color = initial_color 
-        if disguise_char == 'K':
-            self.revealed_char = 'K' 
-        elif disguise_char == 'B':
+        if disguise_char == 'K': # Crate
+            self.revealed_char = 'K' # Generic Mimic char
+        elif disguise_char == 'B': # Barrel
             self.revealed_char = 'B' 
-        elif disguise_char == 'C':
+        elif disguise_char == 'C': # Chest
             self.revealed_char = 'M' 
         else:
             self.revealed_char = 'M' 
@@ -281,7 +323,7 @@ class Mimic(Monster):
         self.base_xp = 30
         self.blocks_movement = True
 
-    def take_damage(self, amount, game_instance, damage_type=None): # This method *does* take game_instance
+    def take_damage(self, amount, game_instance, damage_type=None):
         """
         Mimic's take_damage method.
         If disguised and takes damage, it reveals itself.
@@ -290,9 +332,8 @@ class Mimic(Monster):
             game_instance.message_log.add_message(f"You strike the {self.name}!", (255, 165, 0))
             self.reveal(game_instance) 
             
-        damage_taken = super().take_damage(amount, damage_type) # <--- REMOVE game_instance FROM HERE
+        damage_taken = super().take_damage(amount, game_instance, damage_type) # Pass game_instance here
 
-        # Add any Mimic-specific damage messages or effects here if needed
         if not self.alive and not self.disguised: # Only if it died and was already revealed
             game_instance.message_log.add_message(f"The {self.name} shudders and collapses!", (255, 0, 0))
 
@@ -304,7 +345,6 @@ class Mimic(Monster):
             print(f"DEBUG: Mimic at ({self.x},{self.y}) revealing. Current char (before change): {self.char}")
             self.disguised = False
             
-            # --- MODIFIED: Use self.revealed_char for the revealed form ---
             self.char = self.revealed_char 
             self.color = self.revealed_color 
             
@@ -315,7 +355,6 @@ class Mimic(Monster):
             if self.is_adjacent_to(game_instance.player):
                 self.attack(game_instance.player, game_instance)
             
-            # Ensure it's added to the turn order if it wasn't already (e.g., if it was just an item)
             if self not in game_instance.entities:
                 game_instance.entities.append(self)
                 print(f"DEBUG: Mimic added to game.entities.")
@@ -325,19 +364,14 @@ class Mimic(Monster):
                 game_instance.turn_order = sorted(game_instance.turn_order, key=lambda e: e.initiative, reverse=True)
                 print(f"DEBUG: Mimic added to game.turn_order.")
             
-            # Remove revealed mimic from items_on_ground upon reveal
-            # This is correct for the *item* aspect, but not the *tile* aspect.
             if self in game_instance.game_map.items_on_ground:
                 game_instance.game_map.items_on_ground.remove(self)
                 print(f"DEBUG: Mimic removed from game_map.items_on_ground upon reveal.")
             
-            # --- NEW CRITICAL STEP: Replace the MimicTile with a floor tile ---
-            # This removes the "static crate" visual from the map
             from world.tile import floor # Import floor tile
             game_instance.game_map.tiles[self.y][self.x] = floor
             print(f"DEBUG: MimicTile at ({self.x},{self.y}) replaced with floor tile.")
             
-            # Update FOV to ensure the map redraws correctly
             game_instance.update_fov()
 
     def take_turn(self, player, game_map, game):
@@ -352,3 +386,150 @@ class Mimic(Monster):
         super().take_turn(player, game_map, game)
 
 
+# --- NEW MONSTER CLASSES ---
+
+class GiantRat(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'r', 'Giant Rat', (0, 130, 8))
+        self.hp = 5
+        self.max_hp = 5
+        self.attack_power = 1
+        self.armor_class = 10
+        self.base_xp = 4
+        self.can_poison = True
+        self.poison_dc = 11
+        self.poison_duration = 2
+        self.poison_damage_per_turn = 1
+
+class Slime(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 's', 'Slime', (0, 200, 0)) # 's' for slime, bright green
+        self.hp = 8
+        self.max_hp = 8
+        self.attack_power = 2
+        self.armor_class = 8 # Slimes are squishy
+        self.base_xp = 6
+        self.can_poison = False # Or make it acid damage later
+
+class Goblin(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'g', 'Goblin', (0, 130, 8))
+        self.hp = 7
+        self.max_hp = 7
+        self.attack_power = 2
+        self.armor_class = 12
+        self.base_xp = 6
+
+class GoblinArcher(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'ga', 'Goblin Archer', (0, 100, 0)) # 'a' for archer, darker green
+        self.hp = 8
+        self.max_hp = 8
+        self.attack_power = 1 # Melee attack if adjacent
+        self.is_ranged = True
+        self.ranged_attack_power = 3 # Ranged attack damage
+        self.range = 6 # How far it can shoot
+        self.armor_class = 13
+        self.base_xp = 15
+
+class Skeleton(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'S', 'Skeleton', (215, 152, 152))
+        self.hp = 9
+        self.max_hp = 9
+        self.attack_power = 3
+        self.armor_class = 12
+        self.base_xp = 8
+
+class SkeletonArcher(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'SA', 'Skeleton Archer', (180, 180, 180)) # 'S' for Skeleton Archer, lighter gray
+        self.hp = 10
+        self.max_hp = 10
+        self.attack_power = 2
+        self.is_ranged = True
+        self.ranged_attack_power = 4
+        self.range = 8
+        self.armor_class = 14
+        self.base_xp = 20
+
+class Orc(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'OR', 'Orc', (63, 127, 63)) # 'OR' for Orc, dark green
+        self.hp = 12
+        self.max_hp = 12
+        self.attack_power = 4
+        self.armor_class = 13
+        self.base_xp = 10
+
+class Centaur(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'CT', 'Centaur', (139, 69, 19)) # 'C' for Centaur, brown
+        self.hp = 15
+        self.max_hp = 15
+        self.attack_power = 5 # Melee attack (hooves/spear)
+        self.is_ranged = True
+        self.ranged_attack_power = 4 # Ranged attack (bow)
+        self.range = 10
+        self.armor_class = 14
+        self.base_xp = 25
+
+class Troll(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'T', 'Troll', (127, 63, 63))
+        self.hp = 20
+        self.max_hp = 20
+        self.attack_power = 6
+        self.armor_class = 15
+        self.base_xp = 30
+        # Trolls often have regeneration, which would be a status effect or a special method
+
+class Lizardfolk(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'L', 'Lizardfolk', (0, 100, 100)) # 'L' for Lizardfolk, teal
+        self.hp = 18
+        self.max_hp = 18
+        self.attack_power = 5
+        self.armor_class = 16
+        self.base_xp = 28
+        self.can_poison = True # Some Lizardfolk have poisonous bites
+        self.poison_dc = 13
+        self.poison_duration = 3
+        self.poison_damage_per_turn = 2
+
+class GiantSpider(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'GS', 'Giant Spider', (50, 50, 50)) # 'P' for Spider, dark gray
+        self.hp = 15
+        self.max_hp = 15
+        self.attack_power = 4
+        self.armor_class = 14
+        self.base_xp = 25
+        self.can_poison = True
+        self.poison_dc = 12
+        self.poison_duration = 4
+        self.poison_damage_per_turn = 3
+
+class Beholder(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'BH', 'Beholder', (150, 0, 150)) # 'B' for Beholder, purple
+        self.hp = 50
+        self.max_hp = 50
+        self.attack_power = 8 # Bite attack
+        self.is_ranged = True
+        self.ranged_attack_power = 10 # Eye ray damage (example)
+        self.range = 8 # Long range eye rays
+        self.armor_class = 18
+        self.base_xp = 100
+        # Beholders would typically have multiple eye ray types, anti-magic cone, etc.
+        # This is a very simplified version.
+
+class DragonWhelp(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'D', 'Dragon Whelp', (255, 63, 63))
+        self.hp = 30
+        self.max_hp = 30
+        self.attack_power = 7
+        self.armor_class = 17
+        self.base_xp = 50
+        # Dragon Whelps might have a breath weapon (area effect)

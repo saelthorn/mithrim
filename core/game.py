@@ -11,7 +11,7 @@ class GameState:
     CHARACTER_MENU = "character_menu"
     TARGETING = "targeting"  
     CHARACTER_CREATION = "character_creation"
-    CLASS_SELECTION = "class_selection" # <--- ADD THIS LINE   
+    CLASS_SELECTION = "class_selection"
 
 
 from core.fov import FOV
@@ -19,12 +19,15 @@ from world.map import GameMap
 from world.dungeon_generator import generate_dungeon
 from world.tavern_generator import generate_tavern
 from entities.player import Player, Fighter, Rogue, Wizard
-from entities.monster import Monster
-from entities.monster import Mimic
+# NEW: Import all monster classes
+from entities.monster import (
+    Monster, Mimic, GiantRat, Slime, Goblin, GoblinArcher, Skeleton,
+    SkeletonArcher, Orc, Centaur, Troll, Lizardfolk, GiantSpider, Beholder, DragonWhelp
+)
 from entities.tavern_npcs import create_tavern_npcs
 from entities.dungeon_npcs import DungeonHealer
 from entities.tavern_npcs import NPC
-from entities.races import Human, HillDwarf, DrowElf
+from entities.races import Human, HillDwarf, DrowElf # NEW: Import DrowElf
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep
 from core.message_log import MessageBox
 from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff
@@ -103,26 +106,13 @@ class Game:
 
         # REMOVED: Player creation moved to character_creation_start
         self.player = None 
-        # REMOVED: Race application moved to character_creation_start
-        # if self.player.race:
-        #     self.player.race.apply_traits(self.player, self)
-        #     self.player.has_darkvision = self.player.race.has_darkvision 
-        #     self.player.damage_resistances.extend(self.player.race.damage_resistances)
-        #     self.player.skill_proficiencies.extend(self.player.race.skill_proficiencies)
-        #     self.player.weapon_proficiencies.extend(self.player.race.weapon_proficiencies)
-        #     self.player.armor_proficiencies.extend(self.player.race.armor_proficiencies)
-        #     self.player.max_hp = self.player._calculate_max_hp()
-        #     self.player.hp = self.player.max_hp
-        #     self.player.armor_class = self.player._calculate_ac()
-        #     self.player.attack_power = self.player.get_ability_modifier(self.player.dexterity) + self.player.equipped_weapon.damage_modifier
-        #     self.player.attack_bonus = self.player.get_ability_modifier(self.player.dexterity) + self.player.proficiency_bonus + self.player.equipped_weapon.attack_bonus
         
-        # self.generate_tavern() # This will now be called AFTER character creation
         self.selected_inventory_item = None
 
 
         # Character creation specific variables
-        self.available_races = [Human(), HillDwarf(), DrowElf()] # List of race objects
+        # UPDATED: Add DrowElf to available races
+        self.available_races = [Human(), HillDwarf(), DrowElf()]
         self.selected_race_index = 0 
         self.character_name = "Shadowblade" # Default name, could be input later
         self.character_class = Wizard # Available classes: Fighter, Rogue, Wizard
@@ -130,19 +120,19 @@ class Game:
 
         self.race_class_visuals = {
             # Human mappings
-            ("Human", "Rogue"): ('HR', (255, 255, 0)),    # 'HR' for Human Rogue
             ("Human", "Fighter"): ('HF', (255, 255, 255)), # 'HF' for Human Fighter
+            ("Human", "Rogue"): ('HR', (255, 255, 0)),    # 'HR' for Human Rogue
             ("Human", "Wizard"): ('HW', (0, 200, 255)),   # 'HW' for Human Wizard
          
             # Hill Dwarf mappings
-            ("HillDwarf", "Rogue"): ('DR', (200, 150, 0)),   # 'DR' for Dwarf Rogue
             ("HillDwarf", "Fighter"): ('DF', (180, 120, 60)), # 'DF' for Dwarf Fighter
+            ("HillDwarf", "Rogue"): ('DR', (200, 150, 0)),   # 'DR' for Dwarf Rogue
             ("HillDwarf", "Wizard"): ('DW', (100, 150, 255)), # 'DW' for Dwarf Wizard
 
-            # Drow Elf mappings
-            ("DrowElf", "Rogue"): ('ER', (150, 0, 150)),    # 'ER' for Drow Rogue
-            ("DrowElf", "Fighter"): ('EF', (200, 100, 200)), # 'EF' for Drow Fighter
-            ("DrowElf", "Wizard"): ('EW', (100, 100, 255)),  # 'EW' for Drow Wizard
+            # Drow Elf mappings (NEW)
+            ("DrowElf", "Fighter"): ('EF', (100, 0, 100)), # Example: Purple for Drow Fighter
+            ("DrowElf", "Rogue"): ('ER', (150, 0, 150)),   # Example: Darker Purple for Drow Rogue
+            ("DrowElf", "Wizard"): ('EW', (200, 0, 200)),  # Example: Lighter Purple for Drow Wizard
         }
 
 
@@ -153,6 +143,17 @@ class Game:
 
         # Call a method to start character creation
         self.start_character_creation()
+
+    # NEW: Define monster spawning tiers
+    MONSTER_SPAWN_TIERS = {
+        # Level range: [List of monster classes that can spawn]
+        (1, 3): [GiantRat, Slime],
+        (4, 5): [Goblin, GoblinArcher],
+        (6, 7): [Skeleton, SkeletonArcher, Orc],
+        (8, 9): [Centaur, Lizardfolk, Troll],
+        (10, 12): [GiantSpider, Beholder],
+        (13, 99): [DragonWhelp], # High level, adjust max level as needed
+    }
 
 
     def start_character_creation(self):
@@ -197,8 +198,7 @@ class Game:
         self.player.race = chosen_race
         self.player.race.apply_traits(self.player, self) 
         
-        # self.player.darkvision_radius = self.player.race.darkvision_radius 
-        
+        # REMOVED: self.player.has_darkvision = self.player.race.has_darkvision (handled by apply_traits)
         self.player.damage_resistances.extend(self.player.race.damage_resistances)
         self.player.skill_proficiencies.extend(self.player.race.skill_proficiencies)
         self.player.weapon_proficiencies.extend(self.player.race.weapon_proficiencies)
@@ -332,63 +332,41 @@ class Game:
         monsters_per_level = min(2 + level_number, len(rooms) - 1)
         monster_rooms = rooms[1:monsters_per_level + 1]
 
+        # Determine which monsters can spawn on this level based on MONSTER_SPAWN_TIERS
+        possible_monsters = []
+        for level_range, monster_list in self.MONSTER_SPAWN_TIERS.items():
+            if level_range[0] <= level_number <= level_range[1]:
+                possible_monsters.extend(monster_list)
+        
+        # Fallback: If no specific monsters are defined for a level, use a default
+        if not possible_monsters:
+            possible_monsters = [GiantRat] # Default to GiantRat if no tier matches
+
         for i, room in enumerate(monster_rooms):
             x, y = room.center()
             if (0 <= x < self.game_map.width and 0 <= y < self.game_map.height and
                 self.game_map.is_walkable(x, y)):
 
-                if level_number <= 2:
-                    monster = Monster(x, y, 'r', f'Giant Rat{i+1}', (0, 130, 8))
-                    monster.can_poison = True
-                    monster.poison_dc = 12
-                    monster.hp = 4 + level_number
-                    monster.max_hp = 5 + level_number
-                    monster.attack_power = 1 + (level_number - 1)
-                    monster.armor_class = 10
-                    monster.base_xp = 4 + (level_number * 2)
-                elif level_number <= 4:
-                    monster = Monster(x, y, 'g', f'Goblin{i+1}', (0, 130, 8))
-                    monster.can_poison = True
-                    monster.poison_dc = 12
-                    monster.hp = 7 + level_number
-                    monster.max_hp = 8 + level_number
-                    monster.attack_power = 2 + (level_number - 1)
-                    monster.armor_class = 12
-                    monster.base_xp = 6 + (level_number * 2)
-                elif level_number <= 6:
-                    monster = Monster(x, y, '&', f'Skeleton{i+1}', (215, 152, 152))
-                    monster.hp = 9 + level_number
-                    monster.max_hp = 10 + level_number
-                    monster.attack_power = 3 + (level_number - 1)
-                    monster.armor_class = 12
-                    monster.base_xp = 8 + (level_number * 2)
-                elif level_number <= 8:
-                    monster = Monster(x, y, 'R', f'Orc{i+1}', (63, 127, 63))
-                    monster.can_poison = True
-                    monster.poison_dc = 12
-                    monster.hp = 11 + level_number
-                    monster.max_hp = 12 + level_number
-                    monster.attack_power = 4 + (level_number - 1)
-                    monster.armor_class = 13
-                    monster.base_xp = 10 + (level_number * 2)
-                elif level_number <= 10:
-                    monster = Monster(x, y, 'T', f'Troll{i+1}', (127, 63, 63))
-                    monster.hp = 14 + level_number * 2
-                    monster.max_hp = 15 + level_number * 2
-                    monster.attack_power = 5 + level_number
-                    monster.armor_class = 15
-                    monster.base_xp = 20 + (level_number * 3)
-                else:
-                    monster = Monster(x, y, 'D', f'Dragon Whelp{i+1}', (255, 63, 63))
-                    monster.hp = 20 + level_number * 3
-                    monster.max_hp = 20 + level_number * 3
-                    monster.attack_power = 6 + level_number
-                    monster.armor_class = 17
-                    monster.base_xp = 50 + (level_number * 5)
+                # Randomly choose a monster class from the possible_monsters list
+                chosen_monster_class = random.choice(possible_monsters)
+                
+                # Mimic is handled separately as a special case in dungeon_generator.py
+                if chosen_monster_class == Mimic:
+                    continue 
 
-                if not isinstance(monster, Mimic):
-                    self.entities.append(monster)
-                    self.message_log.add_message(f"A {monster.name} appears!", (255, 150, 0))
+                monster = chosen_monster_class(x, y)
+
+                # --- Monster Stat Scaling (Optional, implement later) ---
+                # You can add logic here to scale monster HP, attack, etc. based on level_number
+                # For example:
+                # monster.hp = monster.base_hp + (level_number * 2)
+                # monster.max_hp = monster.hp
+                # monster.attack_power = monster.base_attack_power + (level_number // 2)
+                # This would require adding 'base_hp', 'base_attack_power' attributes to your monster classes.
+                # For now, their __init__ values are static.
+
+                self.entities.append(monster)
+                self.message_log.add_message(f"A {monster.name} appears!", (255, 150, 0))
 
         if len(rooms) > 2 and random.random() < 0.6:
             shuffled_healer_rooms = list(rooms[1:-1])
@@ -536,8 +514,8 @@ class Game:
                     self.fov.explored.add((x, y))
         else:
             self.fov.visible_sources.clear()
-            # MODIFIED: Pass player.darkvision_radius instead of player.has_darkvision
-            self.fov.compute_fov(self.player.x, self.player.y, radius=6, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
+            # Pass player.darkvision_radius to compute_fov
+            self.fov.compute_fov(self.player.x, self.player.y, radius=8, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
             for tx, ty in self.torch_light_sources:
                 self.fov.compute_fov(tx, ty, radius=5, light_source_type='torch')
 
@@ -566,11 +544,10 @@ class Game:
         if current_acting_entity:
             current_acting_entity.process_status_effects(self)
 
-        self.cleanup_entities() # <--- This is called first to remove dead entities
+        self.cleanup_entities()
 
         # If after cleanup, there are no entities left (e.g., all monsters died)
         if not self.turn_order:
-            # This state should ideally not be reached if player is alive, but as a safeguard
             if self.player.alive:
                 self.turn_order = [self.player] # Ensure player is in turn order
                 self.current_turn_index = 0
@@ -579,8 +556,6 @@ class Game:
             return # No more turns to process if no entities
 
         # Advance the turn index to the next entity
-        # The index should point to the entity whose turn it *will be*
-        # This handles wrapping around to the beginning of the list
         self.current_turn_index = (self.current_turn_index + 1) % len(self.turn_order)
         
         # Get the entity whose turn it is now (after advancing the index)
@@ -648,7 +623,7 @@ class Game:
                 self.render()            
 
             if event.type == pygame.KEYDOWN:
-                print(f"  DEBUG KEYDOWN event: {pygame.key.name(event.key)} (value: {event.key})") # MODIFIED THIS LINE
+                print(f"  DEBUG KEYDOWN event: {pygame.key.name(event.key)} (value: {event.key})")
                 
                 
                 # --- NEW: Handle Character Creation Input ---
@@ -981,7 +956,7 @@ class Game:
                     damage_dealt = target_monster.take_damage(damage_roll, self) 
                 else:
                     # Monster.take_damage (for generic monsters) only expects 'amount'
-                    damage_dealt = target_monster.take_damage(damage_roll) 
+                    damage_dealt = target_monster.take_damage(damage_roll, self) # Pass game_instance here
                 
                 self.message_log.add_message(f"A bolt of fire strikes {target_monster.name} for {damage_dealt} damage!", (255, 165, 0))
                 if not target_monster.alive:
@@ -1007,11 +982,6 @@ class Game:
                     mimic_entity = target_tile.mimic_entity
                     if mimic_entity.disguised:
                         mimic_entity.reveal(self) # Reveal the mimic
-                        # If revealed, the mimic is now a monster and will take its turn.
-                        # For now, we'll let the player's next attack handle damage.
-                        # If you want Fire Bolt to damage the revealed mimic immediately:
-                        # mimic_entity.take_damage(damage_roll, self)
-                        # self.message_log.add_message(f"The revealed {mimic_entity.name} takes {damage_roll} damage!", (255, 165, 0))
                     else:
                         self.message_log.add_message(f"The {mimic_entity.name} is already revealed and takes no further damage from smashing its disguise.", (150, 150, 150))
 
@@ -1468,7 +1438,8 @@ class Game:
            self.game_state == GameState.INVENTORY_MENU or \
            self.game_state == GameState.CHARACTER_MENU or \
            self.game_state == GameState.TARGETING or \
-           self.game_state == GameState.CHARACTER_CREATION: # Added CHARACTER_CREATION
+           self.game_state == GameState.CHARACTER_CREATION or \
+           self.game_state == GameState.CLASS_SELECTION: # Added CLASS_SELECTION
             return
         
         current = self.get_current_entity()
@@ -1792,11 +1763,11 @@ class Game:
         elif self.game_state == GameState.INVENTORY_MENU and self.selected_inventory_item:
             menu_instructions_y = max(current_y + 10, instructions_y_start) 
             
-            self._draw_text(target_surface, self.inventory_font_small, "U: Use Item", (150, 150, 150), item_start_x, menu_instructions_y)
+            self._draw_text(target_surface, self.inventory_font_small, "U: Use", (150, 150, 150), item_start_x, menu_instructions_y)
             menu_instructions_y += self.inventory_font_small.get_linesize() + 5
-            self._draw_text(target_surface, self.inventory_font_small, "E: Equip Item", (150, 150, 150), item_start_x, menu_instructions_y)
+            self._draw_text(target_surface, self.inventory_font_small, "E: Equip", (150, 150, 150), item_start_x, menu_instructions_y)
             menu_instructions_y += self.inventory_font_small.get_linesize() + 5
-            self._draw_text(target_surface, self.inventory_font_small, "D: Drop Item", (150, 150, 150), item_start_x, menu_instructions_y)
+            self._draw_text(target_surface, self.inventory_font_small, "D: Drop", (150, 150, 150), item_start_x, menu_instructions_y)
             menu_instructions_y += self.inventory_font_small.get_linesize() + 5
             self._draw_text(target_surface, self.inventory_font_small, "C: Cancel", (150, 150, 150), item_start_x, menu_instructions_y)
             

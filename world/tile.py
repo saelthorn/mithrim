@@ -16,6 +16,7 @@ wall  = Tile(blocked=True, char='#', color=(130, 110, 50), name="Wall")
 stairs_down = Tile(blocked=False, char='>', color=(255, 255, 255), name="Stairs Down")
 stairs_up = Tile(blocked=False, char='<', color=(255, 255, 255), name="Stairs Up")
 dungeon_door = Tile(blocked=False, char='`', color=(139, 69, 19), name="Dungeon Door")
+dungeon_grass = Tile(blocked=False, char='`', color=(0, 160, 20), name="Dungeon Grass")
 
 # Dungeon Decorations
 bones = Tile(blocked=False, char=';', color=(200, 200, 180), name="Bones")
