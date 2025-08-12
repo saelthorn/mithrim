@@ -42,7 +42,7 @@ class Player: # This is our base class for playable characters
 
         # --- Race (Base value, will be overridden by subclasses) ---
         self.race = None
-        self.has_darkvision = False 
+        self.has_darkvision = 0 
         self.damage_resistances = []
 
         # --- NEW: Racial Proficiencies ---
@@ -458,7 +458,7 @@ class Wizard(Player):
     def __init__(self, x, y, char, name, color):
         super().__init__(x, y, char, name, color)
         self.class_name = "Wizard"
-        self.hit_die = 6
+        self.hit_die = 6     
 
         self.strength = 8
         self.dexterity = 12

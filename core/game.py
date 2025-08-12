@@ -10,7 +10,8 @@ class GameState:
     INVENTORY_MENU = "inventory_menu"
     CHARACTER_MENU = "character_menu"
     TARGETING = "targeting"  
-    CHARACTER_CREATION = "character_creation"   
+    CHARACTER_CREATION = "character_creation"
+    CLASS_SELECTION = "class_selection" # <--- ADD THIS LINE   
 
 
 from core.fov import FOV
@@ -23,7 +24,7 @@ from entities.monster import Mimic
 from entities.tavern_npcs import create_tavern_npcs
 from entities.dungeon_npcs import DungeonHealer
 from entities.tavern_npcs import NPC
-from entities.races import Human, HillDwarf
+from entities.races import Human, HillDwarf, DrowElf
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep
 from core.message_log import MessageBox
 from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff
@@ -75,7 +76,8 @@ class Game:
         self._recalculate_dimensions() 
         
         self._init_fonts()
-        
+
+
         # NEW: Start in character creation state
         self.game_state = GameState.CHARACTER_CREATION 
         self._previous_game_state = GameState.CHARACTER_CREATION # Or None, depending on desired flow
@@ -89,14 +91,16 @@ class Game:
             config.MESSAGE_LOG_HEIGHT
         )
         self._recalculate_dimensions()
-        
+
+
         self.ability_in_use = None
         self.targeting_ability_range = 0
         self.targeting_cursor_x = 0
         self.targeting_cursor_y = 0
             
         self.message_log.add_message("Welcome to the dungeon!", (100, 255, 100))
-        
+
+
         # REMOVED: Player creation moved to character_creation_start
         self.player = None 
         # REMOVED: Race application moved to character_creation_start
@@ -115,15 +119,41 @@ class Game:
         
         # self.generate_tavern() # This will now be called AFTER character creation
         self.selected_inventory_item = None
-        
-        # NEW: Character creation specific variables
-        self.available_races = [Human(), HillDwarf()] # List of race objects
-        self.selected_race_index = 0 # Index of currently highlighted race
+
+
+        # Character creation specific variables
+        self.available_races = [Human(), HillDwarf(), DrowElf()] # List of race objects
+        self.selected_race_index = 0 
         self.character_name = "Shadowblade" # Default name, could be input later
         self.character_class = Wizard # Available classes: Fighter, Rogue, Wizard
-        
+
+
+        self.race_class_visuals = {
+            # Human mappings
+            ("Human", "Rogue"): ('HR', (255, 255, 0)),    # 'HR' for Human Rogue
+            ("Human", "Fighter"): ('HF', (255, 255, 255)), # 'HF' for Human Fighter
+            ("Human", "Wizard"): ('HW', (0, 200, 255)),   # 'HW' for Human Wizard
+         
+            # Hill Dwarf mappings
+            ("HillDwarf", "Rogue"): ('DR', (200, 150, 0)),   # 'DR' for Dwarf Rogue
+            ("HillDwarf", "Fighter"): ('DF', (180, 120, 60)), # 'DF' for Dwarf Fighter
+            ("HillDwarf", "Wizard"): ('DW', (100, 150, 255)), # 'DW' for Dwarf Wizard
+
+            # Drow Elf mappings
+            ("DrowElf", "Rogue"): ('ER', (150, 0, 150)),    # 'ER' for Drow Rogue
+            ("DrowElf", "Fighter"): ('EF', (200, 100, 200)), # 'EF' for Drow Fighter
+            ("DrowElf", "Wizard"): ('EW', (100, 100, 255)),  # 'EW' for Drow Wizard
+        }
+
+
+        # Class selection
+        self.available_classes = [Fighter, Rogue, Wizard] # List of class objects
+        self.selected_class_index = 0 
+
+
         # Call a method to start character creation
         self.start_character_creation()
+
 
     def start_character_creation(self):
         self.game_state = GameState.CHARACTER_CREATION
@@ -132,37 +162,59 @@ class Game:
         self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
         self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
 
+    def finalize_race_selection(self):
+        chosen_race = self.available_races[self.selected_race_index]
+        self.message_log.add_message(f"You have chosen the {chosen_race.name} race!", (0, 255, 0))
+        
+        # Transition to class selection
+        self.game_state = GameState.CLASS_SELECTION
+        self.message_log.add_message("--- CLASS SELECTION ---", (255, 215, 0))
+        self.message_log.add_message("Choose your Class (Arrow Keys to navigate, Enter to select):", (200, 200, 255))
+        self.message_log.add_message(f"Current Class: {self.available_classes[self.selected_class_index].__name__}", (255, 255, 255))
+        # Display a generic description for now, or add descriptions to classes if you want
+        self.message_log.add_message("A brief description of the class will go here.", (150, 150, 150))
+
     def finalize_character_creation(self):
         chosen_race = self.available_races[self.selected_race_index]
+        chosen_class_constructor = self.available_classes[self.selected_class_index]
         
-        # Create the player instance with the chosen class and name
-        self.player = self.character_class(0, 0, '@', self.character_name, (255, 255, 255))
+        race_name_str = chosen_race.name.replace(" ", "") # "HillDwarf" from "Hill Dwarf"
+        class_name_str = chosen_class_constructor.__name__ # "Fighter", "Rogue", "Wizard"
+
+        default_char = '@' # Fallback char
+        default_color = (255, 255, 255) # Fallback color (white)
         
-        # Apply race traits
+        player_char, player_color = self.race_class_visuals.get(
+            (race_name_str, class_name_str),
+            (default_char, default_color) # Default if combination not found
+        )
+
+        self.player = chosen_class_constructor(0, 0, 
+                                                player_char, # Use the char from the mapping
+                                                self.character_name, 
+                                                player_color) # Use the color from the mapping
+        
         self.player.race = chosen_race
-        self.player.race.apply_traits(self.player, self)
+        self.player.race.apply_traits(self.player, self) 
         
-        # Apply racial attributes to player (redundant if apply_traits handles it, but good for clarity)
-        self.player.has_darkvision = self.player.race.has_darkvision 
+        # self.player.darkvision_radius = self.player.race.darkvision_radius 
+        
         self.player.damage_resistances.extend(self.player.race.damage_resistances)
         self.player.skill_proficiencies.extend(self.player.race.skill_proficiencies)
         self.player.weapon_proficiencies.extend(self.player.race.weapon_proficiencies)
         self.player.armor_proficiencies.extend(self.player.race.armor_proficiencies)
         
-        # Recalculate derived stats after all racial traits are applied
         self.player.max_hp = self.player._calculate_max_hp()
         self.player.hp = self.player.max_hp
         self.player.armor_class = self.player._calculate_ac()
         
-        # Recalculate attack power and bonus based on potentially modified ability scores
-        # This part needs to be careful about the player's class's primary attack stat.
-        # For Wizard, it's DEX for weapon attacks.
         self.player.attack_power = self.player.get_ability_modifier(self.player.dexterity) + self.player.equipped_weapon.damage_modifier
         self.player.attack_bonus = self.player.get_ability_modifier(self.player.dexterity) + self.player.proficiency_bonus + self.player.equipped_weapon.attack_bonus
+        
         self.message_log.add_message(f"You have chosen to be a {chosen_race.name} {self.player.class_name} named {self.player.name}!", (0, 255, 0))
         
         # Transition to tavern
-        self.generate_tavern() # Now call generate_tavern after character is ready
+        self.generate_tavern()
 
     def _recalculate_dimensions(self):
         """Recalculate all dynamic dimensions based on current screen size."""
@@ -484,8 +536,8 @@ class Game:
                     self.fov.explored.add((x, y))
         else:
             self.fov.visible_sources.clear()
-            # NEW: Pass player_has_darkvision to compute_fov
-            self.fov.compute_fov(self.player.x, self.player.y, radius=8, light_source_type='player', player_has_darkvision=self.player.has_darkvision)
+            # MODIFIED: Pass player.darkvision_radius instead of player.has_darkvision
+            self.fov.compute_fov(self.player.x, self.player.y, radius=6, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
             for tx, ty in self.torch_light_sources:
                 self.fov.compute_fov(tx, ty, radius=5, light_source_type='torch')
 
@@ -596,20 +648,41 @@ class Game:
                 self.render()            
 
             if event.type == pygame.KEYDOWN:
-                print(f"  KEYDOWN event: {pygame.key.name(event.key)} (value: {event.key})") # MODIFIED THIS LINE
+                print(f"  DEBUG KEYDOWN event: {pygame.key.name(event.key)} (value: {event.key})") # MODIFIED THIS LINE
+                
+                
                 # --- NEW: Handle Character Creation Input ---
                 if self.game_state == GameState.CHARACTER_CREATION:
+                   if self.game_state == GameState.CHARACTER_CREATION:
+                       if event.key == pygame.K_UP:
+                           self.selected_race_index = (self.selected_race_index - 1) % len(self.available_races)
+                           self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
+                           self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
+                       elif event.key == pygame.K_DOWN:
+                           self.selected_race_index = (self.selected_race_index + 1) % len(self.available_races)
+                           self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
+                           self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
+                       elif event.key == pygame.K_RETURN:
+                           self.finalize_race_selection() 
+                       return True  # Consume event so no other input is processed
+
+                if self.game_state == GameState.CLASS_SELECTION:
+                    print(f"DEBUG: In CLASS_SELECTION state. Selected Class Index: {self.selected_class_index}")
                     if event.key == pygame.K_UP:
-                        self.selected_race_index = (self.selected_race_index - 1) % len(self.available_races)
-                        self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
-                        self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
+                        print("DEBUG: K_UP pressed in CLASS_SELECTION")
+                        self.selected_class_index = (self.selected_class_index - 1) % len(self.available_classes)
+                        self.message_log.add_message(f"Current Class: {self.available_classes[self.selected_class_index].__name__}", (255, 255, 255))
+                        self.message_log.add_message("A brief description of the class will go here.", (150, 150, 150))
                     elif event.key == pygame.K_DOWN:
-                        self.selected_race_index = (self.selected_race_index + 1) % len(self.available_races)
-                        self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
-                        self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
+                        print("DEBUG: K_DOWN pressed in CLASS_SELECTION")
+                        self.selected_class_index = (self.selected_class_index + 1) % len(self.available_classes)
+                        self.message_log.add_message(f"Current Class: {self.available_classes[self.selected_class_index].__name__}", (255, 255, 255))
+                        self.message_log.add_message("A brief description of the class will go here.", (150, 150, 150))
                     elif event.key == pygame.K_RETURN:
+                        print("DEBUG: K_RETURN pressed in CLASS_SELECTION")
                         self.finalize_character_creation()
-                    return True  # Consume event so no other input is processed
+                    return True
+
 
                 # --- Always accessible menus ---
                 # Handle 'I' key for Inventory
@@ -681,13 +754,14 @@ class Game:
                     else: # Still in TARGETING state (e.g., invalid target chosen)
                         return True # Consume event, stay in targeting mode
                 
+                if self.game_state not in [GameState.DUNGEON, GameState.TAVERN]:
+                    continue
+
                 # --- Player's turn logic (for Dungeon and Tavern) ---
                 # This block will now be reached if TARGETING was cancelled and game_state reverted.
                 can_player_act_this_turn = (self.game_state == GameState.TAVERN) or \
                                            (self.get_current_entity() == self.player and not self.player_has_acted)
-                
-                if self.game_state not in [GameState.DUNGEON, GameState.TAVERN]:
-                    continue
+
                 if not can_player_act_this_turn:
                     continue
                 
@@ -1434,6 +1508,9 @@ class Game:
         if self.game_state == GameState.CHARACTER_CREATION: # NEW: Character Creation Render
             self.render_character_creation_screen()
             self.screen.blit(self.inventory_ui_surface, (0, 0)) # Use inventory_ui_surface for overlay
+        elif self.game_state == GameState.CLASS_SELECTION: 
+            self.render_class_selection_screen()
+            self.screen.blit(self.inventory_ui_surface, (0, 0))
         elif self.game_state == GameState.INVENTORY:
             self.render_inventory_screen() 
             self.screen.blit(self.inventory_ui_surface, (0, 0))
@@ -1613,6 +1690,51 @@ class Game:
         instructions_y = menu_rect.bottom - (self.inventory_font_small.get_linesize() * 2) - 20
         self._draw_text(target_surface, self.inventory_font_small, "Use UP/DOWN arrows to select.", (150, 150, 150), item_start_x, instructions_y)
         self._draw_text(target_surface, self.inventory_font_small, "Press ENTER to confirm.", (150, 150, 150), item_start_x, instructions_y + self.inventory_font_small.get_linesize() + 5)    
+
+    def render_class_selection_screen(self):
+        target_surface = self.inventory_ui_surface
+        target_surface.fill((0,0,0,0))
+        
+        menu_width = int(target_surface.get_width() * 0.7)
+        menu_height = int(target_surface.get_height() * 0.8)
+        menu_x = (target_surface.get_width() - menu_width) // 2
+        menu_y = (target_surface.get_height() - menu_height) // 2
+        menu_rect = pygame.Rect(menu_x, menu_y, menu_width, menu_height)
+        pygame.draw.rect(target_surface, (30, 30, 30), menu_rect)
+        pygame.draw.rect(target_surface, (100, 100, 100), menu_rect, 2)
+        
+        title_text = "CHOOSE YOUR CLASS"
+        title_surface = self.inventory_font_header.render(title_text, True, (255, 215, 0))
+        title_rect = title_surface.get_rect(center=(menu_rect.centerx, menu_y + self.inventory_font_header.get_linesize() // 2 + 10))
+        target_surface.blit(title_surface, title_rect)
+        
+        current_y = title_rect.bottom + 30
+        item_start_x = menu_x + 40
+        line_spacing = self.inventory_font_info.get_linesize() + 8
+        
+        for i, class_constructor in enumerate(self.available_classes):
+            class_name = class_constructor.__name__ # Get the class name string
+            class_text = f"{i+1}. {class_name}"
+            color = (255, 255, 0) if i == self.selected_class_index else (200, 200, 200)
+            class_surface = self.inventory_font_section.render(class_text, True, color)
+            target_surface.blit(class_surface, (item_start_x, current_y))
+            current_y += line_spacing
+            
+            if i == self.selected_class_index:
+                # You can add more detailed class descriptions here if you want to define them
+                # For now, a generic one:
+                class_description = "A brief description of this class's playstyle and abilities."
+                wrapped_desc = self._wrap_text(class_description, self.inventory_font_small, menu_width - 80)
+                for line in wrapped_desc:
+                    desc_surface = self.inventory_font_small.render(line, True, (150, 150, 150))
+                    target_surface.blit(desc_surface, (item_start_x + 20, current_y))
+                    current_y += self.inventory_font_small.get_linesize() + 2
+                current_y += 10 # Extra space after description
+        
+        instructions_y = menu_rect.bottom - (self.inventory_font_small.get_linesize() * 2) - 20
+        self._draw_text(target_surface, self.inventory_font_small, "Use UP/DOWN arrows to select.", (150, 150, 150), item_start_x, instructions_y)
+        self._draw_text(target_surface, self.inventory_font_small, "Press ENTER to confirm.", (150, 150, 150), item_start_x, instructions_y + self.inventory_font_small.get_linesize() + 5)
+   
 
     def render_inventory_screen(self):
         """Renders the inventory screen."""

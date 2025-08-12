@@ -12,8 +12,8 @@ UI_PANEL_WIDTH_RATIO = 0.20 # UI panel takes 25% of screen width
 MESSAGE_LOG_HEIGHT_RATIO = 0.25 # Increased to 25% for a taller box
 
 # Set TILE_SIZE to match your tileset's individual tile size (e.g., 12x12)
-TILE_SIZE = 53
-MIN_TILE_SIZE = 53 
+TILE_SIZE = 48
+MIN_TILE_SIZE = 48
 
 # Initial FPS
 FPS = 30

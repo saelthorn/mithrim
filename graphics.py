@@ -7,8 +7,8 @@ import config
 TILESET_IMAGE = None
 TILE_MAPPING = {}
 
-ORIGINAL_TILE_DIM = 53 # Confirmed 12x12 in Figma
-TILE_SPACING = 1     # 1 pixel space after each tile
+ORIGINAL_TILE_DIM = 48 # Confirmed 12x12 in Figma
+TILE_SPACING = 3.5     # 1 pixel space after each tile
 
 # The effective dimension of each tile cell in the tileset, including spacing
 CELL_DIM = ORIGINAL_TILE_DIM + TILE_SPACING
@@ -37,52 +37,67 @@ def setup_tile_mapping():
     # So, we multiply the grid column/row by CELL_DIM (13).
 
     TILE_MAPPING = {
+
+        # Player Characters (based on race-class combinations)
+        'HR': (0 * CELL_DIM, 0 * CELL_DIM),  # Human Rogue
+        'HF': (1 * CELL_DIM, 0 * CELL_DIM),  # Human Fighter
+        'HW': (2 * CELL_DIM, 0 * CELL_DIM),  # Human Wizard
+
+        'DR': (0 * CELL_DIM, 1 * CELL_DIM),  # HillDwarf Rogue
+        'DF': (1 * CELL_DIM, 1 * CELL_DIM),  # HillDwarf Fighter
+        'DW': (2 * CELL_DIM, 1 * CELL_DIM),  # HillDwarf Wizard
+
+        'ER': (0 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Rogue
+        'EF': (1 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Fighter
+        'EW': (2 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Wizard
+
+
         # Map Tiles
-        '.': (0 * CELL_DIM, 1 * CELL_DIM),  # Floor
-        '#': (1 * CELL_DIM, 1 * CELL_DIM),  # Wall
-        '>': (8 * CELL_DIM, 1 * CELL_DIM),  # Stairs Down
-        '<': (9 * CELL_DIM, 1 * CELL_DIM),  # Stairs Up
-        '+': (2 * CELL_DIM, 1 * CELL_DIM),  # Tavern Door
-        '`': (0 * CELL_DIM, 2 * CELL_DIM),  # Dungeon Grass
+        '.': (0 * CELL_DIM, 3 * CELL_DIM),  # Floor
+        '#': (1 * CELL_DIM, 3 * CELL_DIM),  # Wall
+        '>': (8 * CELL_DIM, 3 * CELL_DIM),  # Stairs Down
+        '<': (9 * CELL_DIM, 3 * CELL_DIM),  # Stairs Up
+        '+': (2 * CELL_DIM, 3 * CELL_DIM),  # Tavern Door
+        '`': (0 * CELL_DIM, 4 * CELL_DIM),  # Dungeon Grass
         
         # IMPORTANT: Ensure 'C' is your *closed* chest graphic
-        'C': (7 * CELL_DIM, 2 * CELL_DIM),  # Chest (Closed)
-        'O': (8 * CELL_DIM, 2 * CELL_DIM),  # Open Chest
-        'c': (3 * CELL_DIM, 1 * CELL_DIM),  # Chair (Tavern)
-        't': (4 * CELL_DIM, 1 * CELL_DIM),  # Table (Tavern)
-        '=': (5 * CELL_DIM, 1 * CELL_DIM),  # Bar Counter
-        'F': (6 * CELL_DIM, 1 * CELL_DIM), # Fireplace
-        ';': (1 * CELL_DIM, 2 * CELL_DIM), # Bones
-        'i': (7 * CELL_DIM, 1 * CELL_DIM), # Torch
+        'C': (4 * CELL_DIM, 5 * CELL_DIM),  # Chest (Closed)
+        'O': (5 * CELL_DIM, 5 * CELL_DIM),  # Open Chest
+        'c': (3 * CELL_DIM, 3 * CELL_DIM),  # Chair (Tavern)
+        't': (4 * CELL_DIM, 3 * CELL_DIM),  # Table (Tavern)
+        '=': (5 * CELL_DIM, 3 * CELL_DIM),  # Bar Counter
+        'F': (6 * CELL_DIM, 3 * CELL_DIM), # Fireplace
+        ';': (1 * CELL_DIM, 4 * CELL_DIM), # Bones
+        'i': (7 * CELL_DIM, 3 * CELL_DIM), # Torch
 
         # Static Decorations (using distinct chars)
-        'b': (3 * CELL_DIM, 2 * CELL_DIM), # Static Barrel (original graphic)
-        'k': (2 * CELL_DIM, 2 * CELL_DIM), # Static Crate (original graphic)
+        'b': (2 * CELL_DIM, 5 * CELL_DIM), # Static Barrel (original graphic)
+        'k': (0 * CELL_DIM, 5 * CELL_DIM), # Static Crate (original graphic)
 
         # Mimic disguised as Crate/Barrel (using distinct chars)
         # These should point to your *disguised* mimic graphics (e.g., barrel with eyes)
-        'B': (5* CELL_DIM, 2 * CELL_DIM),  # Mimic Barrel
-        'K': (4 * CELL_DIM, 2 * CELL_DIM),  # Mimic Crate
+        'B': (3* CELL_DIM, 5 * CELL_DIM),  # Mimic Barrel
+        'K': (1 * CELL_DIM, 5 * CELL_DIM),  # Mimic Crate
 
         # Entity Characters
         '@': (0 * CELL_DIM, 0 * CELL_DIM),  # Player
-        'r': (5 * CELL_DIM, 4 * CELL_DIM),  # Rat (Monster)
-        'g': (0 * CELL_DIM, 4 * CELL_DIM),  # Goblin
-        '&': (1 * CELL_DIM, 4 * CELL_DIM),  # Skeleton (Monster)
-        'R': (2 * CELL_DIM, 4 * CELL_DIM),  # Orc (Monster)
-        'T': (3 * CELL_DIM, 4 * CELL_DIM),  # Troll
-        'D': (4 * CELL_DIM, 4 * CELL_DIM),  # Dragon (Monster)
+        'r': (0 * CELL_DIM, 7 * CELL_DIM),  # Rat (Monster)
+        'g': (1 * CELL_DIM, 7 * CELL_DIM),  # Goblin
+        '&': (2 * CELL_DIM, 7 * CELL_DIM),  # Skeleton (Monster)
+        'R': (3 * CELL_DIM, 7 * CELL_DIM),  # Orc (Monster)
+        'T': (4 * CELL_DIM, 7 * CELL_DIM),  # Troll
+        'D': (5 * CELL_DIM, 7 * CELL_DIM),  # Dragon (Monster)
 
         # IMPORTANT: Ensure 'M' is your *generic revealed mimic* graphic
-        'M': (9 * CELL_DIM, 2 * CELL_DIM),  # Mimic (Generic Revealed Form)
+        'M': (6 * CELL_DIM, 5 * CELL_DIM),  # Mimic (Generic Revealed Form)
         'A': (5 * CELL_DIM, 0 * CELL_DIM),  # Bartender (NPC)
-        'p': (3 * CELL_DIM, 0 * CELL_DIM),  # Patron (NPC)
+        'p': (6 * CELL_DIM, 0 * CELL_DIM),  # Patron (NPC)
         'H': (4 * CELL_DIM, 0 * CELL_DIM),  # Healer (NPC)
         
         # Item Characters
-        '!': (0 * CELL_DIM, 3 * CELL_DIM),  # Potion
-        '/': (1 * CELL_DIM, 3 * CELL_DIM),  # Weapon
-        '[': (2 * CELL_DIM, 3 * CELL_DIM),  # Armor
+        '!': (0 * CELL_DIM, 6 * CELL_DIM),  # Potion
+        '/': (4 * CELL_DIM, 6 * CELL_DIM),  # Weapon
+        '[': (1 * CELL_DIM, 6 * CELL_DIM),  # Armor
     }
     print("Tile mapping setup complete.")        
 
