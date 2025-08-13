@@ -71,7 +71,7 @@ class CunningActionDashBuff(StatusEffect):
 
 
 class EvasionBuff(StatusEffect):
-    def __init__(self, duration=3): # Lasts for 3 turns
+    def __init__(self, duration=5): # Lasts for 3 turns
         super().__init__("Evasion", duration)
         self.dodge_bonus = 100 # A large number to simulate high dodge chance
                                # This will be added to the player's AC for attack rolls

@@ -2,6 +2,7 @@
 import random
 from core.pathfinding import astar
 from core.status_effects import Poisoned, PowerAttackBuff, EvasionBuff
+from core.floating_text import FloatingText 
 
 class Monster:
     def __init__(self, x, y, char, name, color):
@@ -46,15 +47,18 @@ class Monster:
     def take_turn(self, player, game_map, game):
         """Handle monster's combat and movement"""
         if not self.alive:
+            print(f"DEBUG: {self.name} is dead, skipping turn.") # <--- ADD THIS
             return
 
         # Process status effects at the start of the monster's turn
         self.process_status_effects(game)
         if not self.alive: # Check if monster died from status effect
+           print(f"DEBUG: {self.name} died from status effect, skipping turn.") # <--- ADD THIS
            return
 
         # Check if adjacent to player (including diagonals)
         if self.is_adjacent_to(player):
+            print(f"DEBUG: {self.name} is adjacent to player. Calling attack().") # <--- ADD THIS
             self.attack(player, game) # Use base melee attack
             return
 
@@ -62,10 +66,12 @@ class Monster:
         if self.is_ranged:
             distance_to_player = self.distance_to(player.x, player.y)
             if distance_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
+                print(f"DEBUG: {self.name} is ranged and player in LOS. Calling ranged_attack().") # <--- ADD THIS
                 self.ranged_attack(player, game)
                 return
 
         # Otherwise, move toward player using A* pathfinding
+        print(f"DEBUG: {self.name} is moving towards player.") # <--- ADD THIS
         other_entities = [e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement]
 
         path = astar(game_map, (self.x, self.y), (player.x, player.y), entities=other_entities)
@@ -82,8 +88,12 @@ class Monster:
 
             if not is_blocked:
                 self.x, self.y = new_x, new_y
+                print(f"DEBUG: {self.name} moved to ({self.x},{self.y}).") # <--- ADD THIS
             else:
                 game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
+                print(f"DEBUG: {self.name} is blocked.") # <--- ADD THIS
+        else:
+            print(f"DEBUG: {self.name} found no path or no next step.") # <--- ADD THIS
 
 
     def is_adjacent_to(self, other):
@@ -167,6 +177,10 @@ class Monster:
             ]
             game.message_log.add_message(random.choice(monster_hit_messages), (255, 100, 100))
 
+            hit_text = FloatingText(target.x, target.y, "HIT!", (255, 255, 0))
+            game.floating_texts.append(hit_text)
+            # print(f"DEBUG: Monster added HIT! FloatingText for {target.name} at ({target.x},{target.y}). Initial frames_left: {hit_text.frames_left}. List size: {len(game.floating_texts)}") # <--- MODIFIED PRINT
+
 
             # --- Damage Calculation ---
             monster_die_type = 4 # Assuming 1d4 for monsters
@@ -200,6 +214,10 @@ class Monster:
                 (255, 50, 50)
             )
 
+            damage_text = FloatingText(target.x, target.y - 0.5, str(damage_dealt), (255, 0, 0))
+            game.floating_texts.append(damage_text)
+            print(f"DEBUG: Monster added DAMAGE FloatingText for {target.name} at ({target.x},{target.y}). Initial frames_left: {damage_text.frames_left}. List size: {len(game.floating_texts)}") # <--- MODIFIED PRINT
+
             # --- Apply Poison if applicable ---
             if self.can_poison and target.alive:
                 game.message_log.add_message(f"The {self.name} attempts to poison {target.name}!", (255, 150, 0))
@@ -228,6 +246,11 @@ class Monster:
             ]
             game.message_log.add_message(random.choice(monster_miss_messages), (200, 200, 200))
 
+            miss_text = FloatingText(target.x, target.y, "MISS!", (150, 150, 150))
+            game.floating_texts.append(miss_text)
+            print(f"DEBUG: Monster added MISS! FloatingText for {target.name} at ({target.x},{target.y}). Initial frames_left: {miss_text.frames_left}. List size: {len(game.floating_texts)}") # <--- MODIFIED PRINT
+
+
     def ranged_attack(self, target, game):
         """Performs a ranged attack. Override for specific ranged monsters."""
         if not target.alive:
@@ -242,11 +265,22 @@ class Monster:
             damage = random.randint(1, 6) + self.ranged_attack_power # Example: 1d6 + ranged_attack_power
             damage_dealt = target.take_damage(damage, game, damage_type='piercing')
             game.message_log.add_message(f"The projectile hits {target.name} for {damage_dealt} damage!", (255, 50, 50))
+            
+            # --- ADDED: Floating Text for HIT! ---
+            hit_text = FloatingText(target.x, target.y, "HIT!", (255, 255, 0))
+            game.floating_texts.append(hit_text)
+            # --- ADDED: Floating Text for Damage Dealt ---
+            damage_text = FloatingText(target.x, target.y - 0.5, str(damage_dealt), (255, 0, 0))
+            game.floating_texts.append(damage_text)
             if not target.alive:
                 game.message_log.add_message(f"{target.name} has been slain by a ranged attack!", (200, 0, 0))
         else:
             game.message_log.add_message(f"The {self.name}'s projectile misses {target.name}.", (200, 200, 200))
-
+            
+            # --- ADDED: Floating Text for MISS! ---
+            miss_text = FloatingText(target.x, target.y, "MISS!", (150, 150, 150))
+            game.floating_texts.append(miss_text)
+            
 
     def take_damage(self, amount, game_instance=None, damage_type=None): 
         """Handle taking damage and return actual damage taken"""
@@ -427,7 +461,7 @@ class GoblinArcher(Monster):
         self.max_hp = 8
         self.attack_power = 1 # Melee attack if adjacent
         self.is_ranged = True
-        self.ranged_attack_power = 3 # Ranged attack damage
+        self.ranged_attack_power = 1 # Ranged attack damage
         self.range = 6 # How far it can shoot
         self.armor_class = 13
         self.base_xp = 15
@@ -448,8 +482,8 @@ class SkeletonArcher(Monster):
         self.max_hp = 10
         self.attack_power = 2
         self.is_ranged = True
-        self.ranged_attack_power = 4
-        self.range = 8
+        self.ranged_attack_power = 1
+        self.range = 6
         self.armor_class = 14
         self.base_xp = 20
 
@@ -469,8 +503,8 @@ class Centaur(Monster):
         self.max_hp = 15
         self.attack_power = 5 # Melee attack (hooves/spear)
         self.is_ranged = True
-        self.ranged_attack_power = 4 # Ranged attack (bow)
-        self.range = 10
+        self.ranged_attack_power = 2 # Ranged attack (bow)
+        self.range = 8
         self.armor_class = 14
         self.base_xp = 25
 
@@ -517,8 +551,8 @@ class Beholder(Monster):
         self.max_hp = 50
         self.attack_power = 8 # Bite attack
         self.is_ranged = True
-        self.ranged_attack_power = 10 # Eye ray damage (example)
-        self.range = 8 # Long range eye rays
+        self.ranged_attack_power = 5 # Eye ray damage (example)
+        self.range = 7 # Long range eye rays
         self.armor_class = 18
         self.base_xp = 100
         # Beholders would typically have multiple eye ray types, anti-magic cone, etc.

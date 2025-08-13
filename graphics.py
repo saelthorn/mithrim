@@ -59,6 +59,8 @@ def setup_tile_mapping():
         '<': (9 * CELL_DIM, 3 * CELL_DIM),  # Stairs Up
         '+': (2 * CELL_DIM, 3 * CELL_DIM),  # Tavern Door
         '`': (0 * CELL_DIM, 4 * CELL_DIM),  # Dungeon Grass
+        '~': (3 * CELL_DIM, 4 * CELL_DIM),  # Cobweb
+        '%': (2 * CELL_DIM, 4 * CELL_DIM),  # Rubble
         
         # IMPORTANT: Ensure 'C' is your *closed* chest graphic
         'C': (4 * CELL_DIM, 5 * CELL_DIM),  # Chest (Closed)

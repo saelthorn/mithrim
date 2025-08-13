@@ -1,7 +1,7 @@
 import random
 from random import randint, choice
 from world import tile
-from world.tile import stairs_down, stairs_up, dungeon_door, bones, torch, crate, barrel, wall, floor, dungeon_grass, MimicTile
+from world.tile import stairs_down, stairs_up, dungeon_door, bones, torch, crate, barrel, wall, floor, dungeon_grass, rubble, cob_web, MimicTile
 from items.items import Chest, generate_random_loot
 from entities.monster import Mimic
 
@@ -38,8 +38,8 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
     rooms = []
     stairs_positions = {}
     
-    floor_decoration_tiles = [crate, barrel, bones, dungeon_grass] 
-    floor_decoration_chance = 0.2
+    floor_decoration_tiles = [crate, barrel, bones, dungeon_grass, cob_web, rubble] 
+    floor_decoration_chance = 0.2  # Ensure this is defined
     torch_placement_chance = 0.1
     torch_light_sources = []
     
@@ -81,7 +81,6 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
         # Fallback for extremely rare cases or small maps
         rooms.append(RectRoom(game_map.width // 2 - 2, game_map.height // 2 - 2, 5, 5))
         dig_room(game_map, rooms[0])
-
 
     # --- Place Stairs (Guaranteed Placement) ---
     # Place stairs_down in the last room generated
@@ -136,7 +135,6 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
             stairs_positions['up'] = (stairs_x, stairs_y)
             game_map.items_on_ground = [item for item in game_map.items_on_ground if not (item.x == stairs_x and item.y == stairs_y)]
 
-
     # --- Populate Rooms with Decorations, Torches, Chests/Mimics ---
     for room in rooms:
         # Skip the room where stairs are placed for item/decoration spawning
@@ -148,6 +146,7 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
             if 'up' in stairs_positions and room.center() == stairs_positions['up']:
                 continue
 
+        # First pass: Place floor decorations
         for ry in range(room.y1 + 1, room.y2):
             for rx in range(room.x1 + 1, room.x2):
                 # Skip if this spot is where stairs are
@@ -159,7 +158,7 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
                 if game_map.tiles[ry][rx] == floor: # Only place on floor tiles
                     # --- Floor Decorations ---
                     if random.random() < floor_decoration_chance:
-                        if random.random() < 0.15: # 15% chance for a decoration to be a Mimic
+                        if random.random() < 0.1: # 15% chance for a decoration to be a Mimic
                             mimic_type_tile_obj = random.choice([crate, barrel])
                             mimic_entity_disguise_char = 'K' if mimic_type_tile_obj == crate else 'B'
                             mimic_tile_initial_display_char = 'k' if mimic_type_tile_obj == crate else 'b'
@@ -173,26 +172,6 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
                             chosen_decoration = random.choice(floor_decoration_tiles)
                             game_map.tiles[ry][rx] = chosen_decoration
 
-        # --- Torches on Walls ---
-        for rx in range(room.x1, room.x2 + 1):
-            for ry in range(room.y1, room.y2 + 1):
-                is_perimeter_wall = (
-                    (rx == room.x1 or rx == room.x2) and (room.y1 < ry < room.y2) or
-                    (ry == room.y1 or ry == room.y2) and (room.x1 < rx < room.x2)
-                )
-                if is_perimeter_wall and game_map.tiles[ry][rx] == wall:
-                    adjacent_to_floor = False
-                    for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
-                        nx, ny = rx + dx, ry + dy
-                        if (room.x1 < nx < room.x2 and room.y1 < ny < room.y2 and
-                            game_map.tiles[ny][nx] == floor):
-                            adjacent_to_floor = True
-                            break
-                    
-                    if adjacent_to_floor and random.random() < torch_placement_chance:
-                        game_map.tiles[ry][rx] = torch
-                        torch_light_sources.append((rx, ry))
-
         # --- Chests (and Chest Mimics) ---
         # Place chests/mimics at room center, but only if not already occupied by stairs
         chest_spawn_x, chest_spawn_y = room.center()
@@ -201,7 +180,22 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
         if 'up' in stairs_positions and (chest_spawn_x, chest_spawn_y) == stairs_positions['up']:
             continue # Skip if stairs_up are at the center of this room
 
-        if random.random() < 0.6: # Increased overall chest spawn chance to 90%
+        if random.random() < 0.6: # Increased overall chest spawn chance to 60%
+            # Check if the spot is already occupied by an item (Mimic or Chest)
+            is_occupied_by_item = False
+            for existing_item in game_map.items_on_ground:
+                if existing_item.x == chest_spawn_x and existing_item.y == chest_spawn_y:
+                    is_occupied_by_item = True
+                    break
+            
+            # If the spot is already occupied by an item, skip placing another chest/mimic here.
+            if is_occupied_by_item:
+                continue # Skip placing a chest/mimic if an item is already here.
+
+            # If the spot is not occupied by an item, proceed with placing the chest/mimic.
+            # IMPORTANT: If a decorative tile (like crate/barrel) was placed here,
+            # it will be overwritten by the MimicTile or remain a floor tile for the Chest.
+            # This is the correct behavior.
             if random.random() < 0.2: # 75% chance for a chest to be a mimic
                 new_mimic = Mimic(chest_spawn_x, chest_spawn_y, 'C', (139, 69, 19))
                 new_mimic.name = "Disguised Chest Mimic"
@@ -211,5 +205,12 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
                 chest_contents = generate_random_loot(level_number)
                 new_chest = Chest(chest_spawn_x, chest_spawn_y, contents=chest_contents)
                 game_map.items_on_ground.append(new_chest)
-    
+                # Ensure the tile under the chest is a floor tile, not a decoration.
+                game_map.tiles[chest_spawn_y][chest_spawn_x] = floor # <--- ADD THIS LINE
+
     return rooms, stairs_positions, torch_light_sources
+
+
+
+
+
