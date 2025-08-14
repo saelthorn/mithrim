@@ -19,11 +19,14 @@ from world.map import GameMap
 from world.dungeon_generator import generate_dungeon
 from world.tavern_generator import generate_tavern
 from entities.player import Player, Fighter, Rogue, Wizard
+
 # NEW: Import all monster classes
 from entities.monster import (
-    Monster, Mimic, GiantRat, Slime, Goblin, GoblinArcher, Skeleton,
-    SkeletonArcher, Orc, Centaur, Troll, Lizardfolk, GiantSpider, Beholder, DragonWhelp
+    Monster, Mimic, GiantRat, Ooze, Goblin, GoblinArcher, Skeleton,
+    SkeletonArcher, Orc, Centaur, CentaurArcher, Troll, Lizardfolk, 
+    LizardfolkArcher, GiantSpider, Beholder, LargeOoze, DragonWhelp
 )
+
 from entities.tavern_npcs import create_tavern_npcs
 from entities.dungeon_npcs import DungeonHealer
 from entities.tavern_npcs import NPC
@@ -48,23 +51,54 @@ class Camera:
         self.tile_size = tile_size
         self.viewport_width = screen_width // tile_size
         self.viewport_height = (screen_height - message_log_height) // tile_size - 2
-        self.x = 0
-        self.y = 0
-    def update(self, target_x, target_y, map_width, map_height):
-        self.x = target_x - self.viewport_width // 2
-        self.y = target_y - self.viewport_height // 2
-        self.x = max(0, min(self.x, map_width - self.viewport_width))
-        self.y = max(0, min(self.y, map_height - self.viewport_height))
+        
+        # Initialize x and y as floats
+        self.x = 0.0
+        self.y = 0.0
+        
+        # Initialize target_x and target_y as floats
+        self.target_x = 0.0
+        self.target_y = 0.0
+        
+        self.smoothing_factor = 0.2 # Adjust this value (e.g., 0.05 for very smooth, 0.3 for faster)
+
+    def update(self, desired_target_x, desired_target_y, map_width, map_height):
+        # Ensure desired_target_x/y are treated as floats for calculations
+        target_x_float = float(desired_target_x)
+        target_y_float = float(desired_target_y)
+
+        # Calculate the ideal camera position (center of viewport)
+        # These should also be floats
+        ideal_camera_center_x = target_x_float - (self.viewport_width / 2.0)
+        ideal_camera_center_y = target_y_float - (self.viewport_height / 2.0)
+
+        # Apply linear interpolation (LERP)
+        self.x += (ideal_camera_center_x - self.x) * self.smoothing_factor
+        self.y += (ideal_camera_center_y - self.y) * self.smoothing_factor
+
+        # Clamp the camera's position to map boundaries
+        # Ensure map_width/height are also treated as floats in the clamping
+        self.x = max(0.0, min(self.x, float(map_width - self.viewport_width)))
+        self.y = max(0.0, min(self.y, float(map_height - self.viewport_height)))
+
+        # IMPORTANT: Do NOT convert self.x and self.y to int here.
+        # They should remain floats for continuous smooth movement.
+        # The conversion to int will happen in world_to_screen or when blitting.
+
     def world_to_screen(self, world_x, world_y):
-        # This method returns screen coordinates in *tile units* relative to the viewport.
-        screen_x = world_x - self.x
-        screen_y = world_y - self.y
-        return screen_x, screen_y
+        # This method now returns screen coordinates in *float tile units*
+        # representing the precise offset from the camera's top-left.
+        screen_x_float = world_x - self.x
+        screen_y_float = world_y - self.y
+        return screen_x_float, screen_y_float
+    
     def is_in_viewport(self, world_x, world_y):
+        # This method also needs to use the float camera position for accurate checks
+        # but the result of world_to_screen is already int, so it's fine.
         screen_x, screen_y = self.world_to_screen(world_x, world_y)
         return (0 <= screen_x < self.viewport_width and
                 0 <= screen_y < self.viewport_height)
-    
+
 
 class Game:
     def __init__(self, screen):
@@ -146,15 +180,17 @@ class Game:
         # Call a method to start character creation
         self.start_character_creation()
 
-    # NEW: Define monster spawning tiers
+
     MONSTER_SPAWN_TIERS = {
         # Level range: [List of monster classes that can spawn]
-        (1, 3): [GiantRat, Slime],
-        (4, 5): [Goblin, GoblinArcher],
+        (1, 3): [GiantSpider, Ooze],
+        (4, 5): [Goblin, GoblinArcher, Ooze],
         (6, 7): [Skeleton, SkeletonArcher, Orc],
-        (8, 9): [Centaur, Lizardfolk, Troll],
-        (10, 12): [GiantSpider, Beholder],
-        (13, 99): [DragonWhelp], # High level, adjust max level as needed
+        (8, 9): [Lizardfolk,LizardfolkArcher],
+        (10, 12): [Centaur, CentaurArcher, Troll],
+        (13, 15): [Troll, Orc, GiantSpider, LargeOoze], 
+        (16, 17): [LargeOoze, Beholder], 
+        (18, 99): [DragonWhelp], # High level, adjust max level as needed
     }
 
 
@@ -217,6 +253,20 @@ class Game:
         
         # Transition to tavern
         self.generate_tavern()
+
+        # Calculate the ideal snapped position
+        ideal_x = self.player.x - self.camera.viewport_width // 2
+        ideal_y = self.player.y - self.camera.viewport_height // 2
+        # Clamp ideal position to map boundaries
+        ideal_x = max(0, min(ideal_x, self.game_map.width - self.camera.viewport_width))
+        ideal_y = max(0, min(ideal_y, self.game_map.height - self.camera.viewport_height))
+        
+        self.camera.x = ideal_x
+        self.camera.y = ideal_y
+        self.camera.target_x = self.player.x # Also set target_x/y so lerp starts correctly
+        self.camera.target_y = self.player.y
+        # No need to call self.camera.update here, as render will do it.
+
 
     def _recalculate_dimensions(self):
         """Recalculate all dynamic dimensions based on current screen size."""
@@ -297,7 +347,17 @@ class Game:
         self.player.x = start_x
         self.player.y = start_y
         
-        self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height)
+        # --- MODIFIED: Initial camera snap for tavern generation ---
+        # Calculate the ideal snapped position
+        ideal_x = float(self.player.x) - (self.camera.viewport_width / 2.0)
+        ideal_y = float(self.player.y) - (self.camera.viewport_height / 2.0)
+        # Clamp ideal position to map boundaries (as floats)
+        ideal_x = max(0.0, min(ideal_x, float(self.game_map.width - self.camera.viewport_width)))
+        ideal_y = max(0.0, min(ideal_y, float(self.game_map.height - self.camera.viewport_height)))
+        self.camera.x = ideal_x
+        self.camera.y = ideal_y
+        self.camera.target_x = float(self.player.x) # Set target_x/y as floats
+        self.camera.target_y = float(self.player.y)        
         
         self.npcs = create_tavern_npcs(self.game_map, self.door_position)
         self.entities = [self.player] + self.npcs
@@ -307,6 +367,7 @@ class Game:
         
         self.message_log.add_message("=== WELCOME TO THE PRANCING PONY TAVERN ===", (255, 215, 0))
         self.message_log.add_message("Walk to the door (+) and press any movement key to enter the dungeon!", (150, 150, 255))
+
 
     def generate_level(self, level_number, spawn_on_stairs_up=False):
         self.game_state = GameState.DUNGEON
@@ -326,8 +387,19 @@ class Game:
         
         self.player.x = start_x
         self.player.y = start_y
-        
-        self.camera.update(start_x, start_y, self.game_map.width, self.game_map.height)
+
+
+        ideal_x = self.player.x - self.camera.viewport_width // 2
+        ideal_y = self.player.y - self.camera.viewport_height // 2
+        # Clamp ideal position to map boundaries
+        ideal_x = max(0, min(ideal_x, self.game_map.width - self.camera.viewport_width))
+        ideal_y = max(0, min(ideal_y, self.game_map.height - self.camera.viewport_height))
+        self.camera.x = ideal_x
+        self.camera.y = ideal_y
+        self.camera.target_x = self.player.x # Also set target_x/y so lerp starts correctly
+        self.camera.target_y = self.player.y
+        # No need to call self.camera.update here, as render will do it.
+
         
         self.entities = [self.player]
         
@@ -1128,6 +1200,8 @@ class Game:
                 self.player.x = new_x
                 self.player.y = new_y
                 self.update_fov()
+                self.camera.target_x = float(self.player.x)
+                self.camera.target_y = float(self.player.y)                
                 return True
             self.message_log.add_message("You can't move there.", (255, 150, 0))
             return False
@@ -1160,6 +1234,10 @@ class Game:
                 original_player_x, original_player_y = self.player.x, self.player.y
                 self.player.x = new_x
                 self.player.y = new_y
+
+                # --- NEW: Update camera target immediately after player moves ---
+                self.camera.target_x = float(self.player.x)
+                self.camera.target_y = float(self.player.y)
                 
                 # --- Opportunity Attack Check ---
                 # Iterate through monsters that were adjacent before the move
@@ -1198,6 +1276,7 @@ class Game:
                 self.message_log.add_message("You can't move there.", (255, 150, 0))
                 return False
         return False
+
 
     def destroy_tile(self, x, y):
         """
@@ -1459,7 +1538,6 @@ class Game:
         self.screen.fill((0, 0, 0))
         self.internal_surface.fill((0, 0, 0))
 
-
         self.inventory_ui_surface.fill((0,0,0,0))
         if self.game_state == GameState.CHARACTER_CREATION: # NEW: Character Creation Render
             self.render_character_creation_screen()
@@ -1478,6 +1556,15 @@ class Game:
             self.render_character_menu()
             self.screen.blit(self.inventory_ui_surface, (0, 0))
         else: # This block handles DUNGEON and TAVERN, and now TARGETING
+            # --- NEW: Camera Update Logic for Targeting State ---
+            if self.game_state == GameState.TARGETING:
+                # In targeting mode, camera follows the targeting cursor
+                self.camera.update(self.targeting_cursor_x, self.targeting_cursor_y, self.game_map.width, self.game_map.height)
+            else:
+                # Otherwise, camera follows the player (normal dungeon/tavern view)
+                self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height)
+            # --- END NEW CAMERA LOGIC ---
+
             self.render_map_with_fov()
             self.render_items_on_ground()
             self.render_entities()
@@ -1551,65 +1638,77 @@ class Game:
     def render_map_with_fov(self):
         map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT
         
-        for y in range(self.camera.y, min(self.camera.y + self.camera.viewport_height, self.game_map.height)):
-            for x in range(self.camera.x, min(self.camera.x + self.camera.viewport_width, self.game_map.width)):
-                screen_x, screen_y = self.camera.world_to_screen(x, y)
-                draw_x = screen_x * config.TILE_SIZE
-                draw_y = screen_y * config.TILE_SIZE                
-                if (0 <= draw_x < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
-                    0 <= draw_y < map_render_height):
-                    
-                    visibility_type = self.fov.get_visibility_type(x, y)
-                    if visibility_type == 'unexplored':
-                        continue
-                    
-                    tile = self.game_map.tiles[y][x]
-                    
-                    # --- NEW LOGIC HERE ---
-                    # Check if there's an item or entity at this exact spot
-                    item_at_pos = next((item for item in self.game_map.items_on_ground if item.x == x and item.y == y), None)
-                    entity_at_pos = next((entity for entity in self.entities if entity.x == x and entity.y == y), None)
-                    # If there's an item or entity (that's not disguised as a tile), draw the floor instead of the tile's char
-                    # Mimics are special: if disguised, they are handled as tiles, so we draw their disguise char.
-                    # If revealed, they are entities, and we draw floor + entity.
-                    draw_tile_char = tile.char
-                    if item_at_pos and not (isinstance(item_at_pos, Mimic) and item_at_pos.disguised):
-                        draw_tile_char = floor.char # Draw floor under the item
-                    elif entity_at_pos and entity_at_pos != self.player and not (isinstance(entity_at_pos, Mimic) and entity_at_pos.disguised):
-                        draw_tile_char = floor.char # Draw floor under the entity (excluding player, who is drawn later)
-                    elif entity_at_pos == self.player: # Always draw floor under player
-                        draw_tile_char = floor.char
-                    
-                    render_color_tint = None
-                    if visibility_type == 'player':
-                        render_color_tint = None
-                    elif visibility_type == 'torch':
-                        render_color_tint = (128, 128, 128, 255)
-                    elif visibility_type == 'darkvision': # NEW: Darkvision tint
-                        render_color_tint = (90, 90, 90, 255) # Slightly darker than torch, but still visible
-                    elif visibility_type == 'explored':
-                        render_color_tint = (60, 60, 60, 255)
+        # --- FIX: Cast camera.x and camera.y to int for range() loops ---
+        camera_x_int = int(self.camera.x)
+        camera_y_int = int(self.camera.y)
 
-                    graphics.draw_tile(self.internal_surface, screen_x, screen_y, draw_tile_char, color_tint=render_color_tint)                        
+        for y in range(camera_y_int, min(camera_y_int + self.camera.viewport_height + 1, self.game_map.height)):
+            for x in range(camera_x_int, min(camera_x_int + self.camera.viewport_width + 1, self.game_map.width)):
+                screen_x_float, screen_y_float = self.camera.world_to_screen(x, y)
+                
+                draw_x = screen_x_float * config.TILE_SIZE
+                draw_y = screen_y_float * config.TILE_SIZE                
+                
+                #if (0 <= draw_x < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
+                #   0 <= draw_y < map_render_height):
+                    
+                visibility_type = self.fov.get_visibility_type(x, y)
+                if visibility_type == 'unexplored':
+                    continue
+                
+                tile = self.game_map.tiles[y][x]
+                
+                # --- NEW LOGIC HERE ---
+                # Check if there's an item or entity at this exact spot
+                item_at_pos = next((item for item in self.game_map.items_on_ground if item.x == x and item.y == y), None)
+                entity_at_pos = next((entity for entity in self.entities if entity.x == x and entity.y == y), None)
+                # If there's an item or entity (that's not disguised as a tile), draw the floor instead of the tile's char
+                # Mimics are special: if disguised, they are handled as tiles, so we draw their disguise char.
+                # If revealed, they are entities, and we draw floor + entity.
+                draw_tile_char = tile.char
+                if item_at_pos and not (isinstance(item_at_pos, Mimic) and item_at_pos.disguised):
+                    draw_tile_char = floor.char # Draw floor under the item
+                elif entity_at_pos and entity_at_pos != self.player and not (isinstance(entity_at_pos, Mimic) and entity_at_pos.disguised):
+                    draw_tile_char = floor.char # Draw floor under the entity (excluding player, who is drawn later)
+                elif entity_at_pos == self.player: # Always draw floor under player
+                    draw_tile_char = floor.char
+                
+                render_color_tint = None
+                if visibility_type == 'player':
+                    render_color_tint = None
+                elif visibility_type == 'torch':
+                    render_color_tint = (128, 128, 128, 255)
+                elif visibility_type == 'darkvision': # NEW: Darkvision tint
+                    render_color_tint = (90, 90, 90, 255) # Slightly darker than torch, but still visible
+                elif visibility_type == 'explored':
+                    render_color_tint = (60, 60, 60, 255)
+
+                graphics.draw_tile(self.internal_surface, draw_x, draw_y, draw_tile_char, color_tint=render_color_tint)                        
                     
 
     def render_entities(self):
         map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT 
         
         for entity in self.entities:
-            # --- MODIFIED: Only skip if disguised AND it's a Mimic. Other entities should always be drawn. ---
             if isinstance(entity, Mimic) and entity.disguised:
                 continue 
             
             visibility_type = self.fov.get_visibility_type(entity.x, entity.y)
             
+            # The is_in_viewport check is still useful for broad culling
             if entity.alive and self.camera.is_in_viewport(entity.x, entity.y) and \
                (visibility_type == 'player' or visibility_type == 'torch' or visibility_type == 'explored' or visibility_type == 'darkvision'):
                 
-                screen_x, screen_y = self.camera.world_to_screen(entity.x, entity.y)
+                # --- MODIFIED: Get float screen coordinates ---
+                screen_x_float, screen_y_float = self.camera.world_to_screen(entity.x, entity.y)
                 
-                if (0 <= screen_x * config.TILE_SIZE < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
-                    0 <= screen_y * config.TILE_SIZE < map_render_height):
+                # --- MODIFIED: Calculate pixel draw positions using floats ---
+                draw_x = screen_x_float * config.TILE_SIZE
+                draw_y = screen_y_float * config.TILE_SIZE
+                
+                # The pixel bounds check is still good
+                if (0 <= draw_x < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
+                    0 <= draw_y < map_render_height):
                     
                     entity_color_tint = None
                     if visibility_type == 'player':
@@ -1622,8 +1721,9 @@ class Game:
                         entity_color_tint = (60, 60, 60, 255)
                     
                     # Always draw floor under entities, as map rendering might have drawn a decorative tile
-                    graphics.draw_tile(self.internal_surface, screen_x, screen_y, floor.char, color_tint=entity_color_tint)
-                    graphics.draw_tile(self.internal_surface, screen_x, screen_y, entity.char, color_tint=entity_color_tint)
+                    # --- MODIFIED: Pass float draw_x, draw_y to graphics.draw_tile ---
+                    graphics.draw_tile(self.internal_surface, draw_x, draw_y, floor.char, color_tint=entity_color_tint)
+                    graphics.draw_tile(self.internal_surface, draw_x, draw_y, entity.char, color_tint=entity_color_tint)
 
 
     def render_items_on_ground(self):
@@ -1631,7 +1731,6 @@ class Game:
         map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT 
         
         for item in self.game_map.items_on_ground:
-            # --- MODIFIED: Only skip if disguised AND it's a Mimic. Other items should always be drawn. ---
             if isinstance(item, Mimic) and item.disguised:
                 continue 
             
@@ -1640,10 +1739,15 @@ class Game:
             if self.camera.is_in_viewport(item.x, item.y) and \
                (visibility_type == 'player' or visibility_type == 'torch' or visibility_type == 'explored' or visibility_type == 'darkvision'):
                 
-                screen_x, screen_y = self.camera.world_to_screen(item.x, item.y)
+                # --- MODIFIED: Get float screen coordinates ---
+                screen_x_float, screen_y_float = self.camera.world_to_screen(item.x, item.y)
                 
-                if (0 <= screen_x * config.TILE_SIZE < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
-                    0 <= screen_y * config.TILE_SIZE < map_render_height):
+                # --- MODIFIED: Calculate pixel draw positions using floats ---
+                draw_x = screen_x_float * config.TILE_SIZE
+                draw_y = screen_y_float * config.TILE_SIZE
+                
+                if (0 <= draw_x < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
+                    0 <= draw_y < map_render_height):
                     
                     item_color_tint = None
                     if visibility_type == 'player':
@@ -1656,9 +1760,10 @@ class Game:
                         item_color_tint = (60, 60, 60, 255)
                     
                     # Always draw floor under items, as map rendering might have drawn a decorative tile
-                    graphics.draw_tile(self.internal_surface, screen_x, screen_y, floor.char, color_tint=item_color_tint)
-                    graphics.draw_tile(self.internal_surface, screen_x, screen_y, item.char, color_tint=item_color_tint)
-                        
+                    # --- MODIFIED: Pass float draw_x, draw_y to graphics.draw_tile ---
+                    graphics.draw_tile(self.internal_surface, draw_x, draw_y, floor.char, color_tint=item_color_tint)
+                    graphics.draw_tile(self.internal_surface, draw_x, draw_y, item.char, color_tint=item_color_tint)
+
 
     def render_character_creation_screen(self):
         target_surface = self.inventory_ui_surface # Use this surface for drawing
@@ -2081,6 +2186,7 @@ class Game:
         pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
         current_y += 15
         
+        ''''
         draw_centered_header(self.screen, self.font_header, "ATTRIBUTES & SAVES", (255, 215, 0), current_y)
         current_y += self.font_header.get_linesize() + 10
 
@@ -2113,6 +2219,7 @@ class Game:
         current_y += 10
         pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
         current_y += 15
+        '''
         
         draw_centered_header(self.screen, font_header, "INVENTORY", (255, 215, 0), current_y)
         current_y += self.font_header.get_linesize() + 10

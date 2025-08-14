@@ -16,11 +16,14 @@ wall  = Tile(blocked=True, char='#', color=(130, 110, 50), name="Wall")
 stairs_down = Tile(blocked=False, char='>', color=(255, 255, 255), name="Stairs Down")
 stairs_up = Tile(blocked=False, char='<', color=(255, 255, 255), name="Stairs Up")
 dungeon_door = Tile(blocked=False, char='dd', color=(139, 69, 19), name="Dungeon Door")
+
+
+# Dungeon Decorations
 dungeon_grass = Tile(blocked=False, char='`', color=(0, 160, 20), name="Dungeon Grass")
 rubble = Tile(blocked=False, char='%', color=(150, 150, 150), name="Rubble")
 cob_web = Tile(blocked=True, char='~', color=(200, 200, 200), block_sight=False, destructible=True, name="Cobweb")   
-
-# Dungeon Decorations
+mushroom = Tile(blocked=False, char='*', color=(255, 0, 255), name="Mushroom")
+fresh_bones = Tile(blocked=False, char='fb', color=(200, 200, 180), name="Fresh Bones")
 bones = Tile(blocked=False, char=';', color=(200, 200, 180), name="Bones")
 torch = Tile(blocked=True, char='i', color=(255, 165, 0), block_sight=False, name="Torch")
 altar = Tile(blocked=True, char='^', color=(150, 0, 150), name="Altar")

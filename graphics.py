@@ -7,8 +7,8 @@ import config
 TILESET_IMAGE = None
 TILE_MAPPING = {}
 
-ORIGINAL_TILE_DIM = 48 # Confirmed 12x12 in Figma
-TILE_SPACING = 3.5     # 1 pixel space after each tile
+ORIGINAL_TILE_DIM = 24 # Confirmed 12x12 in Figma
+TILE_SPACING = 1     # 1 pixel space after each tile
 
 # The effective dimension of each tile cell in the tileset, including spacing
 CELL_DIM = ORIGINAL_TILE_DIM + TILE_SPACING
@@ -39,16 +39,16 @@ def setup_tile_mapping():
     TILE_MAPPING = {
 
         # Player Characters (based on race-class combinations)
-        'HR': (0 * CELL_DIM, 0 * CELL_DIM),  # Human Rogue
-        'HF': (1 * CELL_DIM, 0 * CELL_DIM),  # Human Fighter
+        'HF': (0 * CELL_DIM, 0 * CELL_DIM),  # Human Fighter
+        'HR': (1 * CELL_DIM, 0 * CELL_DIM),  # Human Rogue
         'HW': (2 * CELL_DIM, 0 * CELL_DIM),  # Human Wizard
 
-        'DR': (0 * CELL_DIM, 1 * CELL_DIM),  # HillDwarf Rogue
-        'DF': (1 * CELL_DIM, 1 * CELL_DIM),  # HillDwarf Fighter
+        'DF': (0 * CELL_DIM, 1 * CELL_DIM),  # HillDwarf Fighter
+        'DR': (1 * CELL_DIM, 1 * CELL_DIM),  # HillDwarf Rogue
         'DW': (2 * CELL_DIM, 1 * CELL_DIM),  # HillDwarf Wizard
 
-        'ER': (0 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Rogue
-        'EF': (1 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Fighter
+        'EF': (0 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Fighter
+        'ER': (1 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Rogue
         'EW': (2 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Wizard
 
 
@@ -58,9 +58,12 @@ def setup_tile_mapping():
         '>': (8 * CELL_DIM, 3 * CELL_DIM),  # Stairs Down
         '<': (9 * CELL_DIM, 3 * CELL_DIM),  # Stairs Up
         '+': (2 * CELL_DIM, 3 * CELL_DIM),  # Tavern Door
-        '`': (0 * CELL_DIM, 4 * CELL_DIM),  # Dungeon Grass
-        '~': (3 * CELL_DIM, 4 * CELL_DIM),  # Cobweb
+        ';': (1 * CELL_DIM, 4 * CELL_DIM),  # Bones
         '%': (2 * CELL_DIM, 4 * CELL_DIM),  # Rubble
+        '~': (3 * CELL_DIM, 4 * CELL_DIM),  # Cobweb
+        '*': (4 * CELL_DIM, 4 * CELL_DIM),  # Mushroom
+        'fb': (5 * CELL_DIM, 4 * CELL_DIM), # Fresh Bones
+        '`': (6 * CELL_DIM, 4 * CELL_DIM),  # Dungeon Grass
         
         # IMPORTANT: Ensure 'C' is your *closed* chest graphic
         'C': (4 * CELL_DIM, 5 * CELL_DIM),  # Chest (Closed)
@@ -68,9 +71,8 @@ def setup_tile_mapping():
         'c': (3 * CELL_DIM, 3 * CELL_DIM),  # Chair (Tavern)
         't': (4 * CELL_DIM, 3 * CELL_DIM),  # Table (Tavern)
         '=': (5 * CELL_DIM, 3 * CELL_DIM),  # Bar Counter
-        'F': (6 * CELL_DIM, 3 * CELL_DIM), # Fireplace
-        ';': (1 * CELL_DIM, 4 * CELL_DIM), # Bones
-        'i': (7 * CELL_DIM, 3 * CELL_DIM), # Torch
+        'F': (6 * CELL_DIM, 3 * CELL_DIM),  # Fireplace
+        'i': (7 * CELL_DIM, 3 * CELL_DIM),  # Torch
 
         # Static Decorations (using distinct chars)
         'b': (2 * CELL_DIM, 5 * CELL_DIM), # Static Barrel (original graphic)
@@ -87,22 +89,25 @@ def setup_tile_mapping():
         'r': (0 * CELL_DIM, 7 * CELL_DIM),  # Rat (Monster)
         'g': (1 * CELL_DIM, 7 * CELL_DIM),  # Goblin
         'S': (2 * CELL_DIM, 7 * CELL_DIM),  # Skeleton (Monster)
-        'OR': (3 * CELL_DIM, 7 * CELL_DIM),  # Orc (Monster)
-        'T': (4 * CELL_DIM, 7 * CELL_DIM),  # Troll
-        'D': (6 * CELL_DIM, 7 * CELL_DIM),  # Dragon (Monster)
+        'OR': (5 * CELL_DIM, 8 * CELL_DIM),  # Orc (Monster)
+        'T': (5 * CELL_DIM, 7 * CELL_DIM),  # Troll
+        'D': (7 * CELL_DIM, 7 * CELL_DIM),  # Dragon (Monster)
         
-        's': (0 * CELL_DIM, 8 * CELL_DIM),  # Slime
+        's': (0 * CELL_DIM, 8 * CELL_DIM),  # Ooze (Monster)
         'ga': (1 * CELL_DIM, 8 * CELL_DIM),  # Goblin Archer
         'SA': (2 * CELL_DIM, 8 * CELL_DIM),  # Skeleton Archer
-        'CT': (3 * CELL_DIM, 8 * CELL_DIM),  # Centaur
-        'L': (4 * CELL_DIM, 8 * CELL_DIM),  # Lizardfolk
-        'GS': (5 * CELL_DIM, 7 * CELL_DIM),  # Giant Spider
-        'BH': (5 * CELL_DIM, 8 * CELL_DIM),  # Beholder
+        'CT': (3 * CELL_DIM, 7 * CELL_DIM),  # Centaur
+        'CA': (3 * CELL_DIM, 8 * CELL_DIM),  # Cebtaur Archer
+        'L': (4 * CELL_DIM, 7 * CELL_DIM),  # Lizardfolk
+        'LA': (4 * CELL_DIM, 8 * CELL_DIM),  # Lizardfolk Archer
+        'GS': (0 * CELL_DIM, 9 * CELL_DIM),  # Giant Spider
+        'LO': (6 * CELL_DIM, 8 * CELL_DIM),  # Large Ooze
+        'BH': (6 * CELL_DIM, 7 * CELL_DIM),  # Beholder
 
         # IMPORTANT: Ensure 'M' is your *generic revealed mimic* graphic
-        'A': (5 * CELL_DIM, 0 * CELL_DIM),  # Bartender (NPC)
-        'p': (6 * CELL_DIM, 0 * CELL_DIM),  # Patron (NPC)
-        'H': (4 * CELL_DIM, 0 * CELL_DIM),  # Healer (NPC)
+        'A': (7 * CELL_DIM, 0 * CELL_DIM),  # Bartender (NPC)
+        'p': (8 * CELL_DIM, 0 * CELL_DIM),  # Patron (NPC)
+        'H': (6 * CELL_DIM, 0 * CELL_DIM),  # Healer (NPC)
         
         # Item Characters
         '!': (0 * CELL_DIM, 6 * CELL_DIM),  # Potion
@@ -149,14 +154,13 @@ def get_tile_surface(char):
         return subsurface
 
 
-def draw_tile(screen_surface, screen_x, screen_y, char, color_tint=None):
+def draw_tile(screen_surface, draw_x, draw_y, char, color_tint=None):
     tile_surface = get_tile_surface(char)
     
     if color_tint:
         tinted_surface = tile_surface.copy()
-        # Apply the tint color using multiplication blend mode
         tinted_surface.fill(color_tint, special_flags=pygame.BLEND_RGBA_MULT)
         tile_surface = tinted_surface
     
-    screen_surface.blit(tile_surface, (screen_x * config.TILE_SIZE, screen_y * config.TILE_SIZE))
-    
+    # --- MODIFIED: Blit directly using draw_x, draw_y ---
+    screen_surface.blit(tile_surface, (draw_x, draw_y))    

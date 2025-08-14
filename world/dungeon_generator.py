@@ -1,7 +1,7 @@
 import random
 from random import randint, choice
 from world import tile
-from world.tile import stairs_down, stairs_up, dungeon_door, bones, torch, crate, barrel, wall, floor, dungeon_grass, rubble, cob_web, MimicTile
+from world.tile import stairs_down, stairs_up, dungeon_door, bones, torch, crate, barrel, wall, floor, dungeon_grass, rubble, cob_web, mushroom, fresh_bones, MimicTile
 from items.items import Chest, generate_random_loot
 from entities.monster import Mimic
 
@@ -38,7 +38,7 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
     rooms = []
     stairs_positions = {}
     
-    floor_decoration_tiles = [crate, barrel, bones, dungeon_grass, cob_web, rubble] 
+    floor_decoration_tiles = [crate, barrel, bones, dungeon_grass, cob_web, rubble, mushroom, fresh_bones] 
     floor_decoration_chance = 0.2  # Ensure this is defined
     torch_placement_chance = 0.1
     torch_light_sources = []

@@ -1,7 +1,7 @@
 import random
 from core.inventory import Inventory
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep
-from core.status_effects import StatusEffect, Poisoned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff
+from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff
 from items.items import long_sword, chainmail_armor, short_sword, leather_armor, dagger, robes, lesser_healing_potion, greater_healing_potion
 from entities.races import Human, HillDwarf # Import the races you've defined
     
@@ -334,6 +334,8 @@ class Player: # This is our base class for playable characters
         
         if effect_name == "Poisoned":
             new_effect = Poisoned(duration, source)
+        elif effect_name == "AcidBurned":
+            new_effect = AcidBurned(duration, source)
         elif effect_name == "PowerAttackBuff":
             new_effect = PowerAttackBuff(duration)
         elif effect_name == "CunningActionDashBuff":

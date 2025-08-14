@@ -1,7 +1,7 @@
 # MultipleFiles/monster.py
 import random
 from core.pathfinding import astar
-from core.status_effects import Poisoned, PowerAttackBuff, EvasionBuff
+from core.status_effects import Poisoned, AcidBurned, PowerAttackBuff, EvasionBuff
 from core.floating_text import FloatingText 
 
 class Monster:
@@ -33,6 +33,12 @@ class Monster:
         self.poison_dc = 10
         self.poison_duration = 3
         self.poison_damage_per_turn = 2
+
+        # Acid burn specific attributes
+        self.can_acid_burn = False
+        self.acid_burn_dc = 10
+        self.acid_burn_duration = 3
+        self.acid_burn_damage_per_turn = 3
 
     def roll_initiative(self):
         """Roll for turn order"""
@@ -225,7 +231,15 @@ class Monster:
                     target.add_status_effect("Poisoned", duration=self.poison_duration, game_instance=game, source=self)
                 else:
                     game.message_log.add_message(f"{target.name} resists the poison!", (150, 255, 150))
-            
+
+            # --- Apply Acid Burn if applicable ---
+            if self.can_acid_burn and target.alive:
+                game.message_log.add_message(f"The {self.name} attempts to burn {target.name} with acid!", (255, 150, 0))
+                if not target.make_saving_throw("CON", self.acid_burn_dc, game):
+                    target.add_status_effect("AcidBurned", duration=self.acid_burn_duration, game_instance=game, source=self)
+                else:
+                    game.message_log.add_message(f"{target.name} resists the acid burn!", (150, 255, 150))
+
             if not target.alive:
                 game.message_log.add_message(
                     f"{target.name} has been slain!",
@@ -303,6 +317,8 @@ class Monster:
         if effect_name == "Poisoned":
             new_effect = Poisoned(duration, source)
         # Add other status effects here if monsters can get them
+        elif effect_name == "AcidBurned":
+            new_effect = AcidBurned(duration, source)        
         
         if new_effect:
             for existing_effect in self.active_status_effects:
@@ -435,9 +451,9 @@ class GiantRat(Monster):
         self.poison_duration = 2
         self.poison_damage_per_turn = 1
 
-class Slime(Monster):
+class Ooze(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 's', 'Slime', (0, 200, 0)) # 's' for slime, bright green
+        super().__init__(x, y, 's', 'Ooze', (0, 200, 0)) # 's' for slime, bright green
         self.hp = 8
         self.max_hp = 8
         self.attack_power = 2
@@ -502,11 +518,21 @@ class Centaur(Monster):
         self.hp = 15
         self.max_hp = 15
         self.attack_power = 5 # Melee attack (hooves/spear)
-        self.is_ranged = True
-        self.ranged_attack_power = 2 # Ranged attack (bow)
         self.range = 8
         self.armor_class = 14
         self.base_xp = 25
+
+class CentaurArcher(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'CA', 'Centaur Archer', (139, 69, 19)) # 'CA' for Centaur Archer, brown
+        self.hp = 14
+        self.max_hp = 14
+        self.attack_power = 3 # Melee attack if adjacent
+        self.is_ranged = True
+        self.ranged_attack_power = 4 # Ranged attack damage
+        self.range = 6 # How far it can shoot
+        self.armor_class = 15
+        self.base_xp = 20        
 
 class Troll(Monster):
     def __init__(self, x, y):
@@ -531,6 +557,18 @@ class Lizardfolk(Monster):
         self.poison_duration = 3
         self.poison_damage_per_turn = 2
 
+class LizardfolkArcher(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'LA', 'Lizardfolk Archer', (0, 80, 80)) # 'LA' for Lizardfolk Archer, darker teal
+        self.hp = 16
+        self.max_hp = 16
+        self.attack_power = 3 # Melee attack if adjacent
+        self.is_ranged = True
+        self.ranged_attack_power = 4 # Ranged attack damage
+        self.range = 6 # How far it can shoot
+        self.armor_class = 15
+        self.base_xp = 22        
+
 class GiantSpider(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'GS', 'Giant Spider', (50, 50, 50)) # 'P' for Spider, dark gray
@@ -543,6 +581,19 @@ class GiantSpider(Monster):
         self.poison_dc = 12
         self.poison_duration = 4
         self.poison_damage_per_turn = 3
+
+class LargeOoze(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'LO', 'Large Ooze', (0, 150, 0)) # 'O' for Large Ooze, bright green
+        self.hp = 20
+        self.max_hp = 20
+        self.attack_power = 3
+        self.armor_class = 10 # Still squishy but larger
+        self.base_xp = 15
+        self.can_acid_burn = True # Or make it acid damage later
+        self.acid_burn_dc = 12
+        self.acid_burn_duration = 3
+        self.acid_burn_damage_per_turn = 4        
 
 class Beholder(Monster):
     def __init__(self, x, y):

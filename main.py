@@ -11,7 +11,7 @@ def main():
     
     pygame.display.set_caption("Mithrim")
     
-    graphics.load_tileset('assets/mithrim_tileset.png') 
+    graphics.load_tileset('assets/mithrim_tileset-2.png') 
     graphics.setup_tile_mapping() 
     clock = pygame.time.Clock()
     game = Game(screen) 
