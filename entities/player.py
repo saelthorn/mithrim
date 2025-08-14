@@ -1,8 +1,8 @@
 import random
 from core.inventory import Inventory
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep
-from core.status_effects import StatusEffect, Poisoned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff
-from items.items import long_sword, chainmail_armor, short_sword, leather_armor, dagger, robes, lesser_healing_potion, greater_healing_potion
+from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning
+from items.items import long_sword, chainmail_armor, short_sword, leather_armor, dagger, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, Item
 from entities.races import Human, HillDwarf # Import the races you've defined
     
 
@@ -42,7 +42,7 @@ class Player: # This is our base class for playable characters
 
         # --- Race (Base value, will be overridden by subclasses) ---
         self.race = None
-        self.has_darkvision = False 
+        self.has_darkvision = 0 
         self.damage_resistances = []
 
         # --- NEW: Racial Proficiencies ---
@@ -80,6 +80,7 @@ class Player: # This is our base class for playable characters
         self.inventory = Inventory(capacity=10)
         self.inventory.owner = self # Ensure inventory owner is set
         
+
         # --- Abilities (Base abilities, subclasses will add/override) ---
         self.abilities = {} # <--- Initialized as empty dictionary
         
@@ -334,6 +335,10 @@ class Player: # This is our base class for playable characters
         
         if effect_name == "Poisoned":
             new_effect = Poisoned(duration, source)
+        elif effect_name == "AcidBurned":
+            new_effect = AcidBurned(duration, source)
+        elif effect_name == "Burning":
+            new_effect = Burning(duration, source)   
         elif effect_name == "PowerAttackBuff":
             new_effect = PowerAttackBuff(duration)
         elif effect_name == "CunningActionDashBuff":
@@ -435,6 +440,7 @@ class Rogue(Player):
         }
 
         # Set starting equipment
+        self.inventory.add_item(thieves_tools)
         self.inventory.add_item(lesser_healing_potion)
 
         self.equipped_weapon = short_sword
@@ -458,7 +464,7 @@ class Wizard(Player):
     def __init__(self, x, y, char, name, color):
         super().__init__(x, y, char, name, color)
         self.class_name = "Wizard"
-        self.hit_die = 6
+        self.hit_die = 6     
 
         self.strength = 8
         self.dexterity = 12
