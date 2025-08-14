@@ -77,7 +77,7 @@ class PowerAttack(Ability):
             return False
         
         # Apply the PowerAttackBuff to the user
-        user.add_status_effect("PowerAttackBuff", duration=1, game_instance=game_instance) # Duration 1 means it lasts for the next turn/attack
+        user.add_status_effect("PowerAttackBuff", duration=2, game_instance=game_instance) # Duration 1 means it lasts for the next turn/attack
         
         game_instance.message_log.add_message(f"{user.name} prepares a Power Attack!", (255, 165, 0))
         

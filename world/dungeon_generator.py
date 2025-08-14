@@ -1,9 +1,10 @@
 import random
 from random import randint, choice
 from world import tile
-from world.tile import stairs_down, stairs_up, dungeon_door, bones, torch, crate, barrel, wall, floor, dungeon_grass, rubble, cob_web, mushroom, fresh_bones, MimicTile
+from world.tile import stairs_down, stairs_up, dungeon_door, bones, torch, crate, barrel, wall, floor, dungeon_grass, rubble, cob_web, mushroom, fresh_bones, MimicTile, TrapTile
 from items.items import Chest, generate_random_loot
 from entities.monster import Mimic
+from traps import DartTrap, SpikeTrap, FireTrap
 
 class RectRoom:
     def __init__(self, x, y, w, h):
@@ -42,6 +43,10 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
     floor_decoration_chance = 0.2  # Ensure this is defined
     torch_placement_chance = 0.1
     torch_light_sources = []
+
+    # Trap Definitions and Chance
+    possible_traps = [DartTrap(), SpikeTrap(), FireTrap()] # List of trap instances
+    trap_placement_chance = 0.15 # 15% chance for a floor tile to become a trap    
     
     # Attempt to generate rooms
     for _ in range(max_rooms * 2): # Try more times than max_rooms to ensure we get enough
@@ -135,18 +140,19 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
             stairs_positions['up'] = (stairs_x, stairs_y)
             game_map.items_on_ground = [item for item in game_map.items_on_ground if not (item.x == stairs_x and item.y == stairs_y)]
 
-    # --- Populate Rooms with Decorations, Torches, Chests/Mimics ---
-    for room in rooms:
+
+    trap_rooms = random.sample(range(len(rooms)), k=min(2, len(rooms)))  # Randomly select 1 or 2 rooms for traps
+
+    # --- Populate Rooms with Decorations, Torches, Chests/Mimics AND TRAPS ---
+    for room_index, room in enumerate(rooms):
         # Skip the room where stairs are placed for item/decoration spawning
-        # to avoid overwriting stairs, unless it's the only room.
-        # This logic needs to be careful not to skip the first room entirely if it's the only one.
-        if len(rooms) > 1: # Only skip if there's more than one room
+        if len(rooms) > 1: 
             if 'down' in stairs_positions and room.center() == stairs_positions['down']:
                 continue 
             if 'up' in stairs_positions and room.center() == stairs_positions['up']:
                 continue
-
-        # First pass: Place floor decorations
+        
+        # First pass: Place floor decorations and TRAPS
         for ry in range(room.y1 + 1, room.y2):
             for rx in range(room.x1 + 1, room.x2):
                 # Skip if this spot is where stairs are
@@ -154,9 +160,16 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
                     continue
                 if 'up' in stairs_positions and (rx, ry) == stairs_positions['up']:
                     continue
-
+                
                 if game_map.tiles[ry][rx] == floor: # Only place on floor tiles
-                    # --- Floor Decorations ---
+                    # --- NEW: Trap Placement Logic ---
+                    if room_index in trap_rooms and random.random() < trap_placement_chance:
+                        chosen_trap_instance = random.choice(possible_traps)
+                        # Create a TrapTile, disguised as a floor tile
+                        game_map.tiles[ry][rx] = TrapTile(chosen_trap_instance, floor.char, floor.color, rx, ry, chosen_trap_instance.name)
+                        continue
+
+                    # --- Floor Decorations ---                    
                     if random.random() < floor_decoration_chance:
                         if random.random() < 0.1: # 15% chance for a decoration to be a Mimic
                             mimic_type_tile_obj = random.choice([crate, barrel])

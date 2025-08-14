@@ -76,13 +76,17 @@ def setup_tile_mapping():
 
         # Static Decorations (using distinct chars)
         'b': (2 * CELL_DIM, 5 * CELL_DIM), # Static Barrel (original graphic)
-        'k': (0 * CELL_DIM, 5 * CELL_DIM), # Static Crate (original graphic)
+        'k': (0 * CELL_DIM, 5 * CELL_DIM), # Static Crate (original graphic)             
 
         # Mimic disguised as Crate/Barrel (using distinct chars)
         # These should point to your *disguised* mimic graphics (e.g., barrel with eyes)
-        'B': (3* CELL_DIM, 5 * CELL_DIM),  # Mimic Barrel
+        'B': (3 * CELL_DIM, 5 * CELL_DIM),  # Mimic Barrel
         'K': (1 * CELL_DIM, 5 * CELL_DIM),  # Mimic Crate
         'M': (6 * CELL_DIM, 5 * CELL_DIM),  # Mimic (Generic Revealed Form)
+
+        # Pressure Plate / Trap Graphics
+        '^': (0 * CELL_DIM, 4 * CELL_DIM), # Example: A simple triangle or pressure plate graphic
+        '_': (0 * CELL_DIM, 4 * CELL_DIM), # Use floor graphic for hidden pressure plate (or a specific hidden trap graphic)   
 
         # Entity Characters
         '@': (0 * CELL_DIM, 0 * CELL_DIM),  # Player

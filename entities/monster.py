@@ -1,7 +1,7 @@
 # MultipleFiles/monster.py
 import random
 from core.pathfinding import astar
-from core.status_effects import Poisoned, AcidBurned, PowerAttackBuff, EvasionBuff
+from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff
 from core.floating_text import FloatingText 
 
 class Monster:
@@ -39,6 +39,12 @@ class Monster:
         self.acid_burn_dc = 10
         self.acid_burn_duration = 3
         self.acid_burn_damage_per_turn = 3
+
+        # Burning specific attributes
+        self.can_burn = False
+        self.burn_dc = 14
+        self.burn_duration = 3
+        self.burn_damage_per_turn = random.randint(1,4)
 
     def roll_initiative(self):
         """Roll for turn order"""
@@ -240,6 +246,15 @@ class Monster:
                 else:
                     game.message_log.add_message(f"{target.name} resists the acid burn!", (150, 255, 150))
 
+            # --- Apply Burning if applicable ---
+            if self.can_burn and target.alive:
+                game.message_log.add_message(f"The {self.name} attempts to burn {target.name} with fire!", (255, 150, 0))
+                if not target.make_saving_throw("DEX", self.burn_dc, game):
+                    target.add_status_effect("Burning", duration=self.burn_duration, game_instance=game, source=self)
+                else:
+                    game.message_log.add_message(f"{target.name} resists the flames!", (255,150, 150))                                        
+
+
             if not target.alive:
                 game.message_log.add_message(
                     f"{target.name} has been slain!",
@@ -318,7 +333,11 @@ class Monster:
             new_effect = Poisoned(duration, source)
         # Add other status effects here if monsters can get them
         elif effect_name == "AcidBurned":
-            new_effect = AcidBurned(duration, source)        
+            new_effect = AcidBurned(duration, source)  
+        
+        elif effect_name == "Burning":
+            new_effect == Burning(duration, source)      
+        
         
         if new_effect:
             for existing_effect in self.active_status_effects:
@@ -451,6 +470,19 @@ class GiantRat(Monster):
         self.poison_duration = 2
         self.poison_damage_per_turn = 1
 
+class GiantSpider(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'GS', 'Giant Spider', (50, 50, 50)) 
+        self.hp = 10
+        self.max_hp = 10
+        self.attack_power = 2
+        self.armor_class = 12
+        self.base_xp = 25
+        self.can_poison = True
+        self.poison_dc = 12
+        self.poison_duration = 4
+        self.poison_damage_per_turn = 3
+
 class Ooze(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 's', 'Ooze', (0, 200, 0)) # 's' for slime, bright green
@@ -459,7 +491,10 @@ class Ooze(Monster):
         self.attack_power = 2
         self.armor_class = 8 # Slimes are squishy
         self.base_xp = 6
-        self.can_poison = False # Or make it acid damage later
+        self.can_acid_burn = True # Or make it acid damage later
+        self.acid_burn_dc = 14
+        self.acid_burn_duration = 4
+        self.acid_burn_damage_per_turn = 3
 
 class Goblin(Monster):
     def __init__(self, x, y):
@@ -568,19 +603,6 @@ class LizardfolkArcher(Monster):
         self.range = 6 # How far it can shoot
         self.armor_class = 15
         self.base_xp = 22        
-
-class GiantSpider(Monster):
-    def __init__(self, x, y):
-        super().__init__(x, y, 'GS', 'Giant Spider', (50, 50, 50)) # 'P' for Spider, dark gray
-        self.hp = 15
-        self.max_hp = 15
-        self.attack_power = 4
-        self.armor_class = 14
-        self.base_xp = 25
-        self.can_poison = True
-        self.poison_dc = 12
-        self.poison_duration = 4
-        self.poison_damage_per_turn = 3
 
 class LargeOoze(Monster):
     def __init__(self, x, y):

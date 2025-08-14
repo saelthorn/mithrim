@@ -74,6 +74,11 @@ class Armor(Item):
         super().__init__(name, char, color, description)
         self.ac_bonus = ac_bonus # Bonus to AC
 
+class Tools(Item):
+    """An item that can be used in certain situations"""
+    def __init__(self, name, char, color, description=""):
+        super().__init__(name, char, color, description)
+
 # --- NEW CHEST CLASS ---
 class Chest(Item):
     def __init__(self, x, y, contents=None):
@@ -178,6 +183,14 @@ robes = Armor(
     description="Simple cloth robes.",
     ac_bonus=0 # Robes typically provide no AC bonus, relying on Dex
 )
+
+thieves_tools = Tools(
+    name="Thieves' Tools",
+    char="+",
+    color=(255, 215, 0),
+    description="Tools to unlock/disable trinkets"
+)
+
 
 # Example function to create random loot for a chest
 def generate_random_loot(level_number):

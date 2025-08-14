@@ -36,7 +36,7 @@ from core.message_log import MessageBox
 from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff
 from items.items import Potion, Weapon, Armor, Chest
 from core.pathfinding import astar
-from world.tile import floor, MimicTile
+from world.tile import floor, MimicTile, TrapTile
 from core.floating_text import FloatingText 
 import graphics
 
@@ -60,7 +60,7 @@ class Camera:
         self.target_x = 0.0
         self.target_y = 0.0
         
-        self.smoothing_factor = 0.2 # Adjust this value (e.g., 0.05 for very smooth, 0.3 for faster)
+        self.smoothing_factor = 0.08 # Adjust this value (e.g., 0.05 for very smooth, 0.3 for faster)
 
     def update(self, desired_target_x, desired_target_y, map_width, map_height):
         # Ensure desired_target_x/y are treated as floats for calculations
@@ -183,8 +183,8 @@ class Game:
 
     MONSTER_SPAWN_TIERS = {
         # Level range: [List of monster classes that can spawn]
-        (1, 3): [GiantSpider, Ooze],
-        (4, 5): [Goblin, GoblinArcher, Ooze],
+        (1, 3): [GiantSpider, Ooze, GiantRat],
+        (4, 5): [Goblin, GoblinArcher, Ooze, GiantRat],
         (6, 7): [Skeleton, SkeletonArcher, Orc],
         (8, 9): [Lizardfolk,LizardfolkArcher],
         (10, 12): [Centaur, CentaurArcher, Troll],
@@ -872,6 +872,68 @@ class Game:
                         self.player.current_action_state = None
                         continue
 
+                # --- NEW: Active Search for Traps ---
+                if event.key == pygame.K_f:  # Let's use 'F' for Find Traps
+                    # Check for traps in adjacent tiles
+                    adjacent_traps = []
+                    for dx in [-1, 0, 1]:
+                        for dy in [-1, 0, 1]:
+                            if dx == 0 and dy == 0:
+                                continue  # Skip self
+                            check_x = self.player.x + dx
+                            check_y = self.player.y + dy
+                            if 0 <= check_x < self.game_map.width and 0 <= check_y < self.game_map.height:
+                                tile = self.game_map.tiles[check_y][check_x]
+                                if isinstance(tile, TrapTile) and tile.trap_instance.is_hidden:
+                                    adjacent_traps.append(tile)
+                    if adjacent_traps:
+                        # Perform an Intelligence (Investigation) check
+                        investigation_bonus = self.player.get_ability_modifier(self.player.intelligence)
+                        if "investigation" in self.player.skill_proficiencies:
+                            investigation_bonus += self.player.proficiency_bonus
+                        d20_roll = random.randint(1, 20)
+                        investigation_check_total = d20_roll + investigation_bonus
+                        # Check against the trap's detection DC
+                        for trap_tile in adjacent_traps:
+                            if investigation_check_total >= trap_tile.trap_instance.detection_dc:
+                                trap_tile.trap_instance.reveal(self, trap_tile.x, trap_tile.y)
+                                self.message_log.add_message(f"You successfully find a hidden {trap_tile.trap_instance.name}!", (0, 255, 255))
+                            else:
+                                self.message_log.add_message(f"You fail to find any traps nearby.", (150, 150, 150))
+                    else:
+                        self.message_log.add_message("You don't see any traps nearby.", (150, 150, 150))
+                    return True  # Consume event
+
+                # --- NEW: Disarm Trap ---
+                if event.key == pygame.K_t:  # 'T' for Disarm Traps
+                    # Check all adjacent tiles for revealed traps
+                    disarmable_traps = []
+                    for dx in [0, -1, 1]:  # Check adjacent tiles
+                        for dy in [0, -1, 1]:
+                            if abs(dx) + abs(dy) == 1:  # Only cardinal directions
+                                check_x = self.player.x + dx
+                                check_y = self.player.y + dy
+                                if 0 <= check_x < self.game_map.width and 0 <= check_y < self.game_map.height:
+                                    tile = self.game_map.tiles[check_y][check_x]
+                                    if isinstance(tile, TrapTile) and not tile.trap_instance.is_hidden:
+                                        disarmable_traps.append(tile)
+                    if disarmable_traps:
+                        target_tile = disarmable_traps[0]
+
+                        # Check if the player has Thieves' Tools in their inventory
+                        has_tools = any(item.name == "Thieves' Tools" for item in self.player.inventory.items)
+                        if has_tools:
+                            if target_tile.trap_instance.attempt_disarm(self.player, self, target_tile.x, target_tile.y):
+                                self.message_log.add_message(f"Disarmed the {target_tile.trap_instance.name}!", (0, 255, 0))
+                            else:
+                                self.message_log.add_message(f"Failed to disarm the {target_tile.trap_instance.name}!", (255, 100, 100))
+                        else:
+                            self.message_log.add_message("You need Thieves' Tools to disarm traps.", (255, 0, 0))
+                    else:
+                        self.message_log.add_message("No disarmable traps adjacent to you.", (150, 150, 150))
+                    return True  # Consume the input
+                
+
                 # --- Normal Turn Handling (if no special action state is active) ---
                 if self.player.current_action_state is None:
                     if event.key in (pygame.K_UP, pygame.K_w):
@@ -1229,16 +1291,35 @@ class Game:
                     self.message_log.add_message(f"You can't attack {target_at_new_pos.name}.", (255, 150, 0))
                     return False
 
-            # --- Step 4: Handle movement to an empty, walkable tile ---
+            # --- Step 4: Handle movement to an empty, walkable tile or TRAP ---
             if self.game_map.is_walkable(new_x, new_y):
+                # --- NEW: Trap Check BEFORE Movement ---
+                target_tile_obj = self.game_map.tiles[new_y][new_x]
+                if isinstance(target_tile_obj, TrapTile) and target_tile_obj.trap_instance.is_hidden:
+                    # Attempt passive perception check
+                    passive_perception_score = 10 + self.player.get_ability_modifier(self.player.wisdom)
+                    if "perception" in self.player.skill_proficiencies:
+                        passive_perception_score += self.player.proficiency_bonus
+                    
+                    if passive_perception_score >= target_tile_obj.trap_instance.detection_dc:
+                        target_tile_obj.trap_instance.reveal(self, new_x, new_y)
+                        self.message_log.add_message(f"You notice a hidden {target_tile_obj.trap_instance.name}!", (0, 255, 255))
+                        return True # Action taken (noticed trap)
+                    else:
+                        self.message_log.add_message(f"You fail to notice anything unusual.", (150, 150, 150))
+                        # Fall through to movement logic below, which will trigger the trap.
+               
                 original_player_x, original_player_y = self.player.x, self.player.y
                 self.player.x = new_x
                 self.player.y = new_y
-
-                # --- NEW: Update camera target immediately after player moves ---
+                
                 self.camera.target_x = float(self.player.x)
                 self.camera.target_y = float(self.player.y)
-                
+                # --- NEW: Trigger Trap AFTER Movement (if not noticed/disarmed) ---
+                if isinstance(target_tile_obj, TrapTile) and not target_tile_obj.trap_instance.is_disarmed and not target_tile_obj.trap_instance.is_triggered:
+                    target_tile_obj.trap_instance.trigger(self.player, self, new_x, new_y)
+                    return True # Action taken (triggered trap)
+                                
                 # --- Opportunity Attack Check ---
                 # Iterate through monsters that were adjacent before the move
                 for monster in monsters_adjacent_before_move:
@@ -1253,6 +1334,7 @@ class Game:
                         # Important: If the player dies from an OA, the game state should reflect that.
                         if not self.player.alive:
                             return True # Player died, action taken, end turn.
+                
                 self.update_fov()
                 stairs_dir = self.check_stairs_interaction()
                 if stairs_dir:
@@ -1638,26 +1720,28 @@ class Game:
     def render_map_with_fov(self):
         map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT
         
-        # --- FIX: Cast camera.x and camera.y to int for range() loops ---
         camera_x_int = int(self.camera.x)
         camera_y_int = int(self.camera.y)
-
+    
         for y in range(camera_y_int, min(camera_y_int + self.camera.viewport_height + 1, self.game_map.height)):
             for x in range(camera_x_int, min(camera_x_int + self.camera.viewport_width + 1, self.game_map.width)):
+                
                 screen_x_float, screen_y_float = self.camera.world_to_screen(x, y)
                 
                 draw_x = screen_x_float * config.TILE_SIZE
-                draw_y = screen_y_float * config.TILE_SIZE                
+                draw_y = screen_y_float * config.TILE_SIZE
                 
-                #if (0 <= draw_x < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
-                #   0 <= draw_y < map_render_height):
-                    
                 visibility_type = self.fov.get_visibility_type(x, y)
                 if visibility_type == 'unexplored':
                     continue
                 
                 tile = self.game_map.tiles[y][x]
                 
+                # Initialize display_char with a default value
+                display_char = tile.char  # Default to the tile's character
+                render_color_tint = None  # Initialize render_color_tint
+                highlight_color = None  # For highlighting revealed traps
+
                 # --- NEW LOGIC HERE ---
                 # Check if there's an item or entity at this exact spot
                 item_at_pos = next((item for item in self.game_map.items_on_ground if item.x == x and item.y == y), None)
@@ -1683,7 +1767,26 @@ class Game:
                 elif visibility_type == 'explored':
                     render_color_tint = (60, 60, 60, 255)
 
-                graphics.draw_tile(self.internal_surface, draw_x, draw_y, draw_tile_char, color_tint=render_color_tint)                        
+                graphics.draw_tile(self.internal_surface, draw_x, draw_y, draw_tile_char, color_tint=render_color_tint)
+                
+
+                # Handle TrapTile display
+                if isinstance(tile, TrapTile):
+                    display_char = tile.get_display_char()
+                    display_color = tile.get_display_color()
+                    if tile.highlighted:
+                        highlight_color = (255, 255, 0, 100)  # Yellow for highlighted traps
+                    else:
+                        highlight_color = None  # No highlight
+    
+                # Draw the base tile (floor, wall, or trap's hidden/revealed char)
+                graphics.draw_tile(self.internal_surface, draw_x, draw_y, display_char, color_tint=render_color_tint)                        
+                
+                # Draw Highlight Overlay for Traps
+                if highlight_color:
+                    highlight_surface = pygame.Surface((config.TILE_SIZE, config.TILE_SIZE), pygame.SRCALPHA)
+                    highlight_surface.fill(highlight_color)
+                    self.internal_surface.blit(highlight_surface, (draw_x, draw_y))
                     
 
     def render_entities(self):

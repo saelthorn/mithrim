@@ -1,3 +1,5 @@
+import random
+
 
 class StatusEffect:
     def __init__(self, name, duration, source=None):
@@ -36,7 +38,31 @@ class Poisoned(StatusEffect):
     def on_end(self, target, game_instance):
         super().on_end(target, game_instance)
         game_instance.message_log.add_message(f"{target.name}'s poison wears off.", (150, 150, 150))
-    
+
+
+class Restrained(StatusEffect):
+    def __init__(self, duration, source=None):
+        super().__init__("Restrained", duration, source)            
+
+
+class Burning(StatusEffect):
+    def __init__(self, duration, source=None, damage_per_turn=3):
+        super().__init__("Burning", duration, source)
+        self.damage_per_turn = damage_per_turn
+
+    def apply_effect(self, target, game_instance):
+        if self.turns_left > 0:
+            game_instance.message_log.add_message(f"{target.name} is burning! Takes {self.damage_per_turn} damage.", (255, 50, 50))
+            target.take_damage(self.damage_per_turn, game_instance, damage_type='fire')
+
+            if not target.alive:
+                game_instance.message_log.add_message(f"{target.name} succumed to burning to crisp!", (200, 0, 0))    
+
+    def on_end(self, target, game_instance):
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message(f"{target.name}'s burning fades away.", (150, 150, 150))
+                        
+
 class AcidBurned(StatusEffect):
     def __init__(self, duration, source=None, damage_per_turn=3):
         super().__init__("Acid Burned", duration, source)
@@ -57,7 +83,7 @@ class AcidBurned(StatusEffect):
 
 
 class PowerAttackBuff(StatusEffect):
-    def __init__(self, duration=1): # Typically lasts for 1 turn (the next attack)
+    def __init__(self, duration=2): # Typically lasts for 2 turn (the next attack)
         super().__init__("Power Attack Buff", duration)
         self.attack_modifier = -5 # Example: -5 to hit
         self.damage_modifier = 10 # Example: +10 to damage

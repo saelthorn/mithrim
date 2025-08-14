@@ -17,6 +17,7 @@ stairs_down = Tile(blocked=False, char='>', color=(255, 255, 255), name="Stairs 
 stairs_up = Tile(blocked=False, char='<', color=(255, 255, 255), name="Stairs Up")
 dungeon_door = Tile(blocked=False, char='dd', color=(139, 69, 19), name="Dungeon Door")
 
+pressure_plate = Tile(blocked=False, char='_', color=(200, 180, 50), name="Pressure Plate")
 
 # Dungeon Decorations
 dungeon_grass = Tile(blocked=False, char='`', color=(0, 160, 20), name="Dungeon Grass")
@@ -47,3 +48,42 @@ class MimicTile(Tile):
     def __init__(self, mimic_entity, char, color, name): # 'char' here will be 'K' or 'B'
         super().__init__(blocked=True, char=char, color=color, block_sight=False, destructible=True, name=name)
         self.mimic_entity = mimic_entity # Reference to the actual Mimic monster
+
+
+class TrapTile(Tile):
+    def __init__(self, trap_instance, hidden_char, hidden_color, x, y, name="Hidden Trap"):
+        super().__init__(blocked=False, char=hidden_char, color=hidden_color, block_sight=False, destructible=False, name=name)
+        self.trap_instance = trap_instance  # Reference to the actual Trap object (e.g., DartTrap)
+        self.original_char = hidden_char  # Store original char for when it's hidden
+        self.original_color = hidden_color  # Store original color
+        self.x = x  # Store x coordinate
+        self.y = y  # Store y coordinate
+        self.highlighted = False
+
+    def get_display_char(self):
+        """Returns the character to display based on trap state."""
+        if self.trap_instance.is_hidden:
+            return self.original_char  # Show as floor or whatever it's disguised as
+        elif self.trap_instance.is_disarmed:
+            return self.trap_instance.char  # Show revealed graphic (e.g., '^')
+        elif self.trap_instance.is_triggered:
+            return self.trap_instance.char  # Show revealed graphic (e.g., '^')
+        else:  # Revealed but not triggered/disarmed
+            return self.trap_instance.char  # Show revealed graphic (e.g., '^')
+
+    def get_display_color(self):
+        """Returns the color to display based on trap state."""
+        if self.highlighted:
+            return (255, 255, 0)  # Yellow for highlighted traps
+        if self.trap_instance.is_hidden:
+            return self.original_color
+        elif self.trap_instance.is_disarmed:
+            return (0, 200, 0)  # Green for disarmed
+        elif self.trap_instance.is_triggered:
+            return (100, 100, 100)  # Grey for triggered
+        else:
+            return self.trap_instance.color  # Trap's own color
+
+
+
+
