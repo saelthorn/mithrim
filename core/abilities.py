@@ -1,5 +1,5 @@
 import random
-from world.tile import floor, MimicTile
+from world.tile import floor, MimicTile, TrapTile
 
 from core.status_effects import PowerAttackBuff, EvasionBuff
 from core.game import GameState
@@ -48,6 +48,102 @@ class Ability:
         and targeting mode should persist.
         """
         raise NotImplementedError("Subclasses must implement execute_on_target method.")            
+
+# --- Innate Abilities ---
+
+class SpotTrapsAbility(Ability):
+    def __init__(self):
+        # Cooldown: e.g., 10 turns. Cost: 0 for now, could be stamina later.
+        super().__init__("Spot Traps", "Actively search for hidden traps in adjacent tiles.", cost=0, cooldown=5)
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance): # Handles cooldown check
+            return False
+        
+        game_instance.message_log.add_message(f"{user.name} actively searches for traps...", (100, 255, 255))
+        
+        # Check for traps in adjacent tiles
+        adjacent_traps = []
+        for dx in [-1, 0, 1]:
+            for dy in [-1, 0, 1]:
+                if dx == 0 and dy == 0:
+                    continue  # Skip self
+                check_x = user.x + dx
+                check_y = user.y + dy
+                if 0 <= check_x < game_instance.game_map.width and 0 <= check_y < game_instance.game_map.height:
+                    tile = game_instance.game_map.tiles[check_y][check_x]
+                    if isinstance(tile, TrapTile) and tile.trap_instance.is_hidden:
+                        adjacent_traps.append(tile)
+        
+        if adjacent_traps:
+            # Perform an Intelligence (Investigation) check
+            investigation_bonus = user.get_ability_modifier(user.intelligence)
+            if "investigation" in user.skill_proficiencies:
+                investigation_bonus += user.proficiency_bonus
+            d20_roll = random.randint(1, 20)
+            investigation_check_total = d20_roll + investigation_bonus
+            
+            found_any = False
+            for trap_tile in adjacent_traps:
+                if investigation_check_total >= trap_tile.trap_instance.detection_dc:
+                    trap_tile.trap_instance.reveal(game_instance, trap_tile.x, trap_tile.y)
+                    game_instance.message_log.add_message(f"You successfully find a hidden {trap_tile.trap_instance.name}!", (0, 255, 255))
+                    found_any = True
+                # Else: The message for failing to find *any* traps is handled below.
+            
+            if not found_any:
+                game_instance.message_log.add_message(f"You fail to find any traps nearby.", (150, 150, 150))
+        else:
+            game_instance.message_log.add_message("You don't see any traps nearby.", (150, 150, 150))
+        
+        return True # Indicate successful use and end turn
+
+
+class DisarmTrapsAbility(Ability):
+    def __init__(self):
+        # Cooldown: e.g., 15 turns. Cost: 0 for now.
+        super().__init__("Disarm Traps", "Attempt to disarm a revealed trap in an adjacent tile.", cost=0, cooldown=10)
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance): # Handles cooldown check
+            return False
+        
+        game_instance.message_log.add_message(f"{user.name} prepares to disarm a trap...", (100, 255, 255))
+        
+        # Check all adjacent tiles for revealed traps
+        disarmable_traps = []
+        for dx in [0, -1, 1]:  # Check adjacent tiles
+            for dy in [0, -1, 1]:
+                if abs(dx) + abs(dy) == 1:  # Only cardinal directions for disarming
+                    check_x = user.x + dx
+                    check_y = user.y + dy
+                    if 0 <= check_x < game_instance.game_map.width and 0 <= check_y < game_instance.game_map.height:
+                        tile = game_instance.game_map.tiles[check_y][check_x]
+                        if isinstance(tile, TrapTile) and not tile.trap_instance.is_hidden and not tile.trap_instance.is_disarmed:
+                            disarmable_traps.append(tile)
+        
+        if disarmable_traps:
+            # For simplicity, we'll auto-target the first disarmable trap found.
+            # You could implement a targeting mode similar to FireBolt if you want the player to choose.
+            target_tile = disarmable_traps[0]
+
+            # Check if the player has Thieves' Tools in their inventory
+            has_tools = any(item.name == "Thieves' Tools" for item in user.inventory.items)
+            
+            if has_tools:
+                if target_tile.trap_instance.attempt_disarm(user, game_instance, target_tile.x, target_tile.y):
+                    game_instance.message_log.add_message(f"Disarmed the {target_tile.trap_instance.name}!", (0, 255, 0))
+                else:
+                    game_instance.message_log.add_message(f"Failed to disarm the {target_tile.trap_instance.name}!", (255, 100, 100))
+            else:
+                game_instance.message_log.add_message("You need Thieves' Tools to disarm traps.", (255, 0, 0))
+        else:
+            game_instance.message_log.add_message("No disarmable traps adjacent to you.", (150, 150, 150))
+        
+        return True # Indicate successful use and end turn
+
+
+
 
 # --- Specific Abilities ---
 

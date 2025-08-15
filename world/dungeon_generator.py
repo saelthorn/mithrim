@@ -45,7 +45,7 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
     torch_light_sources = []
 
     # Trap Definitions and Chance
-    possible_traps = [DartTrap(), SpikeTrap(), FireTrap()] # List of trap instances
+    possible_traps = [DartTrap, SpikeTrap, FireTrap] # List of trap instances
     trap_placement_chance = 0.15 # 15% chance for a floor tile to become a trap    
     
     # Attempt to generate rooms
@@ -165,8 +165,10 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
                     # --- NEW: Trap Placement Logic ---
                     if room_index in trap_rooms and random.random() < trap_placement_chance:
                         chosen_trap_instance = random.choice(possible_traps)
+                        new_trap_instance = chosen_trap_instance()
+
                         # Create a TrapTile, disguised as a floor tile
-                        game_map.tiles[ry][rx] = TrapTile(chosen_trap_instance, floor.char, floor.color, rx, ry, chosen_trap_instance.name)
+                        game_map.tiles[ry][rx] = TrapTile(new_trap_instance, floor.char, floor.color, rx, ry, new_trap_instance.name)
                         continue
 
                     # --- Floor Decorations ---                    

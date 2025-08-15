@@ -871,67 +871,6 @@ class Game:
                         self.player.dash_active = False
                         self.player.current_action_state = None
                         continue
-
-                # --- NEW: Active Search for Traps ---
-                if event.key == pygame.K_f:  # Let's use 'F' for Find Traps
-                    # Check for traps in adjacent tiles
-                    adjacent_traps = []
-                    for dx in [-1, 0, 1]:
-                        for dy in [-1, 0, 1]:
-                            if dx == 0 and dy == 0:
-                                continue  # Skip self
-                            check_x = self.player.x + dx
-                            check_y = self.player.y + dy
-                            if 0 <= check_x < self.game_map.width and 0 <= check_y < self.game_map.height:
-                                tile = self.game_map.tiles[check_y][check_x]
-                                if isinstance(tile, TrapTile) and tile.trap_instance.is_hidden:
-                                    adjacent_traps.append(tile)
-                    if adjacent_traps:
-                        # Perform an Intelligence (Investigation) check
-                        investigation_bonus = self.player.get_ability_modifier(self.player.intelligence)
-                        if "investigation" in self.player.skill_proficiencies:
-                            investigation_bonus += self.player.proficiency_bonus
-                        d20_roll = random.randint(1, 20)
-                        investigation_check_total = d20_roll + investigation_bonus
-                        # Check against the trap's detection DC
-                        for trap_tile in adjacent_traps:
-                            if investigation_check_total >= trap_tile.trap_instance.detection_dc:
-                                trap_tile.trap_instance.reveal(self, trap_tile.x, trap_tile.y)
-                                self.message_log.add_message(f"You successfully find a hidden {trap_tile.trap_instance.name}!", (0, 255, 255))
-                            else:
-                                self.message_log.add_message(f"You fail to find any traps nearby.", (150, 150, 150))
-                    else:
-                        self.message_log.add_message("You don't see any traps nearby.", (150, 150, 150))
-                    return True  # Consume event
-
-                # --- NEW: Disarm Trap ---
-                if event.key == pygame.K_t:  # 'T' for Disarm Traps
-                    # Check all adjacent tiles for revealed traps
-                    disarmable_traps = []
-                    for dx in [0, -1, 1]:  # Check adjacent tiles
-                        for dy in [0, -1, 1]:
-                            if abs(dx) + abs(dy) == 1:  # Only cardinal directions
-                                check_x = self.player.x + dx
-                                check_y = self.player.y + dy
-                                if 0 <= check_x < self.game_map.width and 0 <= check_y < self.game_map.height:
-                                    tile = self.game_map.tiles[check_y][check_x]
-                                    if isinstance(tile, TrapTile) and not tile.trap_instance.is_hidden:
-                                        disarmable_traps.append(tile)
-                    if disarmable_traps:
-                        target_tile = disarmable_traps[0]
-
-                        # Check if the player has Thieves' Tools in their inventory
-                        has_tools = any(item.name == "Thieves' Tools" for item in self.player.inventory.items)
-                        if has_tools:
-                            if target_tile.trap_instance.attempt_disarm(self.player, self, target_tile.x, target_tile.y):
-                                self.message_log.add_message(f"Disarmed the {target_tile.trap_instance.name}!", (0, 255, 0))
-                            else:
-                                self.message_log.add_message(f"Failed to disarm the {target_tile.trap_instance.name}!", (255, 100, 100))
-                        else:
-                            self.message_log.add_message("You need Thieves' Tools to disarm traps.", (255, 0, 0))
-                    else:
-                        self.message_log.add_message("No disarmable traps adjacent to you.", (150, 150, 150))
-                    return True  # Consume the input
                 
 
                 # --- Normal Turn Handling (if no special action state is active) ---

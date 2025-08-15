@@ -64,8 +64,6 @@ class TrapTile(Tile):
         """Returns the character to display based on trap state."""
         if self.trap_instance.is_hidden:
             return self.original_char  # Show as floor or whatever it's disguised as
-        elif self.trap_instance.is_disarmed:
-            return self.trap_instance.char  # Show revealed graphic (e.g., '^')
         elif self.trap_instance.is_triggered:
             return self.trap_instance.char  # Show revealed graphic (e.g., '^')
         else:  # Revealed but not triggered/disarmed
@@ -80,7 +78,7 @@ class TrapTile(Tile):
         elif self.trap_instance.is_disarmed:
             return (0, 200, 0)  # Green for disarmed
         elif self.trap_instance.is_triggered:
-            return (100, 100, 100)  # Grey for triggered
+            return (255, 0, 0)  # Red for triggered
         else:
             return self.trap_instance.color  # Trap's own color
 

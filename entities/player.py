@@ -1,6 +1,6 @@
 import random
 from core.inventory import Inventory
-from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep
+from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility
 from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning
 from items.items import long_sword, chainmail_armor, short_sword, leather_armor, dagger, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, Item
 from entities.races import Human, HillDwarf # Import the races you've defined
@@ -88,7 +88,6 @@ class Player: # This is our base class for playable characters
         self.active_status_effects = []
 
         self.cunning_action_ready = False
-        self.disengaged = False # <--- NEW: Flag for disengage status
         self.dash_active = False # <--- NEW: Flag for dash status      
 
         self.current_action_state = None  
@@ -458,6 +457,8 @@ class Rogue(Player):
         # Rogue abilities
         self.abilities["cunning_action"] = CunningAction()
         self.abilities["evasion"] = Evasion()
+        self.abilities["spot_traps"] = SpotTrapsAbility()
+        self.abilities["disarm_traps"] = DisarmTrapsAbility()
 
 
 class Wizard(Player):
