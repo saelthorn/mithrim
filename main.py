@@ -5,6 +5,8 @@ import graphics
 
 def main():
     pygame.init()
+
+    pygame.key.set_repeat(600, 200) # Delay 200ms, repeat every 75ms
     
     # --- MODIFIED: Removed pygame.SCALED flag ---
     screen = pygame.display.set_mode((config.BASE_SCREEN_WIDTH, config.BASE_SCREEN_HEIGHT), pygame.RESIZABLE)

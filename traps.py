@@ -32,7 +32,7 @@ class Trap:
         return False
 
     def trigger(self, player, game_instance, x, y):
-        """Activates the trap's effect on the player."""
+        """Activates the trap's effect on the player."""        
         if self.is_triggered or self.is_disarmed:
             print(f"DEBUG: Trap '{self.name}' at ({x},{y}) (ID: {id(self)}) already triggered or disarmed. Skipping.") 
             return False # Already triggered or disarmed
@@ -59,8 +59,8 @@ class Trap:
         if not player.alive:
             game_instance.message_log.add_message("You fall victim to the trap!", (255, 0, 0))
         
-        # Trap is now "spent"
-        return True
+
+
 
     def attempt_disarm(self, player, game_instance, x, y):
         """Attempts to disarm the trap."""

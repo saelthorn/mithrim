@@ -31,10 +31,11 @@ from entities.tavern_npcs import create_tavern_npcs
 from entities.dungeon_npcs import DungeonHealer
 from entities.tavern_npcs import NPC
 from entities.races import Human, HillDwarf, DrowElf # NEW: Import DrowElf
-from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep
+from entities.summons import MageHandEntity
+from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, MageHand
 from core.message_log import MessageBox
 from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff
-from items.items import Potion, Weapon, Armor, Chest
+from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion
 from core.pathfinding import astar
 from world.tile import floor, MimicTile, TrapTile
 from core.floating_text import FloatingText 
@@ -109,10 +110,12 @@ class Game:
         self.camera = None
         self.message_log = None
         
-        self._recalculate_dimensions() 
+        self.entities = []  # Initialize the entities list here
+        self.turn_order = []  # Initialize the turn order list
+        self.current_turn_index = 0
         
+        self._recalculate_dimensions() 
         self._init_fonts()
-
 
         # NEW: Start in character creation state
         self.game_state = GameState.CHARACTER_CREATION 
@@ -128,7 +131,6 @@ class Game:
         )
         self._recalculate_dimensions()
 
-
         self.ability_in_use = None
         self.targeting_ability_range = 0
         self.targeting_cursor_x = 0
@@ -136,15 +138,12 @@ class Game:
             
         self.message_log.add_message("Welcome to the dungeon!", (100, 255, 100))
         
-        
-        self.floating_texts = [] # <--- ADD THIS LINE
-
+        self.floating_texts = []  # Initialize floating texts list
 
         # REMOVED: Player creation moved to character_creation_start
         self.player = None 
         
         self.selected_inventory_item = None
-
 
         # Character creation specific variables
         # UPDATED: Add DrowElf to available races
@@ -152,7 +151,6 @@ class Game:
         self.selected_race_index = 0 
         self.character_name = "Shadowblade" # Default name, could be input later
         self.character_class = Wizard # Available classes: Fighter, Rogue, Wizard
-
 
         self.race_class_visuals = {
             # Human mappings
@@ -171,11 +169,9 @@ class Game:
             ("DrowElf", "Wizard"): ('EW', (200, 0, 200)),  # Example: Lighter Purple for Drow Wizard
         }
 
-
         # Class selection
         self.available_classes = [Fighter, Rogue, Wizard] # List of class objects
         self.selected_class_index = 0 
-
 
         # Call a method to start character creation
         self.start_character_creation()
@@ -594,9 +590,9 @@ class Game:
         else:
             self.fov.visible_sources.clear()
             # Pass player.darkvision_radius to compute_fov
-            self.fov.compute_fov(self.player.x, self.player.y, radius=8, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
+            self.fov.compute_fov(self.player.x, self.player.y, radius=6, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
             for tx, ty in self.torch_light_sources:
-                self.fov.compute_fov(tx, ty, radius=5, light_source_type='torch')
+                self.fov.compute_fov(tx, ty, radius=4, light_source_type='torch')
 
     def get_current_entity(self):
         if not self.turn_order or self.game_state == GameState.TAVERN:
@@ -894,29 +890,34 @@ class Game:
                                 self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
                                 action_taken = True
                         elif self.game_state == GameState.DUNGEON:
-                            interactable_item = self.get_interactable_item_at(self.player.x, self.player.y)
-                            if interactable_item:
-                                if isinstance(interactable_item, Mimic):
-                                    interactable_item.reveal(self)
-                                    action_taken = True
-                                elif isinstance(interactable_item, Chest):
-                                    interactable_item.open(self.player, self)
-                                    action_taken = True
-                                else:
-                                    self.message_log.add_message("You can't interact with that item.", (150, 150, 150))
+                            # --- MODIFIED START ---
+                            # Prioritize picking up items at player's feet
+                            if self.handle_item_pickup():
+                                action_taken = True
                             else:
+                                # If no item at feet, check for adjacent interactables
                                 target = self.get_adjacent_target()
                                 if target:
-                                    if isinstance(target, Monster):
-                                        self.handle_player_attack(target)
+                                    if isinstance(target, Mimic): # Mimics are entities, but also interactable
+                                        target.reveal(self)
                                         action_taken = True
                                     elif isinstance(target, DungeonHealer):
                                         target.offer_rest(self.player, self)
                                         action_taken = True
+                                    elif isinstance(target, Monster): # If it's a monster, attack it
+                                        self.handle_player_attack(target)
+                                        action_taken = True
                                     else:
                                         self.message_log.add_message(f"You can't interact with {target.name} that way.", (150, 150, 150))
                                 else:
-                                    action_taken = self.handle_item_pickup()
+                                    # If no adjacent entity, check for chests at player's position
+                                    chest_at_pos = self.get_chest_at(self.player.x, self.player.y)
+                                    if chest_at_pos:
+                                        chest_at_pos.open(self.player, self)
+                                        action_taken = True
+                                    else:
+                                        self.message_log.add_message("Nothing to interact with here.", (150, 150, 150))
+                            # --- MODIFIED END ---
 
                     sorted_abilities = sorted(self.player.abilities.values(), key=lambda ab: ab.name)                    
 
@@ -955,13 +956,13 @@ class Game:
                     self.next_turn()
                     return True
         return True 
-    
 
     def handle_targeting_input(self, key):
-        """Handles input when in GameState.TARGETING (FireBolt, etc.)"""
+        """Handles input when in GameState.TARGETING (Mage Hand, etc.)"""
         dx, dy = 0, 0  # Cursor movement directions
+    
         # Handle cursor movement
-        if key in (pygame.K_UP, pygame.K_w, pygame.K_k):  # Allow Vim-style 'k' for up
+        if key in (pygame.K_UP, pygame.K_w, pygame.K_k):
             dy = -1
         elif key in (pygame.K_DOWN, pygame.K_s, pygame.K_j):
             dy = 1
@@ -969,34 +970,34 @@ class Game:
             dx = -1
         elif key in (pygame.K_RIGHT, pygame.K_d, pygame.K_l):
             dx = 1
-
+    
         # Apply movement if possible
         if dx != 0 or dy != 0:
             new_x = self.targeting_cursor_x + dx
             new_y = self.targeting_cursor_y + dy
-
-            # Keep cursor within map bounds
-            if (0 <= new_x < self.game_map.width and 
-                0 <= new_y < self.game_map.height):
+    
+            # Keep cursor within map bounds and within ability range
+            if (0 <= new_x < self.game_map.width and
+                0 <= new_y < self.game_map.height and
+                self.player.distance_to(new_x, new_y) <= self.targeting_ability_range):  # Check against ability range
                 self.targeting_cursor_x = new_x
                 self.targeting_cursor_y = new_y
                 return  # Done, next frame will render cursor
-
+    
         # Confirm target selection
         elif key == pygame.K_RETURN:
-            print("DEBUG: K_RETURN pressed in TARGETING. Calling execute_targeted_ability.") # <--- ADD THIS
+            print("DEBUG: K_RETURN pressed in TARGETING. Calling execute_targeted_ability.")
             self.execute_targeted_ability()  # Handle the ability effect
             return  # Exit targeting mode
-
+    
         # Cancel targeting
         if key == pygame.K_ESCAPE:
             self.message_log.add_message("Targeting cancelled.", (150, 150, 150))
-            self.game_state = self._previous_game_state # Return to previous state (DUNGEON)
-            self.ability_in_use = None # Clear the ability
-            self.player_has_acted = False # Player didn't act if cancelled
-            self.player.current_action_state = None # <--- THIS LINE MUST BE HERE
-            return # Input handled        
-
+            self.game_state = GameState.DUNGEON  # Return to dungeon state
+            self.ability_in_use = None  # Clear the ability
+            self.player_has_acted = False  # Player didn't act if cancelled
+            return  # Input handled
+    
 
     def execute_targeted_ability(self):
         """
@@ -1010,30 +1011,23 @@ class Game:
         target_x = self.targeting_cursor_x
         target_y = self.targeting_cursor_y
 
-        # Check range
-        distance = self.player.distance_to(target_x, target_y)
-        if distance > self.targeting_ability_range:
-            self.message_log.add_message(f"{self.ability_in_use.name} target is out of range ({int(distance)} tiles away, max {self.targeting_ability_range}).", (255, 150, 0))
-            return # Stay in targeting mode
-
-        # Check Line of Sight (if applicable for the ability)
-        # For simplicity, let's assume all targeted abilities require LOS for now.
-        # You might want to add a flag to Ability class if some don't.
-        if not self.check_line_of_sight(self.player.x, self.player.y, target_x, target_y):
-            self.message_log.add_message(f"Cannot target {self.ability_in_use.name}: No clear line of sight.", (255, 150, 0))
-            return # Stay in targeting mode
+        # Check if the target is within the player's FOV
+        if not self.fov.get_visibility_type(target_x, target_y) in ['player', 'torch', 'darkvision']:
+            self.message_log.add_message(f"You cannot attack {target_x}, {target_y} because it is out of sight!", (255, 0, 0))
+            self._reset_targeting_state()
+            return
 
         # Pass the confirmed target coordinates to the ability's execute_on_target method
-        # This method will contain the specific logic for each ability.
         if self.ability_in_use.execute_on_target(self.player, self, target_x, target_y):
-            print("DEBUG: ability_in_use.execute_on_target returned True. Resetting state.") # <--- ADD THIS
+            print("DEBUG: ability_in_use.execute_on_target returned True. Resetting state.")
             # If the ability successfully executed its effect, then reset state and end turn
             self._reset_targeting_state()
         else:
-            print("DEBUG: ability_in_use.execute_on_target returned False. Staying in targeting mode.") # <--- ADD THIS
+            print("DEBUG: ability_in_use.execute_on_target returned False. Staying in targeting mode.")
             # If execute_on_target returns False, it means the target was invalid for that ability
             # (e.g., Fire Bolt on empty tile, Misty Step on blocked tile). Stay in targeting mode.
-            pass # Message already handled by ability.execute_on_target
+            pass  # Message already handled by ability.execute_on_target
+
 
     def _reset_targeting_state(self):
         """Cleans up targeting-related state vars and ends the player's turn."""
@@ -1089,13 +1083,16 @@ class Game:
                 return False
         return True
 
+
     def get_interactable_item_at(self, x, y):
-        """Checks if there's an interactable item (like a Chest or Mimic) at the given coordinates."""
+        """Checks if there's an interactable item (like a Potion or Chest) at the given coordinates."""
         for item in self.game_map.items_on_ground:
-            if (isinstance(item, Chest) or isinstance(item, Mimic)) and item.x == x and item.y == y:
+            # Check for any Item (including Potion, Weapon, Armor, Tools)
+            # Exclude Mimic if it's disguised, as it's handled separately by MimicTile
+            if item.x == x and item.y == y and not (isinstance(item, Mimic) and item.disguised):
                 return item
         return None
-    
+
     def get_chest_at(self, x, y):
         """Checks if there's a chest at the given coordinates."""
         for item in self.game_map.items_on_ground:
@@ -1108,13 +1105,21 @@ class Game:
         items_at_player_pos = [item for item in self.game_map.items_on_ground if item.x == self.player.x and item.y == self.player.y]
         if items_at_player_pos:
             item_to_pick_up = items_at_player_pos[0]
+            # Ensure it's not a Chest, as Chests are handled by their own 'open' method
+            if isinstance(item_to_pick_up, Chest):
+                return False # Let the chest opening logic handle this
+            
             if item_to_pick_up.on_pickup(self.player, self):
+                # Remove the item from the ground after successful pickup
+                self.game_map.items_on_ground.remove(item_to_pick_up)
+                self.update_fov() # Update FOV to reflect item removal
                 return True
             else:
                 return False
         else:
-            self.message_log.add_message("Nothing to pick up here.", (150, 150, 150))
+            # Removed "Nothing to pick up here." message here, as it will be handled by the broader interaction logic.
             return False
+        
 
     def handle_inventory_input(self, key):
         """Handles input when in the inventory screen."""
@@ -1321,14 +1326,40 @@ class Game:
         if skill_check_total >= destruction_dc:
             self.message_log.add_message(f"You successfully smash the {target_tile.name}!", (0, 255, 0))
             self.game_map.tiles[y][x] = floor
+            
+            # --- NEW: 20% chance to drop a Lesser Healing Potion ---
+            if target_tile.name in ["Crate", "Barrel"]: # Check if it was a crate or barrel
+                drop_chance = 0.50 # 20% chance
+                if random.random() < drop_chance:
+                    # Create a new instance of the potion
+                    new_potion = lesser_healing_potion.__class__(
+                        name=lesser_healing_potion.name,
+                        char=lesser_healing_potion.char,
+                        color=lesser_healing_potion.color,
+                        description=lesser_healing_potion.description,
+                        effect_type=lesser_healing_potion.effect_type,
+                        effect_value=lesser_healing_potion.effect_value
+                    )
+                    new_potion.x = x
+                    new_potion.y = y
+                    self.game_map.items_on_ground.append(new_potion)
+                    self.message_log.add_message(f"A {new_potion.name} drops from the {target_tile.name}!", new_potion.color)
+            # --- END NEW DROP LOGIC ---
+
             return True
         else:
             self.message_log.add_message(f"You fail to smash the {target_tile.name}. It's tougher than it looks!", (255, 100, 100))
             return False
+
     
 
     def handle_player_attack(self, target, advantage=False, disadvantage=False):
         if not target.alive:
+            return
+        
+        # Check if the target is in the player's FOV
+        if not self.fov.get_visibility_type(target.x, target.y) in ['player', 'torch', 'darkvision']:
+            self.message_log.add_message(f"You cannot attack {target.name} because it is out of sight!", (255, 0, 0))
             return
 
         # Determine the actual d20 roll based on advantage/disadvantage
@@ -1486,17 +1517,23 @@ class Game:
         self.message_log.add_message(random.choice(messages), (170, 170, 170))
 
     def update(self, dt):
-
         initial_floating_texts_count = len(self.floating_texts) # <--- ADD THIS
         self.floating_texts = [text for text in self.floating_texts if text.update()]        
         if len(self.floating_texts) != initial_floating_texts_count: # <--- ADD THIS
             print(f"DEBUG: FloatingTexts updated. Removed {initial_floating_texts_count - len(self.floating_texts)} expired texts. New list size: {len(self.floating_texts)}") # <--- ADD THIS
 
+
+
+
         # NEW: Only update camera and process turns if player exists and game is in an active state
-        if self.player and (self.game_state == GameState.DUNGEON or self.game_state == GameState.TAVERN):
-            self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height)
-            
+        if self.player and (self.game_state == GameState.DUNGEON or self.game_state == GameState.TAVERN or self.game_state == GameState.TARGETING): # Include TARGETING
+            # If in targeting mode for Mage Hand, camera should follow the cursor
+            if self.game_state == GameState.TARGETING and self.ability_in_use and isinstance(self.ability_in_use, MageHand):
+                self.camera.update(self.targeting_cursor_x, self.targeting_cursor_y, self.game_map.width, self.game_map.height)
+            else:
+                self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height)
         
+
         if not self.player: # If player hasn't been created yet (e.g., in character creation)
             return # Do nothing else in update
         if not self.player.alive:
@@ -1535,9 +1572,7 @@ class Game:
             # Player's turn, waiting for input. Do nothing here.
             pass
         elif current and current != self.player and current.alive: # <--- THIS IS THE MONSTER'S TURN
-            print(f"DEBUG: It's {current.name}'s turn. Calling take_turn().") # <--- ADD THIS
             current.take_turn(self.player, self.game_map, self)
-            print(f"DEBUG: {current.name}'s turn ended. Calling next_turn().") # <--- ADD THIS
             self.next_turn()
         else:
             pass # No active entity or entity is dead.
@@ -1563,14 +1598,14 @@ class Game:
         if self.game_state == GameState.CHARACTER_CREATION: # NEW: Character Creation Render
             self.render_character_creation_screen()
             self.screen.blit(self.inventory_ui_surface, (0, 0)) # Use inventory_ui_surface for overlay
-        elif self.game_state == GameState.CLASS_SELECTION: 
+        elif self.game_state == GameState.CLASS_SELECTION:
             self.render_class_selection_screen()
             self.screen.blit(self.inventory_ui_surface, (0, 0))
         elif self.game_state == GameState.INVENTORY:
-            self.render_inventory_screen() 
+            self.render_inventory_screen()
             self.screen.blit(self.inventory_ui_surface, (0, 0))
         elif self.game_state == GameState.INVENTORY_MENU:
-            self.render_inventory_screen() 
+            self.render_inventory_screen()
             self.screen.blit(self.inventory_ui_surface, (0, 0))
             self.render_inventory_menu_popup()
         elif self.game_state == GameState.CHARACTER_MENU:
@@ -1592,12 +1627,12 @@ class Game:
 
             # <--- THIS IS THE CRITICAL LOOP ---
             for text_obj in self.floating_texts: # <--- ADD THIS LOOP
-                text_obj.draw(self.internal_surface, self.camera) # Draw on internal surface                  
+                text_obj.draw(self.internal_surface, self.camera) # Draw on internal surface
 
 
             if self.game_state == GameState.TARGETING:
                 screen_x, screen_y = self.camera.world_to_screen(
-                    self.targeting_cursor_x, 
+                    self.targeting_cursor_x,
                     self.targeting_cursor_y
                 )
 
@@ -1616,43 +1651,50 @@ class Game:
                     (100, 100, 255)  # Blue for empty tiles
                 )
 
-                # Draw cursor rect (more visible than just an outline)
-                cursor_width = 3
-                pygame.draw.rect(
-                    self.internal_surface,
-                    cursor_color,
-                    (screen_x * config.TILE_SIZE, 
-                     screen_y * config.TILE_SIZE,
-                     config.TILE_SIZE, 
-                     config.TILE_SIZE),
-                    cursor_width
-                )
-            
+                # --- START MODIFICATION FOR MAGE HAND GRAPHIC ---
+                if isinstance(self.ability_in_use, MageHand):
+                    # Draw the Mage Hand graphic at the cursor position
+                    # You might want a specific color for the Mage Hand graphic
+                    graphics.draw_tile(self.internal_surface, screen_x * config.TILE_SIZE, screen_y * config.TILE_SIZE, 'mh', color_tint=(150, 200, 255))
+                else:
+                    # Draw cursor rect (more visible than just an outline) for other abilities
+                    cursor_width = 3
+                    pygame.draw.rect(
+                        self.internal_surface,
+                        cursor_color,
+                        (screen_x * config.TILE_SIZE,
+                         screen_y * config.TILE_SIZE,
+                         config.TILE_SIZE,
+                         config.TILE_SIZE),
+                        cursor_width
+                    )
+                # --- END MODIFICATION FOR MAGE HAND GRAPHIC ---
+
             available_width = config.GAME_AREA_WIDTH
             available_height = config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT
-            
+
             internal_surface_aspect_ratio = config.INTERNAL_GAME_AREA_PIXEL_WIDTH / config.INTERNAL_GAME_AREA_PIXEL_HEIGHT
             scale_to_fit_width = available_width / config.INTERNAL_GAME_AREA_PIXEL_WIDTH
             scale_to_fit_height = available_height / config.INTERNAL_GAME_AREA_PIXEL_HEIGHT
-            
+
             actual_display_scale = min(scale_to_fit_width, scale_to_fit_height)
-            
+
             scaled_width = int(config.INTERNAL_GAME_AREA_PIXEL_WIDTH * actual_display_scale)
             scaled_height = int(config.INTERNAL_GAME_AREA_PIXEL_HEIGHT * actual_display_scale)
-            
+
             offset_x = (available_width - scaled_width) // 2
             offset_y = (available_height - scaled_height) // 2
-            
+
             target_rect = pygame.Rect(offset_x, offset_y, scaled_width, scaled_height)
-            
+
             scaled_game_area = pygame.transform.scale(self.internal_surface, target_rect.size)
             self.screen.blit(scaled_game_area, target_rect.topleft)
-        
+
         # Only draw UI if player exists (after character creation)
-        if self.player: 
+        if self.player:
             self.draw_ui()
         self.message_log.render(self.screen)
-        
+
         pygame.display.flip()
 
 
@@ -1728,30 +1770,26 @@ class Game:
                     self.internal_surface.blit(highlight_surface, (draw_x, draw_y))
                     
 
+
     def render_entities(self):
         map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT 
-        
         for entity in self.entities:
             if isinstance(entity, Mimic) and entity.disguised:
                 continue 
-            
             visibility_type = self.fov.get_visibility_type(entity.x, entity.y)
-            
             # The is_in_viewport check is still useful for broad culling
             if entity.alive and self.camera.is_in_viewport(entity.x, entity.y) and \
                (visibility_type == 'player' or visibility_type == 'torch' or visibility_type == 'explored' or visibility_type == 'darkvision'):
-                
+
                 # --- MODIFIED: Get float screen coordinates ---
                 screen_x_float, screen_y_float = self.camera.world_to_screen(entity.x, entity.y)
-                
                 # --- MODIFIED: Calculate pixel draw positions using floats ---
                 draw_x = screen_x_float * config.TILE_SIZE
                 draw_y = screen_y_float * config.TILE_SIZE
-                
                 # The pixel bounds check is still good
                 if (0 <= draw_x < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
                     0 <= draw_y < map_render_height):
-                    
+
                     entity_color_tint = None
                     if visibility_type == 'player':
                         entity_color_tint = None
@@ -1761,11 +1799,11 @@ class Game:
                         entity_color_tint = (90, 90, 90, 255)
                     elif visibility_type == 'explored':
                         entity_color_tint = (60, 60, 60, 255)
-                    
                     # Always draw floor under entities, as map rendering might have drawn a decorative tile
                     # --- MODIFIED: Pass float draw_x, draw_y to graphics.draw_tile ---
                     graphics.draw_tile(self.internal_surface, draw_x, draw_y, floor.char, color_tint=entity_color_tint)
                     graphics.draw_tile(self.internal_surface, draw_x, draw_y, entity.char, color_tint=entity_color_tint)
+
 
 
     def render_items_on_ground(self):

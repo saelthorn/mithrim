@@ -4,7 +4,9 @@ from world.tile import floor, MimicTile, TrapTile
 from core.status_effects import PowerAttackBuff, EvasionBuff
 from core.game import GameState
 from entities.monster import Monster, Mimic
+from entities.summons import MageHandEntity
 from core.floating_text import FloatingText
+from items.items import Potion, lesser_healing_potion # NEW: Import for potion drop
 
 
 class Ability:
@@ -40,14 +42,23 @@ class Ability:
         if self.current_cooldown > 0:
             self.current_cooldown -= 1
 
+
     def execute_on_target(self, user, game_instance, target_x, target_y):
         """
-        Abstract method: Performs the ability's effect on the given target coordinates.
-        Returns True if the effect was successfully applied and the turn should end.
-        Returns False if the target was invalid or the ability couldn't be used on it,
-        and targeting mode should persist.
+        Performs the Mage Hand effect on the selected target.
         """
-        raise NotImplementedError("Subclasses must implement execute_on_target method.")            
+        target_tile = game_instance.game_map.tiles[target_y][target_x]
+
+        # Check if the target is a TrapTile
+        if isinstance(target_tile, TrapTile) and not target_tile.trap_instance.is_triggered:
+            game_instance.message_log.add_message(f"The Mage Hand triggers the {target_tile.trap_instance.name}!", (255, 255, 0))
+
+            # Pass the actual player object instead of "Mage Hand"
+            target_tile.trap_instance.trigger(user, game_instance, target_x, target_y)  # Pass the player object
+            return True  # Action successful, end turn
+
+        game_instance.message_log.add_message("Mage Hand cannot interact with that target.", (255, 150, 0))
+        return False  # Invalid target, stay in targeting mode
 
 # --- Innate Abilities ---
 
@@ -219,12 +230,11 @@ class FireBolt(Ability):
             return False
         
         # Find only monster targets within range
-        # Each element in 'targets' will be a Monster object
         monster_targets = []
         for entity in game_instance.entities:
             if isinstance(entity, Monster) and entity.alive:
                 distance = user.distance_to(entity.x, entity.y)
-                if distance <= self.range * 1:  # Auto-targeting range is multiplied by 2
+                if distance <= self.range:  # Check against ability range
                     monster_targets.append(entity)
 
         # If there are monster targets, auto-target the closest one
@@ -246,6 +256,7 @@ class FireBolt(Ability):
         
         # If no monster targets are found, revert to manual targeting starting at player
         else:
+            game_instance.message_log.add_message(f"{user.name} prepares Fire Bolt! No enemies in range. Select a target (Arrow Keys, Enter to confirm, Esc to cancel).", (255, 100, 0))
             game_instance.game_state = GameState.TARGETING
             game_instance.ability_in_use = self  # Store which ability is being used
             game_instance.targeting_ability_range = self.range
@@ -254,15 +265,24 @@ class FireBolt(Ability):
             game_instance.targeting_cursor_x = user.x
             game_instance.targeting_cursor_y = user.y
             
-            game_instance.message_log.add_message(f"{user.name} prepares Fire Bolt! No enemies in range. Select a target (Arrow Keys, Enter to confirm, Esc to cancel).", (255, 100, 0))
-            return True # Indicate successful initiation of targeting
+            return True  # Indicate successful initiation of targeting
 
     def execute_on_target(self, user, game_instance, target_x, target_y):
         """
         Performs the Fire Bolt effect on the selected target.
         """
         target_monster = game_instance.get_target_at(target_x, target_y)
-        target_tile = game_instance.game_map.tiles[target_y][target_x] # Get the tile object at target
+        target_tile = game_instance.game_map.tiles[target_y][target_x]  # Get the tile object at target
+
+        # Check if the target is within the player's FOV
+        if not game_instance.fov.get_visibility_type(target_x, target_y) in ['player', 'torch', 'darkvision']:
+            game_instance.message_log.add_message(f"You cannot attack {target_x}, {target_y} because it is out of sight!", (255, 0, 0))
+            return False  # Do not consume a turn
+
+        # Check if the target is a valid monster or destructible object
+        if not (target_monster or target_tile.destructible):
+            game_instance.message_log.add_message("Fire Bolt requires a monster target or a destructible object.", (255, 150, 0))
+            return False  # Invalid target, do not consume a turn
 
         # Fire Bolt damage calculation (example: 1d10)
         damage_roll = random.randint(1, 10)
@@ -276,63 +296,74 @@ class FireBolt(Ability):
             game_instance.message_log.add_message(random.choice(hit_messages), (255, 165, 0))
 
             if isinstance(target_monster, Mimic):
-                # Mimic.take_damage expects 'amount' and 'game_instance'
                 damage_dealt = target_monster.take_damage(damage_roll, game_instance) 
             else:
-                # Monster.take_damage (for generic monsters) only expects 'amount'
-                damage_dealt = target_monster.take_damage(damage_roll, game_instance) # Pass game_instance here
+                damage_dealt = target_monster.take_damage(damage_roll, game_instance)  # Pass game_instance here
 
             game_instance.message_log.add_message(f"A bolt of fire strikes {target_monster.name} for {damage_dealt} damage!", (255, 165, 0))
-            # Add the HP message here
             game_instance.message_log.add_message(f"{target_monster.name} has {target_monster.hp}/{target_monster.max_hp} HP", (255, 165, 0))
 
             # Add FloatingText for "HIT!" and damage dealt
             hit_text = FloatingText(target_monster.x, target_monster.y, "HIT!", (255, 255, 0))
             game_instance.floating_texts.append(hit_text)
 
-            damage_text = FloatingText(target_monster.x, target_monster.y - 0.5, str(damage_dealt), (255, 0, 0)) # <--- ADJUSTED Y
+            damage_text = FloatingText(target_monster.x, target_monster.y - 0.5, str(damage_dealt), (255, 0, 0))  # <--- ADJUSTED Y
             game_instance.floating_texts.append(damage_text)
 
             if not target_monster.alive:
                 xp_gained = target_monster.die()
-                user.gain_xp(xp_gained, game_instance) # Use 'user' (player) here
+                user.gain_xp(xp_gained, game_instance)  # Use 'user' (player) here
                 game_instance.message_log.add_message(f"The {target_monster.name} dies! [+{xp_gained} XP]", (100, 255, 100))
-            return True # Successfully used ability
+            return True  # Successfully used ability
 
-        
-        elif target_tile.destructible: # <--- NEW: Check if the tile is destructible
+        elif target_tile.destructible:  # <--- NEW: Check if the tile is destructible
             destructible_messages = [
                 f"Your Fire Bolt incinerates the {target_tile.name}!",
                 f"The {target_tile.name} explodes in a burst of flame!",
                 f"A magical inferno consumes the {target_tile.name}!",
             ]
             game_instance.message_log.add_message(random.choice(destructible_messages), (255, 165, 0))                
-            
+
             # For simplicity, we'll assume Fire Bolt instantly destroys destructible tiles
             # In a more complex system, destructible tiles might have HP.
             game_instance.message_log.add_message(f"Your Fire Bolt smashes the {target_tile.name}!", (255, 165, 0))
-            game_instance.game_map.tiles[target_y][target_x] = floor # Replace with floor tile
+            game_instance.game_map.tiles[target_y][target_x] = floor  # Replace with floor tile
             
+            # --- NEW: 20% chance to drop a healing potion ---
+            if random.random() < 0.20:  # 20% chance
+                # Create a new instance of the potion to avoid modifying the global one
+                potion_to_drop = lesser_healing_potion.__class__(
+                    name=lesser_healing_potion.name,
+                    char=lesser_healing_potion.char,
+                    color=lesser_healing_potion.color,
+                    description=lesser_healing_potion.description,
+                    effect_type=lesser_healing_potion.effect_type,
+                    effect_value=lesser_healing_potion.effect_value
+                )
+                potion_to_drop.x = target_x
+                potion_to_drop.y = target_y
+                game_instance.game_map.items_on_ground.append(potion_to_drop)
+                game_instance.message_log.add_message(f"A {potion_to_drop.name} drops from the {target_tile.name}!", potion_to_drop.color)
+            # --- END NEW ---
+
             # --- MISSING FLOATING TEXT CREATION HERE FOR DESTRUCTIBLE ---
-            # You might want a different message for destructibles, e.g., "SMASH!"
             game_instance.floating_texts.append(FloatingText(target_x, target_y, "SMASH!", (255, 100, 0)))
-            print(f"DEBUG: FireBolt added SMASH! FloatingText for {target_tile.name} at ({target_x},{target_y}). List size: {len(game_instance.floating_texts)}") # <--- ADD THIS DEBUG
+            print(f"DEBUG: FireBolt added SMASH! FloatingText for {target_tile.name} at ({target_x},{target_y}). List size: {len(game_instance.floating_texts)}")  # <--- ADD THIS DEBUG
 
             # If it was a MimicTile, ensure the Mimic entity is also handled
             if isinstance(target_tile, MimicTile):
                 mimic_entity = target_tile.mimic_entity
                 if mimic_entity.disguised:
-                    mimic_entity.reveal(game_instance) # Reveal the mimic
+                    mimic_entity.reveal(game_instance)  # Reveal the mimic
                 else:
                     game_instance.message_log.add_message(f"The {mimic_entity.name} is already revealed and takes no further damage from smashing its disguise.", (150, 150, 150))
-            return True # Successfully used ability
+            return True  # Successfully used ability
         else:
             game_instance.message_log.add_message("Fire Bolt requires a monster target or a destructible object.", (255, 150, 0))
             # --- MISSING FLOATING TEXT FOR MISS/INVALID TARGET ---
-            # You might want a "MISS!" or "INVALID!" floating text here
             game_instance.floating_texts.append(FloatingText(target_x, target_y, "INVALID!", (255, 0, 0)))
-            print(f"DEBUG: FireBolt added INVALID! FloatingText for ({target_x},{target_y}). List size: {len(game_instance.floating_texts)}") # <--- ADD THIS DEBUG
-            return False # Invalid target, stay in targeting mode            
+            print(f"DEBUG: FireBolt added INVALID! FloatingText for ({target_x},{target_y}). List size: {len(game_instance.floating_texts)}")  # <--- ADD THIS DEBUG
+            return False  # Invalid target, stay in targeting mode
 
 
 class MistyStep(Ability):
@@ -378,6 +409,91 @@ class MistyStep(Ability):
         game_instance.message_log.add_message(f"{user.name} vanishes in a silvery mist and reappears!", (100, 255, 255))
         game_instance.update_fov() # Update FOV after teleporting
         return True # Successfully used ability    
+
+
+class DetectMagic(Ability):
+    def __init__(self):
+        super().__init__("Detect Magic", "Detects magical traps (specifically Fire Traps) within a certain range.", cost=0, cooldown=10)
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):  # Handles cooldown check
+            return False
+        
+        game_instance.message_log.add_message(f"{user.name} casts Detect Magic...", (100, 255, 255))
+        
+        # Check for Fire Traps in adjacent tiles
+        detected_traps = []
+        for dx in [-1, 0, 1]:
+            for dy in [-1, 0, 1]:
+                if dx == 0 and dy == 0:
+                    continue  # Skip self
+                check_x = user.x + dx
+                check_y = user.y + dy
+                if 0 <= check_x < game_instance.game_map.width and 0 <= check_y < game_instance.game_map.height:
+                    tile = game_instance.game_map.tiles[check_y][check_x]
+                    if isinstance(tile, TrapTile) and tile.trap_instance.name == "Fire Trap" and tile.trap_instance.is_hidden:
+                        detected_traps.append(tile)
+
+        if detected_traps:
+            for trap_tile in detected_traps:
+                trap_tile.trap_instance.reveal(game_instance, trap_tile.x, trap_tile.y)
+                game_instance.message_log.add_message(f"You detect a hidden {trap_tile.trap_instance.name}!", (0, 255, 255))
+        else:
+            game_instance.message_log.add_message("No magical traps detected nearby.", (150, 150, 150))
+        
+        return True  # Indicate successful use and end turn
+
+
+class MageHand(Ability):
+    def __init__(self):
+        super().__init__("Mage Hand", "Summon a spectral hand to trigger traps or pick up items from a distance.", cost=0, cooldown=5)
+        self.range = 6  # Max distance the Mage Hand can be controlled
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+
+        game_instance.message_log.add_message(f"{user.name} casts Mage Hand!", (100, 255, 255))
+        game_instance.message_log.add_message("Select a target to trigger a trap or pick up an item (Arrow Keys, Enter to confirm, Esc to cancel).", (255, 100, 0))
+        
+        game_instance.game_state = GameState.TARGETING
+        game_instance.ability_in_use = self
+        game_instance.targeting_ability_range = self.range
+        game_instance.targeting_cursor_x = user.x  # Start at player's position
+        game_instance.targeting_cursor_y = user.y
+
+        return True
+
+    def execute_on_target(self, user, game_instance, target_x, target_y):
+        """
+        Performs the Mage Hand effect on the selected target.
+        """
+        target_tile = game_instance.game_map.tiles[target_y][target_x]
+    
+        # Create a temporary MageHandEntity instance to act as the 'player' for the trap trigger
+        mage_hand_actor = MageHandEntity(user.x, user.y, user)  # Pass user as owner
+    
+        # Check if the target is a TrapTile
+        if isinstance(target_tile, TrapTile) and not target_tile.trap_instance.is_triggered:
+            game_instance.message_log.add_message(f"The Mage Hand triggers the {target_tile.trap_instance.name}!", (255, 255, 0))
+            target_tile.trap_instance.trigger(mage_hand_actor, game_instance, target_x, target_y)  # Pass the mage_hand_actor
+            return True  # Action successful, end turn
+    
+        # Check if the target is an item (specifically a potion)
+        item_at_target = game_instance.get_interactable_item_at(target_x, target_y)
+        if item_at_target and isinstance(item_at_target, Potion):
+            # Instead of using mage_hand_actor, add the potion directly to the user's inventory
+            if item_at_target.on_pickup(user, game_instance):  # Use the actual user as the picker
+                game_instance.message_log.add_message(f"The Mage Hand picks up the {item_at_target.name}!", (0, 255, 0))
+                # Remove the item from the ground after successful pickup
+                game_instance.game_map.items_on_ground.remove(item_at_target)  # <-- Remove from ground
+                return True  # Action successful, end turn
+            else:
+                game_instance.message_log.add_message(f"The Mage Hand cannot pick up the {item_at_target.name}.", (255, 150, 0))
+                return False  # Failed to pick up the item
+    
+        game_instance.message_log.add_message("Mage Hand cannot interact with that target.", (255, 150, 0))
+        return False  # Invalid target, stay in targeting mode
 
 
 

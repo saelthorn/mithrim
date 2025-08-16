@@ -21,3 +21,5 @@ class GameMap:
                 tile = self.tiles[y][x]
                 char_surface = font.render(tile.char, True, tile.color)
                 screen.blit(char_surface, (x * tile_size, y * tile_size))
+
+

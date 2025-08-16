@@ -28,7 +28,8 @@ class Race:
 
 class Human(Race):
     def __init__(self):
-        super().__init__("Human", "A versatile and adaptable people, gaining +1 to all ability scores.")
+        super().__init__("Human", "A versatile and adaptable people, gaining +1 to all ability scores.",
+                         darkvision_radius=8)
 
     def apply_traits(self, player_instance, game_instance):
         super().apply_traits(player_instance, game_instance) # Call base method for logging
@@ -87,7 +88,7 @@ class DrowElf(Race):
         super().__init__(
             "Drow Elf",
             "A dark-skinned elf with keen senses and a natural affinity for magic, often dwelling in the Underdark. Gains +2 Dexterity, +1 Charisma, and Superior Darkvision.",
-            darkvision_radius=16, # Superior Darkvision (e.g., 12 tiles)
+            darkvision_radius=14, # Superior Darkvision (e.g., 12 tiles)
             damage_resistances=[], 
             skill_proficiencies=[], 
             weapon_proficiencies=["rapier", "shortsword", "hand crossbow"], 

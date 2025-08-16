@@ -15,24 +15,21 @@ class Item:
         return self.name
 
     def on_pickup(self, picker, game_instance):
-        """Called when the item is picked up."""
-        # First, try to add to inventory.
-        # The add_item method returns True on success, False if inventory is full.
+        """Handle the logic for picking up the item."""
+        # Prevent picking up chests or other non-pickupable items
+        if isinstance(self, Chest):  # Assuming you have a Chest class
+            game_instance.message_log.add_message(f"You cannot pick up the {self.name}. It's too heavy!", (255, 0, 0))
+            return False
+        
+        # Add the item to the picker's inventory
         if picker.inventory.add_item(self):
-            game_instance.message_log.add_message(f"You pick up the {self.name}.", self.color)
-            
-            # Only remove from map if successfully added to inventory
-            if self in game_instance.game_map.items_on_ground:
-                game_instance.game_map.items_on_ground.remove(self)
-            
-            # Force a redraw of the tile where the item was
-            game_instance.update_fov() 
-            return True # Indicate successful pickup
+            self.owner = picker  # Set the owner of the item
+            game_instance.message_log.add_message(f"{picker.name} picks up the {self.name}.", (0, 255, 0))
+            return True
         else:
-            # If inventory is full, don't pick up and don't remove from map
-            game_instance.message_log.add_message("Your inventory is full! Cannot pick up.", (255, 150, 0))
-            return False # Indicate failed pickup
-
+            game_instance.message_log.add_message(f"{picker.name}'s inventory is full!", (255, 0, 0))
+            return False
+        
     def on_drop(self, dropper, game_instance):
         """Called when the item is dropped."""
         game_instance.message_log.add_message(f"You drop the {self.name}.", self.color)
@@ -42,6 +39,7 @@ class Item:
         self.y = dropper.y
         game_instance.game_map.items_on_ground.append(self)
         game_instance.update_fov() # Update FOV to show dropped item
+
 
 class Potion(Item):
     """A consumable item that provides an effect."""
@@ -60,6 +58,7 @@ class Potion(Item):
         user.inventory.remove_item(self) # Remove after use
         game_instance.message_log.add_message(f"The {self.name} is consumed.", (150, 150, 150))
 
+
 class Weapon(Item):
     """An item that can be equipped for combat."""
     def __init__(self, name, char, color, description, damage_dice, damage_modifier, attack_bonus=0):
@@ -68,16 +67,20 @@ class Weapon(Item):
         self.damage_modifier = damage_modifier
         self.attack_bonus = attack_bonus # Bonus to hit
 
+
 class Armor(Item):
     """An item that can be equipped for defense."""
     def __init__(self, name, char, color, description, ac_bonus):
         super().__init__(name, char, color, description)
         self.ac_bonus = ac_bonus # Bonus to AC
 
+
 class Tools(Item):
     """An item that can be used in certain situations"""
     def __init__(self, name, char, color, description=""):
         super().__init__(name, char, color, description)
+
+
 
 # --- NEW CHEST CLASS ---
 class Chest(Item):
@@ -87,6 +90,7 @@ class Chest(Item):
         self.y = y
         self.opened = False
         self.contents = contents if contents is not None else [] # List of Item objects
+   
     def open(self, opener, game_instance):
         """Opens the chest and transfers its contents to the opener's inventory."""
         if self.opened:
@@ -110,6 +114,12 @@ class Chest(Item):
             game_instance.message_log.add_message(f"You found: {', '.join(items_given)}!", (0, 255, 0))
         else:
             game_instance.message_log.add_message("Your inventory is full, you couldn't take anything.", (255, 0, 0))
+
+    def on_pickup(self, picker, game_instance):
+        """Handle the logic for picking up the chest."""
+        game_instance.message_log.add_message(f"You cannot pick up the {self.name}. It's too heavy!", (255, 0, 0))
+        return False  # Prevent pickup            
+
 
 # --- Pre-defined Items (Examples) ---
 lesser_healing_potion = Potion(

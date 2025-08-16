@@ -112,6 +112,7 @@ def setup_tile_mapping():
         'A': (7 * CELL_DIM, 0 * CELL_DIM),  # Bartender (NPC)
         'p': (8 * CELL_DIM, 0 * CELL_DIM),  # Patron (NPC)
         'H': (6 * CELL_DIM, 0 * CELL_DIM),  # Healer (NPC)
+        'mh': (6 * CELL_DIM, 2 * CELL_DIM), # Mage Hand
         
         # Item Characters
         '!': (0 * CELL_DIM, 6 * CELL_DIM),  # Potion

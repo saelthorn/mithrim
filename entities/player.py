@@ -1,9 +1,9 @@
 import random
 from core.inventory import Inventory
-from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility
+from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand
 from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning
 from items.items import long_sword, chainmail_armor, short_sword, leather_armor, dagger, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, Item
-from entities.races import Human, HillDwarf # Import the races you've defined
+from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
     
 
 class Player: # This is our base class for playable characters
@@ -512,3 +512,5 @@ class Wizard(Player):
         # self.abilities["spellcasting"] = Spellcasting()
         self.abilities["fire_bolt"] = FireBolt()
         self.abilities["misty_step"] = MistyStep()
+        self.abilities["detect_magic"] = DetectMagic()
+        self.abilities["mage_hand"] = MageHand()
