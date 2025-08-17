@@ -173,7 +173,7 @@ def generate_dungeon(game_map, level_number, max_rooms=10, room_min_size=5, room
 
                     # --- Floor Decorations ---                    
                     if random.random() < floor_decoration_chance:
-                        if random.random() < 0.02: # 2% chance for a decoration to be a Mimic
+                        if random.random() < 0.05: # 5% chance for a decoration to be a Mimic
                             mimic_type_tile_obj = random.choice([crate, barrel])
                             mimic_entity_disguise_char = 'K' if mimic_type_tile_obj == crate else 'B'
                             mimic_tile_initial_display_char = 'k' if mimic_type_tile_obj == crate else 'b'
@@ -195,7 +195,7 @@ def generate_dungeon(game_map, level_number, max_rooms=10, room_min_size=5, room
         if 'up' in stairs_positions and (chest_spawn_x, chest_spawn_y) == stairs_positions['up']:
             continue # Skip if stairs_up are at the center of this room
 
-        if random.random() < 0.6: # Increased overall chest spawn chance to 60%
+        if random.random() < 0.5: # Increased overall chest spawn chance to 50%
             # Check if the spot is already occupied by an item (Mimic or Chest)
             is_occupied_by_item = False
             for existing_item in game_map.items_on_ground:

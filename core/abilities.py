@@ -6,7 +6,7 @@ from core.game import GameState
 from entities.monster import Monster, Mimic
 from entities.summons import MageHandEntity
 from core.floating_text import FloatingText
-from items.items import Potion, lesser_healing_potion # NEW: Import for potion drop
+from items.items import Potion, lesser_healing_potion, greater_healing_potion # NEW: Import for potion drop
 
 
 class Ability:
@@ -352,6 +352,20 @@ class FireBolt(Ability):
                 potion_to_drop.y = target_y
                 game_instance.game_map.items_on_ground.append(potion_to_drop)
                 game_instance.message_log.add_message(f"A {potion_to_drop.name} drops from the {target_tile.name}!", potion_to_drop.color)
+            elif random.random() < 0.20:  # 20% chance
+                # Create a new instance of the potion to avoid modifying the global one
+                potion_to_drop = greater_healing_potion.__class__(
+                    name=greater_healing_potion.name,
+                    char=greater_healing_potion.char,
+                    color=greater_healing_potion.color,
+                    description=greater_healing_potion.description,
+                    effect_type=greater_healing_potion.effect_type,
+                    effect_value=greater_healing_potion.effect_value
+                )
+                potion_to_drop.x = target_x
+                potion_to_drop.y = target_y
+                game_instance.game_map.items_on_ground.append(potion_to_drop)
+                game_instance.message_log.add_message(f"A {potion_to_drop.name} drops from the {target_tile.name}!", potion_to_drop.color)                
             # --- END NEW ---
 
             # --- MISSING FLOATING TEXT CREATION HERE FOR DESTRUCTIBLE ---

@@ -115,7 +115,6 @@ def setup_tile_mapping():
         'mh': (6 * CELL_DIM, 2 * CELL_DIM), # Mage Hand
         
         # Item Characters
-        'tt': (7 * CELL_DIM, 2 * CELL_DIM),  # Thieves Tools
         '!': (0 * CELL_DIM, 6 * CELL_DIM),  # Potions
 
         '-': (4 * CELL_DIM, 6 * CELL_DIM),  # Dagger

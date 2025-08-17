@@ -80,6 +80,10 @@ class Tools(Item):
     def __init__(self, name, char, color, description=""):
         super().__init__(name, char, color, description)
 
+class Junk(Item):
+    """A useless piece of wood."""
+    def __init__(self, name, char, color, description=""):
+        super().__init__(name, char, color, description)
 
 
 # --- NEW CHEST CLASS ---
@@ -119,6 +123,15 @@ class Chest(Item):
         """Handle the logic for picking up the chest."""
         game_instance.message_log.add_message(f"You cannot pick up the {self.name}. It's too heavy!", (255, 0, 0))
         return False  # Prevent pickup            
+
+
+# --- Junk Items ---
+wood_plank = Junk(
+    name="Plank",
+    char="pn",
+    color="(139, 69, 19)",
+    description="Just a useless piece of wood."
+)
 
 
 # --- Pre-defined Items (Examples) ---
@@ -184,7 +197,7 @@ quarterstaff = Weapon(
     name="Quarterstaff",
     char="l",
     color=(150, 150, 150),
-    description="A sturdy wooden staff. Can be wielded as a weapon or used as an arcane focus for spells.",
+    description="A sturdy wooden staff.",
     damage_dice="1d6",
     damage_modifier=0,
     attack_bonus=0

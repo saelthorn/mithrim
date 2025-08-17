@@ -193,8 +193,8 @@ class Game:
         (8, 9): [Lizardfolk,LizardfolkArcher],
         (10, 12): [Centaur, CentaurArcher, Troll],
         (13, 15): [Troll, Orc, GiantSpider, LargeOoze], 
-        (16, 17): [LargeOoze, Beholder, GiantSpider], 
-        (18, 99): [DragonWhelp], # High level, adjust max level as needed
+        (16, 17): [LargeOoze, DragonWhelp,  GiantSpider], 
+        (18, 99): [Beholder], # High level, adjust max level as needed
     }
 
 
@@ -439,7 +439,7 @@ class Game:
         self.entities = [self.player]
         
         monsters_per_level = min(2 + level_number, len(rooms) - 1)
-        monster_rooms = rooms[1:monsters_per_level + 1]
+        monster_rooms = rooms[1:monsters_per_level + 3]
 
         # Determine which monsters can spawn on this level based on MONSTER_SPAWN_TIERS
         possible_monsters = []
@@ -477,7 +477,7 @@ class Game:
                 self.entities.append(monster)
                 self.message_log.add_message(f"A {monster.name} appears!", (255, 150, 0))
 
-        if len(rooms) > 2 and random.random() < 0.6:
+        if len(rooms) > 2 and random.random() < 0.3: # Healer spawnrate
             shuffled_healer_rooms = list(rooms[1:-1])
             random.shuffle(shuffled_healer_rooms)
             healer_spawned = False
@@ -510,12 +510,22 @@ class Game:
                 self.message_log.add_message("DEBUG: Dungeon Healer could not find a suitable spawn spot.", (100, 100, 100))
 
         item_templates = [
-            Potion(name="Healing Potion", char="!", color=(255, 0, 0), description="Restores a small amount of health.", effect_type="heal", effect_value=8),
+            Potion(name="Healing Potion", char="!", color=(255, 0, 0), description="Restores a small amount of health.", effect_type="heal", effect_value=10),
+           
+            Weapon(name="Dagger", char="-", color=(150, 150, 150), description="A small, light blade.", damage_dice="1d4", damage_modifier=0, attack_bonus=0),
             Weapon(name="Short Sword", char="/", color=(150, 150, 150), description="A basic short sword.", damage_dice="1d6", damage_modifier=0, attack_bonus=0),
-            Armor(name="Leather Armor", char="[", color=(139, 69, 19), description="Light leather armor.", ac_bonus=1)
+            Weapon(name="Long Sword", char="|", color=(150, 150, 150), description="A adventurer's sword.", damage_dice="1d6", damage_modifier=1, attack_bonus=2),
+            Weapon(name="Battle Axe", char="?", color=(150, 150, 150), description="A battle tested axe.", damage_dice="1d8", damage_modifier=0, attack_bonus=0),
+            Weapon(name="Quarterstaff", char="/", color=(150, 150, 150), description="A sturdy wooden staff.", damage_dice="1d6", damage_modifier=0, attack_bonus=0),
+            
+            
+            Armor(name="Leather Armor", char="lta", color=(139, 69, 19), description="Light leather armor.", ac_bonus=1),
+            Armor(name="Chainmail Armor", char="lcha", color=(139, 69, 19), description="Chainmail armor.", ac_bonus=2),
+            Armor(name="Robes", char="rbs", color=(139, 69, 19), description="Simple cloth robes", ac_bonus=0),
+
         ]
 
-        item_spawn_chance = 0.9
+        item_spawn_chance = 0.99
 
         for room in rooms:
             if random.random() < item_spawn_chance:
@@ -940,17 +950,19 @@ class Game:
                     else:
                         self.message_log.add_message("You are Dashing. Press a movement key or ESC to cancel.", (255, 150, 0))
                         continue
-                    
-                    
+
                     if full_dx != 0 or full_dy != 0:
                         moved_successfully = False
+                        
                         # Determine step direction (e.g., -1, 0, 1)
                         step_dx = 0 if full_dx == 0 else (full_dx // abs(full_dx))
                         step_dy = 0 if full_dy == 0 else (full_dy // abs(full_dy))
+                        
                         # Iterate step by step
                         for i in range(1, 4): # Dash is 3 tiles, so check 1, 2, 3 steps
                             check_x = self.player.x + step_dx * i
                             check_y = self.player.y + step_dy * i
+                           
                             # Check if the next tile is walkable and not blocked by an entity
                             is_blocked_by_entity = False
                             for entity in self.entities:
@@ -986,9 +998,9 @@ class Game:
                             action_taken = False # No action taken if couldn't move at all
                         self.player.dash_active = False
                         self.player.current_action_state = None
-                        continue # Consume the event and proceed to next turn if action_taken is True
-
+                        continue # Consume the event and proceed to next turn if action_taken is True                                
                 
+
                 # --- Normal Turn Handling (if no special action state is active) ---
                 if self.player.current_action_state is None:
                     if event.key in (pygame.K_UP, pygame.K_w):
@@ -1103,18 +1115,24 @@ class Game:
     
         # Confirm target selection
         elif key == pygame.K_RETURN:
-            print("DEBUG: K_RETURN pressed in TARGETING. Calling execute_targeted_ability.")
             self.execute_targeted_ability()  # Handle the ability effect
             return  # Exit targeting mode
     
         # Cancel targeting
         if key == pygame.K_ESCAPE:
             self.message_log.add_message("Targeting cancelled.", (150, 150, 150))
-            self.game_state = GameState.DUNGEON  # Return to dungeon state
+            self.game_state = self._previous_game_state  # Return to previous game state (DUNGEON/TAVERN)
             self.ability_in_use = None  # Clear the ability
-            self.player_has_acted = False  # Player didn't act if cancelled
-            return  # Input handled
+            self.targeting_ability_range = 0
+            self.targeting_cursor_x = 0  # Reset cursor position
+            self.targeting_cursor_y = 0
+            self.player.current_action_state = None  # Clear any pending action state
     
+            # IMPORTANT: End the player's turn if they were in targeting mode
+            self.player_has_acted = True  # This allows the player to move again
+            self.next_turn()  # Move to the next turn
+            return  # Input handled
+        
 
     def execute_targeted_ability(self):
         """
@@ -1444,9 +1462,9 @@ class Game:
             self.game_map.tiles[y][x] = floor
             self.minimap_needs_redraw = True # Map changed, redraw minimap
             
-            # --- NEW: 20% chance to drop a Lesser Healing Potion ---
+            # --- NEW: 10% chance to drop a Lesser Healing Potion ---
             if target_tile.name in ["Crate", "Barrel"]: # Check if it was a crate or barrel
-                drop_chance = 0.20 # 20% chance
+                drop_chance = 0.10 # 10% chance
                 if random.random() < drop_chance:
                     # Create a new instance of the potion
                     new_potion = lesser_healing_potion.__class__(
@@ -1468,8 +1486,12 @@ class Game:
                         color=greater_healing_potion.color,
                         description=greater_healing_potion.description,
                         effect_type=greater_healing_potion.effect_type,
-                        effect_value=greater_healing_potion.effect_value                        
+                        effect_value=greater_healing_potion.effect_value
                     )
+                    new_potion.x = x
+                    new_potion.y = y
+                    self.game_map.items_on_ground.append(new_potion)
+                    self.message_log.add_message(f"A {new_potion.name} drops from the {target_tile.name}!", new_potion.color)    
             # --- END NEW DROP LOGIC ---
 
             return True
@@ -1487,7 +1509,7 @@ class Game:
         if not self.fov.get_visibility_type(target.x, target.y) in ['player', 'torch', 'darkvision']:
             self.message_log.add_message(f"You cannot attack {target.name} because it is out of sight!", (255, 0, 0))
             return
-
+    
         # Determine the actual d20 roll based on advantage/disadvantage
         roll1 = random.randint(1, 20)
         roll2 = random.randint(1, 20) # Always roll a second for simplicity
@@ -1504,10 +1526,10 @@ class Game:
             final_d20_roll = min(roll1, roll2)
             roll_message_part = f"2d20 (Disadvantage): {roll1}, {roll2} -> {final_d20_roll}"
             self.message_log.add_message("You roll with Disadvantage!", (255, 100, 100))
-
+    
         # Use final_d20_roll for the attack calculation
         attack_modifier = self.player.attack_bonus
-
+    
         # --- Check for PowerAttackBuff ---
         power_attack_buff = None
         for effect in self.player.active_status_effects:
@@ -1518,17 +1540,17 @@ class Game:
         if power_attack_buff:
             attack_modifier += power_attack_buff.attack_modifier # Apply accuracy penalty
             self.message_log.add_message(f"Power Attack: -{abs(power_attack_buff.attack_modifier)} to hit.", (255, 165, 0))
-
+    
         attack_roll_total = final_d20_roll + attack_modifier # Use final_d20_roll here
         self.message_log.add_message(
             f"You roll {roll_message_part} + {attack_modifier} (Attack Bonus) = {attack_roll_total}",
             (200, 200, 255)
         )
-
+    
         # Critical hit/fumble based on the final_d20_roll
         is_critical_hit = (final_d20_roll == 20)
         is_critical_fumble = (final_d20_roll == 1)
-
+    
         if is_critical_hit:
             self.message_log.add_message(
                 "CRITICAL HIT! You strike a vital spot!",
@@ -1545,7 +1567,7 @@ class Game:
             hit_successful = True
         else:
             hit_successful = False
-
+    
         if hit_successful:
             hit_messages = [
                 f"Your attack ({attack_roll_total}) hits the {target.name} (AC {target.armor_class})!",
@@ -1554,65 +1576,62 @@ class Game:
                 f"The {target.name} recoils from your strike!"
             ]
             self.message_log.add_message(random.choice(hit_messages), (100, 255, 100))
-
+    
             hit_text = FloatingText(target.x, target.y, "HIT!", (255, 255, 0), y_speed=0.4)
             self.floating_texts.append(hit_text)
-
-
+    
+    
             # Parse weapon damage dice (e.g., "1d6")
             dice_count_str, die_type_str = self.player.equipped_weapon.damage_dice.split('d')
             num_dice = int(dice_count_str)
             die_type = int(die_type_str)
-
+    
             damage_rolls = []
             total_dice_rolled = num_dice
-
+    
             if is_critical_hit:
                 total_dice_rolled *= 2 # Double the number of dice rolled for critical hits
                 self.message_log.add_message(f"Critical Hit! Rolling {total_dice_rolled}d{die_type} for damage!", (255, 255, 0))
-
+    
             for _ in range(total_dice_rolled):
                 damage_rolls.append(random.randint(1, die_type))
-
+    
             damage_dice_rolls_sum = sum(damage_rolls)
-
+    
             # Construct the message part for dice rolls
             damage_message_dice_part = f"{total_dice_rolled}d{die_type} ({' + '.join(map(str, damage_rolls))})"
-
+    
             damage_modifier = self.player.attack_power
-
+    
             if power_attack_buff:
                 damage_modifier += power_attack_buff.damage_modifier # Apply damage bonus
                 self.message_log.add_message(f"Power Attack: +{power_attack_buff.damage_modifier} damage.", (255, 165, 0))
                 # The buff should be consumed after one attack
                 self.player.active_status_effects.remove(power_attack_buff) # Remove the buff
                 self.message_log.add_message(f"Power Attack buff consumed.", (150, 150, 150))
-
+    
             damage_total = max(1, damage_dice_rolls_sum + damage_modifier)
-
+    
             self.message_log.add_message(
                 f"You roll {damage_message_dice_part} + {damage_modifier} (Attack Power) = {damage_total} damage!",
                 (255, 200, 100)
             )
-
+    
             damage_dealt = target.take_damage(damage_total, self, damage_type='physical') 
-
+    
             self.message_log.add_message(
                 f"You hit the {target.name} for {damage_dealt} damage!",
                 (255, 100, 100)
             )
-
+    
             damage_text = FloatingText(target.x, target.y - 0.5, str(damage_dealt), (255, 0, 0), y_speed=0.6)
             self.floating_texts.append(damage_text)
-
-
+    
+    
             if not target.alive:
                 xp_gained = target.die()
-                self.player.gain_xp(xp_gained, self)
-                self.message_log.add_message(
-                    f"The {target.name} dies! [+{xp_gained} XP]",
-                    (100, 255, 100)
-                )
+                self.player.gain_xp(xp_gained, self)  # Use 'self' (player) here
+                self.message_log.add_message(f"The {target.name} dies! [+{xp_gained} XP]", (100, 255, 100))
                 if random.random() < 0.7:
                     self.add_ambient_combat_message()
             else:
@@ -1628,10 +1647,10 @@ class Game:
                 f"Your weapon glances harmlessly off the {target.name}!"
             ]
             self.message_log.add_message(random.choice(miss_messages), (200, 200, 200))
-
+    
             miss_text = FloatingText(target.x, target.y, "MISS!", (150, 150, 150))
             self.floating_texts.append(miss_text)
-
+    
 
 
     def add_ambient_combat_message(self):
@@ -2600,4 +2619,3 @@ class Game:
 
         # Blit the minimap surface onto the main screen
         self.screen.blit(self.minimap_surface, self.minimap_rect.topleft)
-
