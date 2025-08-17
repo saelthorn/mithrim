@@ -115,9 +115,18 @@ def setup_tile_mapping():
         'mh': (6 * CELL_DIM, 2 * CELL_DIM), # Mage Hand
         
         # Item Characters
-        '!': (0 * CELL_DIM, 6 * CELL_DIM),  # Potion
-        '/': (4 * CELL_DIM, 6 * CELL_DIM),  # Weapon
-        '[': (1 * CELL_DIM, 6 * CELL_DIM),  # Armor
+        'tt': (7 * CELL_DIM, 2 * CELL_DIM),  # Thieves Tools
+        '!': (0 * CELL_DIM, 6 * CELL_DIM),  # Potions
+
+        '-': (4 * CELL_DIM, 6 * CELL_DIM),  # Dagger
+        '/': (5 * CELL_DIM, 6 * CELL_DIM),  # Shortsword
+        '|': (6 * CELL_DIM, 6 * CELL_DIM),  # Longsword
+        'l': (7 * CELL_DIM, 6 * CELL_DIM),  # Quarterstaff    
+        '?': (8 * CELL_DIM, 6 * CELL_DIM),  # Battleaxe    
+
+        'lta': (1 * CELL_DIM, 6 * CELL_DIM),  # Leather Armor
+        'cha': (2 * CELL_DIM, 6 * CELL_DIM),  # Chainmail Armor
+        'rbs': (3 * CELL_DIM, 6 * CELL_DIM),  # Robes        
     }
     print("Tile mapping setup complete.")        
 

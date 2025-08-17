@@ -135,9 +135,19 @@ greater_healing_potion = Potion(
     name="Greater Healing Potion",
     char="!",
     color=(240, 0, 0),
-    description="Restores a small amount of health.",
+    description="Restores a great amount of health.",
     effect_type="heal",
-    effect_value=24 # Heals 8 HP
+    effect_value=24 
+)
+
+dagger = Weapon(
+    name="Dagger",
+    char="-", # Using same char as other weapons for now
+    color=(180, 180, 180),
+    description="A small, light blade.",
+    damage_dice="1d4",
+    damage_modifier=0,
+    attack_bonus=0
 )
 
 short_sword = Weapon(
@@ -152,7 +162,7 @@ short_sword = Weapon(
 
 long_sword = Weapon(
     name="Long Sword",
-    char="/",
+    char="|",
     color=(150, 150, 150),
     description="A adventurer's sword.",
     damage_dice="1d6",
@@ -160,9 +170,29 @@ long_sword = Weapon(
     attack_bonus=2
 )
 
+battle_axe = Weapon(
+    name="Battle Axe",
+    char="?",
+    color=(150, 150, 150),
+    description="A battle tested axe.",
+    damage_dice="1d8",
+    damage_modifier=1,
+    attack_bonus=0
+)
+
+quarterstaff = Weapon(
+    name="Quarterstaff",
+    char="l",
+    color=(150, 150, 150),
+    description="A sturdy wooden staff. Can be wielded as a weapon or used as an arcane focus for spells.",
+    damage_dice="1d6",
+    damage_modifier=0,
+    attack_bonus=0
+)
+
 leather_armor = Armor(
     name="Leather Armor",
-    char="[",
+    char="lta",
     color=(139, 69, 19),
     description="Light leather armor.",
     ac_bonus=1 # Adds 1 to base AC
@@ -170,25 +200,15 @@ leather_armor = Armor(
 
 chainmail_armor = Armor(
     name="Chainmail Armor",
-    char="[",
+    char="cha",
     color=(175, 175, 175),
     description="Chainmail armor.",
     ac_bonus=3 # Adds 1 to base AC
 )
 
-# --- NEW: Dagger and Robes for Wizard ---
-dagger = Weapon(
-    name="Dagger",
-    char="/", # Using same char as other weapons for now
-    color=(180, 180, 180),
-    description="A small, light blade.",
-    damage_dice="1d4",
-    damage_modifier=0,
-    attack_bonus=0
-)
 robes = Armor(
     name="Robes",
-    char="[", # Using same char as other armor for now
+    char="rbs", # Using same char as other armor for now
     color=(100, 100, 200),
     description="Simple cloth robes.",
     ac_bonus=0 # Robes typically provide no AC bonus, relying on Dex
@@ -196,7 +216,7 @@ robes = Armor(
 
 thieves_tools = Tools(
     name="Thieves' Tools",
-    char="+",
+    char="tt",
     color=(255, 215, 0),
     description="Tools to unlock/disable trinkets"
 )
@@ -206,7 +226,7 @@ thieves_tools = Tools(
 def generate_random_loot(level_number):
     loot = []
     # Basic loot pool
-    loot_pool = [lesser_healing_potion, greater_healing_potion, short_sword, long_sword, leather_armor, chainmail_armor]
+    loot_pool = [lesser_healing_potion, greater_healing_potion, dagger, short_sword, long_sword, quarterstaff, battle_axe, leather_armor, chainmail_armor]
 
     # Add 1-3 random items
     num_items = random.randint(1, 2)

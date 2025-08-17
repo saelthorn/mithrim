@@ -35,7 +35,7 @@ def dig_tunnel_y(game_map, y1, y2, x):
     for y in range(min(y1, y2), max(y1, y2) + 1):
         game_map.tiles[y][x] = tile.floor
 
-def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_max_size=10):
+def generate_dungeon(game_map, level_number, max_rooms=10, room_min_size=5, room_max_size=10):
     rooms = []
     stairs_positions = {}
     
@@ -173,7 +173,7 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
 
                     # --- Floor Decorations ---                    
                     if random.random() < floor_decoration_chance:
-                        if random.random() < 0.1: # 15% chance for a decoration to be a Mimic
+                        if random.random() < 0.02: # 2% chance for a decoration to be a Mimic
                             mimic_type_tile_obj = random.choice([crate, barrel])
                             mimic_entity_disguise_char = 'K' if mimic_type_tile_obj == crate else 'B'
                             mimic_tile_initial_display_char = 'k' if mimic_type_tile_obj == crate else 'b'
@@ -222,7 +222,7 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
                 game_map.items_on_ground.append(new_chest)
                 # Ensure the tile under the chest is a floor tile, not a decoration.
                 game_map.tiles[chest_spawn_y][chest_spawn_x] = floor # <--- ADD THIS LINE
-
+    
     return rooms, stairs_positions, torch_light_sources
 
 

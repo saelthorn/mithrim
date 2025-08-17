@@ -48,7 +48,11 @@ class Player: # This is our base class for playable characters
         # --- NEW: Racial Proficiencies ---
         self.skill_proficiencies = []
         self.weapon_proficiencies = [] # e.g., ["shortsword", "longsword"]
-        self.armor_proficiencies = []  # e.g., ["light", "medium"]        
+        self.armor_proficiencies = []  # e.g., ["light", "medium"]       
+
+        # --- Class Proficiencies ---
+        self.class_weapon_proficiencies = []
+        self.class_armor_proficiencies = [] 
        
         # --- Saving Throw Proficiencies (Base values, will be overridden by subclasses) ---
         self.saving_throw_proficiencies = {
@@ -306,25 +310,23 @@ class Player: # This is our base class for playable characters
             
             self.equipped_weapon = item
             
-            # --- NEW: Check for weapon proficiency ---
+            # Check for weapon proficiency
             proficiency_penalty = 0
-            # Convert weapon name to a standardized format for proficiency check (e.g., lowercase, no spaces)
             standardized_weapon_name = item.name.lower().replace(" ", "") 
             
             # Check if the player is proficient with this specific weapon
-            # For now, we'll assume proficiency names match item names (e.g., "shortsword" proficiency for "Short Sword")
-            if standardized_weapon_name not in self.weapon_proficiencies:
+            if standardized_weapon_name not in self.weapon_proficiencies and standardized_weapon_name not in self.class_weapon_proficiencies:
                 proficiency_penalty = -4 # Example penalty for non-proficiency
                 game_instance.message_log.add_message(f"You are not proficient with {item.name}. Attack rolls with it will be penalized by {proficiency_penalty}.", (255, 100, 100))
             else:
                 game_instance.message_log.add_message(f"You are proficient with {item.name}.", (100, 255, 100))
+            
             # Recalculate attack bonus based on new weapon and proficiency
-            # This should be based on the class's primary attack stat
-            # For now, assuming DEX for base class, subclasses will override.
             self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus + item.attack_bonus + proficiency_penalty
             
             # Recalculate attack_power based on primary attack stat and equipped weapon
             self.attack_power = self.get_ability_modifier(self.dexterity) + item.damage_modifier
+            
             game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
             return True
 
@@ -413,6 +415,10 @@ class Fighter(Player):
         self.hp = self.max_hp
         self.armor_class = self._calculate_ac()
 
+        # Class-specific weapon and armor proficiencies
+        self.class_weapon_proficiencies = ["battleaxe", "handaxe", "light hammer", "warhammer", "shortsword", "longsword"]
+        self.class_armor_proficiencies = ["light", "medium", "heavy"]  # Fighters can wear all types of armor
+
         # Fighter's primary attack stat is Strength
         self.attack_power = self.get_ability_modifier(self.strength) + self.equipped_weapon.damage_modifier
         self.attack_bonus = self.get_ability_modifier(self.strength) + self.proficiency_bonus + self.equipped_weapon.attack_bonus
@@ -451,6 +457,10 @@ class Rogue(Player):
         self.max_hp = self._calculate_max_hp()
         self.hp = self.max_hp
         self.armor_class = self._calculate_ac()
+
+        # Class-specific weapon and armor proficiencies
+        self.class_weapon_proficiencies = ["shortsword", "dagger", "rapier", "hand crossbow"]
+        self.class_armor_proficiencies = ["light"]  # Rogues can wear light armor
 
         # Rogue's primary attack stat is Dexterity
         self.attack_power = self.get_ability_modifier(self.dexterity) + self.equipped_weapon.damage_modifier
@@ -494,6 +504,10 @@ class Wizard(Player):
         self.max_hp = self._calculate_max_hp()
         self.hp = self.max_hp
         self.armor_class = self._calculate_ac()
+
+        # Class-specific weapon and armor proficiencies
+        self.class_weapon_proficiencies = ["dagger", "quarterstaff"]  # Wizards typically use these
+        self.class_armor_proficiencies = ["light"]  # Wizards can wear light armor
         
         # Wizard's primary attack stat is Intelligence (for spells) or Dexterity (for weapons)
         # For basic weapon attacks, let's use Dexterity for now.

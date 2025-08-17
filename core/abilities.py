@@ -195,7 +195,7 @@ class PowerAttack(Ability):
 
 class CunningAction(Ability):
     def __init__(self):
-        super().__init__("Cunning Action", "Use a bonus action to Dash.", cooldown=5)  # Removed Disengage option
+        super().__init__("Cunning Action", "Use a bonus action to Dash.", cooldown=5)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
@@ -205,7 +205,7 @@ class CunningAction(Ability):
         user.current_action_state = "cunning_action_dash"  # Changed to only allow Dash
         game_instance.message_log.add_message(f"{user.name} prepares a Cunning Action: Dash!", (100, 255, 255))
         return True  # Indicate successful use of the ability (bonus action consumed)
-    
+  
 
 class Evasion(Ability):
     def __init__(self):

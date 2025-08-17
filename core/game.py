@@ -37,7 +37,7 @@ from entities.summons import MageHandEntity
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, MageHand
 from core.message_log import MessageBox
 from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff
-from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion
+from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion
 from core.pathfinding import astar
 from world.tile import floor, MimicTile, TrapTile
 from core.floating_text import FloatingText 
@@ -187,9 +187,9 @@ class Game:
 
     MONSTER_SPAWN_TIERS = {
         # Level range: [List of monster classes that can spawn]
-        (1, 3): [Ooze, GiantRat, LargeOoze],
+        (1, 3): [Ooze, GiantRat],
         (4, 5): [Goblin, GoblinArcher, Ooze, GiantRat, LargeOoze],
-        (6, 7): [Skeleton, SkeletonArcher, Orc],
+        (6, 7): [Skeleton, SkeletonArcher, Orc, LargeOoze],
         (8, 9): [Lizardfolk,LizardfolkArcher],
         (10, 12): [Centaur, CentaurArcher, Troll],
         (13, 15): [Troll, Orc, GiantSpider, LargeOoze], 
@@ -414,7 +414,7 @@ class Game:
         self.fov = FOV(self.game_map)
         
         rooms, self.stairs_positions, self.torch_light_sources = generate_dungeon(self.game_map, level_number)
-        
+
         if spawn_on_stairs_up and 'up' in self.stairs_positions:
             start_x, start_y = self.stairs_positions['up']
         else:
@@ -621,6 +621,7 @@ class Game:
             self.message_log.add_message("Returning to tavern...", (100, 200, 255))
             self.generate_tavern()
 
+
     def update_fov(self):
         # Store previous explored tiles for minimap redraw check
         previous_explored = set(self.fov.explored)
@@ -637,11 +638,11 @@ class Game:
             # Pass player.darkvision_radius to compute_fov
             # Player's normal sight radius is typically 6, darkvision extends it.
             self.fov.compute_fov(self.player.x, self.player.y, radius=6, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
-            
+
             # Add torch light sources
             for tx, ty in self.torch_light_sources:
                 self.fov.compute_fov(tx, ty, radius=4, light_source_type='torch')
-        
+
         # Check if new tiles were explored for minimap redraw
         if self.fov.explored != previous_explored:
             self.minimap_needs_redraw = True
@@ -854,12 +855,25 @@ class Game:
                         if event.key == pygame.K_f:  # Check if 'F' is pressed
                             self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
                             return True  # Consume event
+                    else:
+                        target = self.get_adjacent_target()
+                        if target:
+                            if isinstance(target, DungeonHealer):
+                                target.offer_rest(self.player, self)
+                                action_taken = True                        
 
                 if self.game_state == GameState.TAVERN:
                     npc = self.check_npc_interaction()
                     if npc and event.key == pygame.K_f:  # Check if 'F' is pressed
                         self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
                         return True  # Consume event
+                    else:
+                        target = self.get_adjacent_target()
+                        if target:
+                            if isinstance(target, DungeonHealer):
+                                target.offer_rest(self.player, self)
+                                action_taken = True         
+
                 # --- Handle SPACE key for NPC interaction ---
                 if self.game_state == GameState.TAVERN:
                     npc = self.check_npc_interaction()
@@ -908,14 +922,16 @@ class Game:
 
                 # --- Rogue Skill ---
                 if self.player.current_action_state == "cunning_action_dash":
+                    # Determine the full intended dash vector
+                    full_dx, full_dy = 0, 0
                     if event.key in (pygame.K_UP, pygame.K_w):
-                        dy = -3
+                        full_dy = -3
                     elif event.key in (pygame.K_DOWN, pygame.K_s):
-                        dy = 3
+                        full_dy = 3
                     elif event.key in (pygame.K_LEFT, pygame.K_a):
-                        dx = -3
+                        full_dx = -3
                     elif event.key in (pygame.K_RIGHT, pygame.K_d):
-                        dx = 3
+                        full_dx = 3
                     elif event.key == pygame.K_ESCAPE:
                         self.player.current_action_state = None
                         self.player.dash_active = False
@@ -924,34 +940,55 @@ class Game:
                     else:
                         self.message_log.add_message("You are Dashing. Press a movement key or ESC to cancel.", (255, 150, 0))
                         continue
+                    
+                    
+                    if full_dx != 0 or full_dy != 0:
+                        moved_successfully = False
+                        # Determine step direction (e.g., -1, 0, 1)
+                        step_dx = 0 if full_dx == 0 else (full_dx // abs(full_dx))
+                        step_dy = 0 if full_dy == 0 else (full_dy // abs(full_dy))
+                        # Iterate step by step
+                        for i in range(1, 4): # Dash is 3 tiles, so check 1, 2, 3 steps
+                            check_x = self.player.x + step_dx * i
+                            check_y = self.player.y + step_dy * i
+                            # Check if the next tile is walkable and not blocked by an entity
+                            is_blocked_by_entity = False
+                            for entity in self.entities:
+                                if entity != self.player and entity.x == check_x and entity.y == check_y and entity.alive and entity.blocks_movement:
+                                    is_blocked_by_entity = True
+                                    break
 
-                    if dx != 0 or dy != 0:
-                        target_x = self.player.x + dx 
-                        target_y = self.player.y + dy 
-                        
-                        
-                        if self.game_map.is_walkable(target_x, target_y):
-                            self.player.x = target_x
-                            self.player.y = target_y
-                            self.message_log.add_message("You Dash forward!", (100, 255, 100))
+                            if not self.game_map.is_walkable(check_x, check_y) or is_blocked_by_entity:
+                                # Obstacle found, stop one tile before it if possible
+                                if i > 1: # If we moved at least one tile before hitting obstacle
+                                    self.player.x = self.player.x + step_dx * (i - 1)
+                                    self.player.y = self.player.y + step_dy * (i - 1)
+                                    self.message_log.add_message("You Dash forward and stop before an obstacle!", (100, 255, 100))
+                                    moved_successfully = True
+                                else: # Obstacle right next to player, cannot dash
+                                    self.message_log.add_message("You cannot Dash forward due to an immediate obstacle!", (255, 150, 0))
+                                    moved_successfully = False # No movement occurred
+                                break # Stop checking further steps
+                            else:
+                                # If this is the last step and it's clear, move fully
+                                if i == 3:
+                                    self.player.x = check_x
+                                    self.player.y = check_y
+                                    self.message_log.add_message("You Dash forward!", (100, 255, 100))
+                                    moved_successfully = True
+                                    break # Full dash completed
+                        # If the loop finishes without breaking (meaning full dash was possible)
+                        # This case is handled by the 'if i == 3' inside the loop.
+                        # If no movement occurred (e.g., blocked immediately), moved_successfully will be False.
+                        if moved_successfully:
                             action_taken = True
                         else:
-                            target_x_1 = self.player.x + dx
-                            target_y_1 = self.player.y + dy
-                            if self.game_map.is_walkable(target_x_1, target_y_1):
-                                self.player.x = target_x_1
-                                self.player.y = target_y_1
-                                self.message_log.add_message("You Dash forward but hit an obstacle!", (255, 150, 0))
-                                action_taken = True
-                            else:
-                                self.message_log.add_message("You cannot Dash forward due to an obstacle!", (255, 150, 0))
-                                action_taken = False
-                        
+                            action_taken = False # No action taken if couldn't move at all
                         self.player.dash_active = False
                         self.player.current_action_state = None
-                        continue
-                
+                        continue # Consume the event and proceed to next turn if action_taken is True
 
+                
                 # --- Normal Turn Handling (if no special action state is active) ---
                 if self.player.current_action_state is None:
                     if event.key in (pygame.K_UP, pygame.K_w):
@@ -983,9 +1020,6 @@ class Game:
                                 if target:
                                     if isinstance(target, Mimic): # Mimics are entities, but also interactable
                                         target.reveal(self)
-                                        action_taken = True
-                                    elif isinstance(target, DungeonHealer):
-                                        target.offer_rest(self.player, self)
                                         action_taken = True
                                     elif isinstance(target, Monster): # If it's a monster, attack it
                                         self.handle_player_attack(target)
@@ -1412,7 +1446,7 @@ class Game:
             
             # --- NEW: 20% chance to drop a Lesser Healing Potion ---
             if target_tile.name in ["Crate", "Barrel"]: # Check if it was a crate or barrel
-                drop_chance = 0.50 # 20% chance
+                drop_chance = 0.20 # 20% chance
                 if random.random() < drop_chance:
                     # Create a new instance of the potion
                     new_potion = lesser_healing_potion.__class__(
@@ -1427,6 +1461,15 @@ class Game:
                     new_potion.y = y
                     self.game_map.items_on_ground.append(new_potion)
                     self.message_log.add_message(f"A {new_potion.name} drops from the {target_tile.name}!", new_potion.color)
+                elif random.random() < drop_chance:
+                    new_potion = greater_healing_potion.__class__(
+                        name=greater_healing_potion.name,
+                        char=greater_healing_potion.char,
+                        color=greater_healing_potion.color,
+                        description=greater_healing_potion.description,
+                        effect_type=greater_healing_potion.effect_type,
+                        effect_value=greater_healing_potion.effect_value                        
+                    )
             # --- END NEW DROP LOGIC ---
 
             return True

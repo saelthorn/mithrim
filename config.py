@@ -42,7 +42,7 @@ MESSAGE_LOG_FONT_SCALE_FACTOR = 1.5 # Multiplier for the base size, relative to 
 # For dynamic sizing, these specific values (40, 36) will be overwritten.
 # However, the pixel dimensions derived from them are still used for initial surface creation.
 INTERNAL_GAME_AREA_WIDTH_TILES = 45 # This will be dynamically calculated
-INTERNAL_GAME_AREA_HEIGHT_TILES = 3 # This will be dynamically calculated
+INTERNAL_GAME_AREA_HEIGHT_TILES = 36 # This will be dynamically calculated
 INTERNAL_GAME_AREA_PIXEL_WIDTH = INTERNAL_GAME_AREA_WIDTH_TILES * TILE_SIZE
 INTERNAL_GAME_AREA_PIXEL_HEIGHT = INTERNAL_GAME_AREA_HEIGHT_TILES * TILE_SIZE
 
