@@ -82,6 +82,7 @@ def create_tavern_npcs(game_map, door_position):
             patron = Patron(x, y, patron_names[i])
             npcs.append(patron)
 
+
     # --- NEW: Add a DungeonHealer to the tavern ---
     # Place the healer near the fireplace or another suitable, non-blocking spot
     # Assuming fireplace is at (2, game_map.height // 3)

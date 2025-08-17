@@ -30,7 +30,7 @@ class Player: # This is our base class for playable characters
         # Player-specific attributes
         self.level = 1
         self.current_xp = 0
-        self.xp_to_next_level = 20 # Base XP to level up
+        self.xp_to_next_level = 60 # Base XP to level up
 
         # --- D&D 5e Ability Scores (Base values, will be overridden by subclasses) ---
         self.strength = 10
@@ -199,7 +199,7 @@ class Player: # This is our base class for playable characters
     def level_up(self, game_instance=None):
         self.level += 1
         self.current_xp -= self.xp_to_next_level
-        self.xp_to_next_level = int(self.xp_to_next_level * 1.5) # XP curve
+        self.xp_to_next_level = int(self.xp_to_next_level * 1.35) # XP curve
 
         if self.level in [5, 9, 13, 17]:
             self.proficiency_bonus += 1
@@ -403,6 +403,8 @@ class Fighter(Player):
         }
         
         # Set starting equipment
+        self.inventory.add_item(short_sword)
+
         self.equipped_weapon = long_sword
         self.equipped_armor = chainmail_armor
 
@@ -479,16 +481,7 @@ class Wizard(Player):
             "STR": False, "DEX": False, "CON": False, "CHA": False,
         }
 
-        # --- NEW: Set and apply race traits ---
-        # For now, hardcode Human. This will be chosen by the player later.
-        self.race = HillDwarf() # Or HillDwarf() to test that race
-        # Pass 'self' (the player instance) and 'game_instance' (which is not available here yet)
-        # We'll need to pass game_instance from Game.__init__ to Player.__init__
-        # For now, we'll apply traits in Game.__init__ after player creation.
-        # This is a temporary workaround for Phase 1 simplicity.
-        # The proper place for apply_traits is after player is fully initialized and game_instance is available.
-        # So, we'll move the apply_traits call to Game.__init__ for now.
-        
+
         # Set starting equipment
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(greater_healing_potion)

@@ -71,4 +71,3 @@ class FOV:
         elif (x, y) in self.explored:
             return 'explored'
         return 'unexplored'
-

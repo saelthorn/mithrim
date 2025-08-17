@@ -59,31 +59,27 @@ class Monster:
     def take_turn(self, player, game_map, game):
         """Handle monster's combat and movement"""
         if not self.alive:
-            print(f"DEBUG: {self.name} is dead, skipping turn.") # <--- ADD THIS
             return
 
         # Process status effects at the start of the monster's turn
         self.process_status_effects(game)
         if not self.alive: # Check if monster died from status effect
-           print(f"DEBUG: {self.name} died from status effect, skipping turn.") # <--- ADD THIS
            return
-
-        # Check if adjacent to player (including diagonals)
-        if self.is_adjacent_to(player):
-            print(f"DEBUG: {self.name} is adjacent to player. Calling attack().") # <--- ADD THIS
-            self.attack(player, game) # Use base melee attack
-            return
 
         # If monster has ranged attack, check if player is in range and line of sight
         if self.is_ranged:
             distance_to_player = self.distance_to(player.x, player.y)
+            # Use the new check_line_of_sight method
             if distance_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
-                print(f"DEBUG: {self.name} is ranged and player in LOS. Calling ranged_attack().") # <--- ADD THIS
                 self.ranged_attack(player, game)
                 return
 
+        # Check if adjacent to player (including diagonals) - melee attack
+        if self.is_adjacent_to(player):
+            self.attack(player, game) # Use base melee attack
+            return
+
         # Otherwise, move toward player using A* pathfinding
-        print(f"DEBUG: {self.name} is moving towards player.") # <--- ADD THIS
         other_entities = [e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement]
 
         path = astar(game_map, (self.x, self.y), (player.x, player.y), entities=other_entities)
@@ -100,12 +96,10 @@ class Monster:
 
             if not is_blocked:
                 self.x, self.y = new_x, new_y
-                print(f"DEBUG: {self.name} moved to ({self.x},{self.y}).") # <--- ADD THIS
             else:
                 game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
-                print(f"DEBUG: {self.name} is blocked.") # <--- ADD THIS
         else:
-            print(f"DEBUG: {self.name} found no path or no next step.") # <--- ADD THIS
+            pass # No path found or no next step, monster waits.
 
 
     def is_adjacent_to(self, other):
@@ -385,11 +379,11 @@ class Mimic(Monster):
             self.revealed_char = 'M' 
         self.revealed_color = (255, 0, 0) 
         
-        self.hp = 20 # Mimic specific HP
-        self.max_hp = 20
+        self.hp = 22 # Mimic specific HP
+        self.max_hp = 22
         self.attack_power = 5
-        self.armor_class = 14
-        self.base_xp = 30
+        self.armor_class = 12
+        self.base_xp = 40
         self.blocks_movement = True
 
     def take_damage(self, amount, game_instance, damage_type=None):
@@ -460,11 +454,11 @@ class Mimic(Monster):
 class GiantRat(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'r', 'Giant Rat', (0, 130, 8))
-        self.hp = 5
-        self.max_hp = 5
-        self.attack_power = 1
-        self.armor_class = 10
-        self.base_xp = 4
+        self.hp = 7
+        self.max_hp = 7
+        self.attack_power = 2
+        self.armor_class = 11
+        self.base_xp = 10
         self.can_poison = True
         self.poison_dc = 11
         self.poison_duration = 2
@@ -473,11 +467,11 @@ class GiantRat(Monster):
 class GiantSpider(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'GS', 'Giant Spider', (50, 50, 50)) 
-        self.hp = 10
-        self.max_hp = 10
-        self.attack_power = 2
-        self.armor_class = 12
-        self.base_xp = 25
+        self.hp = 26
+        self.max_hp = 26
+        self.attack_power = 6
+        self.armor_class = 14
+        self.base_xp = 65
         self.can_poison = True
         self.poison_dc = 12
         self.poison_duration = 4
@@ -486,11 +480,11 @@ class GiantSpider(Monster):
 class Ooze(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 's', 'Ooze', (0, 200, 0)) # 's' for slime, bright green
-        self.hp = 8
-        self.max_hp = 8
-        self.attack_power = 2
+        self.hp = 18
+        self.max_hp = 18
+        self.attack_power = 4
         self.armor_class = 8 # Slimes are squishy
-        self.base_xp = 6
+        self.base_xp = 25
         self.can_acid_burn = True # Or make it acid damage later
         self.acid_burn_dc = 14
         self.acid_burn_duration = 4
@@ -499,94 +493,93 @@ class Ooze(Monster):
 class Goblin(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'g', 'Goblin', (0, 130, 8))
-        self.hp = 7
-        self.max_hp = 7
-        self.attack_power = 2
+        self.hp = 11
+        self.max_hp = 11
+        self.attack_power = 3
         self.armor_class = 12
-        self.base_xp = 6
+        self.base_xp = 15
 
 class GoblinArcher(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'ga', 'Goblin Archer', (0, 100, 0)) # 'a' for archer, darker green
-        self.hp = 8
-        self.max_hp = 8
+        self.hp = 10
+        self.max_hp = 10
         self.attack_power = 1 # Melee attack if adjacent
         self.is_ranged = True
-        self.ranged_attack_power = 1 # Ranged attack damage
+        self.ranged_attack_power = 4 # Ranged attack damage
         self.range = 6 # How far it can shoot
-        self.armor_class = 13
-        self.base_xp = 15
+        self.armor_class = 11
+        self.base_xp = 18
 
 class Skeleton(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'S', 'Skeleton', (215, 152, 152))
-        self.hp = 9
-        self.max_hp = 9
+        self.hp = 13
+        self.max_hp = 13
         self.attack_power = 3
-        self.armor_class = 12
-        self.base_xp = 8
+        self.armor_class = 13
+        self.base_xp = 20
 
 class SkeletonArcher(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'SA', 'Skeleton Archer', (180, 180, 180)) # 'S' for Skeleton Archer, lighter gray
-        self.hp = 10
-        self.max_hp = 10
+        self.hp = 12
+        self.max_hp = 12
         self.attack_power = 2
         self.is_ranged = True
-        self.ranged_attack_power = 1
+        self.ranged_attack_power = 4
         self.range = 6
-        self.armor_class = 14
-        self.base_xp = 20
+        self.armor_class = 12
+        self.base_xp = 22
 
 class Orc(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'OR', 'Orc', (63, 127, 63)) # 'OR' for Orc, dark green
-        self.hp = 12
-        self.max_hp = 12
-        self.attack_power = 4
+        self.hp = 15
+        self.max_hp = 15
+        self.attack_power = 5
         self.armor_class = 13
-        self.base_xp = 10
+        self.base_xp = 25
 
 class Centaur(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'CT', 'Centaur', (139, 69, 19)) # 'C' for Centaur, brown
-        self.hp = 15
-        self.max_hp = 15
-        self.attack_power = 5 # Melee attack (hooves/spear)
-        self.range = 8
+        self.hp = 30
+        self.max_hp = 30
+        self.attack_power = 6 # Melee attack (hooves/spear)
         self.armor_class = 14
-        self.base_xp = 25
+        self.base_xp = 50
 
 class CentaurArcher(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'CA', 'Centaur Archer', (139, 69, 19)) # 'CA' for Centaur Archer, brown
-        self.hp = 14
-        self.max_hp = 14
-        self.attack_power = 3 # Melee attack if adjacent
+        self.hp = 26
+        self.max_hp = 26
+        self.attack_power = 5 # Melee attack if adjacent
         self.is_ranged = True
-        self.ranged_attack_power = 4 # Ranged attack damage
+        self.ranged_attack_power = 7 # Ranged attack damage
         self.range = 6 # How far it can shoot
-        self.armor_class = 15
-        self.base_xp = 20        
+        self.armor_class = 13
+        self.base_xp = 55    
 
 class Troll(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'T', 'Troll', (127, 63, 63))
-        self.hp = 20
-        self.max_hp = 20
-        self.attack_power = 6
+        self.hp = 84
+        self.max_hp = 84
+        self.attack_power = 9
         self.armor_class = 15
-        self.base_xp = 30
+        self.base_xp = 180
         # Trolls often have regeneration, which would be a status effect or a special method
 
 class Lizardfolk(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'L', 'Lizardfolk', (0, 100, 100)) # 'L' for Lizardfolk, teal
-        self.hp = 18
-        self.max_hp = 18
+        self.hp = 22
+        self.max_hp = 22
         self.attack_power = 5
-        self.armor_class = 16
-        self.base_xp = 28
+        self.armor_class = 14
+        self.base_xp = 40
         self.can_poison = True # Some Lizardfolk have poisonous bites
         self.poison_dc = 13
         self.poison_duration = 3
@@ -595,23 +588,23 @@ class Lizardfolk(Monster):
 class LizardfolkArcher(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'LA', 'Lizardfolk Archer', (0, 80, 80)) # 'LA' for Lizardfolk Archer, darker teal
-        self.hp = 16
-        self.max_hp = 16
+        self.hp = 20
+        self.max_hp = 20
         self.attack_power = 3 # Melee attack if adjacent
         self.is_ranged = True
-        self.ranged_attack_power = 4 # Ranged attack damage
+        self.ranged_attack_power = 6 # Ranged attack damage
         self.range = 6 # How far it can shoot
-        self.armor_class = 15
-        self.base_xp = 22        
+        self.armor_class = 13
+        self.base_xp = 42    
 
 class LargeOoze(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'LO', 'Large Ooze', (0, 150, 0)) # 'O' for Large Ooze, bright green
-        self.hp = 20
-        self.max_hp = 20
-        self.attack_power = 3
-        self.armor_class = 10 # Still squishy but larger
-        self.base_xp = 15
+        self.hp = 45
+        self.max_hp = 45
+        self.attack_power = 8
+        self.armor_class = 8 # Still squishy but larger
+        self.base_xp = 120
         self.can_acid_burn = True # Or make it acid damage later
         self.acid_burn_dc = 12
         self.acid_burn_duration = 3
@@ -620,23 +613,25 @@ class LargeOoze(Monster):
 class Beholder(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'BH', 'Beholder', (150, 0, 150)) # 'B' for Beholder, purple
-        self.hp = 50
-        self.max_hp = 50
+        self.hp = 180
+        self.max_hp = 180
         self.attack_power = 8 # Bite attack
         self.is_ranged = True
-        self.ranged_attack_power = 5 # Eye ray damage (example)
-        self.range = 7 # Long range eye rays
+        self.ranged_attack_power = 12 # Eye ray damage (example)
+        self.range = 8 # Long range eye rays
         self.armor_class = 18
-        self.base_xp = 100
+        self.base_xp = 1000
         # Beholders would typically have multiple eye ray types, anti-magic cone, etc.
         # This is a very simplified version.
 
 class DragonWhelp(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'D', 'Dragon Whelp', (255, 63, 63))
-        self.hp = 30
-        self.max_hp = 30
-        self.attack_power = 7
-        self.armor_class = 17
-        self.base_xp = 50
+        self.hp = 55
+        self.max_hp = 55
+        self.attack_power = 10
+        self.is_ranged = True
+        self.ranged_attack_power = 10
+        self.armor_class = 16
+        self.base_xp = 250
         # Dragon Whelps might have a breath weapon (area effect)

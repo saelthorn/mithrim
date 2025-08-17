@@ -160,7 +160,7 @@ class DisarmTrapsAbility(Ability):
 
 class SecondWind(Ability):
     def __init__(self):
-        super().__init__("Second Wind", "Heal yourself for a small amount of HP.", cooldown=30) # 15 turns cooldown
+        super().__init__("Second Wind", "Heal yourself for a small amount of HP.", cooldown=15) # 15 turns cooldown
 
     def use(self, user, game_instance):
         # Call base class use to handle cooldown and initial checks.
@@ -176,7 +176,7 @@ class SecondWind(Ability):
 
 class PowerAttack(Ability):
     def __init__(self):
-        super().__init__("Power Attack", "Sacrifice accuracy for increased damage on your next attack.", cooldown=10)
+        super().__init__("Power Attack", "Sacrifice accuracy for increased damage on your next attack.", cooldown=5)
         # PowerAttack doesn't need a 'range' attribute here because it's not a direct targeted ability.
         # It modifies the *next* melee attack.
     def use(self, user, game_instance):
@@ -209,7 +209,7 @@ class CunningAction(Ability):
 
 class Evasion(Ability):
     def __init__(self):
-        super().__init__("Evasion", "Become incredibly agile, greatly increasing dodge chance and taking half damage if hit. Lasts 3 turns.", cooldown=50)
+        super().__init__("Evasion", "Become incredibly agile, greatly increasing dodge chance and taking half damage if hit. Lasts 3 turns.", cooldown=20)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
@@ -278,6 +278,14 @@ class FireBolt(Ability):
         if not game_instance.fov.get_visibility_type(target_x, target_y) in ['player', 'torch', 'darkvision']:
             game_instance.message_log.add_message(f"You cannot attack {target_x}, {target_y} because it is out of sight!", (255, 0, 0))
             return False  # Do not consume a turn
+
+        if not game_instance.check_line_of_sight(user.x, user.y, target_x, target_y):
+            game_instance.message_log.add_message(f"A wall blocks your shot to {target_x}, {target_y}!", (255, 0, 0))
+            return False # Do not consume a turn
+
+        target_monster = game_instance.get_target_at(target_x, target_y)
+        target_tile = game_instance.game_map.tiles[target_y][target_x]  # Get the tile object at target        
+
 
         # Check if the target is a valid monster or destructible object
         if not (target_monster or target_tile.destructible):
@@ -368,7 +376,7 @@ class FireBolt(Ability):
 
 class MistyStep(Ability):
     def __init__(self):
-        super().__init__("Misty Step", "The caster is briefly surrounded by silvery mist then vanishes, reappearing in an unoccupied space up to 6 tiles away.", cooldown=10)
+        super().__init__("Misty Step", "The caster is briefly surrounded by silvery mist then vanishes, reappearing in an unoccupied space up to 6 tiles away.", cooldown=7)
         self.range = 6 # Max teleport distance in tiles
 
     def use(self, user, game_instance):
@@ -413,7 +421,7 @@ class MistyStep(Ability):
 
 class DetectMagic(Ability):
     def __init__(self):
-        super().__init__("Detect Magic", "Detects magical traps (specifically Fire Traps) within a certain range.", cost=0, cooldown=10)
+        super().__init__("Detect Magic", "Detects magical traps (specifically Fire Traps) within a certain range.", cost=0, cooldown=5)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):  # Handles cooldown check
@@ -446,7 +454,7 @@ class DetectMagic(Ability):
 
 class MageHand(Ability):
     def __init__(self):
-        super().__init__("Mage Hand", "Summon a spectral hand to trigger traps or pick up items from a distance.", cost=0, cooldown=5)
+        super().__init__("Mage Hand", "Summon a spectral hand to trigger traps or pick up items from a distance.", cost=0, cooldown=4)
         self.range = 6  # Max distance the Mage Hand can be controlled
 
     def use(self, user, game_instance):

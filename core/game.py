@@ -28,7 +28,8 @@ from entities.monster import (
     LizardfolkArcher, GiantSpider, Beholder, LargeOoze, DragonWhelp
 )
 
-from entities.tavern_npcs import create_tavern_npcs
+from entities.base_entity import NPC
+from entities.tavern_npcs import create_tavern_npcs, NPC
 from entities.dungeon_npcs import DungeonHealer
 from entities.tavern_npcs import NPC
 from entities.races import Human, HillDwarf, DrowElf # NEW: Import DrowElf
@@ -100,9 +101,6 @@ class Camera:
         screen_x, screen_y = self.world_to_screen(world_x, world_y)
         return (0 <= screen_x < self.viewport_width and
                 0 <= screen_y < self.viewport_height)
-
-
-
 
 
 class Game:
@@ -189,13 +187,13 @@ class Game:
 
     MONSTER_SPAWN_TIERS = {
         # Level range: [List of monster classes that can spawn]
-        (1, 3): [GiantSpider, Ooze, GiantRat],
-        (4, 5): [Goblin, GoblinArcher, Ooze, GiantRat],
+        (1, 3): [Ooze, GiantRat, LargeOoze],
+        (4, 5): [Goblin, GoblinArcher, Ooze, GiantRat, LargeOoze],
         (6, 7): [Skeleton, SkeletonArcher, Orc],
         (8, 9): [Lizardfolk,LizardfolkArcher],
         (10, 12): [Centaur, CentaurArcher, Troll],
         (13, 15): [Troll, Orc, GiantSpider, LargeOoze], 
-        (16, 17): [LargeOoze, Beholder], 
+        (16, 17): [LargeOoze, Beholder, GiantSpider], 
         (18, 99): [DragonWhelp], # High level, adjust max level as needed
     }
 
@@ -329,6 +327,7 @@ class Game:
 
     def _recalculate_minimap_dimensions(self):
         """Recalculates minimap surface and rect based on current screen size."""
+        # Calculate minimap dimensions based on screen size ratios
         minimap_pixel_width = int(config.SCREEN_WIDTH * config.MINIMAP_WIDTH_RATIO)
         minimap_pixel_height = int(config.SCREEN_HEIGHT * config.MINIMAP_HEIGHT_RATIO)
 
@@ -339,14 +338,18 @@ class Game:
         self.minimap_surface = pygame.Surface((minimap_pixel_width, minimap_pixel_height), pygame.SRCALPHA)
         self.minimap_surface.set_alpha(config.MINIMAP_ALPHA)
 
+        # Calculate margins based on screen dimensions
+        minimap_margin_top = int(config.SCREEN_HEIGHT * config.MINIMAP_MARGIN_TOP_RATIO)
+        minimap_margin_right = int(config.SCREEN_WIDTH * config.MINIMAP_MARGIN_RIGHT_RATIO)
+
         # Position the minimap in the top-right corner of the UI panel
         self.minimap_rect = pygame.Rect(
-            config.GAME_AREA_WIDTH + config.UI_PANEL_WIDTH - minimap_pixel_width - config.MINIMAP_MARGIN_RIGHT, # Use MINIMAP_MARGIN_RIGHT
-            config.MINIMAP_MARGIN_TOP, # Use MINIMAP_MARGIN_TOP
+            config.GAME_AREA_WIDTH + config.UI_PANEL_WIDTH - minimap_pixel_width - minimap_margin_right,
+            minimap_margin_top,
             minimap_pixel_width,
             minimap_pixel_height
         )
-        self.minimap_needs_redraw = True # Always redraw minimap after resize
+        self.minimap_needs_redraw = True  # Always redraw minimap after resize
 
 
     def _init_fonts(self):
@@ -584,6 +587,7 @@ class Game:
                     return npc
         return None
 
+
     def check_dungeon_npc_interaction(self):
         if self.game_state == GameState.DUNGEON:
             for entity in self.entities:
@@ -620,7 +624,6 @@ class Game:
     def update_fov(self):
         # Store previous explored tiles for minimap redraw check
         previous_explored = set(self.fov.explored)
-
         if self.game_state == GameState.TAVERN:
             self.fov.visible_sources.clear()
             self.fov.explored.clear()
@@ -629,9 +632,13 @@ class Game:
                     self.fov.visible_sources[(x, y)] = 'player'
                     self.fov.explored.add((x, y))
         else:
-            self.fov.visible_sources.clear()
+            # Clear only visible sources, keep explored for persistent map
+            self.fov.visible_sources.clear() 
             # Pass player.darkvision_radius to compute_fov
+            # Player's normal sight radius is typically 6, darkvision extends it.
             self.fov.compute_fov(self.player.x, self.player.y, radius=6, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
+            
+            # Add torch light sources
             for tx, ty in self.torch_light_sources:
                 self.fov.compute_fov(tx, ty, radius=4, light_source_type='torch')
         
@@ -743,6 +750,16 @@ class Game:
                 self._recalculate_dimensions()
                 self.render()            
 
+            # NEW: Handle mouse wheel scrolling for message log
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if self.message_log.rect.collidepoint(event.pos): # Check if mouse is over message log
+                    if event.button == 4: # Scroll up
+                        self.message_log.scroll_up()
+                        return True # Consume event
+                    elif event.button == 5: # Scroll down
+                        self.message_log.scroll_down()
+                        return True # Consume event
+
             if event.type == pygame.KEYDOWN:
                 print(f"  DEBUG KEYDOWN event: {pygame.key.name(event.key)} (value: {event.key})")
                 
@@ -829,6 +846,26 @@ class Game:
                         self.message_log.add_message("Opening Character Menu...", (100, 200, 255))
                     return True # Consume event, don't process other game states                
 
+
+                # --- NEW: Handle 'F' key for NPC interaction ---
+                if self.game_state == GameState.DUNGEON:
+                    npc = self.check_npc_interaction()
+                    if npc:
+                        if event.key == pygame.K_f:  # Check if 'F' is pressed
+                            self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
+                            return True  # Consume event
+
+                if self.game_state == GameState.TAVERN:
+                    npc = self.check_npc_interaction()
+                    if npc and event.key == pygame.K_f:  # Check if 'F' is pressed
+                        self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
+                        return True  # Consume event
+                # --- Handle SPACE key for NPC interaction ---
+                if self.game_state == GameState.TAVERN:
+                    npc = self.check_npc_interaction()
+                    if npc and event.key == pygame.K_SPACE:  # Check if SPACE is pressed
+                        self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
+                        return True  # Consume event
 
                 # --- Handle input based on game state ---
                 # These blocks should only be entered if the game_state is specifically that menu
@@ -1088,21 +1125,18 @@ class Game:
         self.player_has_acted = True
         self.next_turn()
 
+# MultipleFiles/game.py
+# ... (existing code) ...
+
     def check_line_of_sight(self, x1, y1, x2, y2):
         """
-        Basic line of sight check using a simplified Bresenham-like approach.
-        Checks if there are any sight-blocking tiles between (x1, y1) and (x2, y2).
+        Bresenham's Line Algorithm for checking direct line of sight.
+        Returns True if there are no sight-blocking tiles between (x1, y1) and (x2, y2) (exclusive of start, inclusive of end).
         """
-        # If start or end is blocked, no LOS
-        if self.game_map.tiles[y1][x1].block_sight or self.game_map.tiles[y2][x2].block_sight:
+        # If start or end is blocked, no LOS (unless it's the target itself)
+        if self.game_map.tiles[y1][x1].block_sight:
             return False
 
-        # Simple case: same tile
-        if x1 == x2 and y1 == y2:
-            return True
-
-        # Use a simple step-by-step check
-        points = []
         dx = abs(x2 - x1)
         dy = abs(y2 - y1)
         sx = 1 if x1 < x2 else -1
@@ -1112,9 +1146,14 @@ class Game:
         current_x, current_y = x1, y1
 
         while True:
-            points.append((current_x, current_y))
+            # If we've reached the target, LOS is clear
             if current_x == x2 and current_y == y2:
-                break
+                return True
+
+            # Check if the current tile (excluding the start) blocks sight
+            if (current_x != x1 or current_y != y1) and self.game_map.tiles[current_y][current_x].block_sight:
+                return False
+
             e2 = 2 * err
             if e2 > -dy:
                 err -= dy
@@ -1122,12 +1161,8 @@ class Game:
             if e2 < dx:
                 err += dx
                 current_y += sy
-        
-        # Check all points along the line (excluding start and end)
-        for px, py in points[1:-1]: # Exclude start and end points
-            if self.game_map.tiles[py][px].block_sight:
-                return False
-        return True
+        return False
+
 
 
     def get_interactable_item_at(self, x, y):
@@ -1636,6 +1671,8 @@ class Game:
         if abs(old_scale - self.scale) > 0.1:
             self.internal_surface = pygame.Surface((INTERNAL_WIDTH, INTERNAL_HEIGHT))
             self.font = pygame.font.SysFont('consolas', int(INTERNAL_HEIGHT/50))
+
+        self._recalculate_minimap_dimensions()            
 
     def render(self):
         """Main render method - draws everything"""
@@ -2451,19 +2488,19 @@ class Game:
             else:
                 break
 
+
     def draw_minimap(self):
         """Draws the mini-map on its dedicated surface."""
         if self.minimap_needs_redraw:
             self.minimap_surface.fill((0, 0, 0, 0))  # Clear with transparency
 
             # Calculate scaling factors for the minimap
-            # We want to fit the entire game_map into the minimap_surface
             scale_x = self.minimap_surface.get_width() / self.game_map.width
             scale_y = self.minimap_surface.get_height() / self.game_map.height
-            
+
             # Use the smaller scale to ensure the entire map fits, maintaining aspect ratio
             minimap_tile_scale = min(scale_x, scale_y)
-            
+
             # Calculate the actual tile size on the minimap
             actual_minimap_tile_size = max(1, int(config.MINIMAP_TILE_SIZE * minimap_tile_scale))
 
@@ -2475,18 +2512,18 @@ class Game:
                 for x in range(self.game_map.width):
                     if (x, y) in self.fov.explored:
                         tile = self.game_map.tiles[y][x]
-                        color = (0, 0, 0) # Default to black for unexplored
-                        
+                        color = (0, 0, 0)  # Default to black for unexplored
+
                         if self.game_state == GameState.TAVERN:
                             # In tavern, all explored tiles are fully visible
                             color = tile.color
                         elif self.game_state == GameState.DUNGEON:
                             # In dungeon, explored tiles are dim, visible tiles are bright
                             if self.fov.get_visibility_type(x, y) in ['player', 'torch', 'darkvision']:
-                                color = tile.color # Visible tiles
+                                color = tile.color  # Visible tiles
                             else:
-                                color = tile.dark_color # Explored but not currently visible
-                        
+                                color = tile.dark_color  # Explored but not currently visible
+
                         # Draw the tile on the minimap surface
                         pygame.draw.rect(
                             self.minimap_surface,
@@ -2496,12 +2533,11 @@ class Game:
                              actual_minimap_tile_size,
                              actual_minimap_tile_size)
                         )
-            
-            self.minimap_needs_redraw = False # Minimap is now up to date
+
+            self.minimap_needs_redraw = False  # Minimap is now up to date
 
         # Draw player on top of the minimap (always visible if player exists)
         if self.player:
-            # Calculate scaling factors for the minimap
             scale_x = self.minimap_surface.get_width() / self.game_map.width
             scale_y = self.minimap_surface.get_height() / self.game_map.height
             minimap_tile_scale = min(scale_x, scale_y)
@@ -2511,13 +2547,14 @@ class Game:
 
             player_minimap_x = offset_x + self.player.x * actual_minimap_tile_size
             player_minimap_y = offset_y + self.player.y * actual_minimap_tile_size
-            
+
             # Draw player as a small white square
             pygame.draw.rect(
                 self.minimap_surface,
-                (255, 255, 255), # White color for player
+                (255, 255, 255),  # White color for player
                 (player_minimap_x, player_minimap_y, actual_minimap_tile_size, actual_minimap_tile_size)
             )
 
         # Blit the minimap surface onto the main screen
         self.screen.blit(self.minimap_surface, self.minimap_rect.topleft)
+
