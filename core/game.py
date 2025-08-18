@@ -187,8 +187,8 @@ class Game:
 
     MONSTER_SPAWN_TIERS = {
         # Level range: [List of monster classes that can spawn]
-        (1, 3): [Ooze, GiantRat],
-        (4, 5): [Goblin, GoblinArcher, Ooze, GiantRat, LargeOoze],
+        (1, 2): [Ooze, GiantRat, Goblin],
+        (3, 5): [Goblin, GoblinArcher, Ooze, GiantRat, LargeOoze],
         (6, 7): [Skeleton, SkeletonArcher, Orc, LargeOoze],
         (8, 9): [Lizardfolk,LizardfolkArcher],
         (10, 12): [Centaur, CentaurArcher, Troll],
@@ -375,7 +375,7 @@ class Game:
         self.game_map = GameMap(24, 15)
         self.fov = FOV(self.game_map)
         self.door_position = generate_tavern(self.game_map, self.player)              
-        start_x, start_y = self.game_map.width // 2 - 4 , self.game_map.height // 2 + 2
+        start_x, start_y = self.game_map.width // 2 - 3 , self.game_map.height // 2 + 3
         
         self.player.x = start_x
         self.player.y = start_y
@@ -519,7 +519,7 @@ class Game:
             
             
             Armor(name="Leather Armor", char="lta", color=(139, 69, 19), description="Light leather armor.", ac_bonus=1),
-            Armor(name="Chainmail Armor", char="lcha", color=(139, 69, 19), description="Chainmail armor.", ac_bonus=2),
+            Armor(name="Chainmail Armor", char="cha", color=(139, 69, 19), description="Chainmail armor.", ac_bonus=2),
             Armor(name="Robes", char="rbs", color=(139, 69, 19), description="Simple cloth robes", ac_bonus=0),
 
         ]
@@ -635,12 +635,12 @@ class Game:
         # Store previous explored tiles for minimap redraw check
         previous_explored = set(self.fov.explored)
         if self.game_state == GameState.TAVERN:
-            self.fov.compute_fov(self.player.x, self.player.y, radius=15)  # Update FOV for the tavern
+            self.fov.compute_fov(self.player.x, self.player.y, radius=6)  # Update FOV for the tavern
         else:
             # Clear only visible sources, keep explored for persistent map
             self.fov.visible_sources.clear() 
             # Pass player.darkvision_radius to compute_fov
-            self.fov.compute_fov(self.player.x, self.player.y, radius=6, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
+            self.fov.compute_fov(self.player.x, self.player.y, radius=4, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
     
         # Check if new tiles were explored for minimap redraw
         if self.fov.explored != previous_explored:
@@ -1852,39 +1852,25 @@ class Game:
                 draw_y = screen_y_float * config.TILE_SIZE
 
                 visibility_type = self.fov.get_visibility_type(x, y)
-                if visibility_type == 'unexplored':
-                    continue
-                
+
+                # Draw the tile based on visibility
                 tile = self.game_map.tiles[y][x]
 
-                # Initialize display_char with a default value
-                display_char = tile.char  # Default to the tile's character
+                
+                # Draw the tile normally if explored or visible
                 render_color_tint = None  # Initialize render_color_tint
-
-                # Check if there's an item or entity at this exact spot
-                item_at_pos = next((item for item in self.game_map.items_on_ground if item.x == x and item.y == y), None)
-                entity_at_pos = next((entity for entity in self.entities if entity.x == x and entity.y == y), None)
-
-                # If there's an item or entity (that's not disguised as a tile), draw the floor instead of the tile's char
-                draw_tile_char = tile.char
-                if item_at_pos and not (isinstance(item_at_pos, Mimic) and item_at_pos.disguised):
-                    draw_tile_char = floor.char # Draw floor under the item
-                elif entity_at_pos and entity_at_pos != self.player and not (isinstance(entity_at_pos, Mimic) and entity_at_pos.disguised):
-                    draw_tile_char = floor.char # Draw floor under the entity (excluding player, who is drawn later)
-                elif entity_at_pos == self.player: # Always draw floor under player
-                    draw_tile_char = floor.char
-
-                render_color_tint = None
                 if visibility_type == 'player':
                     render_color_tint = None
                 elif visibility_type == 'torch':
                     render_color_tint = (128, 128, 128, 255)
-                elif visibility_type == 'darkvision': # NEW: Darkvision tint
-                    render_color_tint = (90, 90, 90, 255)
+                elif visibility_type == 'darkvision':
+                    render_color_tint = (120, 120, 120, 255)
                 elif visibility_type == 'explored':
-                    render_color_tint = (60, 60, 60, 255)
+                    render_color_tint = (100, 100, 100, 255)
+                elif visibility_type == 'unexplored':
+                    render_color_tint = (20, 20, 20, 255)
 
-                graphics.draw_tile(self.internal_surface, draw_x, draw_y, draw_tile_char, color_tint=render_color_tint)
+                graphics.draw_tile(self.internal_surface, draw_x, draw_y, tile.char, color_tint=render_color_tint)
 
                 # Handle TrapTile display
                 if isinstance(tile, TrapTile):

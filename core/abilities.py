@@ -223,7 +223,7 @@ class Evasion(Ability):
 class FireBolt(Ability):
     def __init__(self):
         super().__init__("Fire Bolt", "Hurl a searing bolt of fire at a foe.", cost=0, cooldown=0)
-        self.range = 8  # Example range in tiles
+        self.range = 6  # Example range in tiles
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):

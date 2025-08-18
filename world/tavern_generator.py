@@ -10,7 +10,7 @@ def generate_tavern(game_map, player):
     ascii_map = [
         "###############",
         "#######+#######",
-        "#              #",
+        "T              T",  # Torch placed here
         "#              #",
         "F              #",
         "#   c      c   #",
@@ -18,19 +18,19 @@ def generate_tavern(game_map, player):
         "#   c          #",
         "#              #",
         "#              #",
-        "#                  #",
+        "#              ##T##",
         "# c  c  c          #",
-        "#========          #",
-        "#                  #",
+        "T========          T",
+        "#                  T",
         "#                  #",
         "###################"
     ]
 
     height = len(ascii_map)
     width = len(ascii_map[0])
-    start_x = (game_map.width - width) // 2 - 3
+    start_x = (game_map.width - width) // 2 - 2
     start_y = (game_map.height - height) // 2
-    door_position = (8, 0)
+    door_position = (9, 0)
 
     char_to_tile = {
         '#': wall,
@@ -40,6 +40,7 @@ def generate_tavern(game_map, player):
         'c': chair,
         't': table,
         'F': fireplace,
+        'T': torch,  # Map the torch character to the torch tile
     }
 
     for y, row in enumerate(ascii_map):
@@ -61,6 +62,12 @@ def generate_tavern(game_map, player):
                 bartender = Bartender(gx, gy)
                 game_map.items_on_ground.append(bartender)
 
+    # Place torches manually in the tavern
+    for y in range(height):
+        for x in range(width):
+            if ascii_map[y][x] == 'T':  # Check for the torch character
+                game_map.tiles[start_y + y][start_x + x] = torch  # Place the torch tile
+                game_map.torch_light_sources.append((start_x + x, start_y + y))  # Add to light sources
 
     # Initialize FOV
     game_map.fov = FOV(game_map)
@@ -70,6 +77,7 @@ def generate_tavern(game_map, player):
     
     # Return default door position
     return door_position
+
 
 
 

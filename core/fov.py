@@ -2,12 +2,13 @@
 import math
 
 class FOV:
-    def __init__(self, game_map):
+    def __init__(self, game_map, radius=4):
         self.game_map = game_map
         self.visible_sources = {}
         self.explored = set()
+        self.radius = radius
     
-    def compute_fov(self, origin_x, origin_y, radius=8, light_source_type='player', player_darkvision_radius=0):
+    def compute_fov(self, origin_x, origin_y, radius=4, light_source_type='player', player_darkvision_radius=0):
         """Compute field of view from origin point using simple raycasting"""
         
         # Adjust radius if player has darkvision and it's the player's light source
@@ -44,7 +45,7 @@ class FOV:
             if light_source_type == 'player':
                 # If this ray is from the player's light source
                 # If darkvision is active and we are beyond the normal sight range (8)
-                if player_darkvision_radius > 0 and i > 6: 
+                if player_darkvision_radius > 0 and i > 4: 
                     # This tile is visible due to darkvision, so it's dim
                     if current_source != 'player': # Don't overwrite full player light if it's already set
                         self.visible_sources[(x, y)] = 'darkvision' # 'darkvision' source type
