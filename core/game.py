@@ -29,7 +29,7 @@ from entities.monster import (
 )
 
 from entities.base_entity import NPC
-from entities.tavern_npcs import create_tavern_npcs, NPC
+from entities.tavern_npcs import create_tavern_npcs, NPC, Merchant
 from entities.dungeon_npcs import DungeonHealer
 from entities.tavern_npcs import NPC
 from entities.races import Human, HillDwarf, DrowElf # NEW: Import DrowElf
@@ -187,7 +187,7 @@ class Game:
 
     MONSTER_SPAWN_TIERS = {
         # Level range: [List of monster classes that can spawn]
-        (1): [Ooze, GiantRat, Goblin],
+        (1, 1): [Ooze, GiantRat, Goblin],
         (2, 3): [Goblin, GoblinArcher, Ooze, GiantRat, LargeOoze],
         (4, 5): [Skeleton, SkeletonArcher, Orc, LargeOoze],
         (6, 7): [Lizardfolk,LizardfolkArcher, GiantSpider],
@@ -769,7 +769,10 @@ class Game:
                     if event.key == pygame.K_f:  # Check if 'F' is pressed
                         npc = self.check_npc_interaction()  # Check for adjacent NPC
                         if npc:
-                            self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
+                            if isinstance(npc, Merchant):
+                                npc.offer_trade(self.player, self)  # Call the trade method for the Merchant
+                            else:
+                                self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
                             return True  # Consume event
 
                 # --- NEW: Handle Character Creation Input ---

@@ -39,6 +39,25 @@ class Bartender(NPC):
         ]
         super().__init__(x, y, 'A', 'Bartender', (255, 215, 0), dialogue)
 
+class Merchant(NPC):
+    def __init__(self, x, y):
+        dialogue = [
+            "Welcome to my shop! What would you like to buy?",
+            "I have the finest goods in the land!",
+            "Feel free to browse my wares.",
+            "If you have something to sell, I'm all ears!"
+        ]
+        super().__init__(x, y, 'M', 'Merchant', (255, 215, 0), dialogue)  # Yellow color for the Merchant
+
+    def offer_trade(self, player, game):
+        """Handle the trading logic with the player."""
+        game.message_log.add_message(f"{self.name}: What do you wish to trade?", (0, 255, 0))
+        # Here you can implement the logic for displaying items for sale and handling purchases
+        # For simplicity, let's just show a placeholder message for now
+        game.message_log.add_message("Items for sale: Healing Potion (10 gold)", (200, 200, 255))
+        # Implement actual trading logic later
+
+
 class Patron(NPC):
     def __init__(self, x, y, name):
         dialogue = [
@@ -64,6 +83,12 @@ def create_tavern_npcs(game_map, door_position):
         bartender = Bartender(bartender_x, bartender_y)
         npcs.append(bartender)
 
+    # Add a Merchant NPC
+    merchant_x = 5  # Position the Merchant
+    merchant_y = 1  # Same row as the bartender
+    merchant = Merchant(merchant_x, merchant_y)
+    npcs.append(merchant)
+
     # Add some patrons at tables/chairs
     patron_positions = []
     patron_names = ["Old Tom", "Merchant Mary", "Warrior Bill", "Sage Alice"]
@@ -82,18 +107,15 @@ def create_tavern_npcs(game_map, door_position):
             patron = Patron(x, y, patron_names[i])
             npcs.append(patron)
 
-
     # --- NEW: Add a DungeonHealer to the tavern ---
-    # Place the healer near the fireplace or another suitable, non-blocking spot
-    # Assuming fireplace is at (2, game_map.height // 3)
-    healer_x = 3 # One tile right of the fireplace
+    healer_x = 3  # One tile right of the fireplace
     healer_y = game_map.height // 2 - 4
-    # Ensure the spot is walkable and not already occupied by another NPC
     if game_map.is_walkable(healer_x, healer_y) and \
        not any(npc.x == healer_x and npc.y == healer_y for npc in npcs):
         tavern_healer = DungeonHealer(healer_x, healer_y)
         npcs.append(tavern_healer)
-        # You might want a specific tavern dialogue for the healer here,
-        # but for now, they'll use their default DungeonHealer dialogue.
 
     return npcs
+
+
+
