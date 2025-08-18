@@ -385,6 +385,10 @@ class Mimic(Monster):
         self.armor_class = 12
         self.base_xp = 40
         self.blocks_movement = True
+        self.can_acid_burn = True
+        self.acid_burn_dc = 12
+        self.acid_burn_duration = 3
+        self.acid_burn_damage_per_turn = 3
 
     def take_damage(self, amount, game_instance, damage_type=None):
         """

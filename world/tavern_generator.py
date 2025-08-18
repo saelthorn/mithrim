@@ -10,7 +10,7 @@ def generate_tavern(game_map, player):
     ascii_map = [
         "###############",
         "#######+#######",
-        "T              T",  # Torch placed here
+        "T              T",  
         "#              #",
         "F              #",
         "#   c      c   #",

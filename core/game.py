@@ -187,14 +187,14 @@ class Game:
 
     MONSTER_SPAWN_TIERS = {
         # Level range: [List of monster classes that can spawn]
-        (1, 2): [Ooze, GiantRat, Goblin],
-        (3, 5): [Goblin, GoblinArcher, Ooze, GiantRat, LargeOoze],
-        (6, 7): [Skeleton, SkeletonArcher, Orc, LargeOoze],
-        (8, 9): [Lizardfolk,LizardfolkArcher],
-        (10, 12): [Centaur, CentaurArcher, Troll],
-        (13, 15): [Troll, Orc, GiantSpider, LargeOoze], 
-        (16, 17): [LargeOoze, DragonWhelp,  GiantSpider], 
-        (18, 99): [Beholder], # High level, adjust max level as needed
+        (1): [Ooze, GiantRat, Goblin],
+        (2, 3): [Goblin, GoblinArcher, Ooze, GiantRat, LargeOoze],
+        (4, 5): [Skeleton, SkeletonArcher, Orc, LargeOoze],
+        (6, 7): [Lizardfolk,LizardfolkArcher, GiantSpider],
+        (8, 9): [Centaur, CentaurArcher, Troll],
+        (10, 11): [Troll, Orc, GiantSpider, LargeOoze], 
+        (12, 13): [LargeOoze, DragonWhelp,  GiantSpider], 
+        (14, 99): [Beholder], # High level, adjust max level as needed
     }
 
 
@@ -515,7 +515,7 @@ class Game:
             Weapon(name="Short Sword", char="/", color=(150, 150, 150), description="A basic short sword.", damage_dice="1d6", damage_modifier=0, attack_bonus=0),
             Weapon(name="Long Sword", char="|", color=(150, 150, 150), description="A adventurer's sword.", damage_dice="1d6", damage_modifier=1, attack_bonus=2),
             Weapon(name="Battle Axe", char="?", color=(150, 150, 150), description="A battle tested axe.", damage_dice="1d8", damage_modifier=0, attack_bonus=0),
-            Weapon(name="Quarterstaff", char="/", color=(150, 150, 150), description="A sturdy wooden staff.", damage_dice="1d6", damage_modifier=0, attack_bonus=0),
+            Weapon(name="Quarterstaff", char="l", color=(150, 150, 150), description="A sturdy wooden staff.", damage_dice="1d6", damage_modifier=0, attack_bonus=0),
             
             
             Armor(name="Leather Armor", char="lta", color=(139, 69, 19), description="Light leather armor.", ac_bonus=1),
@@ -635,7 +635,7 @@ class Game:
         # Store previous explored tiles for minimap redraw check
         previous_explored = set(self.fov.explored)
         if self.game_state == GameState.TAVERN:
-            self.fov.compute_fov(self.player.x, self.player.y, radius=6)  # Update FOV for the tavern
+            self.fov.compute_fov(self.player.x, self.player.y, radius=20)  # Update FOV for the tavern
         else:
             # Clear only visible sources, keep explored for persistent map
             self.fov.visible_sources.clear() 
@@ -657,7 +657,7 @@ class Game:
 
     def next_turn(self):
         if self.game_state == GameState.TAVERN:
-            if random.random() < 0.3:
+            if random.random() < 0.25:
                 ambient_msgs = [
                     "The torch flickers, casting long shadows...",
                     "Distant drips echo through the stone halls..."
@@ -763,6 +763,15 @@ class Game:
             if event.type == pygame.KEYDOWN:
                 print(f"  DEBUG KEYDOWN event: {pygame.key.name(event.key)} (value: {event.key})")
                 
+
+                # --- NPC Interaction Logic ---
+                if self.game_state in [GameState.DUNGEON, GameState.TAVERN]:
+                    if event.key == pygame.K_f:  # Check if 'F' is pressed
+                        npc = self.check_npc_interaction()  # Check for adjacent NPC
+                        if npc:
+                            self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
+                            return True  # Consume event
+
                 # --- NEW: Handle Character Creation Input ---
                 if self.game_state == GameState.CHARACTER_CREATION:
                    if self.game_state == GameState.CHARACTER_CREATION:
@@ -845,40 +854,7 @@ class Game:
                         self.game_state = GameState.CHARACTER_MENU
                         self.message_log.add_message("Opening Character Menu...", (100, 200, 255))
                     return True # Consume event, don't process other game states                
-
-
-                # --- NEW: Handle 'F' key for NPC interaction ---
-                if self.game_state == GameState.DUNGEON:
-                    npc = self.check_npc_interaction()
-                    if npc:
-                        if event.key == pygame.K_f:  # Check if 'F' is pressed
-                            self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
-                            return True  # Consume event
-                    else:
-                        target = self.get_adjacent_target()
-                        if target:
-                            if isinstance(target, DungeonHealer):
-                                target.offer_rest(self.player, self)
-                                action_taken = True                        
-
-                if self.game_state == GameState.TAVERN:
-                    npc = self.check_npc_interaction()
-                    if npc and event.key == pygame.K_f:  # Check if 'F' is pressed
-                        self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
-                        return True  # Consume event
-                    else:
-                        target = self.get_adjacent_target()
-                        if target:
-                            if isinstance(target, DungeonHealer):
-                                target.offer_rest(self.player, self)
-                                action_taken = True         
-
-                # --- Handle SPACE key for NPC interaction ---
-                if self.game_state == GameState.TAVERN:
-                    npc = self.check_npc_interaction()
-                    if npc and event.key == pygame.K_SPACE:  # Check if SPACE is pressed
-                        self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
-                        return True  # Consume event
+    
 
                 # --- Handle input based on game state ---
                 # These blocks should only be entered if the game_state is specifically that menu
@@ -1005,12 +981,7 @@ class Game:
                     if dx != 0 or dy != 0:
                         action_taken = self.handle_player_action(dx, dy)
                     elif event.key == pygame.K_SPACE:
-                        if self.game_state == GameState.TAVERN:
-                            npc = self.check_npc_interaction()
-                            if npc:
-                                self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
-                                action_taken = True
-                        elif self.game_state == GameState.DUNGEON:
+                        if self.game_state == GameState.DUNGEON:
                             # --- MODIFIED START ---
                             # Prioritize picking up items at player's feet
                             if self.handle_item_pickup():
@@ -1453,8 +1424,7 @@ class Game:
             
             # --- NEW: 10% chance to drop a Lesser Healing Potion ---
             if target_tile.name in ["Crate", "Barrel"]: # Check if it was a crate or barrel
-                drop_chance = 0.10 # 10% chance
-                if random.random() < drop_chance:
+                if random.random() < 0.30:
                     # Create a new instance of the potion
                     new_potion = lesser_healing_potion.__class__(
                         name=lesser_healing_potion.name,
@@ -1468,7 +1438,7 @@ class Game:
                     new_potion.y = y
                     self.game_map.items_on_ground.append(new_potion)
                     self.message_log.add_message(f"A {new_potion.name} drops from the {target_tile.name}!", new_potion.color)
-                elif random.random() < drop_chance:
+                elif random.random() < 0.10:
                     new_potion = greater_healing_potion.__class__(
                         name=greater_healing_potion.name,
                         char=greater_healing_potion.char,
