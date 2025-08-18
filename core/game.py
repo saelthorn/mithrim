@@ -372,11 +372,10 @@ class Game:
     def generate_tavern(self):
         self.game_state = GameState.TAVERN
         self._previous_game_state = GameState.TAVERN
-        self.game_map = GameMap(40, 24)
+        self.game_map = GameMap(24, 15)
         self.fov = FOV(self.game_map)
-        self.door_position = generate_tavern(self.game_map)
-        
-        start_x, start_y = self.game_map.width // 2, self.game_map.height // 2 + 2
+        self.door_position = generate_tavern(self.game_map, self.player)              
+        start_x, start_y = self.game_map.width // 2 - 4 , self.game_map.height // 2 + 2
         
         self.player.x = start_x
         self.player.y = start_y
@@ -410,7 +409,7 @@ class Game:
         self.current_level = level_number
         self.max_level_reached = max(self.max_level_reached, level_number)
         
-        self.game_map = GameMap(80, 45)
+        self.game_map = GameMap(60, 45)
         self.fov = FOV(self.game_map)
         
         rooms, self.stairs_positions, self.torch_light_sources = generate_dungeon(self.game_map, level_number)
@@ -631,31 +630,22 @@ class Game:
             self.message_log.add_message("Returning to tavern...", (100, 200, 255))
             self.generate_tavern()
 
-
+    
     def update_fov(self):
         # Store previous explored tiles for minimap redraw check
         previous_explored = set(self.fov.explored)
         if self.game_state == GameState.TAVERN:
-            self.fov.visible_sources.clear()
-            self.fov.explored.clear()
-            for y in range(self.game_map.height):
-                for x in range(self.game_map.width):
-                    self.fov.visible_sources[(x, y)] = 'player'
-                    self.fov.explored.add((x, y))
+            self.fov.compute_fov(self.player.x, self.player.y, radius=15)  # Update FOV for the tavern
         else:
             # Clear only visible sources, keep explored for persistent map
             self.fov.visible_sources.clear() 
             # Pass player.darkvision_radius to compute_fov
-            # Player's normal sight radius is typically 6, darkvision extends it.
             self.fov.compute_fov(self.player.x, self.player.y, radius=6, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
-
-            # Add torch light sources
-            for tx, ty in self.torch_light_sources:
-                self.fov.compute_fov(tx, ty, radius=4, light_source_type='torch')
-
+    
         # Check if new tiles were explored for minimap redraw
         if self.fov.explored != previous_explored:
             self.minimap_needs_redraw = True
+    
 
 
     def get_current_entity(self):
@@ -674,12 +664,11 @@ class Game:
                 ]
                 self.message_log.add_message(random.choice(ambient_msgs), (150, 150, 150))
             return
-        
+
         # Get the entity whose turn it *just was* or *is currently* before advancing the index
         current_acting_entity = self.get_current_entity()
-        
+
         # Process status effects for the entity that just completed its turn (or was about to)
-        # This ensures effects tick down AFTER their actions, but before the next entity's turn.
         if current_acting_entity:
             current_acting_entity.process_status_effects(self)
 
@@ -691,12 +680,12 @@ class Game:
                 self.turn_order = [self.player] # Ensure player is in turn order
                 self.current_turn_index = 0
                 self.player_has_acted = False # Reset for player's next turn
-                self.update_fov()
+                self.update_fov()  # Update FOV for the player
             return # No more turns to process if no entities
 
         # Advance the turn index to the next entity
         self.current_turn_index = (self.current_turn_index + 1) % len(self.turn_order)
-        
+
         # Get the entity whose turn it is now (after advancing the index)
         current = self.get_current_entity() 
 
@@ -1850,36 +1839,33 @@ class Game:
 
     def render_map_with_fov(self):
         map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT
-        
+
         camera_x_int = int(self.camera.x)
         camera_y_int = int(self.camera.y)
-    
+
         for y in range(camera_y_int, min(camera_y_int + self.camera.viewport_height + 1, self.game_map.height)):
             for x in range(camera_x_int, min(camera_x_int + self.camera.viewport_width + 1, self.game_map.width)):
-                
+
                 screen_x_float, screen_y_float = self.camera.world_to_screen(x, y)
-                
+
                 draw_x = screen_x_float * config.TILE_SIZE
                 draw_y = screen_y_float * config.TILE_SIZE
-                
+
                 visibility_type = self.fov.get_visibility_type(x, y)
                 if visibility_type == 'unexplored':
                     continue
                 
                 tile = self.game_map.tiles[y][x]
-                
+
                 # Initialize display_char with a default value
                 display_char = tile.char  # Default to the tile's character
                 render_color_tint = None  # Initialize render_color_tint
-                highlight_color = None  # For highlighting revealed traps
 
-                # --- NEW LOGIC HERE ---
                 # Check if there's an item or entity at this exact spot
                 item_at_pos = next((item for item in self.game_map.items_on_ground if item.x == x and item.y == y), None)
                 entity_at_pos = next((entity for entity in self.entities if entity.x == x and entity.y == y), None)
+
                 # If there's an item or entity (that's not disguised as a tile), draw the floor instead of the tile's char
-                # Mimics are special: if disguised, they are handled as tiles, so we draw their disguise char.
-                # If revealed, they are entities, and we draw floor + entity.
                 draw_tile_char = tile.char
                 if item_at_pos and not (isinstance(item_at_pos, Mimic) and item_at_pos.disguised):
                     draw_tile_char = floor.char # Draw floor under the item
@@ -1887,38 +1873,26 @@ class Game:
                     draw_tile_char = floor.char # Draw floor under the entity (excluding player, who is drawn later)
                 elif entity_at_pos == self.player: # Always draw floor under player
                     draw_tile_char = floor.char
-                
+
                 render_color_tint = None
                 if visibility_type == 'player':
                     render_color_tint = None
                 elif visibility_type == 'torch':
                     render_color_tint = (128, 128, 128, 255)
                 elif visibility_type == 'darkvision': # NEW: Darkvision tint
-                    render_color_tint = (90, 90, 90, 255) # Slightly darker than torch, but still visible
+                    render_color_tint = (90, 90, 90, 255)
                 elif visibility_type == 'explored':
                     render_color_tint = (60, 60, 60, 255)
 
                 graphics.draw_tile(self.internal_surface, draw_x, draw_y, draw_tile_char, color_tint=render_color_tint)
-                
 
                 # Handle TrapTile display
                 if isinstance(tile, TrapTile):
                     display_char = tile.get_display_char()
                     display_color = tile.get_display_color()
-                    if tile.highlighted:
-                        highlight_color = (255, 255, 0, 100)  # Yellow for highlighted traps
-                    else:
-                        highlight_color = None  # No highlight
-    
-                # Draw the base tile (floor, wall, or trap's hidden/revealed char)
-                graphics.draw_tile(self.internal_surface, draw_x, draw_y, display_char, color_tint=render_color_tint)                        
-                
-                # Draw Highlight Overlay for Traps
-                if highlight_color:
-                    highlight_surface = pygame.Surface((config.TILE_SIZE, config.TILE_SIZE), pygame.SRCALPHA)
-                    highlight_surface.fill(highlight_color)
-                    self.internal_surface.blit(highlight_surface, (draw_x, draw_y))
-                    
+                    # Draw the base tile (floor, wall, or trap's hidden/revealed char)
+                    graphics.draw_tile(self.internal_surface, draw_x, draw_y, display_char, color_tint=render_color_tint)                        
+
 
 
     def render_entities(self):

@@ -57,8 +57,8 @@ def create_tavern_npcs(game_map, door_position):
     npcs = []
 
     # Bartender behind the bar
-    bar_y = 3
-    bartender_x = game_map.width // 2
+    bar_y = 13
+    bartender_x = game_map.width // 2 - 6
     bartender_y = bar_y - 1  # Behind the bar
     if bartender_y > 0:
         bartender = Bartender(bartender_x, bartender_y)
@@ -86,8 +86,8 @@ def create_tavern_npcs(game_map, door_position):
     # --- NEW: Add a DungeonHealer to the tavern ---
     # Place the healer near the fireplace or another suitable, non-blocking spot
     # Assuming fireplace is at (2, game_map.height // 3)
-    healer_x = 3 # One tile right of the fireplace
-    healer_y = game_map.height // 3
+    healer_x = 2 # One tile right of the fireplace
+    healer_y = game_map.height // 2 - 4
     # Ensure the spot is walkable and not already occupied by another NPC
     if game_map.is_walkable(healer_x, healer_y) and \
        not any(npc.x == healer_x and npc.y == healer_y for npc in npcs):

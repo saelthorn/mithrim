@@ -1,58 +1,78 @@
-from world.tile import tavern_floor, tavern_wall, bar_counter, table, chair, door, fireplace # Ensure 'door' is imported
+from world.tile import tavern_floor, tavern_wall, bar_counter, table, chair, door, fireplace, wall, floor, torch # Ensure 'door' is imported
+from entities.dungeon_npcs import DungeonHealer
+from entities.tavern_npcs import Bartender, Patron
+from core import game
+from core.fov import FOV
+import random
 
-def generate_tavern(game_map):
-    """Generate a cozy tavern layout"""
-    width = game_map.width
-    height = game_map.height
-    
-    # Fill with walls first
-    for y in range(height):
-        for x in range(width):
-            game_map.tiles[y][x] = tavern_wall
-    
-    # Create main tavern room (leave borders as walls)
-    for y in range(2, height - 2):
-        for x in range(2, width - 2):
-            game_map.tiles[y][x] = tavern_floor
-    
-    # Add bar counter along the top wall
-    bar_start_x = width // 4
-    bar_end_x = width * 3 // 4
-    bar_y = 3
-    for x in range(bar_start_x, bar_end_x):
-        game_map.tiles[bar_y][x] = bar_counter
-    
-    # Add tables and chairs scattered around
-    tables_positions = [
-        (width // 4, height // 2),
-        (width * 3 // 4, height // 2),
-        (width // 3, height * 2 // 3),
-        (width * 2 // 3, height * 2 // 3),
+def generate_tavern(game_map, player):
+    """Generate tavern layout based on ASCII blueprint."""
+    ascii_map = [
+        "###############",
+        "#######+#######",
+        "#              #",
+        "#              #",
+        "F              #",
+        "#   c      c   #",
+        "#  ctc    ctc  #",
+        "#   c          #",
+        "#              #",
+        "#              #",
+        "#                  #",
+        "# c  c  c          #",
+        "#========          #",
+        "#                  #",
+        "#                  #",
+        "###################"
     ]
+
+    height = len(ascii_map)
+    width = len(ascii_map[0])
+    start_x = (game_map.width - width) // 2 - 3
+    start_y = (game_map.height - height) // 2
+    door_position = (8, 0)
+
+    char_to_tile = {
+        '#': wall,
+        ' ': floor,
+        '+': door,
+        '=': bar_counter,
+        'c': chair,
+        't': table,
+        'F': fireplace,
+    }
+
+    for y, row in enumerate(ascii_map):
+        for x, char in enumerate(row):
+            gx, gy = start_x + x, start_y + y
+            if char in char_to_tile:
+                game_map.tiles[gy][gx] = char_to_tile[char]
+            else:
+                game_map.tiles[gy][gx] = floor  # Default floor
+
+            # Place NPCs/entities
+            if char == 'H':
+                healer = DungeonHealer(gx, gy)
+                game_map.items_on_ground.append(healer)
+            elif char == 'p':
+                patron = Patron(gx, gy, "Patron")
+                game_map.items_on_ground.append(patron)
+            elif char == 'A':
+                bartender = Bartender(gx, gy)
+                game_map.items_on_ground.append(bartender)
+
+
+    # Initialize FOV
+    game_map.fov = FOV(game_map)
+ 
+    # Set initial FoV
+    game_map.fov.compute_fov(player.x, player.y, radius=8)  # Set the radius as needed
     
-    for table_x, table_y in tables_positions:
-        if (2 < table_x < width - 2 and 2 < table_y < height - 2):
-            game_map.tiles[table_y][table_x] = table
-            
-            # Add chairs around table
-            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                chair_x, chair_y = table_x + dx, table_y + dy
-                if (2 < chair_x < width - 2 and 2 < chair_y < height - 2 and
-                    game_map.tiles[chair_y][chair_x] == tavern_floor):
-                    game_map.tiles[chair_y][chair_x] = chair
-    
-    # Add fireplace on the left wall
-    fireplace_x = 1
-    fireplace_y = height // 2
-    if fireplace_y > 2 and fireplace_y < height - 2:
-        game_map.tiles[fireplace_y][fireplace_x] = fireplace
-    if fireplace_y > 2:
-        game_map.tiles[fireplace_y - 1][fireplace_x] = fireplace         
-    
-    # Add exit door on the bottom wall
-    door_x = width // 2
-    door_y = height - 2
-    game_map.tiles[door_y][door_x] = door # Use the imported 'door' tile
-    
-    # Return door position for player interaction
-    return (door_x, door_y)
+    # Return default door position
+    return door_position
+
+
+
+
+
+
