@@ -2,11 +2,12 @@ import random
 
 class Item:
     """Base class for all items."""
-    def __init__(self, name, char, color, description=""):
+    def __init__(self, name, char, color, description="", price=10):
         self.name = name
         self.char = char
         self.color = color
         self.description = description
+        self.price = price
         self.owner = None # The entity that owns this item
         self.x = -1 # Default invalid position
         self.y = -1 # Default invalid position
@@ -43,8 +44,8 @@ class Item:
 
 class Potion(Item):
     """A consumable item that provides an effect."""
-    def __init__(self, name, char, color, description, effect_type, effect_value):
-        super().__init__(name, char, color, description)
+    def __init__(self, name, char, color, description, effect_type, effect_value, price):
+        super().__init__(name, char, color, description, price)
         self.effect_type = effect_type
         self.effect_value = effect_value
 
@@ -61,8 +62,8 @@ class Potion(Item):
 
 class Weapon(Item):
     """An item that can be equipped for combat."""
-    def __init__(self, name, char, color, description, damage_dice, damage_modifier, attack_bonus=0):
-        super().__init__(name, char, color, description)
+    def __init__(self, name, char, color, description, damage_dice, damage_modifier, price, attack_bonus=0):
+        super().__init__(name, char, color, description, price)
         self.damage_dice = damage_dice # e.g., "1d6", "2d4"
         self.damage_modifier = damage_modifier
         self.attack_bonus = attack_bonus # Bonus to hit
@@ -70,15 +71,15 @@ class Weapon(Item):
 
 class Armor(Item):
     """An item that can be equipped for defense."""
-    def __init__(self, name, char, color, description, ac_bonus):
-        super().__init__(name, char, color, description)
+    def __init__(self, name, char, color, description, ac_bonus, price):
+        super().__init__(name, char, color, description, price)
         self.ac_bonus = ac_bonus # Bonus to AC
 
 
 class Tools(Item):
     """An item that can be used in certain situations"""
-    def __init__(self, name, char, color, description=""):
-        super().__init__(name, char, color, description)
+    def __init__(self, name, char, color, price, description=""):
+        super().__init__(name, char, color, description, price)
 
 class Junk(Item):
     """A useless piece of wood."""
@@ -141,7 +142,8 @@ lesser_healing_potion = Potion(
     color=(255, 80, 80),
     description="Restores a small amount of health.",
     effect_type="heal",
-    effect_value=8 # Heals 8 HP
+    effect_value=8, # Heals 8 HP
+    price = 10
 )
 
 greater_healing_potion = Potion(
@@ -150,7 +152,8 @@ greater_healing_potion = Potion(
     color=(240, 0, 0),
     description="Restores a great amount of health.",
     effect_type="heal",
-    effect_value=24 
+    effect_value=24,
+    price = 10
 )
 
 dagger = Weapon(
@@ -160,7 +163,8 @@ dagger = Weapon(
     description="A small, light blade.",
     damage_dice="1d4",
     damage_modifier=0,
-    attack_bonus=0
+    attack_bonus=0,
+    price = 10
 )
 
 short_sword = Weapon(
@@ -170,7 +174,8 @@ short_sword = Weapon(
     description="A basic short sword.",
     damage_dice="1d6",
     damage_modifier=0,
-    attack_bonus=0
+    attack_bonus=0,
+    price = 10
 )
 
 long_sword = Weapon(
@@ -180,7 +185,8 @@ long_sword = Weapon(
     description="A adventurer's sword.",
     damage_dice="1d6",
     damage_modifier=1,
-    attack_bonus=2
+    attack_bonus=2,
+    price = 10
 )
 
 battle_axe = Weapon(
@@ -190,7 +196,8 @@ battle_axe = Weapon(
     description="A battle tested axe.",
     damage_dice="1d8",
     damage_modifier=1,
-    attack_bonus=0
+    attack_bonus=0,
+    price = 10
 )
 
 quarterstaff = Weapon(
@@ -200,7 +207,8 @@ quarterstaff = Weapon(
     description="A sturdy wooden staff.",
     damage_dice="1d6",
     damage_modifier=0,
-    attack_bonus=0
+    attack_bonus=0,
+    price = 10
 )
 
 leather_armor = Armor(
@@ -208,7 +216,8 @@ leather_armor = Armor(
     char="lta",
     color=(139, 69, 19),
     description="Light leather armor.",
-    ac_bonus=1 # Adds 1 to base AC
+    ac_bonus=1, # Adds 1 to base AC
+    price = 10
 )
 
 chainmail_armor = Armor(
@@ -216,7 +225,8 @@ chainmail_armor = Armor(
     char="cha",
     color=(175, 175, 175),
     description="Chainmail armor.",
-    ac_bonus=3 # Adds 1 to base AC
+    ac_bonus=3, # Adds 1 to base AC
+    price = 10
 )
 
 robes = Armor(
@@ -224,14 +234,16 @@ robes = Armor(
     char="rbs", # Using same char as other armor for now
     color=(100, 100, 200),
     description="Simple cloth robes.",
-    ac_bonus=0 # Robes typically provide no AC bonus, relying on Dex
+    ac_bonus=0, # Robes typically provide no AC bonus, relying on Dex
+    price = 10
 )
 
 thieves_tools = Tools(
     name="Thieves' Tools",
     char="tt",
     color=(255, 215, 0),
-    description="Tools to unlock/disable trinkets"
+    description="Tools to unlock/disable trinkets",
+    price = 10
 )
 
 

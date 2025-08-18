@@ -53,7 +53,7 @@ def setup_tile_mapping():
 
 
         # Map Tiles
-        ',': (0 * CELL_DIM, 3 * CELL_DIM),  # Tavern Floor
+        ',': (0 * CELL_DIM, 12 * CELL_DIM),  # Tavern Floor
         ';': (0 * CELL_DIM, 3 * CELL_DIM),  # Kitchen Tavern Floor
         '.': (0 * CELL_DIM, 3 * CELL_DIM),  # Floor
         '#': (1 * CELL_DIM, 3 * CELL_DIM),  # Wall

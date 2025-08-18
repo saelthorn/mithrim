@@ -1,4 +1,8 @@
 import random
+import pygame
+
+from core.game import GameState
+from items.items import lesser_healing_potion, greater_healing_potion, dagger, short_sword, long_sword, battle_axe, quarterstaff, leather_armor, chainmail_armor, robes
 from entities.dungeon_npcs import DungeonHealer # <--- NEW IMPORT
 from entities.base_entity import NPC
 
@@ -47,15 +51,61 @@ class Merchant(NPC):
             "Feel free to browse my wares.",
             "If you have something to sell, I'm all ears!"
         ]
-        super().__init__(x, y, 'M', 'Merchant', (255, 215, 0), dialogue)  # Yellow color for the Merchant
+        super().__init__(x, y, 'A', 'Merchant', (255, 215, 0), dialogue)  # Yellow color for the Merchant
+
+
+        # Define items for sale
+        self.items_for_sale = [
+            lesser_healing_potion,  # Assuming these are defined as instances of Potion
+            greater_healing_potion,
+            dagger,
+            short_sword,
+            leather_armor,
+            chainmail_armor,
+        ]
 
     def offer_trade(self, player, game):
         """Handle the trading logic with the player."""
         game.message_log.add_message(f"{self.name}: What do you wish to trade?", (0, 255, 0))
-        # Here you can implement the logic for displaying items for sale and handling purchases
-        # For simplicity, let's just show a placeholder message for now
-        game.message_log.add_message("Items for sale: Healing Potion (10 gold)", (200, 200, 255))
-        # Implement actual trading logic later
+        game.message_log.add_message("Items for sale:", (200, 200, 255))
+
+        # Display items for sale
+        for item in self.items_for_sale:
+            game.message_log.add_message(f"{item.name} - {item.price} gold", (255, 255, 255))
+
+        # Allow player to buy or sell
+        game.message_log.add_message("Press 'B' to buy or 'S' to sell an item.", (200, 200, 255))
+        game.message_log.add_message("Type your command:", (200, 200, 255))
+
+        # Wait for player input
+        game.game_state = GameState.TRADE  # Set game state to trade
+
+
+    def buy_item(self, player, item_name):
+        """Handle the logic for buying an item."""
+        for item in self.items_for_sale:
+            if item.name.lower() == item_name.lower():  # Case insensitive comparison
+                if player.gold >= item.price:  # Assuming player has a gold attribute
+                    player.gold -= item.price
+                    player.inventory.add_item(item)  # Add the item to the player's inventory
+                    self.items_for_sale.remove(item)  # Remove the item from the merchant's inventory
+                    return f"You bought {item.name}!"
+                else:
+                    return "You don't have enough gold!"
+        return "Item not found in merchant's inventory."
+
+
+    def sell_item(self, player, item_name):
+        """Logic to sell an item."""
+        for item in player.inventory.items:  # Access the player's inventory items
+            if item.name.lower() == item_name.lower():  # Case insensitive comparison
+                player.inventory.remove_item(item)  # Remove the item from the player's inventory
+                player.gold += item.price // 2  # Assuming the merchant pays half the price
+                self.items_for_sale.append(item)  # Add the item back to the merchant's inventory
+                return f"You sold {item.name}!"
+        return "Item not found in your inventory."
+
+
 
 
 class Patron(NPC):
@@ -71,7 +121,9 @@ class Patron(NPC):
         ]
         super().__init__(x, y, 'p', name, (200, 200, 200), dialogue)
 
-def create_tavern_npcs(game_map, door_position):
+
+
+def create_tavern_npcs(game_map, door_position, game_instance):
     """Create NPCs for the tavern"""
     npcs = []
 
@@ -88,6 +140,8 @@ def create_tavern_npcs(game_map, door_position):
     merchant_y = 1  # Same row as the bartender
     merchant = Merchant(merchant_x, merchant_y)
     npcs.append(merchant)
+
+    game_instance.merchant = merchant
 
     # Add some patrons at tables/chairs
     patron_positions = []

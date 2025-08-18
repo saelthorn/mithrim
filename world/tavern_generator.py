@@ -1,4 +1,4 @@
-from world.tile import tavern_floor, tavern_wall, bar_counter, table, chair, door, fireplace, wall, floor, torch # Ensure 'door' is imported
+from world.tile import tavern_floor, tavern_wall, bar_counter, table, chair, door, fireplace, wall, tavern_floor, torch, floor # Ensure 'door' is imported
 from entities.dungeon_npcs import DungeonHealer
 from entities.tavern_npcs import Bartender, Patron
 from core import game
@@ -49,7 +49,7 @@ def generate_tavern(game_map, player):
             if char in char_to_tile:
                 game_map.tiles[gy][gx] = char_to_tile[char]
             else:
-                game_map.tiles[gy][gx] = floor  # Default floor
+                game_map.tiles[gy][gx] = tavern_floor  # Default floor
 
             # Place NPCs/entities
             if char == 'H':

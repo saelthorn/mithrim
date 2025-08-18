@@ -26,6 +26,7 @@ class Player: # This is our base class for playable characters
         self.alive = True
         self.blocks_movement = True
         self.initiative = 0
+        self.gold = 50
 
         # Player-specific attributes
         self.level = 1

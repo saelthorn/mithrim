@@ -13,6 +13,7 @@ class GameState:
     TARGETING = "targeting"  
     CHARACTER_CREATION = "character_creation"
     CLASS_SELECTION = "class_selection"
+    TRADE = "trade"
 
 
 from core.fov import FOV
@@ -111,6 +112,8 @@ class Game:
         self.inventory_ui_surface = None
         self.camera = None
         self.message_log = None
+
+        self.merchant = None  # Initialize merchant attribute        
         
         self.entities = []  # Initialize the entities list here
         self.turn_order = []  # Initialize the turn order list
@@ -392,7 +395,7 @@ class Game:
         self.camera.target_x = float(self.player.x) # Set target_x/y as floats
         self.camera.target_y = float(self.player.y)        
         
-        self.npcs = create_tavern_npcs(self.game_map, self.door_position)
+        self.npcs = create_tavern_npcs(self.game_map, self.door_position, self)
         self.entities = [self.player] + self.npcs
         self.turn_order = []
         self.current_turn_index = 0
@@ -401,7 +404,7 @@ class Game:
         self.message_log.add_message("=== WELCOME TO THE PRANCING PONY TAVERN ===", (255, 215, 0))
         self.message_log.add_message("Walk to the door (+) and press any movement key to enter the dungeon!", (150, 150, 255))
         self.minimap_needs_redraw = True # New map, redraw minimap
-
+    
 
     def generate_level(self, level_number, spawn_on_stairs_up=False):
         self.game_state = GameState.DUNGEON
@@ -508,19 +511,51 @@ class Game:
             if not healer_spawned:
                 self.message_log.add_message("DEBUG: Dungeon Healer could not find a suitable spawn spot.", (100, 100, 100))
 
+        elif len(rooms) > 2 and random.random() < 0.3: # Merchant spawnrate
+            shuffled_merchant_rooms = list(rooms[1:-1])
+            random.shuffle(shuffled_merchant_rooms)
+            merchant_spawned = False
+            for merchant_room in shuffled_merchant_rooms:
+                possible_spawn_points = []
+                for y_coord in range(merchant_room.y1 + 2, merchant_room.y2 - 1):
+                    for x_coord in range(merchant_room.x1 + 2, merchant_room.x2 - 1):
+                        if self.game_map.is_walkable(x_coord, y_coord) and \
+                           not any(e.x == x_coord and e.y == y_coord for e in self.entities):
+                            is_near_tunnel = False
+                            for dx, dy in [(-1,0), (1,0), (0,-1), (0,1)]:
+                                neighbor_x, neighbor_y = x_coord + dx, y_coord + dy
+                                if self.game_map.tiles[neighbor_y][neighbor_x] == floor and \
+                                   not (merchant_room.x1 < neighbor_x < merchant_room.x2 and merchant_room.y1 < neighbor_y < merchant_room.y2):
+                                    is_near_tunnel = True
+                                    break
+                            if not is_near_tunnel:
+                                possible_spawn_points.append((x_coord, y_coord))
+                
+                if possible_spawn_points:
+                    healer_x, healer_y = random.choice(possible_spawn_points)
+                    dungeon_healer = DungeonHealer(healer_x, healer_y)
+                    self.entities.append(dungeon_healer)
+                    self.message_log.add_message(f"You sense a benevolent presence nearby...", (0, 255, 255))
+                    self.message_log.add_message(f"A {dungeon_healer.name} is at ({healer_x}, {healer_y})", (0, 255, 255))
+                    merchant_spawned = True
+                    break
+            
+            if not merchant_spawned:
+                self.message_log.add_message("DEBUG: Dungeon Healer could not find a suitable spawn spot.", (100, 100, 100))                
+
         item_templates = [
-            Potion(name="Healing Potion", char="!", color=(255, 0, 0), description="Restores a small amount of health.", effect_type="heal", effect_value=10),
+            Potion(name="Healing Potion", char="!", color=(255, 0, 0), description="Restores a small amount of health.", effect_type="heal", effect_value=10, price=10),
            
-            Weapon(name="Dagger", char="-", color=(150, 150, 150), description="A small, light blade.", damage_dice="1d4", damage_modifier=0, attack_bonus=0),
-            Weapon(name="Short Sword", char="/", color=(150, 150, 150), description="A basic short sword.", damage_dice="1d6", damage_modifier=0, attack_bonus=0),
-            Weapon(name="Long Sword", char="|", color=(150, 150, 150), description="A adventurer's sword.", damage_dice="1d6", damage_modifier=1, attack_bonus=2),
-            Weapon(name="Battle Axe", char="?", color=(150, 150, 150), description="A battle tested axe.", damage_dice="1d8", damage_modifier=0, attack_bonus=0),
-            Weapon(name="Quarterstaff", char="l", color=(150, 150, 150), description="A sturdy wooden staff.", damage_dice="1d6", damage_modifier=0, attack_bonus=0),
+            Weapon(name="Dagger", char="-", color=(150, 150, 150), description="A small, light blade.", damage_dice="1d4", damage_modifier=0, attack_bonus=0, price=10),
+            Weapon(name="Short Sword", char="/", color=(150, 150, 150), description="A basic short sword.", damage_dice="1d6", damage_modifier=0, attack_bonus=0, price=10),
+            Weapon(name="Long Sword", char="|", color=(150, 150, 150), description="A adventurer's sword.", damage_dice="1d6", damage_modifier=1, attack_bonus=2, price=10),
+            Weapon(name="Battle Axe", char="?", color=(150, 150, 150), description="A battle tested axe.", damage_dice="1d8", damage_modifier=0, attack_bonus=0, price=10),
+            Weapon(name="Quarterstaff", char="l", color=(150, 150, 150), description="A sturdy wooden staff.", damage_dice="1d6", damage_modifier=0, attack_bonus=0, price=10),
             
             
-            Armor(name="Leather Armor", char="lta", color=(139, 69, 19), description="Light leather armor.", ac_bonus=1),
-            Armor(name="Chainmail Armor", char="cha", color=(139, 69, 19), description="Chainmail armor.", ac_bonus=2),
-            Armor(name="Robes", char="rbs", color=(139, 69, 19), description="Simple cloth robes", ac_bonus=0),
+            Armor(name="Leather Armor", char="lta", color=(139, 69, 19), description="Light leather armor.", ac_bonus=1, price=10),
+            Armor(name="Chainmail Armor", char="cha", color=(139, 69, 19), description="Chainmail armor.", ac_bonus=2, price=10),
+            Armor(name="Robes", char="rbs", color=(139, 69, 19), description="Simple cloth robes", ac_bonus=0, price=10),
 
         ]
 
@@ -763,6 +798,49 @@ class Game:
             if event.type == pygame.KEYDOWN:
                 print(f"  DEBUG KEYDOWN event: {pygame.key.name(event.key)} (value: {event.key})")
                 
+                # --- Trade Interaction ---
+                if self.game_state == GameState.TRADE:
+                    if event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_RETURN:  # Enter key to submit input
+                            input_text = self.message_log.current_input  # Capture the input
+                            self.handle_text_input(input_text.lower())  # Convert to lowercase when processing
+                            self.message_log.clear_last_input()  # Clear the input after processing
+                        elif event.key == pygame.K_ESCAPE:  # Cancel trade
+                            self.message_log.add_message("Trade cancelled.", (255, 0, 0))
+                            self.game_state = GameState.TRADE  # Return to dungeon state
+                        elif event.key == pygame.K_BACKSPACE:  # Handle backspace
+                            self.message_log.current_input = self.message_log.current_input[:-1]  # Remove the last character
+                        else:
+                            # Capture the input character
+                            if event.unicode:  # Check if the event has a unicode character
+                                self.message_log.current_input += event.unicode  # Append the character to the current input
+
+
+                else:
+                    # Handle other key events (like opening inventory) only if not in trade state
+                    if event.key == pygame.K_i:
+                        # Store the state *before* any menu or targeting was active
+                        if self.game_state not in [GameState.INVENTORY, GameState.INVENTORY_MENU, GameState.CHARACTER_MENU, GameState.TARGETING]:
+                            self._previous_game_state = self.game_state 
+
+                        if self.game_state == GameState.TARGETING:
+                            self.message_log.add_message("Targeting cancelled (Inventory opened).", (150, 150, 150))
+                            self.ability_in_use = None # Clear the ability
+                            self.player_has_acted = False # Player didn't act if cancelled
+                            self.player.current_action_state = None # Clear any pending action state                        
+                        
+                        if self.game_state == GameState.INVENTORY:  # If already in inventory, close it
+                            self.game_state = self._previous_game_state
+                            self.message_log.add_message("Closing Inventory.", (100, 200, 255))
+                            self.selected_inventory_item = None
+                        elif self.game_state == GameState.INVENTORY_MENU:  # If in inventory menu, go back to main inventory
+                            self.game_state = GameState.INVENTORY
+                            self.selected_inventory_item = None
+                            self.message_log.add_message("Returning to Inventory.", (100, 200, 255))
+                        else:  # If not in inventory, open it
+                            self.game_state = GameState.INVENTORY
+                            self.message_log.add_message("Opening Inventory...", (100, 200, 255))
+                        return True  # Consume event, don't process other game states          
 
                 # --- NPC Interaction Logic ---
                 if self.game_state in [GameState.DUNGEON, GameState.TAVERN]:
@@ -809,33 +887,7 @@ class Game:
 
 
                 # --- Always accessible menus ---
-                if event.key == pygame.K_i:
-                    # Store the state *before* any menu or targeting was active
-                    # This is crucial for returning to the correct game state after closing menus.
-                    if self.game_state not in [GameState.INVENTORY, GameState.INVENTORY_MENU, GameState.CHARACTER_MENU, GameState.TARGETING]:
-                        self._previous_game_state = self.game_state 
-                    # If currently in TARGETING state, cancel it first
-                    if self.game_state == GameState.TARGETING:
-                        self.message_log.add_message("Targeting cancelled (Inventory opened).", (150, 150, 150))
-                        self.ability_in_use = None # Clear the ability
-                        self.player_has_acted = False # Player didn't act if cancelled
-                        self.player.current_action_state = None # Clear any pending action state
-                        # IMPORTANT: Do NOT set _previous_game_state here. It was already set above
-                        # to the state *before* targeting. This ensures we return to DUNGEON/TAVERN.
-                    
-                    if self.game_state == GameState.INVENTORY: # If already in inventory, close it
-                        self.game_state = self._previous_game_state
-                        self.message_log.add_message("Closing Inventory.", (100, 200, 255))
-                        self.selected_inventory_item = None
-                    elif self.game_state == GameState.INVENTORY_MENU: # If in inventory menu, go back to main inventory
-                        self.game_state = GameState.INVENTORY
-                        self.selected_inventory_item = None
-                        self.message_log.add_message("Returning to Inventory.", (100, 200, 255))
-                    else: # If not in inventory, open it
-                        self.game_state = GameState.INVENTORY
-                        self.message_log.add_message("Opening Inventory...", (100, 200, 255))
-                    return True # Consume event, don't process other game states                
-                
+
                 # Handle 'C' key for Character Menu
                 if event.key == pygame.K_c:
                     # Store the state *before* any menu or targeting was active
@@ -870,6 +922,7 @@ class Game:
                     return True
                 elif self.game_state == GameState.CHARACTER_MENU:
                     return True
+
                 elif self.game_state == GameState.TARGETING: 
                     self.handle_targeting_input(event.key)
                     # handle_targeting_input will call execute_targeted_ability, which then calls next_turn.
@@ -1096,6 +1149,22 @@ class Game:
             self.next_turn()  # Move to the next turn
             return  # Input handled
         
+    def handle_text_input(self, input_text):
+        """Handles text input from the player."""
+        input_text = input_text.lower()  # Convert input to lowercase
+        if self.game_state == GameState.TRADE:
+            if input_text.startswith("buy "):
+                item_name = input_text[4:]  # Get the item name after "buy "
+                result = self.merchant.buy_item(self.player, item_name)
+                self.message_log.add_message(result, (255, 255, 255))
+            elif input_text.startswith("sell "):
+                item_name = input_text[5:]  # Get the item name after "sell "
+                result = self.merchant.sell_item(self.player, item_name)
+                self.message_log.add_message(result, (255, 255, 255))
+            else:
+                self.message_log.add_message("Invalid command. Use 'buy <item>' or 'sell <item>'.", (255, 0, 0))
+            self.game_state = GameState.TAVERN  # Return to dungeon state after handling input
+
 
     def execute_targeted_ability(self):
         """
@@ -1435,7 +1504,8 @@ class Game:
                         color=lesser_healing_potion.color,
                         description=lesser_healing_potion.description,
                         effect_type=lesser_healing_potion.effect_type,
-                        effect_value=lesser_healing_potion.effect_value
+                        effect_value=lesser_healing_potion.effect_value,
+                        price=lesser_healing_potion.price
                     )
                     new_potion.x = x
                     new_potion.y = y
@@ -1448,7 +1518,8 @@ class Game:
                         color=greater_healing_potion.color,
                         description=greater_healing_potion.description,
                         effect_type=greater_healing_potion.effect_type,
-                        effect_value=greater_healing_potion.effect_value
+                        effect_value=greater_healing_potion.effect_value,
+                        price=greater_healing_potion.price
                     )
                     new_potion.x = x
                     new_potion.y = y
@@ -2281,7 +2352,7 @@ class Game:
         font_section = self.font_section
         font_info = self.font_info
         font_small = self.font_small
-        
+                
         def draw_wrapped_and_update_y(surface, font, text, color, x, y_start):
             wrapped_lines = self._wrap_text(text, font, available_text_width)
             y_offset = y_start
@@ -2308,7 +2379,9 @@ class Game:
         self._draw_text(self.screen, font_info, f"Level: {self.player.level}", (255, 255, 255), panel_offset_x, current_y)
         current_y += font_info.get_linesize() + 5
         self._draw_text(self.screen, font_info, f"XP: {self.player.current_xp}/{self.player.xp_to_next_level}", (255, 255, 255), panel_offset_x, current_y)
-        current_y += font_info.get_linesize() + 15    
+        current_y += font_info.get_linesize() + 15            
+        self._draw_text(self.screen, font_info, f"Gold: {self.player.gold}", (255, 215, 0), panel_offset_x, current_y)
+        current_y += font_info.get_linesize() + 5
         pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
         current_y += 15
 

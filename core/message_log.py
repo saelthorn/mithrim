@@ -5,9 +5,10 @@ from pygame import Rect
 class MessageBox:
     def __init__(self, x, y, width, height, font=None):
         self.rect = Rect(x, y, width, height)
-        self.messages = [] # Now stores ALL messages
-        self.scroll_offset = 0 # NEW: Tracks the scroll position (index of the first visible message)
-        
+        self.messages = []  # Now stores ALL messages
+        self.scroll_offset = 0  # NEW: Tracks the scroll position (index of the first visible message)
+        self.current_input = ""  # Store current input text
+
         if font is None:
             self.font = pygame.font.Font(None, 16)
         else:
@@ -40,17 +41,21 @@ class MessageBox:
             self.messages.append((line, color))
             
         # When a new message is added, automatically scroll to the bottom
-        # This ensures the latest message is always visible
         self.scroll_offset = max(0, len(self.messages) - self.max_lines)
 
-    def scroll_up(self, lines=1):
-        """Scrolls the message log up by a given number of lines."""
-        self.scroll_offset = max(0, self.scroll_offset - lines)
+    def clear_last_input(self):
+        """Clear the current input text."""
+        self.current_input = ""
 
-    def scroll_down(self, lines=1):
-        """Scrolls the message log down by a given number of lines."""
-        # Ensure we don't scroll past the end of the messages
-        self.scroll_offset = min(max(0, len(self.messages) - self.max_lines), self.scroll_offset + lines)
+    def scroll_up(self):
+        """Scrolls the message log up by one line."""
+        if self.scroll_offset > 0:
+            self.scroll_offset -= 1
+
+    def scroll_down(self):
+        """Scrolls the message log down by one line."""
+        if self.scroll_offset < len(self.messages) - self.max_lines:
+            self.scroll_offset += 1
 
     def render(self, surface):
         """Render the message log to the given surface"""
@@ -72,4 +77,15 @@ class MessageBox:
             text_surface = self.font.render(msg, True, color)
             surface.blit(text_surface, (self.rect.x + 5, self.rect.y + y_offset))
             y_offset += self.line_height
+
+        # Render current input text at the bottom of the message log
+        input_surface = self.font.render(self.current_input, True, (255, 255, 255))
+        surface.blit(input_surface, (self.rect.x + 5, self.rect.y + y_offset))
+
+
+
+
+
+
+
 
