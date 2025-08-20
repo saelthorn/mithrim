@@ -415,7 +415,7 @@ class GiantRat(Monster):
         super().__init__(x, y, 'R', 'Giant Rat', (0, 130, 8))
         self.hp = 7
         self.max_hp = 7
-        self.attack_bonus = 4
+        self.attack_bonus = 2
         self.armor_class = 12
         self.base_xp = 10
         self.monster_die_type = 4
@@ -427,7 +427,7 @@ class Ooze(Monster):  # Gray Ooze
         super().__init__(x, y, 'OZ', 'Ooze', (100, 100, 100))
         self.hp = 22
         self.max_hp = 22
-        self.attack_bonus = 4
+        self.attack_bonus = 2
         self.armor_class = 8
         self.base_xp = 100
         self.monster_die_type = 6
@@ -441,7 +441,7 @@ class Goblin(Monster):
         super().__init__(x, y, 'GB', 'Goblin', (0, 255, 0))
         self.hp = 7
         self.max_hp = 7
-        self.attack_bonus = 4
+        self.attack_bonus = 2
         self.armor_class = 15
         self.base_xp = 50
         self.monster_die_type = 6
@@ -452,7 +452,7 @@ class GoblinArcher(Monster):
         super().__init__(x, y, 'GA', 'Goblin Archer', (0, 200, 0))
         self.hp = 7
         self.max_hp = 7
-        self.attack_bonus = 4
+        self.attack_bonus = 2
         self.armor_class = 15
         self.base_xp = 50
         self.monster_die_type = 6
@@ -463,7 +463,7 @@ class Skeleton(Monster):
         super().__init__(x, y, 'SK', 'Skeleton', (200, 200, 200))
         self.hp = 13
         self.max_hp = 13
-        self.attack_bonus = 4
+        self.attack_bonus = 2
         self.armor_class = 13
         self.base_xp = 50
         self.monster_die_type = 6
@@ -474,7 +474,7 @@ class SkeletonArcher(Monster):
         super().__init__(x, y, 'SA', 'Skeleton Archer', (180, 180, 180))
         self.hp = 13
         self.max_hp = 13
-        self.attack_bonus = 4
+        self.attack_bonus = 2
         self.armor_class = 13
         self.base_xp = 50
         self.monster_die_type = 6
@@ -485,7 +485,7 @@ class Orc(Monster):
         super().__init__(x, y, 'OR', 'Orc', (0, 128, 0))
         self.hp = 15
         self.max_hp = 15
-        self.attack_bonus = 5
+        self.attack_bonus = 3
         self.armor_class = 13
         self.base_xp = 100
         self.monster_die_type = 12
@@ -496,7 +496,7 @@ class Centaur(Monster):
         super().__init__(x, y, 'CE', 'Centaur', (139, 69, 19))
         self.hp = 45
         self.max_hp = 45
-        self.attack_bonus = 6
+        self.attack_bonus = 3
         self.armor_class = 12
         self.base_xp = 450
         self.monster_die_type = 8
@@ -507,7 +507,7 @@ class CentaurArcher(Monster):
         super().__init__(x, y, 'CA', 'Centaur Archer', (160, 82, 45))
         self.hp = 45
         self.max_hp = 45
-        self.attack_bonus = 6
+        self.attack_bonus = 3
         self.armor_class = 12
         self.base_xp = 450
         self.monster_die_type = 8
@@ -518,7 +518,7 @@ class Troll(Monster):
         super().__init__(x, y, 'TR', 'Troll', (0, 100, 0))
         self.hp = 84
         self.max_hp = 84
-        self.attack_bonus = 7
+        self.attack_bonus = 4
         self.armor_class = 15
         self.base_xp = 1800
         self.monster_die_type = 6
@@ -531,7 +531,7 @@ class Lizardfolk(Monster):
         super().__init__(x, y, 'LF', 'Lizardfolk', (46, 139, 87))
         self.hp = 22
         self.max_hp = 22
-        self.attack_bonus = 4
+        self.attack_bonus = 2
         self.armor_class = 15
         self.base_xp = 100
         self.monster_die_type = 6
@@ -546,7 +546,7 @@ class LizardfolkArcher(Monster):
         super().__init__(x, y, 'LA', 'Lizardfolk Archer', (60, 179, 113))
         self.hp = 22
         self.max_hp = 22
-        self.attack_bonus = 4
+        self.attack_bonus = 2
         self.armor_class = 15
         self.base_xp = 100
         self.monster_die_type = 8
@@ -557,7 +557,7 @@ class GiantSpider(Monster):
         super().__init__(x, y, 'GS', 'Giant Spider', (50, 50, 50))
         self.hp = 26
         self.max_hp = 26
-        self.attack_bonus = 5
+        self.attack_bonus = 3
         self.armor_class = 14
         self.base_xp = 200
         self.monster_die_type = 8
@@ -573,7 +573,7 @@ class Beholder(Monster):
         super().__init__(x, y, 'BH', 'Beholder', (150, 0, 150))
         self.hp = 180
         self.max_hp = 180
-        self.attack_bonus = 12
+        self.attack_bonus = 7
         self.armor_class = 18
         self.base_xp = 10000
         self.monster_die_type = 8
@@ -585,7 +585,7 @@ class LargeOoze(Monster):  # Black Pudding
         super().__init__(x, y, 'LO', 'Large Ooze', (34, 139, 34))
         self.hp = 85
         self.max_hp = 85
-        self.attack_bonus = 5
+        self.attack_bonus = 4
         self.armor_class = 7
         self.base_xp = 1800
         self.monster_die_type = 8
@@ -614,7 +614,7 @@ class Owlbear(Monster):
         super().__init__(x, y, 'OB', 'Owlbear', (139, 69, 19))
         self.hp = 59
         self.max_hp = 59
-        self.attack_bonus = 7
+        self.attack_bonus = 5
         self.armor_class = 13
         self.base_xp = 700
         self.monster_die_type = 10
@@ -625,7 +625,7 @@ class Demogorgon(Monster):
         super().__init__(x, y, 'DG', 'Demogorgon', (72, 61, 139))
         self.hp = 496
         self.max_hp = 496
-        self.attack_bonus = 13
+        self.attack_bonus = 12
         self.armor_class = 22
         self.base_xp = 155000
         self.monster_die_type = 12
@@ -638,7 +638,7 @@ class Grick(Monster):
         super().__init__(x, y, 'GK', 'Grick', (105, 105, 105))
         self.hp = 27
         self.max_hp = 27
-        self.attack_bonus = 4
+        self.attack_bonus = 3
         self.armor_class = 14
         self.base_xp = 450
         self.monster_die_type = 6
@@ -676,7 +676,7 @@ class Minotaur(Monster):
         super().__init__(x, y, 'MN', 'Minotaur', (139, 0, 0))
         self.hp = 76
         self.max_hp = 76
-        self.attack_bonus = 6
+        self.attack_bonus = 4
         self.armor_class = 14
         self.base_xp = 700
         self.monster_die_type = 12
@@ -688,7 +688,7 @@ class Wererat(Monster):
         super().__init__(x, y, 'WR', 'Wererat', (169, 169, 169))
         self.hp = 33
         self.max_hp = 33
-        self.attack_bonus = 4
+        self.attack_bonus = 2
         self.armor_class = 12
         self.base_xp = 100
         self.monster_die_type = 4
@@ -701,7 +701,7 @@ class Wolf(Monster):
         super().__init__(x, y, 'WF', 'Wolf', (112, 128, 144))
         self.hp = 11
         self.max_hp = 11
-        self.attack_bonus = 4
+        self.attack_bonus = 2
         self.armor_class = 13
         self.base_xp = 50
         self.monster_die_type = 4

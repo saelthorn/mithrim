@@ -395,7 +395,7 @@ class Fighter(Player):
         
         self.strength = 15
         self.dexterity = 13
-        self.constitution = 14
+        self.constitution = 140
         self.intelligence = 8
         self.wisdom = 12
         self.charisma = 10

@@ -33,7 +33,7 @@ from entities.monster import (
 
 from entities.base_entity import NPC
 from entities.tavern_npcs import create_tavern_npcs, NPC, Merchant
-from entities.dungeon_npcs import DungeonHealer
+from entities.dungeon_npcs import DungeonHealer, DungeonMerchant
 from entities.tavern_npcs import NPC
 from entities.races import Human, HillDwarf, DrowElf # NEW: Import DrowElf
 from entities.summons import MageHandEntity
@@ -495,7 +495,7 @@ class Game:
                 self.entities.append(monster)
                 self.message_log.add_message(f"A {monster.name} appears!", (255, 150, 0))
 
-        if len(rooms) > 2 and random.random() < 0.3: # Healer spawnrate
+        if len(rooms) > 2 and random.random() < 0.6: # Healer spawnrate
             shuffled_healer_rooms = list(rooms[1:-1])
             random.shuffle(shuffled_healer_rooms)
             healer_spawned = False
@@ -527,7 +527,7 @@ class Game:
             if not healer_spawned:
                 self.message_log.add_message("DEBUG: Dungeon Healer could not find a suitable spawn spot.", (100, 100, 100))
 
-        elif len(rooms) > 2 and random.random() < 0.3: # Merchant spawnrate
+        elif len(rooms) > 2 and random.random() < 0.6: # Merchant spawnrate
             shuffled_merchant_rooms = list(rooms[1:-1])
             random.shuffle(shuffled_merchant_rooms)
             merchant_spawned = False
@@ -548,11 +548,11 @@ class Game:
                                 possible_spawn_points.append((x_coord, y_coord))
                 
                 if possible_spawn_points:
-                    healer_x, healer_y = random.choice(possible_spawn_points)
-                    dungeon_healer = DungeonHealer(healer_x, healer_y)
-                    self.entities.append(dungeon_healer)
+                    merchat_x, merchant_y = random.choice(possible_spawn_points)
+                    dungeon_merchant = DungeonMerchant(merchat_x, merchant_y)
+                    self.entities.append(dungeon_merchant)
                     self.message_log.add_message(f"You sense a benevolent presence nearby...", (0, 255, 255))
-                    self.message_log.add_message(f"A {dungeon_healer.name} is at ({healer_x}, {healer_y})", (0, 255, 255))
+                    self.message_log.add_message(f"A {dungeon_merchant.name} is at ({merchat_x}, {merchant_y})", (0, 255, 255))
                     merchant_spawned = True
                     break
             
@@ -649,14 +649,16 @@ class Game:
 
 
     def check_dungeon_npc_interaction(self):
+        """Check for NPC interaction in the dungeon."""
         if self.game_state == GameState.DUNGEON:
             for entity in self.entities:
-                if isinstance(entity, DungeonHealer):
+                # Check if the entity is either a DungeonHealer or DungeonMerchant and is adjacent to the player
+                if isinstance(entity, (DungeonHealer, DungeonMerchant)):
                     if (abs(self.player.x - entity.x) <= 1 and
                         abs(self.player.y - entity.y) <= 1 and
                         (abs(self.player.x - entity.x) + abs(self.player.y - entity.y)) == 1):
-                        return entity
-        return None
+                        return entity  # Return the NPC if adjacent
+        return None  # No NPC found
 
     def check_stairs_interaction(self):
         if self.game_state == GameState.DUNGEON:
@@ -857,6 +859,16 @@ class Game:
                             self.game_state = GameState.INVENTORY
                             self.message_log.add_message("Opening Inventory...", (100, 200, 255))
                         return True  # Consume event, don't process other game states          
+
+
+                # --- Trade Interaction --- 
+                if self.game_state in [GameState.DUNGEON, GameState.TAVERN]:
+                    if event.key == pygame.K_f:  # Check if 'F' is pressed
+                        # Check for adjacent Dungeon Merchant
+                        merchant = self.check_dungeon_npc_interaction()  # Check for adjacent NPC
+                        if isinstance(merchant, DungeonMerchant):
+                            merchant.offer_trade(self.player, self)  # Call the trade method for the Merchant
+                            return True  # Consume event
 
                 # --- NPC Interaction Logic ---
                 if self.game_state in [GameState.DUNGEON, GameState.TAVERN]:
@@ -1179,8 +1191,19 @@ class Game:
                 self.message_log.add_message(result, (255, 255, 255))
             else:
                 self.message_log.add_message("Invalid command. Use 'buy <item>' or 'sell <item>'.", (255, 0, 0))
-            self.game_state = GameState.TAVERN  # Return to dungeon state after handling input
-
+            
+            # Return to the previous game state after trading
+            self.game_state = self._previous_game_state  # Revert to the previous state
+            return  # Exit the method after handling trade input
+    
+        # Handle other game states (Tavern or Dungeon)
+        if self.game_state == GameState.TAVERN:
+            # Handle Tavern-specific input here
+            pass
+        elif self.game_state == GameState.DUNGEON:
+            # Handle Dungeon-specific input here
+            pass
+        
 
     def execute_targeted_ability(self):
         """
