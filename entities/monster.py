@@ -6,45 +6,46 @@ from core.floating_text import FloatingText
 
 class Monster:
     def __init__(self, x, y, char, name, color):
-        # super().__init__() # This line is not needed if Monster does not inherit from another class
-        
         self.x = x
         self.y = y
         self.char = char
         self.name = name
         self.color = color
         self.alive = True
-        self.hp = 10
+        self.hp = 10  # Base HP, will be overridden in subclasses
         self.max_hp = 10
-        self.attack_power = 2 # Melee attack power
-        self.armor_class = 11
-        self.base_xp = 10
+        self.attack_bonus = 2  # Base attack bonus, will be overridden in subclasses
+        self.armor_class = 11  # Base AC, will be overridden in subclasses
+        self.base_xp = 10  # Base XP, will be overridden in subclasses
+        self.monster_die_type = 4  # Base die type for damage rolls, will be overridden in subclasses
+        self.num_damage_dice = 1  # Number of damage dice to roll, will be overridden in subclasses
         self.initiative = 0
         self.blocks_movement = True
         self.active_status_effects = []
-        
-        # Ranged attack specific attributes (default to 0/False)
+       
+        # Ranged attack attributes
         self.is_ranged = False
-        self.ranged_attack_power = 0
-        self.range = 0 # Max range for ranged attacks
-
-        # Poison specific attributes
+        self.ranged_attack_bonus = 0  # Base ranged attack bonus
+        self.ranged_attack_bonus = 0  # Base ranged attack power
+        self.range = 0  # Max range for ranged attacks
+        self.ranged_die_type = 4  # Base die type for ranged attacks
+        self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
+       
+        # Special attack attributes
         self.can_poison = False
         self.poison_dc = 10
         self.poison_duration = 3
         self.poison_damage_per_turn = 2
-
-        # Acid burn specific attributes
+       
         self.can_acid_burn = False
         self.acid_burn_dc = 10
         self.acid_burn_duration = 3
         self.acid_burn_damage_per_turn = 3
-
-        # Burning specific attributes
+       
         self.can_burn = False
         self.burn_dc = 14
         self.burn_duration = 3
-        self.burn_damage_per_turn = random.randint(1,4)
+        self.burn_damage_per_turn = random.randint(1, 4)
 
     def roll_initiative(self):
         """Roll for turn order"""
@@ -108,18 +109,33 @@ class Monster:
         dy = abs(self.y - other.y)
         return dx <= 1 and dy <= 1 and (dx != 0 or dy != 0)
 
+    def roll_damage(self, is_ranged=False):
+        """
+        Rolls damage based on monster's stats.
+        If is_ranged=True, uses ranged attack dice.
+        
+        Returns total damage rolled and individual rolls for messaging.
+        """
+        if is_ranged:
+            num_dice = self.ranged_num_dice
+            die_type = self.ranged_die_type
+        else:
+            num_dice = self.num_damage_dice 
+            die_type = self.monster_die_type
+        rolls = [random.randint(1, die_type) for _ in range(num_dice)]
+        return sum(rolls), rolls
+
+
     def attack(self, target, game, advantage=False, disadvantage=False):
-        """Attack a target and show combat messages, including dice rolls, crits, and fumbles."""
+        """Updated attack method with better damage scaling"""
         if not target.alive:
             return
-
-        # --- Monster Attack Roll ---
+        # Attack roll
         roll1 = random.randint(1, 20)
-        roll2 = random.randint(1, 20) 
-
+        roll2 = random.randint(1, 20)
         final_d20_roll = roll1
         roll_message_part = f"a d20: {roll1}"
-
+        attack_bonus = self.attack_bonus
         if advantage and disadvantage:
             game.message_log.add_message(f"The {self.name} rolls with neither Advantage nor Disadvantage.", (150, 150, 150))
         elif advantage:
@@ -130,180 +146,117 @@ class Monster:
             final_d20_roll = min(roll1, roll2)
             roll_message_part = f"2d20 (Disadvantage): {roll1}, {roll2} -> {final_d20_roll}"
             game.message_log.add_message(f"The {self.name} rolls with Disadvantage!", (150, 150, 255))
+        attack_roll_total = final_d20_roll + attack_bonus
         
-        monster_attack_bonus = 2 # Keep this as is for now
-        attack_roll_total = final_d20_roll + monster_attack_bonus # Use final_d20_roll
+        # Check for critical hit/fumble
+        is_critical_hit = (final_d20_roll == 20)
+        is_critical_fumble = (final_d20_roll == 1)
 
-        # --- Apply EvasionBuff to target's AC if present ---
+
+        # Adjust target AC for evasion effects
         target_ac = target.armor_class
-        evasion_buff = None
-        if hasattr(target, 'active_status_effects'): # Ensure target is a Player or similar
+        if hasattr(target, 'active_status_effects'):
             for effect in target.active_status_effects:
                 if isinstance(effect, EvasionBuff):
-                    evasion_buff = effect
-                    break
-
-        if evasion_buff:
-            target_ac += evasion_buff.dodge_bonus
-            game.message_log.add_message(f"The {target.name} is evasive! Target AC: {target_ac}", (100, 255, 255))
-
+                    target_ac += effect.dodge_bonus
+                    game.message_log.add_message(f"The {target.name} is evasive! Target AC: {target_ac}", (100, 255, 255))
         game.message_log.add_message(
-            f"The {self.name} rolls {roll_message_part} + {monster_attack_bonus} (Attack Bonus) = {attack_roll_total}",
+            f"The {self.name} rolls {roll_message_part} + {attack_bonus} = {attack_roll_total} vs AC {target_ac}",
             (255, 150, 150)
         )
-
-        is_critical_hit = (final_d20_roll == 20) # Use final_d20_roll
-        is_critical_fumble = (final_d20_roll == 1) # Use final_d20_roll
-
-
+        hit_successful = False
         if is_critical_hit:
-            game.message_log.add_message(
-                f"CRITICAL HIT! The {self.name} lands a devastating blow!",
-                (255, 100, 100)
-            )
+            game.message_log.add_message("CRITICAL HIT!", (255, 100, 100))
             hit_successful = True
         elif is_critical_fumble:
-            game.message_log.add_message(
-                f"CRITICAL FUMBLE! The {self.name} stumbles!",
-                (150, 150, 150)
-            )
+            game.message_log.add_message("CRITICAL FUMBLE!", (150, 150, 150))
             hit_successful = False
-        elif attack_roll_total >= target_ac:
-            hit_successful = True
         else:
-            hit_successful = False
+            hit_successful = (attack_roll_total >= target_ac)
+
 
         if hit_successful:
-            # --- AMBIENT TEXT FOR MONSTER HIT ---
-            monster_hit_messages = [
-                f"The {self.name}'s attack ({attack_roll_total}) hits {target.name} (AC {target.armor_class})!",
-                f"The {self.name} strikes {target.name}!",
-                f"A claw rakes across {target.name}'s arm!",
-                f"The {self.name} connects with a brutal blow!"
-            ]
-            game.message_log.add_message(random.choice(monster_hit_messages), (255, 100, 100))
-
-            hit_text = FloatingText(target.x, target.y, "HIT!", (255, 255, 0))
-            game.floating_texts.append(hit_text)
-            # print(f"DEBUG: Monster added HIT! FloatingText for {target.name} at ({target.x},{target.y}). Initial frames_left: {hit_text.frames_left}. List size: {len(game.floating_texts)}") # <--- MODIFIED PRINT
-
-
-            # --- Damage Calculation ---
-            monster_die_type = 4 # Assuming 1d4 for monsters
-            damage_rolls = []
-            total_dice_rolled = 1 # Default to 1 die
-
+            # Roll damage
+            damage_total, damage_rolls = self.roll_damage()
+            
+            # Critical hits do maximum possible damage
             if is_critical_hit:
-                total_dice_rolled *= 2 # Double the number of dice rolled for critical hits
-                game.message_log.add_message(f"Critical Hit! The {self.name} rolls {total_dice_rolled}d{monster_die_type} for damage!", (255, 100, 100))
-
-            for _ in range(total_dice_rolled):
-                damage_rolls.append(random.randint(1, monster_die_type))
-            
-            damage_dice_rolls_sum = sum(damage_rolls)
-            
-            # Construct the message part for dice rolls
-            damage_message_dice_part = f"{total_dice_rolled}d{monster_die_type} ({' + '.join(map(str, damage_rolls))})"
-
-            damage_modifier = self.attack_power
-            damage_total = max(1, damage_dice_rolls_sum + damage_modifier)
-
-            game.message_log.add_message(
-                f"The {self.name} rolls {damage_message_dice_part} + {damage_modifier} (Attack Power) = {damage_total} damage!",
-                (255, 170, 100)
-            )
-
-            damage_dealt = target.take_damage(damage_total, game, damage_type='physical') 
-            
-            game.message_log.add_message(
-                f"The {self.name} attacks {target.name} for {damage_dealt} damage!", 
-                (255, 50, 50)
-            )
-
-            damage_text = FloatingText(target.x, target.y - 0.5, str(damage_dealt), (255, 0, 0))
-            game.floating_texts.append(damage_text)
-            print(f"DEBUG: Monster added DAMAGE FloatingText for {target.name} at ({target.x},{target.y}). Initial frames_left: {damage_text.frames_left}. List size: {len(game.floating_texts)}") # <--- MODIFIED PRINT
-
-            # --- Apply Poison if applicable ---
-            if self.can_poison and target.alive:
-                game.message_log.add_message(f"The {self.name} attempts to poison {target.name}!", (255, 150, 0))
-                if not target.make_saving_throw("CON", self.poison_dc, game):
-                    target.add_status_effect("Poisoned", duration=self.poison_duration, game_instance=game, source=self)
-                else:
-                    game.message_log.add_message(f"{target.name} resists the poison!", (150, 255, 150))
-
-            # --- Apply Acid Burn if applicable ---
-            if self.can_acid_burn and target.alive:
-                game.message_log.add_message(f"The {self.name} attempts to burn {target.name} with acid!", (255, 150, 0))
-                if not target.make_saving_throw("CON", self.acid_burn_dc, game):
-                    target.add_status_effect("AcidBurned", duration=self.acid_burn_duration, game_instance=game, source=self)
-                else:
-                    game.message_log.add_message(f"{target.name} resists the acid burn!", (150, 255, 150))
-
-            # --- Apply Burning if applicable ---
-            if self.can_burn and target.alive:
-                game.message_log.add_message(f"The {self.name} attempts to burn {target.name} with fire!", (255, 150, 0))
-                if not target.make_saving_throw("DEX", self.burn_dc, game):
-                    target.add_status_effect("Burning", duration=self.burn_duration, game_instance=game, source=self)
-                else:
-                    game.message_log.add_message(f"{target.name} resists the flames!", (255,150, 150))                                        
-
-
-            if not target.alive:
-                game.message_log.add_message(
-                    f"{target.name} has been slain!",
-                    (200, 0, 0)
-                )
+                max_damage = self.num_damage_dice * self.monster_die_type
+                damage_total = max_damage
             else:
-                game.message_log.add_message(
-                    f"{target.name} has {target.hp}/{target.max_hp} HP remaining.",
-                    (255, 200, 0)
-                )
+                damage_total += self.attack_bonus  # Add attack power to damage
+            
+            game.message_log.add_message(f"Rolls {damage_rolls} + {attack_bonus} (Attack Bonus) = {damage_total}", (230, 200, 150))
+            # Apply damage
+            damage_dealt = target.take_damage(damage_total, game)
+            
+            # Floating text
+            hit_text = FloatingText(target.x, target.y, "HIT!", (255, 255, 0))
+            damage_text = FloatingText(target.x, target.y - 0.5, str(damage_dealt), (255, 0, 0))
+            game.floating_texts.extend([hit_text, damage_text])
+            if not target.alive:
+                game.message_log.add_message(f"{target.name} has been slain!", (200, 0, 0))
+            else:
+                hp_message = f"{target.name} has {target.hp}/{target.max_hp} HP"
+                hp_color = (255, 200, 0) if target.hp > target.max_hp * 0.3 else (255, 100, 0)
+                game.message_log.add_message(hp_message, hp_color)
         else:
-            # --- AMBIENT TEXT FOR MONSTER MISS ---
-            monster_miss_messages = [
-                f"The {self.name}'s attack ({attack_roll_total}) misses {target.name} (AC {target.armor_class})!",
-                f"The {self.name} lunges, but misses {target.name}!",
-                f"{target.name} deftly avoids the {self.name}'s attack!",
-                f"The {self.name}'s attack whiffs past {target.name}!"
+            # Miss handling
+            miss_messages = [
+                f"The {self.name}'s attack misses!",
+                f"{target.name} dodges the {self.name}'s attack!",
+                f"The {self.name} swings wildly and misses!"
             ]
-            game.message_log.add_message(random.choice(monster_miss_messages), (200, 200, 200))
-
+            game.message_log.add_message(random.choice(miss_messages), (200, 200, 200))
             miss_text = FloatingText(target.x, target.y, "MISS!", (150, 150, 150))
-            game.floating_texts.append(miss_text)
-            print(f"DEBUG: Monster added MISS! FloatingText for {target.name} at ({target.x},{target.y}). Initial frames_left: {miss_text.frames_left}. List size: {len(game.floating_texts)}") # <--- MODIFIED PRINT
+            game.floating_texts.append(miss_text)                    
 
 
     def ranged_attack(self, target, game):
-        """Performs a ranged attack. Override for specific ranged monsters."""
+        """More powerful ranged attacks"""
         if not target.alive:
             return
+        game.message_log.add_message(f"The {self.name} takes aim at {target.name}!", (255, 150, 0))
+        # Attack roll
+        attack_roll = random.randint(1, 20) + self.ranged_attack_bonus
         
-        game.message_log.add_message(f"The {self.name} makes a ranged attack at {target.name}!", (255, 150, 0))
+        # Check for critical hit
+        is_critical = (attack_roll - self.ranged_attack_bonus) == 20
         
-        # Simplified ranged attack roll (you can make this more complex later)
-        attack_roll = random.randint(1, 20) + 2 # Example: +2 to hit for ranged
-        
-        if attack_roll >= target.armor_class:
-            damage = random.randint(1, 6) + self.ranged_attack_power # Example: 1d6 + ranged_attack_power
-            damage_dealt = target.take_damage(damage, game, damage_type='piercing')
-            game.message_log.add_message(f"The projectile hits {target.name} for {damage_dealt} damage!", (255, 50, 50))
+        target_ac = target.armor_class
+        if hasattr(target, 'active_status_effects'):
+            for effect in target.active_status_effects:
+                if isinstance(effect, EvasionBuff):
+                    target_ac += effect.dodge_bonus
+        game.message_log.add_message(
+            f"The {self.name} rolls {attack_roll - self.ranged_attack_bonus} + {self.ranged_attack_bonus} = {attack_roll} vs AC {target_ac}",
+            (200, 200, 255)
+        )
+
+        if is_critical or attack_roll >= target_ac:
+            # Roll ranged damage
+            damage_total, damage_rolls = self.roll_damage(is_ranged=True)
             
-            # --- ADDED: Floating Text for HIT! ---
+            if is_critical:
+                max_damage = self.ranged_num_dice * self.ranged_die_type
+                damage_total = max_damage
+            
+            damage_total += self.ranged_attack_bonus  # Add ranged attack power
+            
+            game.message_log.add_message(f"Rolls {damage_rolls} = {damage_total}", (230, 200, 150))
+            damage_dealt = target.take_damage(damage_total, game)
+            
+            # Floating text
             hit_text = FloatingText(target.x, target.y, "HIT!", (255, 255, 0))
-            game.floating_texts.append(hit_text)
-            # --- ADDED: Floating Text for Damage Dealt ---
             damage_text = FloatingText(target.x, target.y - 0.5, str(damage_dealt), (255, 0, 0))
-            game.floating_texts.append(damage_text)
+            game.floating_texts.extend([hit_text, damage_text])
             if not target.alive:
                 game.message_log.add_message(f"{target.name} has been slain by a ranged attack!", (200, 0, 0))
         else:
-            game.message_log.add_message(f"The {self.name}'s projectile misses {target.name}.", (200, 200, 200))
-            
-            # --- ADDED: Floating Text for MISS! ---
+            game.message_log.add_message(f"The {self.name}'s ranged attack misses!", (200, 200, 200))
             miss_text = FloatingText(target.x, target.y, "MISS!", (150, 150, 150))
             game.floating_texts.append(miss_text)
-            
+
 
     def take_damage(self, amount, game_instance=None, damage_type=None): 
         """Handle taking damage and return actual damage taken"""
@@ -379,16 +332,18 @@ class Mimic(Monster):
             self.revealed_char = 'M' 
         self.revealed_color = (255, 0, 0) 
         
-        self.hp = 22 # Mimic specific HP
-        self.max_hp = 22
-        self.attack_power = 5
+        self.hp = 58 # Mimic specific HP
+        self.max_hp = 58
+        self.attack_bonus = 5
         self.armor_class = 12
-        self.base_xp = 40
+        self.base_xp = 450
+        self.monster_die_type = 8
         self.blocks_movement = True
         self.can_acid_burn = True
         self.acid_burn_dc = 12
         self.acid_burn_duration = 3
         self.acid_burn_damage_per_turn = 3
+        self.num_damage_dice = 1
 
     def take_damage(self, amount, game_instance, damage_type=None):
         """
@@ -453,189 +408,307 @@ class Mimic(Monster):
         super().take_turn(player, game_map, game)
 
 
-# --- NEW MONSTER CLASSES ---
+# --- MONSTER CLASSES ---
 
 class GiantRat(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'r', 'Giant Rat', (0, 130, 8))
+        super().__init__(x, y, 'R', 'Giant Rat', (0, 130, 8))
         self.hp = 7
         self.max_hp = 7
-        self.attack_power = 2
-        self.armor_class = 11
+        self.attack_bonus = 4
+        self.armor_class = 12
         self.base_xp = 10
-        self.can_poison = True
-        self.poison_dc = 11
-        self.poison_duration = 2
-        self.poison_damage_per_turn = 1
+        self.monster_die_type = 4
+        self.num_damage_dice = 1
+        # self.can_disease = True  # Filth Fever (homebrew disease effect)
 
-class GiantSpider(Monster):
+class Ooze(Monster):  # Gray Ooze
     def __init__(self, x, y):
-        super().__init__(x, y, 'GS', 'Giant Spider', (50, 50, 50)) 
-        self.hp = 26
-        self.max_hp = 26
-        self.attack_power = 6
-        self.armor_class = 14
-        self.base_xp = 65
-        self.can_poison = True
-        self.poison_dc = 12
-        self.poison_duration = 4
-        self.poison_damage_per_turn = 3
-
-class Ooze(Monster):
-    def __init__(self, x, y):
-        super().__init__(x, y, 's', 'Ooze', (0, 200, 0)) # 's' for slime, bright green
-        self.hp = 18
-        self.max_hp = 18
-        self.attack_power = 4
-        self.armor_class = 8 # Slimes are squishy
-        self.base_xp = 25
-        self.can_acid_burn = True # Or make it acid damage later
+        super().__init__(x, y, 'OZ', 'Ooze', (100, 100, 100))
+        self.hp = 22
+        self.max_hp = 22
+        self.attack_bonus = 4
+        self.armor_class = 8
+        self.base_xp = 100
+        self.monster_die_type = 6
+        self.num_damage_dice = 2
         self.acid_burn_dc = 14
         self.acid_burn_duration = 4
         self.acid_burn_damage_per_turn = 3
 
 class Goblin(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'g', 'Goblin', (0, 130, 8))
-        self.hp = 11
-        self.max_hp = 11
-        self.attack_power = 3
-        self.armor_class = 12
-        self.base_xp = 15
+        super().__init__(x, y, 'GB', 'Goblin', (0, 255, 0))
+        self.hp = 7
+        self.max_hp = 7
+        self.attack_bonus = 4
+        self.armor_class = 15
+        self.base_xp = 50
+        self.monster_die_type = 6
+        self.num_damage_dice = 1
 
 class GoblinArcher(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'ga', 'Goblin Archer', (0, 100, 0)) # 'a' for archer, darker green
-        self.hp = 10
-        self.max_hp = 10
-        self.attack_power = 1 # Melee attack if adjacent
-        self.is_ranged = True
-        self.ranged_attack_power = 4 # Ranged attack damage
-        self.range = 6 # How far it can shoot
-        self.armor_class = 11
-        self.base_xp = 18
+        super().__init__(x, y, 'GA', 'Goblin Archer', (0, 200, 0))
+        self.hp = 7
+        self.max_hp = 7
+        self.attack_bonus = 4
+        self.armor_class = 15
+        self.base_xp = 50
+        self.monster_die_type = 6
+        self.num_damage_dice = 1
 
 class Skeleton(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'S', 'Skeleton', (215, 152, 152))
+        super().__init__(x, y, 'SK', 'Skeleton', (200, 200, 200))
         self.hp = 13
         self.max_hp = 13
-        self.attack_power = 3
+        self.attack_bonus = 4
         self.armor_class = 13
-        self.base_xp = 20
+        self.base_xp = 50
+        self.monster_die_type = 6
+        self.num_damage_dice = 1
 
 class SkeletonArcher(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'SA', 'Skeleton Archer', (180, 180, 180)) # 'S' for Skeleton Archer, lighter gray
-        self.hp = 12
-        self.max_hp = 12
-        self.attack_power = 2
-        self.is_ranged = True
-        self.ranged_attack_power = 4
-        self.range = 6
-        self.armor_class = 12
-        self.base_xp = 22
+        super().__init__(x, y, 'SA', 'Skeleton Archer', (180, 180, 180))
+        self.hp = 13
+        self.max_hp = 13
+        self.attack_bonus = 4
+        self.armor_class = 13
+        self.base_xp = 50
+        self.monster_die_type = 6
+        self.num_damage_dice = 1
 
 class Orc(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'OR', 'Orc', (63, 127, 63)) # 'OR' for Orc, dark green
+        super().__init__(x, y, 'OR', 'Orc', (0, 128, 0))
         self.hp = 15
         self.max_hp = 15
-        self.attack_power = 5
+        self.attack_bonus = 5
         self.armor_class = 13
-        self.base_xp = 25
+        self.base_xp = 100
+        self.monster_die_type = 12
+        self.num_damage_dice = 1
 
 class Centaur(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'CT', 'Centaur', (139, 69, 19)) # 'C' for Centaur, brown
-        self.hp = 30
-        self.max_hp = 30
-        self.attack_power = 6 # Melee attack (hooves/spear)
-        self.armor_class = 14
-        self.base_xp = 50
+        super().__init__(x, y, 'CE', 'Centaur', (139, 69, 19))
+        self.hp = 45
+        self.max_hp = 45
+        self.attack_bonus = 6
+        self.armor_class = 12
+        self.base_xp = 450
+        self.monster_die_type = 8
+        self.num_damage_dice = 2
 
 class CentaurArcher(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'CA', 'Centaur Archer', (139, 69, 19)) # 'CA' for Centaur Archer, brown
-        self.hp = 26
-        self.max_hp = 26
-        self.attack_power = 5 # Melee attack if adjacent
-        self.is_ranged = True
-        self.ranged_attack_power = 7 # Ranged attack damage
-        self.range = 6 # How far it can shoot
-        self.armor_class = 13
-        self.base_xp = 55    
+        super().__init__(x, y, 'CA', 'Centaur Archer', (160, 82, 45))
+        self.hp = 45
+        self.max_hp = 45
+        self.attack_bonus = 6
+        self.armor_class = 12
+        self.base_xp = 450
+        self.monster_die_type = 8
+        self.num_damage_dice = 1
 
 class Troll(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'T', 'Troll', (127, 63, 63))
+        super().__init__(x, y, 'TR', 'Troll', (0, 100, 0))
         self.hp = 84
         self.max_hp = 84
-        self.attack_power = 9
+        self.attack_bonus = 7
         self.armor_class = 15
-        self.base_xp = 180
-        # Trolls often have regeneration, which would be a status effect or a special method
+        self.base_xp = 1800
+        self.monster_die_type = 6
+        self.num_damage_dice = 2
+        # self.regeneration = True
+        # self.regen_amount = 10  # per turn unless acid/fire damage
 
 class Lizardfolk(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'L', 'Lizardfolk', (0, 100, 100)) # 'L' for Lizardfolk, teal
+        super().__init__(x, y, 'LF', 'Lizardfolk', (46, 139, 87))
         self.hp = 22
         self.max_hp = 22
-        self.attack_power = 5
-        self.armor_class = 14
-        self.base_xp = 40
-        self.can_poison = True # Some Lizardfolk have poisonous bites
+        self.attack_bonus = 4
+        self.armor_class = 15
+        self.base_xp = 100
+        self.monster_die_type = 6
+        self.num_damage_dice = 1
+        self.can_poison = True
         self.poison_dc = 13
         self.poison_duration = 3
         self.poison_damage_per_turn = 2
 
 class LizardfolkArcher(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'LA', 'Lizardfolk Archer', (0, 80, 80)) # 'LA' for Lizardfolk Archer, darker teal
-        self.hp = 20
-        self.max_hp = 20
-        self.attack_power = 3 # Melee attack if adjacent
-        self.is_ranged = True
-        self.ranged_attack_power = 6 # Ranged attack damage
-        self.range = 6 # How far it can shoot
-        self.armor_class = 13
-        self.base_xp = 42    
+        super().__init__(x, y, 'LA', 'Lizardfolk Archer', (60, 179, 113))
+        self.hp = 22
+        self.max_hp = 22
+        self.attack_bonus = 4
+        self.armor_class = 15
+        self.base_xp = 100
+        self.monster_die_type = 8
+        self.num_damage_dice = 1
 
-class LargeOoze(Monster):
+class GiantSpider(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'LO', 'Large Ooze', (0, 150, 0)) # 'O' for Large Ooze, bright green
-        self.hp = 45
-        self.max_hp = 45
-        self.attack_power = 8
-        self.armor_class = 8 # Still squishy but larger
-        self.base_xp = 120
-        self.can_acid_burn = True # Or make it acid damage later
-        self.acid_burn_dc = 12
-        self.acid_burn_duration = 3
-        self.acid_burn_damage_per_turn = 4        
+        super().__init__(x, y, 'GS', 'Giant Spider', (50, 50, 50))
+        self.hp = 26
+        self.max_hp = 26
+        self.attack_bonus = 5
+        self.armor_class = 14
+        self.base_xp = 200
+        self.monster_die_type = 8
+        self.num_damage_dice = 1
+        self.can_poison = True
+        self.poison_dc = 11
+        self.poison_duration = 3
+        self.poison_damage_per_turn = 4
+        self.web_restrain = True
 
 class Beholder(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'BH', 'Beholder', (150, 0, 150)) # 'B' for Beholder, purple
+        super().__init__(x, y, 'BH', 'Beholder', (150, 0, 150))
         self.hp = 180
         self.max_hp = 180
-        self.attack_power = 8 # Bite attack
-        self.is_ranged = True
-        self.ranged_attack_power = 12 # Eye ray damage (example)
-        self.range = 8 # Long range eye rays
+        self.attack_bonus = 12
         self.armor_class = 18
-        self.base_xp = 1000
-        # Beholders would typically have multiple eye ray types, anti-magic cone, etc.
-        # This is a very simplified version.
+        self.base_xp = 10000
+        self.monster_die_type = 8
+        self.num_damage_dice = 4
+        # self.eye_ray_effects = ["charm", "paralyze", "petrify", "fear", "disintegrate"]
 
-class DragonWhelp(Monster):
+class LargeOoze(Monster):  # Black Pudding
     def __init__(self, x, y):
-        super().__init__(x, y, 'D', 'Dragon Whelp', (255, 63, 63))
-        self.hp = 55
-        self.max_hp = 55
-        self.attack_power = 10
-        self.is_ranged = True
-        self.ranged_attack_power = 10
-        self.armor_class = 16
-        self.base_xp = 250
-        # Dragon Whelps might have a breath weapon (area effect)
+        super().__init__(x, y, 'LO', 'Large Ooze', (34, 139, 34))
+        self.hp = 85
+        self.max_hp = 85
+        self.attack_bonus = 5
+        self.armor_class = 7
+        self.base_xp = 1800
+        self.monster_die_type = 8
+        self.num_damage_dice = 2
+        self.acid_burn_dc = 14
+        self.acid_burn_duration = 4
+        self.acid_burn_damage_per_turn = 4
+        self.split_on_slash = True
+
+class DragonWhelp(Monster):  # Wyrmling
+    def __init__(self, x, y):
+        super().__init__(x, y, 'DW', 'Dragon Whelp', (255, 0, 0))
+        self.hp = 32
+        self.max_hp = 32
+        self.attack_bonus = 4
+        self.armor_class = 17
+        self.base_xp = 700
+        self.monster_die_type = 10
+        self.num_damage_dice = 1
+        # self.breath_weapon = True
+        # self.breath_dc = 13
+        # self.breath_damage = "4d6 fire"
+
+class Owlbear(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'OB', 'Owlbear', (139, 69, 19))
+        self.hp = 59
+        self.max_hp = 59
+        self.attack_bonus = 7
+        self.armor_class = 13
+        self.base_xp = 700
+        self.monster_die_type = 10
+        self.num_damage_dice = 2
+
+class Demogorgon(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'DG', 'Demogorgon', (72, 61, 139))
+        self.hp = 496
+        self.max_hp = 496
+        self.attack_bonus = 13
+        self.armor_class = 22
+        self.base_xp = 155000
+        self.monster_die_type = 12
+        self.num_damage_dice = 3
+        # self.legendary_resistance = 3
+        # self.frightful_presence = True
+
+class Grick(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'GK', 'Grick', (105, 105, 105))
+        self.hp = 27
+        self.max_hp = 27
+        self.attack_bonus = 4
+        self.armor_class = 14
+        self.base_xp = 450
+        self.monster_die_type = 6
+        self.num_damage_dice = 2
+        # self.resist_nonmagical = True
+
+class GibberingMouther(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'GM', 'Gibbering Mouther', (200, 100, 100))
+        self.hp = 67
+        self.max_hp = 67
+        self.attack_bonus = 2
+        self.armor_class = 9
+        self.base_xp = 450
+        self.monster_die_type = 6
+        self.num_damage_dice = 2
+        # self.maddening_babble = True
+        # self.prone_ground = True
+
+class MindFlayer(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'MF', 'Mind Flayer', (75, 0, 130))
+        self.hp = 71
+        self.max_hp = 71
+        self.attack_bonus = 7
+        self.armor_class = 15
+        self.base_xp = 2900
+        self.monster_die_type = 10
+        self.num_damage_dice = 2
+        # self.psionic_blast_dc = 15
+        # self.psionic_stun_duration = 1
+
+class Minotaur(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'MN', 'Minotaur', (139, 0, 0))
+        self.hp = 76
+        self.max_hp = 76
+        self.attack_bonus = 6
+        self.armor_class = 14
+        self.base_xp = 700
+        self.monster_die_type = 12
+        self.num_damage_dice = 2
+        # self.charge_attack = True
+
+class Wererat(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'WR', 'Wererat', (169, 169, 169))
+        self.hp = 33
+        self.max_hp = 33
+        self.attack_bonus = 4
+        self.armor_class = 12
+        self.base_xp = 100
+        self.monster_die_type = 4
+        self.num_damage_dice = 1
+        # self.shapechanger = True
+        # self.disease = True
+
+class Wolf(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'WF', 'Wolf', (112, 128, 144))
+        self.hp = 11
+        self.max_hp = 11
+        self.attack_bonus = 4
+        self.armor_class = 13
+        self.base_xp = 50
+        self.monster_die_type = 4
+        self.num_damage_dice = 2
+        # self.knock_prone_dc = 11
+
+
+
+
+

@@ -9,7 +9,7 @@ UI_PANEL_WIDTH_RATIO = 0.16 # UI panel takes 25% of screen width
 
 
 # Message log height as a ratio of the total screen height
-MESSAGE_LOG_HEIGHT_RATIO = 0.28 # Increased to 25% for a taller box
+MESSAGE_LOG_HEIGHT_RATIO = 0.30 # Increased to 25% for a taller box
 
 
 # Set TILE_SIZE to match your tileset's individual tile size (e.g., 12x12)
@@ -64,4 +64,4 @@ SCREEN_WIDTH = 0
 SCREEN_HEIGHT = 0
 UI_PANEL_WIDTH = 0
 GAME_AREA_WIDTH = 0 # This will now be the *actual* pixel width of the game area on the screen
-MESSAGE_LOG_HEIGHT = 0
+MESSAGE_LOG_HEIGHT = 10

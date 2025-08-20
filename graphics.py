@@ -54,7 +54,7 @@ def setup_tile_mapping():
 
         # Map Tiles
         ',': (0 * CELL_DIM, 12 * CELL_DIM),  # Tavern Floor
-        ';': (0 * CELL_DIM, 3 * CELL_DIM),  # Kitchen Tavern Floor
+        ':': (1 * CELL_DIM, 12 * CELL_DIM),  # Kitchen Tavern Floor
         '.': (0 * CELL_DIM, 3 * CELL_DIM),  # Floor
         '#': (1 * CELL_DIM, 3 * CELL_DIM),  # Wall
         '>': (8 * CELL_DIM, 3 * CELL_DIM),  # Stairs Down
@@ -92,28 +92,39 @@ def setup_tile_mapping():
 
         # Entity Characters
         '@': (0 * CELL_DIM, 0 * CELL_DIM),  # Player
-        'r': (0 * CELL_DIM, 7 * CELL_DIM),  # Rat (Monster)
-        'g': (1 * CELL_DIM, 7 * CELL_DIM),  # Goblin
-        'S': (2 * CELL_DIM, 7 * CELL_DIM),  # Skeleton (Monster)
+
+        'R': (0 * CELL_DIM, 7 * CELL_DIM),  # Rat (Monster)
+        'GB': (1 * CELL_DIM, 7 * CELL_DIM),  # Goblin
+        'SK': (2 * CELL_DIM, 7 * CELL_DIM),  # Skeleton (Monster)
         'OR': (5 * CELL_DIM, 8 * CELL_DIM),  # Orc (Monster)
-        'T': (5 * CELL_DIM, 7 * CELL_DIM),  # Troll
-        'D': (7 * CELL_DIM, 7 * CELL_DIM),  # Dragon (Monster)
+        'TR': (5 * CELL_DIM, 7 * CELL_DIM),  # Troll
+        'DW': (7 * CELL_DIM, 7 * CELL_DIM),  # Dragon (Monster)
         
-        's': (0 * CELL_DIM, 8 * CELL_DIM),  # Ooze (Monster)
-        'ga': (1 * CELL_DIM, 8 * CELL_DIM),  # Goblin Archer
+        'OZ': (0 * CELL_DIM, 8 * CELL_DIM),  # Ooze (Monster)
+        'GA': (1 * CELL_DIM, 8 * CELL_DIM),  # Goblin Archer
         'SA': (2 * CELL_DIM, 8 * CELL_DIM),  # Skeleton Archer
-        'CT': (3 * CELL_DIM, 7 * CELL_DIM),  # Centaur
+        'CE': (3 * CELL_DIM, 7 * CELL_DIM),  # Centaur
         'CA': (3 * CELL_DIM, 8 * CELL_DIM),  # Cebtaur Archer
-        'L': (4 * CELL_DIM, 7 * CELL_DIM),  # Lizardfolk
+        'LF': (4 * CELL_DIM, 7 * CELL_DIM),  # Lizardfolk
         'LA': (4 * CELL_DIM, 8 * CELL_DIM),  # Lizardfolk Archer
         'GS': (0 * CELL_DIM, 9 * CELL_DIM),  # Giant Spider
         'LO': (6 * CELL_DIM, 8 * CELL_DIM),  # Large Ooze
         'BH': (6 * CELL_DIM, 7 * CELL_DIM),  # Beholder
 
-        # IMPORTANT: Ensure 'M' is your *generic revealed mimic* graphic
-        'A': (7 * CELL_DIM, 0 * CELL_DIM),  # Bartender (NPC)
+        'OB': (1 * CELL_DIM, 9 * CELL_DIM),  # Owlbear
+        'DG': (2 * CELL_DIM, 9 * CELL_DIM),  # Demogorgon
+        'GR': (3 * CELL_DIM, 9 * CELL_DIM),  # Grick
+        'GM': (4 * CELL_DIM, 9 * CELL_DIM),  # Gibbering Mouther
+        'MF': (5 * CELL_DIM, 9 * CELL_DIM),  # Mind Flayer
+        'MN': (6 * CELL_DIM, 9 * CELL_DIM),  # Minotaur
+        'WR': (7 * CELL_DIM, 9 * CELL_DIM),  # Wererat
+        'WF': (7 * CELL_DIM, 8 * CELL_DIM),  # Wolf        
+
+        # Tavern Entities and Misc.
+        'A': (9 * CELL_DIM, 0 * CELL_DIM),  # Bartender (NPC)
         'p': (8 * CELL_DIM, 0 * CELL_DIM),  # Patron (NPC)
         'H': (6 * CELL_DIM, 0 * CELL_DIM),  # Healer (NPC)
+        'rc': (7 * CELL_DIM, 0 * CELL_DIM), # Merchant (NPC)
         'mh': (6 * CELL_DIM, 2 * CELL_DIM), # Mage Hand
         
         # Item Characters

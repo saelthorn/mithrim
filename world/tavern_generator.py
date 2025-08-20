@@ -1,4 +1,4 @@
-from world.tile import tavern_floor, tavern_wall, bar_counter, table, chair, door, fireplace, wall, tavern_floor, torch, floor # Ensure 'door' is imported
+from world.tile import tavern_floor, tavern_wall, bar_counter, table, chair, door, fireplace, wall, tavern_floor, torch, floor, crate, barrel, tavern_kitchen_floor # Ensure 'door' is imported
 from entities.dungeon_npcs import DungeonHealer
 from entities.tavern_npcs import Bartender, Patron
 from core import game
@@ -19,10 +19,10 @@ def generate_tavern(game_map, player):
         "#              #",
         "#              #",
         "#              ##T##",
-        "# c  c  c          #",
-        "T========          T",
-        "#                  T",
-        "#                  #",
+        "# c  c  c      ::::#",
+        "T========      ::::T",
+        "#              ::::T",
+        "#              ::::#",
         "###################"
     ]
 
@@ -35,12 +35,15 @@ def generate_tavern(game_map, player):
     char_to_tile = {
         '#': wall,
         ' ': floor,
+        ':': tavern_kitchen_floor,
         '+': door,
         '=': bar_counter,
         'c': chair,
         't': table,
         'F': fireplace,
         'T': torch,  # Map the torch character to the torch tile
+        'k': crate,
+        'b': barrel
     }
 
     for y, row in enumerate(ascii_map):

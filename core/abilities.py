@@ -337,7 +337,7 @@ class FireBolt(Ability):
             game_instance.message_log.add_message(f"Your Fire Bolt smashes the {target_tile.name}!", (255, 165, 0))
             game_instance.game_map.tiles[target_y][target_x] = floor  # Replace with floor tile
             
-            # --- NEW: 20% chance to drop a healing potion ---
+            # --- 20% chance to drop a healing potion ---
             if random.random() < 0.20:  # 20% chance
                 # Create a new instance of the potion to avoid modifying the global one
                 potion_to_drop = lesser_healing_potion.__class__(
@@ -346,7 +346,8 @@ class FireBolt(Ability):
                     color=lesser_healing_potion.color,
                     description=lesser_healing_potion.description,
                     effect_type=lesser_healing_potion.effect_type,
-                    effect_value=lesser_healing_potion.effect_value
+                    effect_value=lesser_healing_potion.effect_value,
+                    price=lesser_healing_potion.price
                 )
                 potion_to_drop.x = target_x
                 potion_to_drop.y = target_y
@@ -360,13 +361,14 @@ class FireBolt(Ability):
                     color=greater_healing_potion.color,
                     description=greater_healing_potion.description,
                     effect_type=greater_healing_potion.effect_type,
-                    effect_value=greater_healing_potion.effect_value
+                    effect_value=greater_healing_potion.effect_value,
+                    price=greater_healing_potion.price
                 )
                 potion_to_drop.x = target_x
                 potion_to_drop.y = target_y
                 game_instance.game_map.items_on_ground.append(potion_to_drop)
                 game_instance.message_log.add_message(f"A {potion_to_drop.name} drops from the {target_tile.name}!", potion_to_drop.color)                
-            # --- END NEW ---
+
 
             # --- MISSING FLOATING TEXT CREATION HERE FOR DESTRUCTIBLE ---
             game_instance.floating_texts.append(FloatingText(target_x, target_y, "SMASH!", (255, 100, 0)))

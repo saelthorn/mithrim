@@ -49,9 +49,10 @@ class Merchant(NPC):
             "Welcome to my shop! What would you like to buy?",
             "I have the finest goods in the land!",
             "Feel free to browse my wares.",
-            "If you have something to sell, I'm all ears!"
+            "If you have something to sell, I'm all ears!",
+            "Careful out there… but first, care to buy a potion or two?"
         ]
-        super().__init__(x, y, 'A', 'Merchant', (255, 215, 0), dialogue)  # Yellow color for the Merchant
+        super().__init__(x, y, 'rc', 'Merchant', (255, 215, 0), dialogue)  # Yellow color for the Merchant
 
 
         # Define items for sale
@@ -60,13 +61,15 @@ class Merchant(NPC):
             greater_healing_potion,
             dagger,
             short_sword,
+            battle_axe,
+            quarterstaff,
             leather_armor,
-            chainmail_armor,
+            chainmail_armor,            
         ]
 
     def offer_trade(self, player, game):
         """Handle the trading logic with the player."""
-        game.message_log.add_message(f"{self.name}: What do you wish to trade?", (0, 255, 0))
+        game.message_log.add_message(f"{self.name}: Welcome, traveler! Care to browse my wares?", (0, 255, 0))
         game.message_log.add_message("Items for sale:", (200, 200, 255))
 
         # Display items for sale
@@ -74,8 +77,8 @@ class Merchant(NPC):
             game.message_log.add_message(f"{item.name} - {item.price} gold", (255, 255, 255))
 
         # Allow player to buy or sell
-        game.message_log.add_message("Press 'B' to buy or 'S' to sell an item.", (200, 200, 255))
-        game.message_log.add_message("Type your command:", (200, 200, 255))
+        game.message_log.add_message("Type buy {item} to buy and sell {item} to sell.", (200, 200, 255))
+        game.message_log.add_message("Type your input:", (200, 200, 255))
 
         # Wait for player input
         game.game_state = GameState.TRADE  # Set game state to trade
@@ -91,8 +94,8 @@ class Merchant(NPC):
                     self.items_for_sale.remove(item)  # Remove the item from the merchant's inventory
                     return f"You bought {item.name}!"
                 else:
-                    return "You don't have enough gold!"
-        return "Item not found in merchant's inventory."
+                    return "Scram! you don't have enough gold!"
+        return "We don't sell that kind of item here!"
 
 
     def sell_item(self, player, item_name):

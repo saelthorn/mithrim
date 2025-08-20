@@ -36,6 +36,7 @@ barrel = Tile(blocked=True, char='b', color=(100, 50, 0), block_sight=False, des
 
 # Tavern tile templates
 tavern_floor = Tile(blocked=False, char=',', color=(139, 69, 19), name="Tavern Floor")
+tavern_kitchen_floor = Tile(blocked=False, char=':', color=(139, 69, 19), name="Tavern Kitchen Floor")
 tavern_wall = Tile(blocked=True, char='#', color=(101, 67, 33), name="Tavern Wall")
 bar_counter = Tile(blocked=True, char='=', color=(160, 82, 45), block_sight=False, name="Bar Counter")
 table = Tile(blocked=True, char='t', color=(139, 69, 19), name="Table")

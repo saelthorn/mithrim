@@ -26,7 +26,9 @@ from entities.player import Player, Fighter, Rogue, Wizard
 from entities.monster import (
     Monster, Mimic, GiantRat, Ooze, Goblin, GoblinArcher, Skeleton,
     SkeletonArcher, Orc, Centaur, CentaurArcher, Troll, Lizardfolk, 
-    LizardfolkArcher, GiantSpider, Beholder, LargeOoze, DragonWhelp
+    LizardfolkArcher, GiantSpider, Beholder, LargeOoze, DragonWhelp,
+    Owlbear, Demogorgon, Grick, GibberingMouther, MindFlayer, Minotaur,
+    Wererat, Wolf
 )
 
 from entities.base_entity import NPC
@@ -190,15 +192,29 @@ class Game:
 
     MONSTER_SPAWN_TIERS = {
         # Level range: [List of monster classes that can spawn]
-        (1, 1): [Ooze, GiantRat, Goblin],
-        (2, 3): [Goblin, GoblinArcher, Ooze, GiantRat, LargeOoze],
-        (4, 5): [Skeleton, SkeletonArcher, Orc, LargeOoze],
-        (6, 7): [Lizardfolk,LizardfolkArcher, GiantSpider],
-        (8, 9): [Centaur, CentaurArcher, Troll],
-        (10, 11): [Troll, Orc, GiantSpider, LargeOoze], 
-        (12, 13): [LargeOoze, DragonWhelp,  GiantSpider], 
-        (14, 99): [Beholder], # High level, adjust max level as needed
+
+        # Early dungeon fodder
+        (1, 1): [Ooze, GiantRat, Goblin, Wolf],
+        (2, 3): [Goblin, GoblinArcher, Ooze, GiantRat, LargeOoze, Wererat],
+
+        # Early-mid dangers
+        (4, 5): [Skeleton, SkeletonArcher, Orc, LargeOoze, Grick],
+        (6, 7): [Lizardfolk, LizardfolkArcher, GiantSpider, Wererat],
+
+        # Mid-game threats
+        (8, 9): [Centaur, CentaurArcher, Troll, Owlbear],
+        (10, 11): [Troll, Orc, GiantSpider, LargeOoze, Minotaur],
+
+        # Late-mid bosses and horrors
+        (12, 13): [LargeOoze, DragonWhelp, GiantSpider, GibberingMouther],
+
+        # High level threats
+        (14, 15): [Beholder, MindFlayer],
+
+        # Endgame / campaign boss
+        (16, 99): [Demogorgon],
     }
+
 
 
     def start_character_creation(self):
@@ -712,22 +728,22 @@ class Game:
         # If after cleanup, there are no entities left (e.g., all monsters died)
         if not self.turn_order:
             if self.player.alive:
-                self.turn_order = [self.player] # Ensure player is in turn order
+                self.turn_order = [self.player]  # Ensure player is in turn order
                 self.current_turn_index = 0
-                self.player_has_acted = False # Reset for player's next turn
+                self.player_has_acted = False  # Reset for player's next turn
                 self.update_fov()  # Update FOV for the player
-            return # No more turns to process if no entities
+            return  # No more turns to process if no entities
 
         # Advance the turn index to the next entity
         self.current_turn_index = (self.current_turn_index + 1) % len(self.turn_order)
 
         # Get the entity whose turn it is now (after advancing the index)
-        current = self.get_current_entity() 
+        current = self.get_current_entity()
 
         # If it's the player's turn, reset their action flag and update FOV
         if current == self.player:
             self.update_fov()
-            self.player_has_acted = False # This is correctly reset for player's turn
+            self.player_has_acted = False  # This is correctly reset for player's turn
             if random.random() < 0.25:
                 ambient_msgs = [
                     "The dungeon emits an eerie glow...",
@@ -742,6 +758,7 @@ class Game:
         entity_whose_turn_it_was = None
         if self.turn_order and 0 <= self.current_turn_index < len(self.turn_order):
             entity_whose_turn_it_was = self.turn_order[self.current_turn_index]
+        
         # Filter out dead entities from the main entities list
         self.entities = [e for e in self.entities if e.alive]
         
@@ -756,7 +773,8 @@ class Game:
         if not self.turn_order and self.player.alive:
             self.turn_order = [self.player]
             self.current_turn_index = 0
-            return # Nothing else to do if only player remains
+            return  # Nothing else to do if only player remains
+    
         # Adjust current_turn_index based on who was supposed to act
         if entity_whose_turn_it_was and entity_whose_turn_it_was in self.turn_order:
             # If the entity whose turn it was is still alive, maintain its position
@@ -766,14 +784,12 @@ class Game:
             # move the index back one to compensate for the next_turn increment,
             # or wrap around if it was the last entity.
             # This ensures the *next* entity in the sequence gets its turn.
-            self.current_turn_index = (self.current_turn_index - 1 + len(self.turn_order)) % len(self.turn_order)
-            # If the list became empty, this would cause an error, but we handle that above.
-            # If the list is not empty, this will point to the entity that is now at the "previous" spot.
-            # next_turn() will then increment it to the correct "next" entity.
+            self.current_turn_index = (self.current_turn_index - 1 + len(self.turn_order)) % len(self.turn_order) if self.turn_order else 0
+    
         # Ensure index is within bounds after cleanup
         if self.current_turn_index >= len(self.turn_order):
-            self.current_turn_index = 0 # Reset if somehow out of bounds (e.g., all entities died except player)
-
+            self.current_turn_index = 0  # Reset if somehow out of bounds (e.g., all entities died except player)
+    
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -807,7 +823,7 @@ class Game:
                             self.message_log.clear_last_input()  # Clear the input after processing
                         elif event.key == pygame.K_ESCAPE:  # Cancel trade
                             self.message_log.add_message("Trade cancelled.", (255, 0, 0))
-                            self.game_state = GameState.TRADE  # Return to dungeon state
+                            self.game_state = GameState.TAVERN  # Return to tavern state
                         elif event.key == pygame.K_BACKSPACE:  # Handle backspace
                             self.message_log.current_input = self.message_log.current_input[:-1]  # Remove the last character
                         else:
@@ -1496,7 +1512,7 @@ class Game:
             
             # --- NEW: 10% chance to drop a Lesser Healing Potion ---
             if target_tile.name in ["Crate", "Barrel"]: # Check if it was a crate or barrel
-                if random.random() < 0.30:
+                if random.random() < 0.20:
                     # Create a new instance of the potion
                     new_potion = lesser_healing_potion.__class__(
                         name=lesser_healing_potion.name,
@@ -1511,7 +1527,7 @@ class Game:
                     new_potion.y = y
                     self.game_map.items_on_ground.append(new_potion)
                     self.message_log.add_message(f"A {new_potion.name} drops from the {target_tile.name}!", new_potion.color)
-                elif random.random() < 0.10:
+                elif random.random() < 0.20:
                     new_potion = greater_healing_potion.__class__(
                         name=greater_healing_potion.name,
                         char=greater_healing_potion.char,
@@ -1546,8 +1562,10 @@ class Game:
         # Determine the actual d20 roll based on advantage/disadvantage
         roll1 = random.randint(1, 20)
         roll2 = random.randint(1, 20) # Always roll a second for simplicity
+        
         final_d20_roll = roll1
         roll_message_part = f"a d20: {roll1}"
+        
         if advantage and disadvantage: # They cancel each other out
             self.message_log.add_message("Advantage and Disadvantage cancel out.", (150, 150, 150))
             # final_d20_roll remains roll1
@@ -1910,7 +1928,7 @@ class Game:
                 elif visibility_type == 'darkvision':
                     render_color_tint = (120, 120, 120, 255)
                 elif visibility_type == 'explored':
-                    render_color_tint = (100, 100, 100, 255)
+                    render_color_tint = (80 ,80, 80, 255)
                 elif visibility_type == 'unexplored':
                     render_color_tint = (20, 20, 20, 255)
 
@@ -2140,16 +2158,6 @@ class Game:
         if self.game_state == GameState.INVENTORY:
             self._draw_text(target_surface, self.inventory_font_small, "Press 1-9/0 to select an item.", (150, 150, 150), item_start_x, instructions_y_start)
             self._draw_text(target_surface, self.inventory_font_small, "Press 'I' to close inventory.", (150, 150, 150), item_start_x, instructions_y_start + self.inventory_font_small.get_linesize() + 5)
-        elif self.game_state == GameState.INVENTORY_MENU and self.selected_inventory_item:
-            menu_instructions_y = max(current_y + 10, instructions_y_start) 
-            
-            self._draw_text(target_surface, self.inventory_font_small, "U: Use", (150, 150, 150), item_start_x, menu_instructions_y)
-            menu_instructions_y += self.inventory_font_small.get_linesize() + 5
-            self._draw_text(target_surface, self.inventory_font_small, "E: Equip", (150, 150, 150), item_start_x, menu_instructions_y)
-            menu_instructions_y += self.inventory_font_small.get_linesize() + 5
-            self._draw_text(target_surface, self.inventory_font_small, "D: Drop", (150, 150, 150), item_start_x, menu_instructions_y)
-            menu_instructions_y += self.inventory_font_small.get_linesize() + 5
-            self._draw_text(target_surface, self.inventory_font_small, "C: Cancel", (150, 150, 150), item_start_x, menu_instructions_y)
             
 
     def render_inventory_menu_popup(self):
@@ -2240,6 +2248,8 @@ class Game:
         current_y_left += self.inventory_font_section.get_linesize() + 5
         self._draw_text(target_surface, self.inventory_font_info, f"Name: {self.player.name}", (255, 255, 255), left_column_x, current_y_left)
         current_y_left += self.inventory_font_info.get_linesize() + 5
+        self._draw_text(target_surface, self.inventory_font_info, f"Gold: {self.player.gold}", (255, 255, 255), left_column_x, current_y_left)
+        current_y_left += self.inventory_font_info.get_linesize() + 5        
         self._draw_text(target_surface, self.inventory_font_info, f"Level: {self.player.level}", (255, 255, 255), left_column_x, current_y_left)
         current_y_left += self.inventory_font_info.get_linesize() + 5
         self._draw_text(target_surface, self.inventory_font_info, f"XP: {self.player.current_xp}/{self.player.xp_to_next_level}", (255, 255, 255), left_column_x, current_y_left)
@@ -2308,9 +2318,6 @@ class Game:
 
         instructions_y_start = char_menu_rect.bottom - (self.inventory_font_small.get_linesize() * 2) - 20
         instructions_y_start = max(instructions_y_start, final_y + 10) 
-
-        self._draw_text(target_surface, self.inventory_font_small, "Press 'C' to close Character Menu.", (150, 150, 150), left_column_x, instructions_y_start)
-        self._draw_text(target_surface, self.inventory_font_small, "Press 'I' to open Inventory.", (150, 150, 150), left_column_x, instructions_y_start + self.inventory_font_small.get_linesize() + 5)
 
 
     def _draw_text(self, target_surface, font, text, color, x, y):

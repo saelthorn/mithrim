@@ -8,14 +8,12 @@ class MessageBox:
         self.messages = []  # Now stores ALL messages
         self.scroll_offset = 0  # NEW: Tracks the scroll position (index of the first visible message)
         self.current_input = ""  # Store current input text
-
         if font is None:
             self.font = pygame.font.Font(None, 16)
         else:
             self.font = pygame.font.Font(font, 16)
-
         self.line_height = self.font.get_linesize()
-        self.max_lines = height // self.line_height
+        self.max_lines = (height // self.line_height) - 1  # Leave room for input
 
     def add_message(self, text, color=None):
         """Add a new message to the log"""
@@ -67,7 +65,6 @@ class MessageBox:
                          (self.rect.left, self.rect.top), 
                          (self.rect.right, self.rect.top), 
                          1)
-
         # Render messages
         y_offset = 5  # Padding from top
         # Only render messages within the current scroll view
@@ -77,11 +74,10 @@ class MessageBox:
             text_surface = self.font.render(msg, True, color)
             surface.blit(text_surface, (self.rect.x + 5, self.rect.y + y_offset))
             y_offset += self.line_height
-
         # Render current input text at the bottom of the message log
         input_surface = self.font.render(self.current_input, True, (255, 255, 255))
-        surface.blit(input_surface, (self.rect.x + 5, self.rect.y + y_offset))
-
+        input_y_position = self.rect.y + self.rect.height - self.line_height - 7  # Position input text above the bottom margin
+        surface.blit(input_surface, (self.rect.x + 150, input_y_position))
 
 
 
