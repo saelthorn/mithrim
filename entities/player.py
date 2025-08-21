@@ -300,31 +300,27 @@ class Player: # This is our base class for playable characters
                     game_instance.message_log.add_message("You cannot rest; enemies are too close!", (255, 0, 0))
                     return False
 
-        # Check if using Campfire Kit
-        if self.inventory.get_items_by_type(CampfireKit):
+        # Check if the Campfire Kit is on the ground
+        campfire_kit = next((item for item in game_instance.game_map.items_on_ground if isinstance(item, CampfireKit)), None)
+
+        # Check if the player is adjacent to the Campfire Kit
+        if campfire_kit and self.is_adjacent_to(campfire_kit):
             # Fully recover HP and remove status effects
             self.hp = self.max_hp
             self.active_status_effects.clear()  # Remove all status effects
             game_instance.message_log.add_message(f"{self.name} rests by the campfire and recovers fully!", (0, 255, 0))
 
-            # Check for ambush during campfire rest (20% chance)
-            if random.random() < 0.2:
+            # Increase ambush chance (e.g., from 20% to 50%)
+            if random.random() < 0.5:  # 50% chance for ambush
                 game_instance.message_log.add_message("You hear rustling nearby... an ambush!", (255, 0, 0))
                 self.trigger_ambush(game_instance)
                 return True  # Resting was interrupted by ambush
         else:
-            # Normal resting
-            hp_recovered = self.max_hp // 4
-            self.heal(hp_recovered)
-            game_instance.message_log.add_message(f"{self.name} takes a short rest and recovers {hp_recovered} HP.", (0, 255, 0))
-
-            # Check for ambush during normal rest (70% chance)
-            if random.random() < 0.7:
-                game_instance.message_log.add_message("You hear rustling nearby... an ambush!", (255, 0, 0))
-                self.trigger_ambush(game_instance)
-                return True  # Resting was interrupted by ambush
+            game_instance.message_log.add_message("You need to be adjacent to a campfire to rest.", (255, 0, 0))
+            return False  # Cannot rest if not adjacent to a campfire
 
         return True  # Indicate successful resting
+
 
     def trigger_ambush(self, game_instance):
         """Spawn enemies for an ambush."""
@@ -339,19 +335,26 @@ class Player: # This is our base class for playable characters
     
         # Spawn enemies 5 tiles away from the player
         for _ in range(num_enemies):
-            # Randomly choose a direction to spawn the enemy
-            direction = random.choice([(0, 5), (0, -5), (5, 0), (-5, 0), (3, 3), (3, -3), (-3, 3), (-3, -3)])
-            enemy_x = player_x + direction[0]
-            enemy_y = player_y + direction[1]
+            # Attempt to find a valid spawn position
+            for _ in range(10):  # Retry up to 10 times to find a valid position
+                # Randomly choose a direction to spawn the enemy
+                direction = random.choice([(0, 5), (0, -5), (5, 0), (-5, 0), (3, 3), (3, -3), (-3, 3), (-3, -3)])
+                enemy_x = player_x + direction[0]
+                enemy_y = player_y + direction[1]
     
-            # Ensure the spawn position is within the map bounds
-            if 0 <= enemy_x < game_instance.game_map.width and 0 <= enemy_y < game_instance.game_map.height:
-                # Create a random enemy (for example, a Goblin)
-                enemy = random.choice([Goblin, GoblinArcher, GiantRat])  # Add more enemy types as needed
-                spawned_enemy = enemy(enemy_x, enemy_y)  # Instantiate the enemy
-                game_instance.entities.append(spawned_enemy)  # Add to the game entities
-                spawned_enemies.append(spawned_enemy)  # Add to the list of spawned enemies
-                game_instance.message_log.add_message(f"A {spawned_enemy.name} appears from the shadows!", (255, 150, 0))
+                # Ensure the spawn position is within the map bounds and walkable
+                if 0 <= enemy_x < game_instance.game_map.width and 0 <= enemy_y < game_instance.game_map.height:
+                    if game_instance.game_map.is_walkable(enemy_x, enemy_y):
+                        # Create a random enemy (for example, a Goblin)
+                        enemy = random.choice([Goblin, GoblinArcher, GiantRat])  # Add more enemy types as needed
+                        spawned_enemy = enemy(enemy_x, enemy_y)  # Instantiate the enemy
+                        game_instance.entities.append(spawned_enemy)  # Add to the game entities
+                        spawned_enemies.append(spawned_enemy)  # Add to the list of spawned enemies
+                        game_instance.message_log.add_message(f"A {spawned_enemy.name} appears from the shadows!", (255, 150, 0))
+                        break  # Exit the retry loop once a valid position is found
+            else:
+                # If no valid position was found after 10 attempts, log a message
+                game_instance.message_log.add_message("DEBUG: Could not find a valid spawn position for an enemy.", (255, 0, 0))
     
         # Update the turn order to include the new enemies
         game_instance.turn_order.extend(spawned_enemies)  # Add all spawned enemies to the turn order
