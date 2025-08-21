@@ -1,0 +1,31 @@
+- Campfire Kit Resting
+- Exclusive Dungeon Merchant Items
+- Add Locked Chests
+- Fix Targeting State
+- Add FOV for Monsters
+- Make Mithrim Logo
+- Rework the UI
+- Add More Traps and Status Effects
+- Add Companions
+- Add Torches as an Items
+- Add Boss Rooms
+
+
+
+when i use the campfire kit the inventory still open when it shouldnt be:
+
+Current Game State: inventory
+DEBUG KEYDOWN event: u (value: 117)
+Current Game State: inventory_menu
+Game state changed to DUNGEON.
+DEBUG KEYDOWN event: left (value: 1073741904)
+Current Game State: inventory
+DEBUG KEYDOWN event: return (value: 13)
+Current Game State: inventory
+DEBUG KEYDOWN event: down (value: 1073741905)
+Current Game State: inventory
+DEBUG KEYDOWN event: i (value: 105)
+Current Game State: inventory
+Inventory closed.
+DEBUG KEYDOWN event: left alt (value: 1073742050)
+Current Game State: dungeon

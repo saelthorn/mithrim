@@ -47,12 +47,15 @@ class DungeonMerchant(NPC):
         """Handle the trading logic with the player without changing game state."""
         game.message_log.add_message(f"{self.name}: Welcome, traveler! Care to browse my wares?", (0, 255, 0))
         game.message_log.add_message("Items for sale:", (200, 200, 255))
+       
         # Display items for sale
         for item in self.items_for_sale:
             game.message_log.add_message(f"{item.name} - {item.price} gold", (255, 255, 255))
+       
         # Allow player to buy or sell
         game.message_log.add_message("Type 'buy {item}' to buy and 'sell {item}' to sell.", (200, 200, 255))
         game.message_log.add_message("Type your input:", (200, 200, 255))
+       
         # Set the game state to trade temporarily
         game.game_state = GameState.TRADE  # Set game state to trade
 

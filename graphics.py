@@ -53,8 +53,8 @@ def setup_tile_mapping():
 
 
         # Map Tiles
-        ',': (0 * CELL_DIM, 12 * CELL_DIM),  # Tavern Floor
-        ':': (1 * CELL_DIM, 12 * CELL_DIM),  # Kitchen Tavern Floor
+        ',': (0 * CELL_DIM, 16 * CELL_DIM), # Tavern Floor
+        ':': (1 * CELL_DIM, 16 * CELL_DIM), # Kitchen Tavern Floor
         '.': (0 * CELL_DIM, 3 * CELL_DIM),  # Floor
         '#': (1 * CELL_DIM, 3 * CELL_DIM),  # Wall
         '>': (8 * CELL_DIM, 3 * CELL_DIM),  # Stairs Down
@@ -93,7 +93,7 @@ def setup_tile_mapping():
         # Entity Characters
         '@': (0 * CELL_DIM, 0 * CELL_DIM),  # Player
 
-        'R': (0 * CELL_DIM, 7 * CELL_DIM),  # Rat (Monster)
+        'R': (0 * CELL_DIM, 7 * CELL_DIM),   # Rat (Monster)
         'GB': (1 * CELL_DIM, 7 * CELL_DIM),  # Goblin
         'SK': (2 * CELL_DIM, 7 * CELL_DIM),  # Skeleton (Monster)
         'OR': (5 * CELL_DIM, 8 * CELL_DIM),  # Orc (Monster)
@@ -113,7 +113,7 @@ def setup_tile_mapping():
 
         'OB': (1 * CELL_DIM, 9 * CELL_DIM),  # Owlbear
         'DG': (2 * CELL_DIM, 9 * CELL_DIM),  # Demogorgon
-        'GR': (3 * CELL_DIM, 9 * CELL_DIM),  # Grick
+        'GK': (3 * CELL_DIM, 9 * CELL_DIM),  # Grick
         'GM': (4 * CELL_DIM, 9 * CELL_DIM),  # Gibbering Mouther
         'MF': (5 * CELL_DIM, 9 * CELL_DIM),  # Mind Flayer
         'MN': (6 * CELL_DIM, 9 * CELL_DIM),  # Minotaur
@@ -125,20 +125,24 @@ def setup_tile_mapping():
         'p': (8 * CELL_DIM, 0 * CELL_DIM),  # Patron (NPC)
         'H': (6 * CELL_DIM, 0 * CELL_DIM),  # Healer (NPC)
         'rc': (7 * CELL_DIM, 0 * CELL_DIM), # Merchant (NPC)
-        'mh': (6 * CELL_DIM, 2 * CELL_DIM), # Mage Hand
+        'mh': (6 * CELL_DIM, 2 * CELL_DIM), # Mage Hand (Skill)
         
         # Item Characters
-        '!': (0 * CELL_DIM, 6 * CELL_DIM),  # Potions
+        'cf': (8 * CELL_DIM, 2 * CELL_DIM), # Campfire 
+        'pn': (9 * CELL_DIM, 2 * CELL_DIM), # Wood Plank (Junk)
+        'tt': (7 * CELL_DIM, 2 * CELL_DIM), # Thieves' Tools
+        '!': (0 * CELL_DIM, 13 * CELL_DIM), # Potions
 
-        '-': (4 * CELL_DIM, 6 * CELL_DIM),  # Dagger
-        '/': (5 * CELL_DIM, 6 * CELL_DIM),  # Shortsword
-        '|': (6 * CELL_DIM, 6 * CELL_DIM),  # Longsword
-        'l': (7 * CELL_DIM, 6 * CELL_DIM),  # Quarterstaff    
-        '?': (8 * CELL_DIM, 6 * CELL_DIM),  # Battleaxe    
+        'lta': (1 * CELL_DIM, 13 * CELL_DIM),  # Leather Armor
+        'cha': (2 * CELL_DIM, 13 * CELL_DIM),  # Chainmail Armor
+        'rbs': (3 * CELL_DIM, 13 * CELL_DIM),  # Robes 
 
-        'lta': (1 * CELL_DIM, 6 * CELL_DIM),  # Leather Armor
-        'cha': (2 * CELL_DIM, 6 * CELL_DIM),  # Chainmail Armor
-        'rbs': (3 * CELL_DIM, 6 * CELL_DIM),  # Robes        
+        '-': (4 * CELL_DIM, 13 * CELL_DIM),  # Dagger
+        '/': (5 * CELL_DIM, 13 * CELL_DIM),  # Shortsword
+        '|': (6 * CELL_DIM, 13 * CELL_DIM),  # Longsword
+        'l': (7 * CELL_DIM, 13 * CELL_DIM),  # Quarterstaff    
+        '?': (8 * CELL_DIM, 13 * CELL_DIM),  # Battleaxe    
+       
     }
     print("Tile mapping setup complete.")        
 

@@ -1,5 +1,8 @@
 import random
 
+from core.game import GameState
+
+
 class Item:
     """Base class for all items."""
     def __init__(self, name, char, color, description="", price=10):
@@ -125,12 +128,40 @@ class Chest(Item):
         game_instance.message_log.add_message(f"You cannot pick up the {self.name}. It's too heavy!", (255, 0, 0))
         return False  # Prevent pickup            
 
+class CampfireKit(Item):
+    def __init__(self):
+        super().__init__(name="Campfire Kit", char="cf", color=(255, 140, 0), description="A kit to set up a campfire.", price=15)
+        self.uses_left = 3  # Number of uses for the campfire kit
+
+    def use(self, user, game_instance):
+        """Use the campfire kit to drop it at the player's position."""
+        if self.uses_left > 0:
+            # Close the inventory menu if it's open
+            if game_instance.game_state in [GameState.INVENTORY, GameState.INVENTORY_MENU]:
+                game_instance.message_log.add_message("Closing inventory to drop the campfire kit.", (150, 150, 150))
+                game_instance.selected_inventory_item = None  # Reset selected item
+
+            # Drop the campfire kit at the player's position
+            self.x = user.x  # Set the x position to the player's x
+            self.y = user.y  # Set the y position to the player's y
+            game_instance.game_map.items_on_ground.append(self)  # Add the campfire kit to the ground items
+
+            game_instance.message_log.add_message(f"{user.name} sets down a campfire kit!", (0, 255, 0))
+            self.uses_left -= 1  # Decrease the number of uses left
+            game_instance.player.inventory.remove_item(self)  # Remove the campfire kit from the player's inventory
+            return True
+        else:
+            game_instance.message_log.add_message("The Campfire Kit has no uses left.", (255, 0, 0))
+            return False
+
+
+
 
 # --- Junk Items ---
 wood_plank = Junk(
     name="Plank",
     char="pn",
-    color="(139, 69, 19)",
+    color=(139, 69, 19),
     description="Just a useless piece of wood."
 )
 

@@ -2,8 +2,9 @@ import random
 from core.inventory import Inventory
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand
 from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning
-from items.items import long_sword, chainmail_armor, short_sword, leather_armor, dagger, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, Item
+from items.items import long_sword, chainmail_armor, short_sword, leather_armor, dagger, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, Item, CampfireKit
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
+from entities.monster import Goblin, GoblinArcher, GiantRat
     
 
 class Player: # This is our base class for playable characters
@@ -31,7 +32,7 @@ class Player: # This is our base class for playable characters
         # Player-specific attributes
         self.level = 1
         self.current_xp = 0
-        self.xp_to_next_level = 60 # Base XP to level up
+        self.xp_to_next_level = 300 # Base XP to level up
 
         # --- D&D 5e Ability Scores (Base values, will be overridden by subclasses) ---
         self.strength = 10
@@ -286,6 +287,77 @@ class Player: # This is our base class for playable characters
 
         return False
 
+
+    def rest(self, game_instance):
+        """Handle resting mechanics."""
+        print("Rest method called")  # Debugging statement
+
+        # Check for enemies within 15 tiles
+        for entity in game_instance.entities:
+            if entity != self and entity.alive:
+                distance = self.distance_to(entity.x, entity.y)
+                if distance < 15:  # If any enemy is within 15 tiles
+                    game_instance.message_log.add_message("You cannot rest; enemies are too close!", (255, 0, 0))
+                    return False
+
+        # Check if using Campfire Kit
+        if self.inventory.get_items_by_type(CampfireKit):
+            # Fully recover HP and remove status effects
+            self.hp = self.max_hp
+            self.active_status_effects.clear()  # Remove all status effects
+            game_instance.message_log.add_message(f"{self.name} rests by the campfire and recovers fully!", (0, 255, 0))
+
+            # Check for ambush during campfire rest (20% chance)
+            if random.random() < 0.2:
+                game_instance.message_log.add_message("You hear rustling nearby... an ambush!", (255, 0, 0))
+                self.trigger_ambush(game_instance)
+                return True  # Resting was interrupted by ambush
+        else:
+            # Normal resting
+            hp_recovered = self.max_hp // 4
+            self.heal(hp_recovered)
+            game_instance.message_log.add_message(f"{self.name} takes a short rest and recovers {hp_recovered} HP.", (0, 255, 0))
+
+            # Check for ambush during normal rest (70% chance)
+            if random.random() < 0.7:
+                game_instance.message_log.add_message("You hear rustling nearby... an ambush!", (255, 0, 0))
+                self.trigger_ambush(game_instance)
+                return True  # Resting was interrupted by ambush
+
+        return True  # Indicate successful resting
+
+    def trigger_ambush(self, game_instance):
+        """Spawn enemies for an ambush."""
+        # Define the number of enemies to spawn
+        num_enemies = random.randint(1, 3)  # Spawn 1 to 3 enemies
+    
+        # Get the player's current position
+        player_x, player_y = self.x, self.y
+    
+        # List to hold spawned enemies for sorting later
+        spawned_enemies = []
+    
+        # Spawn enemies 5 tiles away from the player
+        for _ in range(num_enemies):
+            # Randomly choose a direction to spawn the enemy
+            direction = random.choice([(0, 5), (0, -5), (5, 0), (-5, 0), (3, 3), (3, -3), (-3, 3), (-3, -3)])
+            enemy_x = player_x + direction[0]
+            enemy_y = player_y + direction[1]
+    
+            # Ensure the spawn position is within the map bounds
+            if 0 <= enemy_x < game_instance.game_map.width and 0 <= enemy_y < game_instance.game_map.height:
+                # Create a random enemy (for example, a Goblin)
+                enemy = random.choice([Goblin, GoblinArcher, GiantRat])  # Add more enemy types as needed
+                spawned_enemy = enemy(enemy_x, enemy_y)  # Instantiate the enemy
+                game_instance.entities.append(spawned_enemy)  # Add to the game entities
+                spawned_enemies.append(spawned_enemy)  # Add to the list of spawned enemies
+                game_instance.message_log.add_message(f"A {spawned_enemy.name} appears from the shadows!", (255, 150, 0))
+    
+        # Update the turn order to include the new enemies
+        game_instance.turn_order.extend(spawned_enemies)  # Add all spawned enemies to the turn order
+        game_instance.turn_order = sorted(game_instance.turn_order, key=lambda e: e.initiative, reverse=True)  # Sort by initiative
+    
+
     def is_adjacent_to(self, other):
         """Check if next to another entity (cardinal directions + diagonals)"""
         dx = abs(self.x - other.x)
@@ -395,7 +467,7 @@ class Fighter(Player):
         
         self.strength = 15
         self.dexterity = 13
-        self.constitution = 140
+        self.constitution = 1400
         self.intelligence = 8
         self.wisdom = 12
         self.charisma = 10
@@ -407,6 +479,7 @@ class Fighter(Player):
         
         # Set starting equipment
         self.inventory.add_item(short_sword)
+        self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
 
         self.equipped_weapon = long_sword
         self.equipped_armor = chainmail_armor

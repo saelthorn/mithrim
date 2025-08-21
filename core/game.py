@@ -40,7 +40,7 @@ from entities.summons import MageHandEntity
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, MageHand
 from core.message_log import MessageBox
 from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff
-from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion
+from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, CampfireKit
 from core.pathfinding import astar
 from world.tile import floor, MimicTile, TrapTile
 from core.floating_text import FloatingText 
@@ -110,6 +110,11 @@ class Game:
     def __init__(self, screen):
         self.screen = screen
         
+        self.fps = 30
+        self.fps_font = pygame.font.SysFont('consolas', 20)  # You can adjust the font size as needed
+        self.clock = pygame.time.Clock()  # Initialize the clock for FPS tracking
+
+
         self.internal_surface = None
         self.inventory_ui_surface = None
         self.camera = None
@@ -194,7 +199,7 @@ class Game:
         # Level range: [List of monster classes that can spawn]
 
         # Early dungeon fodder
-        (1, 1): [Ooze, GiantRat, Goblin, Wolf],
+        (1, 1): [GoblinArcher, CentaurArcher, SkeletonArcher, LizardfolkArcher],
         (2, 3): [Goblin, GoblinArcher, Ooze, GiantRat, LargeOoze, Wererat],
 
         # Early-mid dangers
@@ -457,7 +462,7 @@ class Game:
         self.entities = [self.player]
         
         monsters_per_level = min(2 + level_number, len(rooms) - 1)
-        monster_rooms = rooms[1:monsters_per_level + 3]
+        monster_rooms = rooms[1:monsters_per_level + 2]
 
         # Determine which monsters can spawn on this level based on MONSTER_SPAWN_TIERS
         possible_monsters = []
@@ -815,7 +820,8 @@ class Game:
 
             if event.type == pygame.KEYDOWN:
                 print(f"  DEBUG KEYDOWN event: {pygame.key.name(event.key)} (value: {event.key})")
-                
+                print(f"Current Game State: {self.game_state}")  # Debugging statement
+
                 # --- Trade Interaction ---
                 if self.game_state == GameState.TRADE:
                     if event.type == pygame.KEYDOWN:
@@ -835,6 +841,7 @@ class Game:
 
 
                 else:
+
                     # Handle other key events (like opening inventory) only if not in trade state
                     if event.key == pygame.K_i:
                         # Store the state *before* any menu or targeting was active
@@ -848,21 +855,36 @@ class Game:
                             self.player.current_action_state = None # Clear any pending action state                        
                         
                         if self.game_state == GameState.INVENTORY:  # If already in inventory, close it
-                            self.game_state = self._previous_game_state
                             self.message_log.add_message("Closing Inventory.", (100, 200, 255))
                             self.selected_inventory_item = None
+                            self.game_state = self._previous_game_state
+                            print("Inventory closed.")  # Debugging statement
                         elif self.game_state == GameState.INVENTORY_MENU:  # If in inventory menu, go back to main inventory
                             self.game_state = GameState.INVENTORY
                             self.selected_inventory_item = None
                             self.message_log.add_message("Returning to Inventory.", (100, 200, 255))
                         else:  # If not in inventory, open it
-                            self.game_state = GameState.INVENTORY
+                            self._previous_game_state = self.game_state  # Store the current state
+                            self.game_state = GameState.INVENTORY  # Open inventory
                             self.message_log.add_message("Opening Inventory...", (100, 200, 255))
                         return True  # Consume event, don't process other game states          
+ 
+                    # Handle the Campfire Kit usage
+                    if self.game_state == GameState.INVENTORY_MENU:
+                        self.handle_inventory_menu_input(event.key)
+                        return True
 
+                    # Handle resting
+                    if event.key == pygame.K_r:
+                        if self.player:
+                            print("Attempting to rest...")  # Debugging statement
+                            if self.player.rest(self):
+                                self.next_turn()  # End the player's turn after resting
+                        return True  # Consume event 
+                    
 
                 # --- Trade Interaction --- 
-                if self.game_state in [GameState.DUNGEON, GameState.TAVERN]:
+                if self.game_state in GameState.DUNGEON:
                     if event.key == pygame.K_f:  # Check if 'F' is pressed
                         # Check for adjacent Dungeon Merchant
                         merchant = self.check_dungeon_npc_interaction()  # Check for adjacent NPC
@@ -871,7 +893,7 @@ class Game:
                             return True  # Consume event
 
                 # --- NPC Interaction Logic ---
-                if self.game_state in [GameState.DUNGEON, GameState.TAVERN]:
+                if self.game_state in GameState.TAVERN:
                     if event.key == pygame.K_f:  # Check if 'F' is pressed
                         npc = self.check_npc_interaction()  # Check for adjacent NPC
                         if npc:
@@ -1159,8 +1181,20 @@ class Game:
     
         # Confirm target selection
         elif key == pygame.K_RETURN:
-            self.execute_targeted_ability()  # Handle the ability effect
-            return  # Exit targeting mode
+            # Check if the target tile is walkable
+            if self.game_map.is_walkable(self.targeting_cursor_x, self.targeting_cursor_y):
+                # Place the campfire
+                self.message_log.add_message(f"{self.player.name} sets up a campfire at ({self.targeting_cursor_x}, {self.targeting_cursor_y})!", (0, 255, 0))
+                self.player.inventory.remove_item(self.ability_in_use)  # Remove the campfire kit from inventory
+                self.ability_in_use = None  # Clear the ability reference
+                self.targeting_ability_range = 0
+                self.targeting_cursor_x = 0  # Reset cursor position
+                self.targeting_cursor_y = 0
+                self.player.current_action_state = None  # Clear any pending action state
+                self.next_turn()  # End the player's turn after placing the campfire
+            else:
+                self.message_log.add_message("You cannot place the campfire there. It's not a valid location.", (255, 0, 0))
+                return  # Stay in targeting mode
     
         # Cancel targeting
         if key == pygame.K_ESCAPE:
@@ -1352,12 +1386,23 @@ class Game:
         if not self.selected_inventory_item:
             self.game_state = GameState.INVENTORY
             return
+
         action_taken_in_menu = False
         if key == pygame.K_u:
-            if self.player.use_item(self.selected_inventory_item, self):
-                action_taken_in_menu = True
+            # Check if the selected item is the Campfire Kit
+            if isinstance(self.selected_inventory_item, CampfireKit):
+                # Call the use method for the Campfire Kit
+                if self.selected_inventory_item.use(self.player, self):
+                    action_taken_in_menu = True
+                    # Close the inventory menu
+                    self.selected_inventory_item = None  # Reset selected item
+                    # Optionally, you can log a message here if needed                         
             else:
-                self.message_log.add_message(f"Cannot use {self.selected_inventory_item.name}.", (255, 100, 100))
+                # Use the item normally
+                if self.player.use_item(self.selected_inventory_item, self):
+                    action_taken_in_menu = True
+                else:
+                    self.message_log.add_message(f"Cannot use {self.selected_inventory_item.name}.", (255, 100, 100))
         elif key == pygame.K_e:
             if self.player.equip_item(self.selected_inventory_item, self):
                 action_taken_in_menu = True
@@ -1373,6 +1418,7 @@ class Game:
         elif key == pygame.K_ESCAPE or key == pygame.K_c:
             self.message_log.add_message("Action cancelled.", (150, 150, 150))
             action_taken_in_menu = False
+
         self.selected_inventory_item = None
         self.game_state = GameState.INVENTORY
         if action_taken_in_menu:
@@ -1563,7 +1609,18 @@ class Game:
                     new_potion.x = x
                     new_potion.y = y
                     self.game_map.items_on_ground.append(new_potion)
-                    self.message_log.add_message(f"A {new_potion.name} drops from the {target_tile.name}!", new_potion.color)    
+                    self.message_log.add_message(f"A {new_potion.name} drops from the {target_tile.name}!", new_potion.color)  
+                elif random.random() < 0.50:
+                    new_junk = wood_plank.__class__(
+                        name=wood_plank.name,
+                        char=wood_plank.char,
+                        color=wood_plank.color,
+                        description=wood_plank.description
+                    )
+                    new_junk.x = x
+                    new_junk.y = y
+                    self.game_map.items_on_ground.append(new_junk)
+                    self.message_log.add_message(f"A {new_junk.name} drops from the {target_tile.name}!", new_junk.color)
             # --- END NEW DROP LOGIC ---
 
             return True
@@ -1587,7 +1644,7 @@ class Game:
         roll2 = random.randint(1, 20) # Always roll a second for simplicity
         
         final_d20_roll = roll1
-        roll_message_part = f"a d20: {roll1}"
+        roll_message_part = f"a d20: [{roll1}]"
         
         if advantage and disadvantage: # They cancel each other out
             self.message_log.add_message("Advantage and Disadvantage cancel out.", (150, 150, 150))
@@ -1617,7 +1674,7 @@ class Game:
     
         attack_roll_total = final_d20_roll + attack_modifier # Use final_d20_roll here
         self.message_log.add_message(
-            f"You roll {roll_message_part} + {attack_modifier} (Attack Bonus) = {attack_roll_total}",
+            f"You roll {roll_message_part} + [{attack_modifier}] (Attack Bonus) = {attack_roll_total} vs AC {target.armor_class}",
             (200, 200, 255)
         )
     
@@ -1644,9 +1701,9 @@ class Game:
     
         if hit_successful:
             hit_messages = [
-                f"Your attack ({attack_roll_total}) hits the {target.name} (AC {target.armor_class})!",
-                f"You connect with the {target.name}!",
-                f"A solid blow lands on the {target.name}!",
+                f"Your attack {attack_roll_total} hits the {target.name} (AC {target.armor_class})!",
+                f"You connect with the {target.name} (AC {target.armor_class})!",
+                f"A solid blow lands on the {target.name} (AC {target.armor_class})!",
                 f"The {target.name} recoils from your strike!"
             ]
             self.message_log.add_message(random.choice(hit_messages), (100, 255, 100))
@@ -1687,7 +1744,7 @@ class Game:
             damage_total = max(1, damage_dice_rolls_sum + damage_modifier)
     
             self.message_log.add_message(
-                f"You roll {damage_message_dice_part} + {damage_modifier} (Attack Power) = {damage_total} damage!",
+                f"You roll {damage_message_dice_part} + [{damage_modifier}] (Attack Power) = {damage_total} damage!",
                 (255, 200, 100)
             )
     
@@ -1715,10 +1772,10 @@ class Game:
                 )
         else:
             miss_messages = [
-                f"Your attack ({attack_roll_total}) misses the {target.name} (AC {target.armor_class})!",
-                f"You swing wildly and miss the {target.name}!",
+                f"Your attack {attack_roll_total} misses the {target.name} (AC {target.armor_class})!",
+                f"You swing wildly and miss the {target.name} (AC {target.armor_class})!",
                 f"The {target.name} deftly dodges your attack!",
-                f"Your weapon glances harmlessly off the {target.name}!"
+                f"Your weapon glances harmlessly off the {target.name} (AC {target.armor_class})!"
             ]
             self.message_log.add_message(random.choice(miss_messages), (200, 200, 200))
     
@@ -1736,12 +1793,13 @@ class Game:
         self.message_log.add_message(random.choice(messages), (170, 170, 170))
 
     def update(self, dt):
+        # self.clock.tick(60)  # Limit to 60 FPS
+        # self.fps = self.clock.get_fps()  # Get the current FPS
+
         initial_floating_texts_count = len(self.floating_texts) # <--- ADD THIS
         self.floating_texts = [text for text in self.floating_texts if text.update()]        
         if len(self.floating_texts) != initial_floating_texts_count: # <--- ADD THIS
             print(f"DEBUG: FloatingTexts updated. Removed {initial_floating_texts_count - len(self.floating_texts)} expired texts. New list size: {len(self.floating_texts)}") # <--- ADD THIS
-
-
 
 
         # NEW: Only update camera and process turns if player exists and game is in an active state
@@ -1857,6 +1915,13 @@ class Game:
                     self.targeting_cursor_y
                 )
 
+
+                # Draw a glowing outline for valid placement
+                if self.game_map.is_walkable(self.targeting_cursor_x, self.targeting_cursor_y):
+                    pygame.draw.rect(self.internal_surface, (255, 255, 0), (screen_x * config.TILE_SIZE, screen_y * config.TILE_SIZE, config.TILE_SIZE, config.TILE_SIZE), 3)  # Yellow outline
+                else:
+                    pygame.draw.rect(self.internal_surface, (255, 0, 0), (screen_x * config.TILE_SIZE, screen_y * config.TILE_SIZE, config.TILE_SIZE, config.TILE_SIZE), 3)  # Red outline for invalid
+
                 # Check if we're targeting a monster or destructible
                 target_type = None
                 target_entity = self.get_target_at(self.targeting_cursor_x, self.targeting_cursor_y)
@@ -1918,6 +1983,11 @@ class Game:
             if self.game_state in [GameState.DUNGEON, GameState.TAVERN]:
                 self.draw_minimap()
         self.message_log.render(self.screen)
+
+        # Draw FPS in the top left corner
+        # fps_text = f"FPS: {int(self.fps)}"  # Convert FPS to an integer for display
+        # fps_surface = self.fps_font.render(fps_text, True, (255, 255, 255))  # White color for FPS text
+        # self.screen.blit(fps_surface, (10, 10))  # Position it at (10, 10)        
 
         pygame.display.flip()
 
@@ -2189,40 +2259,38 @@ class Game:
             return
         popup_width = 200
         popup_height = 150
-        
+
         popup_x = (self.inventory_ui_surface.get_width() - popup_width) // 2
         popup_y = (self.inventory_ui_surface.get_height() - popup_height) // 2
-        
+
         popup_rect = pygame.Rect(popup_x, popup_y, popup_width, popup_height)
-        
+
         popup_surface = pygame.Surface((popup_width, popup_height), pygame.SRCALPHA)
         popup_surface.fill((0, 0, 0, 200))
         pygame.draw.rect(popup_surface, (100, 100, 100), popup_surface.get_rect(), 2)
         item_name_surface = self.inventory_font_section.render(self.selected_inventory_item.name, True, self.selected_inventory_item.color)
         item_name_rect = item_name_surface.get_rect(centerx=popup_width // 2, y=10)
         popup_surface.blit(item_name_surface, item_name_rect)
+
         options = [
-            ("U: Use", pygame.K_u),
+            ("U: Use", pygame.K_u),  # Ensure the Campfire Kit has a use option
             ("E: Equip", pygame.K_e),
             ("D: Drop", pygame.K_d),
             ("C: Cancel", pygame.K_c)
         ]
+
         current_y = item_name_rect.bottom + 15
         for text, key_code in options:
-            from items.items import Potion, Weapon, Armor
-            is_valid_action = True
-            if text == "U: Use" and not isinstance(self.selected_inventory_item, Potion):
-                is_valid_action = False
-            elif text == "E: Equip" and not (isinstance(self.selected_inventory_item, Weapon) or isinstance(self.selected_inventory_item, Armor)):
-                is_valid_action = False
-            
-            color = (255, 255, 255) if is_valid_action else (100, 100, 100)
-            
+            color = (255, 255, 255)  # Default color for options
+            if isinstance(self.selected_inventory_item, CampfireKit) and text == "U: Use":
+                color = (100, 255, 100)  # Highlight the use option for Campfire Kit
             option_surface = self.inventory_font_info.render(text, True, color)
             option_rect = option_surface.get_rect(centerx=popup_width // 2, y=current_y)
             popup_surface.blit(option_surface, option_rect)
             current_y += self.inventory_font_info.get_linesize() + 5
+
         self.screen.blit(popup_surface, popup_rect.topleft)
+
 
     def render_character_menu(self):
         """Renders the character details screen with a two-column layout."""

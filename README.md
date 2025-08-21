@@ -1,48 +1,105 @@
 # Mithrim
 
-**Mithrim** is a roguelike, turn-based RPG steeped in the mechanics and flavor of **Dungeons & Dragons 5th Edition**. Explore procedurally generated dungeons, engage in tactical combat, build your character through meaningful choices, and uncover the secrets of a world torn by arcane war.
+**Mithrim** is a turn-based roguelike game **heavily inspired by Dungeons & Dragons 5th Edition**.
+You create a character, explore procedurally generated dungeons, fight monsters, interact with NPCs, and uncover treasures — all with a ruleset and gameplay flow rooted in D\&D mechanics.
 
-## 🎲 Features
+---
 
-*   **Turn-Based Combat:** Strategic, grid-based encounters inspired by D&D 5e's action economy (Actions, Bonus Actions, Reactions, etc.).
-*   **Procedural Dungeons:** Each playthrough is unique, with randomized dungeons, loot, and encounters.
-*   **Deep Character Customization:**
-    *   Choose from classic archetypes (Fighter, Rogue, Wizard, etc.)
-    *   Multiclassing, Feats, Backgrounds, and Subclasses (Planned)
-*   **DnD-Inspired Systems:**
-    *   Ability Scores, Saving Throws, Skills
-    *   Advantage/Disadvantage mechanics
-    *   Spellcasting with spell slots, prepared spells, and concentration (Planned)
-*   **Permadeath & Replayability:** Death is permanent—each run challenges you to adapt and survive with new characters.
-*   **Narrative Lore:** Discover the lost history of Mithrim through cryptic journals, encounters, and environmental storytelling.
+## 🎮 Features
 
-## ⚔️ Gameplay Overview
+* **Character Creation**
 
-*   **Turn Order:** Initiative rolls determine turn order. On each turn, characters can move, attack, cast spells, use abilities, or interact with the environment.
-*   **Exploration:** Uncover hidden passages, solve environmental puzzles, and manage limited resources like torches, rations, and spell slots.
-*   **Resting:** Short rests and long rests function similarly to D&D 5e. Choose wisely when to rest in the unforgiving depths.
-*   **Tavern Hub:** Start your adventure in the Prancing Pony Tavern, where you can interact with NPCs, prepare for your journey, and access the dungeon.
+  * Choose from multiple **races** (Human, Hill Dwarf, Drow Elf).
+  * Select a **class** (Fighter, Rogue, Wizard).
+  * Race and class combinations affect your stats, abilities, and visuals.
 
-## 📜 Character Creation
+* **Game States**
 
-1.  **Race:** Choose from a variety of fantasy races (Human, Elf, Dwarf, Tiefling, etc.) (Planned)
-2.  **Class:** Select a class and gain access to a unique spell list and combat abilities. (Currently a default Hero class)
-3.  **Background:** Grants proficiencies, roleplay flavor, and sometimes hidden perks. (Planned)
-4.  **Stats:** Roll or point-buy your Ability Scores (STR, DEX, CON, INT, WIS, CHA). (Currently fixed initial stats with ASI on level-up)
-5.  **Leveling Up:** Gain XP through combat, exploration, and questing to level up and unlock new powers.
+  * **Tavern** – start your adventure, interact with NPCs, trade, and rest.
+  * **Dungeon** – explore randomly generated levels filled with traps, monsters, merchants, and loot.
+  * **Inventory & Character Menu** – manage items, equipment, and character details.
+  * **Trade** – buy and sell with NPC merchants.
+  * **Targeting Mode** – use spells and abilities with precision.
 
-## 🗺️ Roadmap
+* **Combat & Abilities**
 
-* [ ] Controller Support
-* [ ] Steam Integration
-* [ ] More Races/Classes/Subclasses
-* [ ] NPC Dialogues & Quest System
-* [ ] Advanced AI Behavior
-* [ ] Modding Support
-* [ ] Comprehensive D&D 5e Spellcasting System
-* [ ] Expanded Item and Equipment Variety
+  * Turn-based initiative system (like D\&D).
+  * Class abilities such as *Second Wind*, *Cunning Action*, *Evasion*, *Fire Bolt*, *Misty Step*, and *Mage Hand*.
+  * Monsters scale by dungeon depth, ranging from **rats and goblins** to **dragons, beholders, and even the Demogorgon**.
 
-## 🧙 Inspiration
-* Dungeons & Dragons 5e – Core mechanics & fantasy flavor
-* Darkest Dungeon, Stoneshard, Rogue Legacy – Roguelike & turn-based inspirations
-* Baldur’s Gate 3, Divinity: Original Sin II – Tactical combat & party dynamics
+* **Exploration**
+
+  * Procedurally generated **dungeons and taverns**.
+  * Field of Vision (FOV) system with **darkvision mechanics**.
+  * **Hidden traps, mimics, and environmental hazards**.
+  * Mini-map that updates as you explore.
+
+* **Items & Loot**
+
+  * Weapons, armor, potions, and chests.
+  * Equip and use items directly from your inventory.
+  * Shops with merchants both in taverns and dungeons.
+
+---
+
+## 🕹️ Controls
+
+* **Arrow Keys / WASD** – Move
+* **Space** – Interact / Attack / Open
+* **I** – Open Inventory
+* **C** – Open Character Menu
+* **F** – Interact with NPCs (talk/trade)
+* **1–9** – Use abilities
+* **ESC** – Cancel actions / menus
+* **F11** – Toggle fullscreen
+* **Mouse Wheel** – Scroll message log
+
+---
+
+## ⚔️ Monsters & Progression
+
+Monsters spawn by dungeon level tiers:
+
+* Early levels: rats, goblins, oozes, wolves.
+* Mid levels: skeletons, trolls, owlbears, minotaurs.
+* High levels: mind flayers, beholders.
+* Endgame: **Demogorgon**.
+
+---
+
+## 🛠️ Installation
+
+### Requirements
+
+* [Python 3.10+](https://www.python.org/downloads/)
+* [Pygame](https://www.pygame.org/)
+
+### Setup
+
+```bash
+git clone https://github.com/your-repo/mithrim.git
+cd mithrim
+pip install -r requirements.txt
+```
+
+### Run the Game
+
+```bash
+python game.py
+```
+
+---
+
+## 🌌 Inspiration
+
+Mithrim is a love letter to **classic roguelikes** and **D\&D 5e**, blending tactical dungeon crawling with tabletop-inspired mechanics.
+
+---
+
+## 📜 License
+
+MIT License.
+Feel free to play, modify, and expand upon the adventure.
+
+---
+

@@ -209,7 +209,7 @@ class CunningAction(Ability):
 
 class Evasion(Ability):
     def __init__(self):
-        super().__init__("Evasion", "Become incredibly agile, greatly increasing dodge chance and taking half damage if hit. Lasts 3 turns.", cooldown=20)
+        super().__init__("Evasion", "Become incredibly agile, greatly increasing dodge chance and taking half damage if hit. Lasts 3 turns.", cooldown=15)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
@@ -437,7 +437,7 @@ class MistyStep(Ability):
 
 class DetectMagic(Ability):
     def __init__(self):
-        super().__init__("Detect Magic", "Detects magical traps (specifically Fire Traps) within a certain range.", cost=0, cooldown=5)
+        super().__init__("Detect Magic", "Detects magical traps (specifically Fire Traps) within a certain range.", cost=0, cooldown=3)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):  # Handles cooldown check
@@ -470,7 +470,7 @@ class DetectMagic(Ability):
 
 class MageHand(Ability):
     def __init__(self):
-        super().__init__("Mage Hand", "Summon a spectral hand to trigger traps or pick up items from a distance.", cost=0, cooldown=4)
+        super().__init__("Mage Hand", "Summon a spectral hand to trigger traps or pick up items from a distance.", cost=0, cooldown=2)
         self.range = 6  # Max distance the Mage Hand can be controlled
 
     def use(self, user, game_instance):
