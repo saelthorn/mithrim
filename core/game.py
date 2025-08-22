@@ -199,8 +199,8 @@ class Game:
         # Level range: [List of monster classes that can spawn]
 
         # Early dungeon fodder
-        (1, 1): [GoblinArcher, CentaurArcher, SkeletonArcher, LizardfolkArcher],
-        (2, 3): [Goblin, GoblinArcher, Ooze, GiantRat, LargeOoze, Wererat],
+        (1, 1): [GiantSpider, Goblin, GiantRat, Wererat],
+        (2, 3): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider],
 
         # Early-mid dangers
         (4, 5): [Skeleton, SkeletonArcher, Orc, LargeOoze, Grick],
@@ -433,7 +433,7 @@ class Game:
         self.current_level = level_number
         self.max_level_reached = max(self.max_level_reached, level_number)
         
-        self.game_map = GameMap(60, 45)
+        self.game_map = GameMap(70, 40)
         self.fov = FOV(self.game_map)
         
         rooms, self.stairs_positions, self.torch_light_sources = generate_dungeon(self.game_map, level_number)
@@ -699,7 +699,7 @@ class Game:
             self.fov.visible_sources.clear() 
             # Pass player.darkvision_radius to compute_fov
             self.fov.compute_fov(self.player.x, self.player.y, radius=4, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
-    
+
         # Check if new tiles were explored for minimap redraw
         if self.fov.explored != previous_explored:
             self.minimap_needs_redraw = True
@@ -829,6 +829,7 @@ class Game:
                             input_text = self.message_log.current_input  # Capture the input
                             self.handle_text_input(input_text.lower())  # Convert to lowercase when processing
                             self.message_log.clear_last_input()  # Clear the input after processing
+                            self.message_log.show_input_area = False  # Hide input area after submission
                         elif event.key == pygame.K_ESCAPE:  # Cancel trade
                             self.message_log.add_message("Trade cancelled.", (255, 0, 0))
                             self.game_state = GameState.TAVERN  # Return to tavern state
@@ -841,6 +842,23 @@ class Game:
 
 
                 else:
+                    if event.key == pygame.K_RETURN:  # Enter key to submit input
+                        if self.message_log.show_input_area:  # Check if input area is visible
+                            input_text = self.message_log.current_input  # Capture the input
+                            self.handle_text_input(input_text.lower())  # Process the input
+                            self.message_log.clear_last_input()  # Clear the input after processing
+                            self.message_log.show_input_area = False  # Hide input area after submission
+                        else:
+                            self.message_log.show_input_area = True  # Show input area if not already visible
+                            self.message_log.current_input = ""  # Clear input when activating the input area
+                    elif event.key == pygame.K_BACKSPACE:  # Handle backspace
+                        if self.message_log.show_input_area:  # Only allow backspace if input area is visible
+                            self.message_log.current_input = self.message_log.current_input[:-1]  # Remove the last character
+                    else:
+                        # Capture the input character only if the input area is visible
+                        if self.message_log.show_input_area and event.unicode:  # Check if the event has a unicode character
+                            self.message_log.current_input += event.unicode  # Append the character to the current input
+
 
                     # Handle other key events (like opening inventory) only if not in trade state
                     if event.key == pygame.K_i:
@@ -1581,7 +1599,7 @@ class Game:
             
             # --- NEW: 10% chance to drop a Lesser Healing Potion ---
             if target_tile.name in ["Crate", "Barrel"]: # Check if it was a crate or barrel
-                if random.random() < 0.20:
+                if random.random() < 0.1:
                     # Create a new instance of the potion
                     new_potion = lesser_healing_potion.__class__(
                         name=lesser_healing_potion.name,
@@ -1596,7 +1614,7 @@ class Game:
                     new_potion.y = y
                     self.game_map.items_on_ground.append(new_potion)
                     self.message_log.add_message(f"A {new_potion.name} drops from the {target_tile.name}!", new_potion.color)
-                elif random.random() < 0.20:
+                elif random.random() < 0.05:
                     new_potion = greater_healing_potion.__class__(
                         name=greater_healing_potion.name,
                         char=greater_healing_potion.char,
@@ -1610,7 +1628,7 @@ class Game:
                     new_potion.y = y
                     self.game_map.items_on_ground.append(new_potion)
                     self.message_log.add_message(f"A {new_potion.name} drops from the {target_tile.name}!", new_potion.color)  
-                elif random.random() < 0.50:
+                elif random.random() < 0.70:
                     new_junk = wood_plank.__class__(
                         name=wood_plank.name,
                         char=wood_plank.char,

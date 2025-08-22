@@ -134,7 +134,7 @@ class CampfireKit(Item):
         self.uses_left = 3  # Number of uses for the campfire kit
 
     def use(self, user, game_instance):
-        """Use the campfire kit to drop it at the player's position."""
+        """Use the campfire kit to drop it at the player's position and emit light."""
         if self.uses_left > 0:
             # Close the inventory menu if it's open
             if game_instance.game_state in [GameState.INVENTORY, GameState.INVENTORY_MENU]:
@@ -149,12 +149,18 @@ class CampfireKit(Item):
             game_instance.message_log.add_message(f"{user.name} sets down a campfire kit!", (0, 255, 0))
             self.uses_left -= 1  # Decrease the number of uses left
             game_instance.player.inventory.remove_item(self)  # Remove the campfire kit from the player's inventory
+            
+            # Check if the campfire kit has no uses left
+            if self.uses_left <= 0:
+                game_instance.message_log.add_message(f"The Campfire Kit has broken and is no longer usable.", (255, 0, 0))
+                user.inventory.remove_item(self)  # Remove the campfire kit from the player's inventory
+            
             return True
         else:
             game_instance.message_log.add_message("The Campfire Kit has no uses left.", (255, 0, 0))
             return False
 
-
+    
 
 
 # --- Junk Items ---

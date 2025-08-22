@@ -5,11 +5,11 @@ BASE_SCREEN_HEIGHT = 700
 
 
 # UI panel width as a ratio of the total screen width
-UI_PANEL_WIDTH_RATIO = 0.16 # UI panel takes 25% of screen width
+UI_PANEL_WIDTH_RATIO = 0.16 # UI panel takes 16% of screen width
 
 
 # Message log height as a ratio of the total screen height
-MESSAGE_LOG_HEIGHT_RATIO = 0.30 # Increased to 25% for a taller box
+MESSAGE_LOG_HEIGHT_RATIO = 0.30 # Increased to 30% for a taller box
 
 
 # Set TILE_SIZE to match your tileset's individual tile size (e.g., 12x12)

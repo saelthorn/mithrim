@@ -470,7 +470,7 @@ class Fighter(Player):
         
         self.strength = 15
         self.dexterity = 13
-        self.constitution = 1400
+        self.constitution = 14
         self.intelligence = 8
         self.wisdom = 12
         self.charisma = 10
@@ -526,6 +526,7 @@ class Rogue(Player):
         # Set starting equipment
         self.inventory.add_item(thieves_tools)
         self.inventory.add_item(lesser_healing_potion)
+        self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
 
         self.equipped_weapon = short_sword
         self.equipped_armor = leather_armor
@@ -572,6 +573,7 @@ class Wizard(Player):
         # Set starting equipment
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(greater_healing_potion)
+        self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
 
         self.equipped_weapon = dagger
         self.equipped_armor = robes

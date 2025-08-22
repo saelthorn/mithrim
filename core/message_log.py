@@ -1,4 +1,3 @@
-# MultipleFiles/message_log.py
 import pygame
 from pygame import Rect
 
@@ -8,6 +7,8 @@ class MessageBox:
         self.messages = []  # Now stores ALL messages
         self.scroll_offset = 0  # NEW: Tracks the scroll position (index of the first visible message)
         self.current_input = ""  # Store current input text
+        self.input_height = 30  # Height reserved for input
+        self.show_input_area = False  # Flag to control input area visibility
         if font is None:
             self.font = pygame.font.Font(None, 16)
         else:
@@ -65,6 +66,7 @@ class MessageBox:
                          (self.rect.left, self.rect.top), 
                          (self.rect.right, self.rect.top), 
                          1)
+        
         # Render messages
         y_offset = 5  # Padding from top
         # Only render messages within the current scroll view
@@ -74,14 +76,13 @@ class MessageBox:
             text_surface = self.font.render(msg, True, color)
             surface.blit(text_surface, (self.rect.x + 5, self.rect.y + y_offset))
             y_offset += self.line_height
-        # Render current input text at the bottom of the message log
-        input_surface = self.font.render(self.current_input, True, (255, 255, 255))
-        input_y_position = self.rect.y + self.rect.height - self.line_height - 7  # Position input text above the bottom margin
-        surface.blit(input_surface, (self.rect.x + 150, input_y_position))
-
-
-
-
+        
+        # Draw the input area only if the flag is set
+        if self.show_input_area:
+            input_surface = self.font.render(self.current_input, True, (255, 255, 255))
+            input_y_position = self.rect.y + self.rect.height - self.input_height + 5  # Position input text above the bottom margin
+            pygame.draw.rect(surface, (30, 30, 30), (self.rect.x, self.rect.y + self.rect.height - self.input_height, self.rect.width, self.input_height))  # Draw input area background
+            surface.blit(input_surface, (self.rect.x + 5, input_y_position))  # Draw input text
 
 
 

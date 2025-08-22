@@ -183,3 +183,43 @@ class FireTrap(Trap):
             return True
         return False
 
+
+class ExplosiveTrap(Trap):
+    def __init__(self):
+        super().__init__(
+            name="Fire Trap",
+            char="^", # Revealed graphic
+            color=(255, 100, 0),
+            description="A magical glyph or mechanism that explodes when activated.",
+            detection_dc=15,
+            disarm_dc=16,
+            damage_dice="1d4",
+            damage_modifier=0,
+            damage_type='explosion'
+        )                
+        self.explosion_radius = 3  # Radius of the explosion effect
+        self.damage_dice = "3d6"  # Damage dealt by the explosion
+
+    def trigger(self, player, game_instance):
+        """Trigger the explosion effect."""
+        game_instance.message_log.add_message(f"The {self.name} activates and explodes!", (255, 0, 0))
+        
+        # Calculate damage
+        damage_rolls = [random.randint(1, 6) for _ in range(3)]  # Roll 3d6
+        total_damage = sum(damage_rolls)
+        
+        # Apply damage to the player
+        damage_taken = player.take_damage(total_damage, game_instance, damage_type='magical')
+        
+        # Display damage message
+        game_instance.message_log.add_message(f"You take {damage_taken} damage from the explosion!", (255, 100, 100))
+        
+        # Check for additional effects (e.g., knockback, status effects)
+        # This can be expanded based on your game mechanics
+        # Mark the trap as triggered
+        self.triggered = True
+        # Optional: Create floating text for damage dealt
+        damage_text = FloatingText(player.x, player.y, str(damage_taken), (255, 0, 0))
+        game_instance.floating_texts.append(damage_text)
+
+

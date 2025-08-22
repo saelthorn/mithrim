@@ -1,4 +1,13 @@
-- Campfire Kit Resting
+youre a senior game developer helping me make a classic turnbased roguelike rpg heavily based on dnd 5e
+
+If there is more than one way in and out, it's a maze.
+If there's only one way in and out, it's a labyrinth.
+If there's only one way in and no way out, it's a tomb. Yours.
+- Some dungeon-delver, probably.
+
+
+
+
 - Exclusive Dungeon Merchant Items
 - Add Locked Chests
 - Fix Targeting State
@@ -12,20 +21,3 @@
 
 
 
-when i use the campfire kit the inventory still open when it shouldnt be:
-
-Current Game State: inventory
-DEBUG KEYDOWN event: u (value: 117)
-Current Game State: inventory_menu
-Game state changed to DUNGEON.
-DEBUG KEYDOWN event: left (value: 1073741904)
-Current Game State: inventory
-DEBUG KEYDOWN event: return (value: 13)
-Current Game State: inventory
-DEBUG KEYDOWN event: down (value: 1073741905)
-Current Game State: inventory
-DEBUG KEYDOWN event: i (value: 105)
-Current Game State: inventory
-Inventory closed.
-DEBUG KEYDOWN event: left alt (value: 1073742050)
-Current Game State: dungeon

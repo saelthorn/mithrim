@@ -77,11 +77,16 @@ class Merchant(NPC):
             game.message_log.add_message(f"{item.name} - {item.price} gold", (255, 255, 255))
 
         # Allow player to buy or sell
-        game.message_log.add_message("Type buy {item} to buy and sell {item} to sell.", (200, 200, 255))
+        game.message_log.add_message("Type 'buy {item}' to buy and 'sell {item}' to sell.", (200, 200, 255))
         game.message_log.add_message("Type your input:", (200, 200, 255))
+        game.message_log.add_message(" ", (200, 200, 255))
 
-        # Wait for player input
+        # Set the game state to trade temporarily
         game.game_state = GameState.TRADE  # Set game state to trade
+        game.message_log.show_input_area = True  # Show input area for trade input
+        game.message_log.current_input = ""  # Clear input when activating the input area
+
+
 
 
     def buy_item(self, player, item_name):

@@ -4,7 +4,7 @@ from world import tile
 from world.tile import stairs_down, stairs_up, dungeon_door, bones, torch, crate, barrel, wall, floor, dungeon_grass, rubble, cob_web, mushroom, fresh_bones, MimicTile, TrapTile
 from items.items import Chest, generate_random_loot
 from entities.monster import Mimic
-from traps import DartTrap, SpikeTrap, FireTrap
+from traps import DartTrap, SpikeTrap, FireTrap, ExplosiveTrap
 
 class RectRoom:
     def __init__(self, x, y, w, h):
@@ -35,7 +35,7 @@ def dig_tunnel_y(game_map, y1, y2, x):
     for y in range(min(y1, y2), max(y1, y2) + 1):
         game_map.tiles[y][x] = tile.floor
 
-def generate_dungeon(game_map, level_number, max_rooms=10, room_min_size=5, room_max_size=10):
+def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=5, room_max_size=12):
     rooms = []
     stairs_positions = {}
     
@@ -45,8 +45,8 @@ def generate_dungeon(game_map, level_number, max_rooms=10, room_min_size=5, room
     torch_light_sources = []
 
     # Trap Definitions and Chance
-    possible_traps = [DartTrap, SpikeTrap, FireTrap] # List of trap instances
-    trap_placement_chance = 0.15 # 15% chance for a floor tile to become a trap    
+    possible_traps = [DartTrap, SpikeTrap, FireTrap, ExplosiveTrap] # List of trap instances
+    trap_placement_chance = 0.20 # 15% chance for a floor tile to become a trap    
     
     # Attempt to generate rooms
     for _ in range(max_rooms * 2): # Try more times than max_rooms to ensure we get enough
@@ -173,7 +173,7 @@ def generate_dungeon(game_map, level_number, max_rooms=10, room_min_size=5, room
 
                     # --- Floor Decorations ---                    
                     if random.random() < floor_decoration_chance:
-                        if random.random() < 0.03: # 5% chance for a decoration to be a Mimic
+                        if random.random() < 0.02: # 5% chance for a decoration to be a Mimic
                             mimic_type_tile_obj = random.choice([crate, barrel])
                             mimic_entity_disguise_char = 'K' if mimic_type_tile_obj == crate else 'B'
                             mimic_tile_initial_display_char = 'k' if mimic_type_tile_obj == crate else 'b'
