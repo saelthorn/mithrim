@@ -9,7 +9,6 @@ If there's only one way in and no way out, it's a tomb. Yours.
 
 
 Prioritize - Add FOV for Monsters 
- - Longer CDs and Resting Resets CDs
  - Exclusive Dungeon Merchant Items
  - Add Locked Chests
  - Fix Targeting State

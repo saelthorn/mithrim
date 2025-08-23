@@ -199,8 +199,8 @@ class Game:
         # Level range: [List of monster classes that can spawn]
 
         # Early dungeon fodder
-        (1, 1): [GiantSpider, Goblin, GiantRat, Wererat],
-        (2, 3): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider],
+        (1, 1): [Goblin, GiantRat, Wererat, GoblinArcher, Wolf],
+        (2, 3): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf],
 
         # Early-mid dangers
         (4, 5): [Skeleton, SkeletonArcher, Orc, LargeOoze, Grick],

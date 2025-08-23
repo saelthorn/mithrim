@@ -5,6 +5,7 @@ from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackB
 from items.items import long_sword, chainmail_armor, short_sword, leather_armor, dagger, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, Item, CampfireKit
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
+from core.floating_text import FloatingText
     
 
 class Player: # This is our base class for playable characters
@@ -289,14 +290,14 @@ class Player: # This is our base class for playable characters
 
 
     def rest(self, game_instance):
-        """Handle resting mechanics."""
+        """Handle resting mechanics and reset ability cooldowns."""
         print("Rest method called")  # Debugging statement
 
         # Check for enemies within 10 tiles
         for entity in game_instance.entities:
             if entity != self and entity.alive:
                 distance = self.distance_to(entity.x, entity.y)
-                if distance < 10:  # If any enemy is within 15 tiles
+                if distance < 10:  # If any enemy is within 10 tiles
                     game_instance.message_log.add_message("You cannot rest; enemies are too close!", (255, 0, 0))
                     return False
 
@@ -310,10 +311,15 @@ class Player: # This is our base class for playable characters
             self.active_status_effects.clear()  # Remove all status effects
             game_instance.message_log.add_message(f"{self.name} rests by the campfire and recovers fully!", (0, 255, 0))
 
+            # Reset ability cooldowns
+            for ability in self.abilities.values():
+                ability.current_cooldown = 0  # Reset cooldown for each ability
+
             # Increase ambush chance (e.g., from 20% to 50%)
-            if random.random() < 0.2:  # 20% chance for ambush
+            if random.random() < 0.1:  # 20% chance for ambush
                 game_instance.message_log.add_message("You hear rustling nearby... an ambush!", (255, 0, 0))
                 self.trigger_ambush(game_instance)
+
                 return True  # Resting was interrupted by ambush
         else:
             game_instance.message_log.add_message("You need to be adjacent to a campfire to rest.", (255, 0, 0))
@@ -329,7 +335,10 @@ class Player: # This is our base class for playable characters
         player_x, player_y = self.x, self.y
     
         spawned_enemies = []
-    
+
+        ambush_text = FloatingText(self.x, self.y, "AMBUSH!", (180, 0, 0))
+        game_instance.floating_texts.append(ambush_text)   
+
         # Spawn enemies 5 tiles away from the player
         for _ in range(num_enemies):
             # Attempt to find a valid spawn position
@@ -467,7 +476,7 @@ class Fighter(Player):
         
         self.strength = 15
         self.dexterity = 13
-        self.constitution = 14
+        self.constitution = 140
         self.intelligence = 8
         self.wisdom = 12
         self.charisma = 10

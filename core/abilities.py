@@ -160,7 +160,7 @@ class DisarmTrapsAbility(Ability):
 
 class SecondWind(Ability):
     def __init__(self):
-        super().__init__("Second Wind", "Heal yourself for a small amount of HP.", cooldown=15) # 15 turns cooldown
+        super().__init__("Second Wind", "Heal yourself for a small amount of HP.", cooldown=75) # 15 turns cooldown
 
     def use(self, user, game_instance):
         # Call base class use to handle cooldown and initial checks.
@@ -176,7 +176,7 @@ class SecondWind(Ability):
 
 class PowerAttack(Ability):
     def __init__(self):
-        super().__init__("Power Attack", "Sacrifice accuracy for increased damage on your next attack.", cooldown=5)
+        super().__init__("Power Attack", "Sacrifice accuracy for increased damage on your next attack.", cooldown=15)
         # PowerAttack doesn't need a 'range' attribute here because it's not a direct targeted ability.
         # It modifies the *next* melee attack.
     def use(self, user, game_instance):
@@ -209,7 +209,7 @@ class CunningAction(Ability):
 
 class Evasion(Ability):
     def __init__(self):
-        super().__init__("Evasion", "Become incredibly agile, greatly increasing dodge chance and taking half damage if hit. Lasts 3 turns.", cooldown=15)
+        super().__init__("Evasion", "Become incredibly agile, greatly increasing dodge chance and taking half damage if hit. Lasts 3 turns.", cooldown=75)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
