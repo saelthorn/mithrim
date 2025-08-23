@@ -292,11 +292,11 @@ class Player: # This is our base class for playable characters
         """Handle resting mechanics."""
         print("Rest method called")  # Debugging statement
 
-        # Check for enemies within 15 tiles
+        # Check for enemies within 10 tiles
         for entity in game_instance.entities:
             if entity != self and entity.alive:
                 distance = self.distance_to(entity.x, entity.y)
-                if distance < 15:  # If any enemy is within 15 tiles
+                if distance < 10:  # If any enemy is within 15 tiles
                     game_instance.message_log.add_message("You cannot rest; enemies are too close!", (255, 0, 0))
                     return False
 
@@ -311,7 +311,7 @@ class Player: # This is our base class for playable characters
             game_instance.message_log.add_message(f"{self.name} rests by the campfire and recovers fully!", (0, 255, 0))
 
             # Increase ambush chance (e.g., from 20% to 50%)
-            if random.random() < 0.5:  # 50% chance for ambush
+            if random.random() < 0.2:  # 20% chance for ambush
                 game_instance.message_log.add_message("You hear rustling nearby... an ambush!", (255, 0, 0))
                 self.trigger_ambush(game_instance)
                 return True  # Resting was interrupted by ambush
@@ -324,13 +324,10 @@ class Player: # This is our base class for playable characters
 
     def trigger_ambush(self, game_instance):
         """Spawn enemies for an ambush."""
-        # Define the number of enemies to spawn
         num_enemies = random.randint(1, 3)  # Spawn 1 to 3 enemies
     
-        # Get the player's current position
         player_x, player_y = self.x, self.y
     
-        # List to hold spawned enemies for sorting later
         spawned_enemies = []
     
         # Spawn enemies 5 tiles away from the player

@@ -842,18 +842,19 @@ class Game:
 
 
                 else:
-                    if event.key == pygame.K_RETURN:  # Enter key to submit input
+                    if event.key == pygame.K_SLASH:  # Enter key to submit input
                         if self.message_log.show_input_area:  # Check if input area is visible
                             input_text = self.message_log.current_input  # Capture the input
                             self.handle_text_input(input_text.lower())  # Process the input
-                            self.message_log.clear_last_input()  # Clear the input after processing
-                            self.message_log.show_input_area = False  # Hide input area after submission
                         else:
                             self.message_log.show_input_area = True  # Show input area if not already visible
                             self.message_log.current_input = ""  # Clear input when activating the input area
                     elif event.key == pygame.K_BACKSPACE:  # Handle backspace
                         if self.message_log.show_input_area:  # Only allow backspace if input area is visible
                             self.message_log.current_input = self.message_log.current_input[:-1]  # Remove the last character
+                    elif event.key == pygame.K_RETURN:
+                        self.message_log.clear_last_input()
+                        self.message_log.show_input_area = False
                     else:
                         # Capture the input character only if the input area is visible
                         if self.message_log.show_input_area and event.unicode:  # Check if the event has a unicode character
@@ -901,6 +902,31 @@ class Game:
                         return True  # Consume event 
                     
 
+                    # --- Always accessible menus ---
+
+                    # Handle 'C' key for Character Menu
+                    if event.key == pygame.K_c:
+                        # Store the state *before* any menu or targeting was active
+                        # This is crucial for returning to the correct game state after closing menus.
+                        if self.game_state not in [GameState.INVENTORY, GameState.INVENTORY_MENU, GameState.CHARACTER_MENU, GameState.TARGETING]:
+                            self._previous_game_state = self.game_state 
+                        # If currently in TARGETING state, cancel it first
+                        if self.game_state == GameState.TARGETING:
+                            self.message_log.add_message("Targeting cancelled (Character Menu opened).", (150, 150, 150))
+                            self.ability_in_use = None # Clear the ability
+                            self.player_has_acted = False # Player didn't act if cancelled
+                            self.player.current_action_state = None # Clear any pending action state
+                            # IMPORTANT: Do NOT set _previous_game_state here. It was already set above
+                            # to the state *before* targeting. This ensures we return to DUNGEON/TAVERN.
+                        if self.game_state == GameState.CHARACTER_MENU: # If already in character menu, close it
+                            self.game_state = self._previous_game_state
+                            self.message_log.add_message("Closing Character Menu.", (100, 200, 255))
+                        else: # If not in character menu, open it
+                            self.game_state = GameState.CHARACTER_MENU
+                            self.message_log.add_message("Opening Character Menu...", (100, 200, 255))
+                        return True # Consume event, don't process other game states  
+
+
                 # --- Trade Interaction --- 
                 if self.game_state in GameState.DUNGEON:
                     if event.key == pygame.K_f:  # Check if 'F' is pressed
@@ -910,7 +936,6 @@ class Game:
                             merchant.offer_trade(self.player, self)  # Call the trade method for the Merchant
                             return True  # Consume event
 
-                # --- NPC Interaction Logic ---
                 if self.game_state in GameState.TAVERN:
                     if event.key == pygame.K_f:  # Check if 'F' is pressed
                         npc = self.check_npc_interaction()  # Check for adjacent NPC
@@ -920,6 +945,7 @@ class Game:
                             else:
                                 self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
                             return True  # Consume event
+
 
                 # --- NEW: Handle Character Creation Input ---
                 if self.game_state == GameState.CHARACTER_CREATION:
@@ -954,31 +980,7 @@ class Game:
                     return True
 
 
-                # --- Always accessible menus ---
-
-                # Handle 'C' key for Character Menu
-                if event.key == pygame.K_c:
-                    # Store the state *before* any menu or targeting was active
-                    # This is crucial for returning to the correct game state after closing menus.
-                    if self.game_state not in [GameState.INVENTORY, GameState.INVENTORY_MENU, GameState.CHARACTER_MENU, GameState.TARGETING]:
-                        self._previous_game_state = self.game_state 
-                    # If currently in TARGETING state, cancel it first
-                    if self.game_state == GameState.TARGETING:
-                        self.message_log.add_message("Targeting cancelled (Character Menu opened).", (150, 150, 150))
-                        self.ability_in_use = None # Clear the ability
-                        self.player_has_acted = False # Player didn't act if cancelled
-                        self.player.current_action_state = None # Clear any pending action state
-                        # IMPORTANT: Do NOT set _previous_game_state here. It was already set above
-                        # to the state *before* targeting. This ensures we return to DUNGEON/TAVERN.
-                    if self.game_state == GameState.CHARACTER_MENU: # If already in character menu, close it
-                        self.game_state = self._previous_game_state
-                        self.message_log.add_message("Closing Character Menu.", (100, 200, 255))
-                    else: # If not in character menu, open it
-                        self.game_state = GameState.CHARACTER_MENU
-                        self.message_log.add_message("Opening Character Menu...", (100, 200, 255))
-                    return True # Consume event, don't process other game states                
-    
-
+              
                 # --- Handle input based on game state ---
                 # These blocks should only be entered if the game_state is specifically that menu
                 # or if it's the main game (DUNGEON/TAVERN)
@@ -993,12 +995,7 @@ class Game:
 
                 elif self.game_state == GameState.TARGETING: 
                     self.handle_targeting_input(event.key)
-                    # handle_targeting_input will call execute_targeted_ability, which then calls next_turn.
-                    # If targeting is cancelled, we want to fall through to normal movement.
-                    # If targeting is confirmed, it will call next_turn and we can return True.
-                    if self.game_state != GameState.TARGETING: # If state changed (i.e., targeting was cancelled or executed)
-                        # Do NOT return True immediately. Let the rest of handle_events process the input
-                        # if the state is now DUNGEON/TAVERN.
+                    if self.game_state != GameState.TARGETING: 
                         pass 
                     else: # Still in TARGETING state (e.g., invalid target chosen)
                         return True # Consume event, stay in targeting mode                
@@ -1170,10 +1167,11 @@ class Game:
                     return True
         return True 
 
+
     def handle_targeting_input(self, key):
         """Handles input when in GameState.TARGETING (Mage Hand, etc.)"""
         dx, dy = 0, 0  # Cursor movement directions
-    
+
         # Handle cursor movement
         if key in (pygame.K_UP, pygame.K_w, pygame.K_k):
             dy = -1
@@ -1183,12 +1181,12 @@ class Game:
             dx = -1
         elif key in (pygame.K_RIGHT, pygame.K_d, pygame.K_l):
             dx = 1
-    
+
         # Apply movement if possible
         if dx != 0 or dy != 0:
             new_x = self.targeting_cursor_x + dx
             new_y = self.targeting_cursor_y + dy
-    
+
             # Keep cursor within map bounds and within ability range
             if (0 <= new_x < self.game_map.width and
                 0 <= new_y < self.game_map.height and
@@ -1196,39 +1194,23 @@ class Game:
                 self.targeting_cursor_x = new_x
                 self.targeting_cursor_y = new_y
                 return  # Done, next frame will render cursor
-    
+
         # Confirm target selection
         elif key == pygame.K_RETURN:
-            # Check if the target tile is walkable
-            if self.game_map.is_walkable(self.targeting_cursor_x, self.targeting_cursor_y):
-                # Place the campfire
-                self.message_log.add_message(f"{self.player.name} sets up a campfire at ({self.targeting_cursor_x}, {self.targeting_cursor_y})!", (0, 255, 0))
-                self.player.inventory.remove_item(self.ability_in_use)  # Remove the campfire kit from inventory
-                self.ability_in_use = None  # Clear the ability reference
-                self.targeting_ability_range = 0
-                self.targeting_cursor_x = 0  # Reset cursor position
-                self.targeting_cursor_y = 0
-                self.player.current_action_state = None  # Clear any pending action state
-                self.next_turn()  # End the player's turn after placing the campfire
-            else:
-                self.message_log.add_message("You cannot place the campfire there. It's not a valid location.", (255, 0, 0))
-                return  # Stay in targeting mode
-    
+            print("DEBUG: K_RETURN pressed in TARGETING. Calling execute_targeted_ability.") # <--- ADD THIS
+            self.execute_targeted_ability()  # Handle the ability effect
+            return  # Exit targeting mode
+
         # Cancel targeting
         if key == pygame.K_ESCAPE:
             self.message_log.add_message("Targeting cancelled.", (150, 150, 150))
-            self.game_state = self._previous_game_state  # Return to previous game state (DUNGEON/TAVERN)
-            self.ability_in_use = None  # Clear the ability
-            self.targeting_ability_range = 0
-            self.targeting_cursor_x = 0  # Reset cursor position
-            self.targeting_cursor_y = 0
-            self.player.current_action_state = None  # Clear any pending action state
-    
-            # IMPORTANT: End the player's turn if they were in targeting mode
-            self.player_has_acted = True  # This allows the player to move again
-            self.next_turn()  # Move to the next turn
-            return  # Input handled
-        
+            self.game_state = self._previous_game_state # Return to previous state (DUNGEON)
+            self.ability_in_use = None # Clear the ability
+            self.player_has_acted = False # Player didn't act if cancelled
+            self.player.current_action_state = None # <--- THIS LINE MUST BE HERE
+            return # Input handled 
+
+
     def handle_text_input(self, input_text):
         """Handles text input from the player."""
         input_text = input_text.lower()  # Convert input to lowercase
@@ -1269,23 +1251,27 @@ class Game:
         target_x = self.targeting_cursor_x
         target_y = self.targeting_cursor_y
 
-        # Check if the target is within the player's FOV
-        if not self.fov.get_visibility_type(target_x, target_y) in ['player', 'torch', 'darkvision']:
-            self.message_log.add_message(f"You cannot attack {target_x}, {target_y} because it is out of sight!", (255, 0, 0))
-            self._reset_targeting_state()
-            return
+        # Check range
+        distance = self.player.distance_to(target_x, target_y)
+        if distance > self.targeting_ability_range:
+            self.message_log.add_message(f"{self.ability_in_use.name} target is out of range ({int(distance)} tiles away, max {self.targeting_ability_range}).", (255, 150, 0))
+            return # Stay in targeting mode
+
+        if not self.check_line_of_sight(self.player.x, self.player.y, target_x, target_y):
+            self.message_log.add_message(f"Cannot target {self.ability_in_use.name}: No clear line of sight.", (255, 150, 0))
+            return # Stay in targeting mode
 
         # Pass the confirmed target coordinates to the ability's execute_on_target method
+        # This method will contain the specific logic for each ability.
         if self.ability_in_use.execute_on_target(self.player, self, target_x, target_y):
-            print("DEBUG: ability_in_use.execute_on_target returned True. Resetting state.")
+            print("DEBUG: ability_in_use.execute_on_target returned True. Resetting state.") # <--- ADD THIS
             # If the ability successfully executed its effect, then reset state and end turn
             self._reset_targeting_state()
         else:
-            print("DEBUG: ability_in_use.execute_on_target returned False. Staying in targeting mode.")
+            print("DEBUG: ability_in_use.execute_on_target returned False. Staying in targeting mode.") # <--- ADD THIS
             # If execute_on_target returns False, it means the target was invalid for that ability
             # (e.g., Fire Bolt on empty tile, Misty Step on blocked tile). Stay in targeting mode.
-            pass  # Message already handled by ability.execute_on_target
-
+            pass # Message already handled by ability.execute_on_target
 
     def _reset_targeting_state(self):
         """Cleans up targeting-related state vars and ends the player's turn."""
@@ -1300,8 +1286,6 @@ class Game:
         self.player_has_acted = True
         self.next_turn()
 
-# MultipleFiles/game.py
-# ... (existing code) ...
 
     def check_line_of_sight(self, x1, y1, x2, y2):
         """
@@ -1932,13 +1916,6 @@ class Game:
                     self.targeting_cursor_x,
                     self.targeting_cursor_y
                 )
-
-
-                # Draw a glowing outline for valid placement
-                if self.game_map.is_walkable(self.targeting_cursor_x, self.targeting_cursor_y):
-                    pygame.draw.rect(self.internal_surface, (255, 255, 0), (screen_x * config.TILE_SIZE, screen_y * config.TILE_SIZE, config.TILE_SIZE, config.TILE_SIZE), 3)  # Yellow outline
-                else:
-                    pygame.draw.rect(self.internal_surface, (255, 0, 0), (screen_x * config.TILE_SIZE, screen_y * config.TILE_SIZE, config.TILE_SIZE, config.TILE_SIZE), 3)  # Red outline for invalid
 
                 # Check if we're targeting a monster or destructible
                 target_type = None

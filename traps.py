@@ -118,8 +118,8 @@ class DartTrap(Trap):
             char="^", # Revealed graphic
             color=(150, 150, 150),
             description="A pressure plate connected to hidden dart launchers.",
-            detection_dc=12,
-            disarm_dc=13,
+            detection_dc=10,
+            disarm_dc=12,
             damage_dice="1d4",
             damage_modifier=0,
             damage_type='piercing'
@@ -147,10 +147,10 @@ class SpikeTrap(Trap):
             char="^", # Revealed graphic
             color=(180, 0, 0),
             description="A hidden pit or floor section that reveals sharp spikes.",
-            detection_dc=14,
+            detection_dc=10,
             disarm_dc=14,
             damage_dice="2d6",
-            damage_modifier=0,
+            damage_modifier=2,
             damage_type='piercing'
         )
 
@@ -161,9 +161,9 @@ class FireTrap(Trap):
             char="^", # Revealed graphic
             color=(255, 100, 0),
             description="A magical glyph or mechanism that erupts in flames.",
-            detection_dc=15,
-            disarm_dc=16,
-            damage_dice="1d4",
+            detection_dc=10,
+            disarm_dc=14,
+            damage_dice="3d6",
             damage_modifier=0,
             damage_type='fire'
         )
@@ -191,35 +191,28 @@ class ExplosiveTrap(Trap):
             char="^", # Revealed graphic
             color=(255, 100, 0),
             description="A magical glyph or mechanism that explodes when activated.",
-            detection_dc=15,
-            disarm_dc=16,
-            damage_dice="1d4",
-            damage_modifier=0,
+            detection_dc=10,
+            disarm_dc=14,
+            damage_dice="3d6",
+            damage_modifier=2,
             damage_type='explosion'
         )                
         self.explosion_radius = 3  # Radius of the explosion effect
-        self.damage_dice = "3d6"  # Damage dealt by the explosion
+        self.can_burn = True
+        self.burn_dc = 16
+        self.burn_duration = 3
+        self.damage_per_turn = 4
 
-    def trigger(self, player, game_instance):
-        """Trigger the explosion effect."""
-        game_instance.message_log.add_message(f"The {self.name} activates and explodes!", (255, 0, 0))
-        
-        # Calculate damage
-        damage_rolls = [random.randint(1, 6) for _ in range(3)]  # Roll 3d6
-        total_damage = sum(damage_rolls)
-        
-        # Apply damage to the player
-        damage_taken = player.take_damage(total_damage, game_instance, damage_type='magical')
-        
-        # Display damage message
-        game_instance.message_log.add_message(f"You take {damage_taken} damage from the explosion!", (255, 100, 100))
-        
-        # Check for additional effects (e.g., knockback, status effects)
-        # This can be expanded based on your game mechanics
-        # Mark the trap as triggered
-        self.triggered = True
-        # Optional: Create floating text for damage dealt
-        damage_text = FloatingText(player.x, player.y, str(damage_taken), (255, 0, 0))
-        game_instance.floating_texts.append(damage_text)
+
+    # def trigger(self, player, game_instance, x, y):
+    #     if super().trigger(player, game_instance, x, y): # Call base trigger for damage
+    #         if self.can_burn and player.alive:
+    #             game_instance.message_log.add_message(f"FLames erupts on {player.name}!", (255, 150, 0))
+    #             if not player.make_saving_throw("DEX", self.burn_dc, game_instance):
+    #                 player.add_status_effect("Burning", duration=self.burn_duration, game_instance=game_instance, source=self)
+    #             else:
+    #                 game_instance.message_log.add_message(f"{player.name} resists the flames!", (150, 255, 150))
+    #         return True
+    #     return False
 
 

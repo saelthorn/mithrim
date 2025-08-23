@@ -8,16 +8,17 @@ If there's only one way in and no way out, it's a tomb. Yours.
 
 
 
-- Exclusive Dungeon Merchant Items
-- Add Locked Chests
-- Fix Targeting State
-- Add FOV for Monsters
-- Make Mithrim Logo
-- Rework the UI
-- Add More Traps and Status Effects
-- Add Companions
-- Add Torches as an Items
-- Add Boss Rooms
+Prioritize - Add FOV for Monsters 
+ - Longer CDs and Resting Resets CDs
+ - Exclusive Dungeon Merchant Items
+ - Add Locked Chests
+ - Fix Targeting State
+ - Make Mithrim Logo
+ - Rework the UI
+ - Add More Traps and Status Effects
+ - Add Companions
+ - Add Torches as an Items
+ - Add Boss Rooms
 
 
 

@@ -228,15 +228,16 @@ class FireBolt(Ability):
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
             return False
-        
+
         # Find only monster targets within range
         monster_targets = []
         for entity in game_instance.entities:
             if isinstance(entity, Monster) and entity.alive:
                 distance = user.distance_to(entity.x, entity.y)
                 if distance <= self.range:  # Check against ability range
-                    monster_targets.append(entity)
-
+                    # Check if the target is within the player's FOV
+                    if game_instance.fov.get_visibility_type(entity.x, entity.y) in ['player', 'torch', 'darkvision']:
+                        monster_targets.append(entity)
         # If there are monster targets, auto-target the closest one
         if monster_targets:
             target = min(monster_targets, key=lambda m: user.distance_to(m.x, m.y))
