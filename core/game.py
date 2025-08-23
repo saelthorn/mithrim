@@ -461,8 +461,8 @@ class Game:
         
         self.entities = [self.player]
         
-        monsters_per_level = min(2 + level_number, len(rooms) - 1)
-        monster_rooms = rooms[1:monsters_per_level + 2]
+        monsters_per_level = min(1 + level_number, len(rooms) - 1)
+        monster_rooms = rooms[3:monsters_per_level + 5]
 
         # Determine which monsters can spawn on this level based on MONSTER_SPAWN_TIERS
         possible_monsters = []

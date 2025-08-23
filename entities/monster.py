@@ -22,6 +22,9 @@ class Monster:
         self.initiative = 0
         self.blocks_movement = True
         self.active_status_effects = []
+
+        self.last_known_player_position = None  # New attribute to store last known player position
+        self.detection_range = 5
        
         # Physical damage types
         self.damage_modifier = 2
@@ -59,51 +62,84 @@ class Monster:
         dy = abs(self.y - target_y)
         return max(dx, dy) # Chebyshev distance (for grid-based movement)
 
+
+    def detect_player(self, player, game_instance):
+        """Check if the player is within detection range and line of sight."""
+        distance_to_player = self.distance_to(player.x, player.y)
+        # Check if the player is within detection range
+        if distance_to_player <= self.detection_range:
+            # Check line of sight
+            if game_instance.check_line_of_sight(self.x, self.y, player.x, player.y):
+                self.last_known_player_position = (player.x, player.y)  # Store the player's position
+                return True  # Player detected
+        return False  # Player not detected
+ 
+    def patrol(self, game_map):
+        """Move the monster along a patrol path or randomly within a defined area."""
+        # Define a simple patrol path (for example, a square or a line)
+        patrol_path = [(self.x + 1, self.y), (self.x, self.y + 1), (self.x - 1, self.y), (self.x, self.y - 1)]
+        
+        # Choose a random direction from the patrol path
+        next_position = random.choice(patrol_path)
+
+        # Check if the next position is within bounds and walkable
+        if game_map.is_walkable(next_position[0], next_position[1]):
+            self.x, self.y = next_position
+            return True  # Successfully patrolled to the next position
+        return False  # Could not move
+
     def take_turn(self, player, game_map, game):
         """Handle monster's combat and movement"""
         if not self.alive:
             return
-
+    
         # Process status effects at the start of the monster's turn
         self.process_status_effects(game)
-        if not self.alive: # Check if monster died from status effect
-           return
-
-        # If monster has ranged attack, check if player is in range and line of sight
-        if self.is_ranged:
-            distance_to_player = self.distance_to(player.x, player.y)
-            # Use the new check_line_of_sight method
-            if distance_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
-                self.ranged_attack(player, game)
-                return
-
-        # Check if adjacent to player (including diagonals) - melee attack
-        if self.is_adjacent_to(player):
-            self.attack(player, game) # Use base melee attack
+        if not self.alive:  # Check if monster died from status effect
             return
-
-        # Otherwise, move toward player using A* pathfinding
-        other_entities = [e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement]
-
-        path = astar(game_map, (self.x, self.y), (player.x, player.y), entities=other_entities)
-
-        if path and len(path) > 1:
-            next_step = path[1]
-            new_x, new_y = next_step
-
-            is_blocked = False
-            for entity in game.entities:
-                if entity != self and entity.x == new_x and entity.y == new_y and entity.alive and entity.blocks_movement:
-                    is_blocked = True
-                    break
-
-            if not is_blocked:
-                self.x, self.y = new_x, new_y
+    
+        # Check if the player is detected before chasing
+        player_detected = self.detect_player(player, game)
+    
+        if player_detected:
+            # If monster has ranged attack, check if player is in range and line of sight
+            distance_to_player = self.distance_to(player.x, player.y)
+            if self.is_ranged:
+                if distance_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
+                    self.ranged_attack(player, game)
+                    return
+    
+            # Check if adjacent to player (including diagonals) - melee attack
+            if self.is_adjacent_to(player):
+                self.attack(player, game)  # Use base melee attack
+                return
+    
+            # Otherwise, move toward the player's current position using A* pathfinding
+            path = astar(game_map, (self.x, self.y), (player.x, player.y), entities=[e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement])
+    
+            if path and len(path) > 1:
+                next_step = path[1]
+                new_x, new_y = next_step  # Ensure next_step is unpacked correctly
+    
+                is_blocked = False
+                for entity in game.entities:
+                    if entity != self and entity.x == new_x and entity.y == new_y and entity.alive and entity.blocks_movement:
+                        is_blocked = True
+                        break
+                    
+                if not is_blocked:
+                    self.x, self.y = new_x, new_y  # Correctly assign new_x and new_y
+                else:
+                    game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
             else:
-                game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
+                game.message_log.add_message(f"The {self.name} cannot find a path to the player.", (150, 150, 150))
         else:
-            pass # No path found or no next step, monster waits.
-
+            # If the player is not detected, patrol the area
+            if self.patrol(game_map):
+                game.message_log.add_message(f"The {self.name} patrols the area.", (150, 150, 150))
+            else:
+                game.message_log.add_message(f"The {self.name} is unable to move.", (150, 150, 150))
+            
 
     def is_adjacent_to(self, other):
         """Check if next to another entity (cardinal directions + diagonals)"""
@@ -453,6 +489,7 @@ class GiantRat(Monster):
         self.base_xp = 25
         self.monster_die_type = 4
         self.damage_modifier = 2
+        self.detection_range = 8
         self.num_damage_dice = 1
         # self.can_disease = True  # Filth Fever (homebrew disease effect)
 
@@ -469,6 +506,7 @@ class Ooze(Monster):
         self.acid_burn_dc = 14
         self.acid_burn_duration = 4
         self.damage_modifier = 1
+        self.detection_range = 4
         self.acid_burn_damage_per_turn = 3
 
 class Goblin(Monster):
@@ -481,6 +519,7 @@ class Goblin(Monster):
         self.base_xp = 50
         self.monster_die_type = 6
         self.damage_modifier = 2
+        self.detection_range = 6
         self.num_damage_dice = 1
 
 class GoblinArcher(Monster):
@@ -493,6 +532,7 @@ class GoblinArcher(Monster):
         self.base_xp = 50
         self.monster_die_type = 4
         self.damage_modifier = 2
+        self.detection_range = 6
         self.num_damage_dice = 1
         self.is_ranged = True
         self.ranged_attack_bonus = 2  # Base ranged attack bonus
@@ -511,6 +551,7 @@ class Skeleton(Monster):
         self.base_xp = 50
         self.monster_die_type = 6
         self.damage_modifier = 2
+        self.detection_range = 4
         self.num_damage_dice = 1
 
 class SkeletonArcher(Monster):
@@ -523,6 +564,7 @@ class SkeletonArcher(Monster):
         self.base_xp = 50
         self.monster_die_type = 4
         self.damage_modifier = 2
+        self.detection_range = 5
         self.num_damage_dice = 1
         self.is_ranged = True
         self.ranged_attack_bonus = 2  # Base ranged attack bonus
@@ -540,6 +582,7 @@ class Orc(Monster):
         self.base_xp = 100
         self.monster_die_type = 12
         self.damage_modifier = 3
+        self.detection_range = 6
         self.num_damage_dice = 1
 
 class Centaur(Monster):
@@ -552,6 +595,7 @@ class Centaur(Monster):
         self.base_xp = 450
         self.monster_die_type = 8
         self.damage_modifier = 4
+        self.detection_range = 6
         self.num_damage_dice = 2
 
 class CentaurArcher(Monster):
@@ -564,6 +608,7 @@ class CentaurArcher(Monster):
         self.base_xp = 450
         self.monster_die_type = 6
         self.damage_modifier = 3
+        self.detection_range = 6
         self.num_damage_dice = 2
         self.is_ranged = True
         self.ranged_attack_bonus = 2  # Base ranged attack bonus
@@ -581,6 +626,7 @@ class Troll(Monster):
         self.base_xp = 1800
         self.monster_die_type = 6
         self.damage_modifier = 4
+        self.detection_range = 8
         self.num_damage_dice = 2
         # self.regeneration = True
         # self.regen_amount = 10  # per turn unless acid/fire damage
@@ -595,6 +641,7 @@ class Lizardfolk(Monster):
         self.base_xp = 100
         self.monster_die_type = 6
         self.damage_modifier = 2
+        self.detection_range = 5
         self.num_damage_dice = 1
         self.can_poison = True
         self.poison_dc = 13
@@ -611,6 +658,7 @@ class LizardfolkArcher(Monster):
         self.base_xp = 100
         self.monster_die_type = 6
         self.damage_modifier = 2
+        self.detection_range = 5
         self.num_damage_dice = 1
         self.is_ranged = True
         self.ranged_attack_bonus = 2  # Base ranged attack bonus
@@ -628,6 +676,7 @@ class GiantSpider(Monster):
         self.base_xp = 200
         self.monster_die_type = 8
         self.damage_modifier = 3
+        self.detection_range = 15
         self.num_damage_dice = 1
         self.can_poison = True
         self.poison_dc = 11
@@ -645,6 +694,7 @@ class Beholder(Monster):
         self.base_xp = 10000
         self.monster_die_type = 8
         self.damage_modifier = 7
+        self.detection_range = 8
         self.num_damage_dice = 4
         self.is_ranged = True
         self.ranged_attack_bonus = 2  # Base ranged attack bonus
@@ -663,6 +713,7 @@ class LargeOoze(Monster):  # Gelatinous Cube
         self.base_xp = 1800
         self.monster_die_type = 8
         self.damage_modifier = 6
+        self.detection_range = 4
         self.num_damage_dice = 2
         self.acid_burn_dc = 14
         self.acid_burn_duration = 4
@@ -679,6 +730,7 @@ class DragonWhelp(Monster):  # Wyrmling
         self.base_xp = 700
         self.monster_die_type = 10
         self.damage_modifier = 2
+        self.detection_range = 5
         self.num_damage_dice = 1
         # self.breath_weapon = True
         # self.breath_dc = 13
@@ -694,6 +746,7 @@ class Owlbear(Monster):
         self.base_xp = 700
         self.monster_die_type = 10
         self.damage_modifier = 5
+        self.detection_range = 5
         self.num_damage_dice = 2
 
 class Demogorgon(Monster):
@@ -706,6 +759,7 @@ class Demogorgon(Monster):
         self.base_xp = 155000
         self.monster_die_type = 12
         self.damage_modifier = 7
+        self.detection_range = 8
         self.num_damage_dice = 3
         # self.legendary_resistance = 3
         # self.frightful_presence = True
@@ -720,6 +774,7 @@ class Grick(Monster):
         self.base_xp = 450
         self.monster_die_type = 6
         self.damage_modifier = 2
+        self.detection_range = 15
         self.num_damage_dice = 2
         # self.resist_nonmagical = True
 
@@ -733,6 +788,7 @@ class GibberingMouther(Monster):
         self.base_xp = 450
         self.monster_die_type = 6
         self.damage_modifier = 1
+        self.detection_range = 4
         self.num_damage_dice = 2
         # self.maddening_babble = True
         # self.prone_ground = True
@@ -747,6 +803,7 @@ class MindFlayer(Monster):
         self.base_xp = 2900
         self.monster_die_type = 10
         self.num_damage_dice = 2
+        self.detection_range = 6
         self.damage_modifier = 4
         self.is_ranged = True
         self.ranged_attack_bonus = 7  # Base ranged attack bonus
@@ -766,6 +823,7 @@ class Minotaur(Monster):
         self.base_xp = 700
         self.monster_die_type = 12
         self.damage_modifier = 4 
+        self.detection_range = 6
         self.num_damage_dice = 2
         # self.charge_attack = True
 
@@ -779,6 +837,7 @@ class Wererat(Monster):
         self.base_xp = 100
         self.monster_die_type = 4
         self.damage_modifier = 2
+        self.detection_range = 6
         self.num_damage_dice = 1
         # self.shapechanger = True
         # self.disease = True
@@ -793,6 +852,7 @@ class Wolf(Monster):
         self.base_xp = 50
         self.monster_die_type = 4
         self.damage_modifier = 2
+        self.detection_range = 8
         self.num_damage_dice = 1
         # self.knock_prone_dc = 11
 
