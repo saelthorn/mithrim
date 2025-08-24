@@ -722,7 +722,7 @@ class LargeOoze(Monster):  # Gelatinous Cube
 
 class DragonWhelp(Monster):  # Wyrmling
     def __init__(self, x, y):
-        super().__init__(x, y, 'DW', 'Dragon Whelp', (255, 0, 0))
+        super().__init__(x, y, 'DRA', 'Dragon Whelp', (255, 0, 0))
         self.hp = 32
         self.max_hp = 32
         self.attack_bonus = 4

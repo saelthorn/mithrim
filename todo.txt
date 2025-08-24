@@ -8,7 +8,7 @@ If there's only one way in and no way out, it's a tomb. Yours.
 
 
 
-Prioritize - Add FOV for Monsters 
+Prioritize - Add Main-Hand and Off-Hand for Weapons
  - Exclusive Dungeon Merchant Items
  - Add Locked Chests
  - Fix Targeting State

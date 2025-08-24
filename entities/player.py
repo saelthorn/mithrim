@@ -2,7 +2,7 @@ import random
 from core.inventory import Inventory
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand
 from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning
-from items.items import long_sword, chainmail_armor, short_sword, leather_armor, dagger, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, Item, CampfireKit
+from items.items import iron_long_sword, chainmail_armor, iron_short_sword, padded_armor, iron_dagger, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, Item, CampfireKit, Weapon, Armor, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
 from core.floating_text import FloatingText
@@ -54,8 +54,8 @@ class Player: # This is our base class for playable characters
         self.armor_proficiencies = []  # e.g., ["light", "medium"]       
 
         # --- Class Proficiencies ---
-        self.class_weapon_proficiencies = []
-        self.class_armor_proficiencies = [] 
+        self.class_weapon_proficiencies = []  
+        self.class_armor_proficiencies = []  
        
         # --- Saving Throw Proficiencies (Base values, will be overridden by subclasses) ---
         self.saving_throw_proficiencies = {
@@ -411,7 +411,7 @@ class Player: # This is our base class for playable characters
             
             game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
             return True
-
+        
     def add_status_effect(self, effect_name, duration, game_instance, source=None):
         """Adds a status effect to the player."""
         new_effect = None
@@ -476,7 +476,7 @@ class Fighter(Player):
         
         self.strength = 15
         self.dexterity = 13
-        self.constitution = 140
+        self.constitution = 14
         self.intelligence = 8
         self.wisdom = 12
         self.charisma = 10
@@ -487,12 +487,13 @@ class Fighter(Player):
         }
         
         # Set starting equipment
-        self.inventory.add_item(short_sword)
+        self.inventory.add_item(iron_short_sword)
+        self.inventory.add_item(kite_shield)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
 
-        self.equipped_weapon = long_sword
+        self.equipped_weapon = iron_long_sword
         self.equipped_armor = chainmail_armor
-
+       
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
         self.max_hp = self._calculate_max_hp()
         self.hp = self.max_hp
@@ -501,7 +502,7 @@ class Fighter(Player):
         # Class-specific weapon and armor proficiencies
         self.class_weapon_proficiencies = ["battleaxe", "handaxe", "light hammer", "warhammer", "shortsword", "longsword"]
         self.class_armor_proficiencies = ["light", "medium", "heavy"]  # Fighters can wear all types of armor
-
+       
         # Fighter's primary attack stat is Strength
         self.attack_power = self.get_ability_modifier(self.strength) + self.equipped_weapon.damage_modifier
         self.attack_bonus = self.get_ability_modifier(self.strength) + self.proficiency_bonus + self.equipped_weapon.attack_bonus
@@ -532,10 +533,11 @@ class Rogue(Player):
         # Set starting equipment
         self.inventory.add_item(thieves_tools)
         self.inventory.add_item(lesser_healing_potion)
+        self.inventory.add_item(iron_dagger)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
 
-        self.equipped_weapon = short_sword
-        self.equipped_armor = leather_armor
+        self.equipped_weapon = iron_short_sword
+        self.equipped_armor = padded_armor
 
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
         self.max_hp = self._calculate_max_hp()
@@ -543,7 +545,7 @@ class Rogue(Player):
         self.armor_class = self._calculate_ac()
 
         # Class-specific weapon and armor proficiencies
-        self.class_weapon_proficiencies = ["shortsword", "dagger", "rapier", "hand crossbow"]
+        self.class_weapon_proficiencies = ["dagger", "shortsword", "rapier", "hand crossbow"]
         self.class_armor_proficiencies = ["light"]  # Rogues can wear light armor
 
         # Rogue's primary attack stat is Dexterity
@@ -581,7 +583,7 @@ class Wizard(Player):
         self.inventory.add_item(greater_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
 
-        self.equipped_weapon = dagger
+        self.equipped_weapon = iron_dagger
         self.equipped_armor = robes
         
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear

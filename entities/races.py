@@ -49,7 +49,7 @@ class Human(Race):
             f"{player_instance.name} gains +1 to all abilities from being Human.",
             (200, 200, 255)
         )
-
+        
       
 class HillDwarf(Race):
     def __init__(self):
@@ -86,7 +86,7 @@ class HillDwarf(Race):
                 (150, 200, 255)
             )
 
-
+        
 class DrowElf(Race):
     def __init__(self):
         super().__init__(

@@ -98,7 +98,7 @@ def setup_tile_mapping():
         'SK': (2 * CELL_DIM, 7 * CELL_DIM),  # Skeleton (Monster)
         'OR': (5 * CELL_DIM, 8 * CELL_DIM),  # Orc (Monster)
         'TR': (5 * CELL_DIM, 7 * CELL_DIM),  # Troll
-        'DW': (7 * CELL_DIM, 7 * CELL_DIM),  # Dragon (Monster)
+        'DRA': (7 * CELL_DIM, 7 * CELL_DIM),  # Dragon (Monster)
         
         'OZ': (0 * CELL_DIM, 8 * CELL_DIM),  # Ooze (Monster)
         'GA': (1 * CELL_DIM, 8 * CELL_DIM),  # Goblin Archer
@@ -133,18 +133,44 @@ def setup_tile_mapping():
         'tt': (7 * CELL_DIM, 2 * CELL_DIM), # Thieves' Tools
         '!': (0 * CELL_DIM, 13 * CELL_DIM), # Potions
 
-        'lta': (1 * CELL_DIM, 13 * CELL_DIM),  # Leather Armor
-        'cha': (2 * CELL_DIM, 13 * CELL_DIM),  # Chainmail Armor
-        'rbs': (3 * CELL_DIM, 13 * CELL_DIM),  # Robes 
 
-        '-': (4 * CELL_DIM, 13 * CELL_DIM),  # Dagger
-        '/': (5 * CELL_DIM, 13 * CELL_DIM),  # Shortsword
-        '|': (6 * CELL_DIM, 13 * CELL_DIM),  # Longsword
-        'l': (7 * CELL_DIM, 13 * CELL_DIM),  # Quarterstaff    
-        '?': (8 * CELL_DIM, 13 * CELL_DIM),  # Battleaxe    
+        # Armors and Robes
+        'pda': (1 * CELL_DIM, 13 * CELL_DIM),  # Leather Armor
+        'sla': (1 * CELL_DIM, 14 * CELL_DIM),  # Studded Leather Armor
+
+        'cha': (2 * CELL_DIM, 13 * CELL_DIM),  # Chainmail Armor
+        'hpa': (2 * CELL_DIM, 14 * CELL_DIM),  # Half Plate Armor
+        'fpa': (2 * CELL_DIM, 15 * CELL_DIM),  # Full Plate Armor
+
+        'rbs': (3 * CELL_DIM, 13 * CELL_DIM),  # Robes 
+        'rop': (3 * CELL_DIM, 14 * CELL_DIM),  # Robes of Protection
+
+        # Weapons
+        'dgr': (4 * CELL_DIM, 13 * CELL_DIM),  # Iron Dagger
+        'sdr': (4 * CELL_DIM, 14 * CELL_DIM),  # SIlver Dagger
+
+        'shs': (5 * CELL_DIM, 13 * CELL_DIM),  # Shortsword
+        'fhs': (5 * CELL_DIM, 14 * CELL_DIM),  # Flameheart Shortsword
+        'bss': (5 * CELL_DIM, 15 * CELL_DIM),  # Shortsword
+
+        'lns': (6 * CELL_DIM, 13 * CELL_DIM),  # Iron Longsword 
+        'sls': (6 * CELL_DIM, 14 * CELL_DIM),  # Steel Longsword 
+        'als': (6 * CELL_DIM, 15 * CELL_DIM),  # Adamantine Longsword 
+
+        'sba': (8 * CELL_DIM, 13 * CELL_DIM),  # Steel Battleaxe
+        'dba': (8 * CELL_DIM, 14 * CELL_DIM),  # Dwarven Battleaxe
+        'pla': (8 * CELL_DIM, 15 * CELL_DIM),  # Battleaxe
+
+        'oas': (7 * CELL_DIM, 13 * CELL_DIM),  # Oak Staff
+        'aps': (7 * CELL_DIM, 14 * CELL_DIM),  # Apprentice's Staff
+        'qts': (7 * CELL_DIM, 15 * CELL_DIM),  # Quarterstaff
+
+
+
        
     }
     print("Tile mapping setup complete.")        
+
 
 
 

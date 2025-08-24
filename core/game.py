@@ -249,8 +249,8 @@ class Game:
         class_name_str = chosen_class_constructor.__name__ # "Fighter", "Rogue", "Wizard"
 
         default_char = '@' # Fallback char
-        default_color = (255, 255, 255) # Fallback color (white)
-        
+        default_color = (255, 255, 255) # Fallback color (white)      
+
         player_char, player_color = self.race_class_visuals.get(
             (race_name_str, class_name_str),
             (default_char, default_color) # Default if combination not found
@@ -565,17 +565,17 @@ class Game:
                 self.message_log.add_message("DEBUG: Dungeon Healer could not find a suitable spawn spot.", (100, 100, 100))                
 
         item_templates = [
-            Potion(name="Healing Potion", char="!", color=(255, 0, 0), description="Restores a small amount of health.", effect_type="heal", effect_value=10, price=10),
+            Potion(name="Healing Potion", char="!", color=(255, 0, 0), description="Restores a small amount of health.", effect_type="heal", effect_value=14, price=10),
            
-            Weapon(name="Dagger", char="-", color=(150, 150, 150), description="A small, light blade.", damage_dice="1d4", damage_modifier=0, attack_bonus=0, price=10),
-            Weapon(name="Short Sword", char="/", color=(150, 150, 150), description="A basic short sword.", damage_dice="1d6", damage_modifier=0, attack_bonus=0, price=10),
-            Weapon(name="Long Sword", char="|", color=(150, 150, 150), description="A adventurer's sword.", damage_dice="1d6", damage_modifier=1, attack_bonus=2, price=10),
-            Weapon(name="Battle Axe", char="?", color=(150, 150, 150), description="A battle tested axe.", damage_dice="1d8", damage_modifier=0, attack_bonus=0, price=10),
-            Weapon(name="Quarterstaff", char="l", color=(150, 150, 150), description="A sturdy wooden staff.", damage_dice="1d6", damage_modifier=0, attack_bonus=0, price=10),
+            Weapon(name="Dagger", char="dgr", color=(150, 150, 150), description="A small, light blade.", damage_dice="1d4", damage_modifier=0, attack_bonus=0, price=10),
+            Weapon(name="Short Sword", char="shs", color=(150, 150, 150), description="A basic short sword.", damage_dice="1d6", damage_modifier=0, attack_bonus=0, price=10),
+            Weapon(name="Long Sword", char="lns", color=(150, 150, 150), description="A adventurer's sword.", damage_dice="1d6", damage_modifier=1, attack_bonus=2, price=10),
+            Weapon(name="Battle Axe", char="sba", color=(150, 150, 150), description="A battle tested axe.", damage_dice="1d8", damage_modifier=0, attack_bonus=0, price=10),
+            Weapon(name="Oak Staff", char="oak", color=(150, 150, 150), description="A sturdy wooden staff.", damage_dice="1d6", damage_modifier=0, attack_bonus=0, price=10),
             
             
-            Armor(name="Leather Armor", char="lta", color=(139, 69, 19), description="Light leather armor.", ac_bonus=1, price=10),
-            Armor(name="Chainmail Armor", char="cha", color=(139, 69, 19), description="Chainmail armor.", ac_bonus=2, price=10),
+            Armor(name="Padded Armor", char="pda", color=(139, 69, 19), description="Light leather armor.", ac_bonus=1, price=10),
+            Armor(name="Chainmail Armor", char="cha", color=(139, 69, 19), description="Chainmail armor.", ac_bonus=3, price=10),
             Armor(name="Robes", char="rbs", color=(139, 69, 19), description="Simple cloth robes", ac_bonus=0, price=10),
 
         ]

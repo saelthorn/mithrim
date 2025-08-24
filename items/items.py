@@ -65,18 +65,21 @@ class Potion(Item):
 
 class Weapon(Item):
     """An item that can be equipped for combat."""
-    def __init__(self, name, char, color, description, damage_dice, damage_modifier, price, attack_bonus=0):
+    def __init__(self, name, char, color, description, damage_dice, damage_modifier, price, attack_bonus=0, is_two_handed=False, category=None):
         super().__init__(name, char, color, description, price)
         self.damage_dice = damage_dice # e.g., "1d6", "2d4"
         self.damage_modifier = damage_modifier
         self.attack_bonus = attack_bonus # Bonus to hit
+        self.is_two_handed = is_two_handed
+        self.category = category
 
 
 class Armor(Item):
     """An item that can be equipped for defense."""
-    def __init__(self, name, char, color, description, ac_bonus, price):
+    def __init__(self, name, char, color, description, ac_bonus, price, category=None):
         super().__init__(name, char, color, description, price)
         self.ac_bonus = ac_bonus # Bonus to AC
+        self.category = category
 
 
 class Tools(Item):
@@ -177,7 +180,7 @@ lesser_healing_potion = Potion(
     color=(255, 80, 80),
     description="Restores a small amount of health.",
     effect_type="heal",
-    effect_value=8, # Heals 8 HP
+    effect_value=10, # Heals 8 HP
     price = 10
 )
 
@@ -188,71 +191,354 @@ greater_healing_potion = Potion(
     description="Restores a great amount of health.",
     effect_type="heal",
     effect_value=24,
-    price = 10
+    price = 20
 )
 
-dagger = Weapon(
-    name="Dagger",
-    char="-", # Using same char as other weapons for now
+
+WEAPON_CATEGORIES = {
+    "dagger": ["Iron Dagger", "Silver Dagger"],
+    "shortsword": ["Iron Short Sword", "Steel Short Sword", "Flameheart Short Sword"],
+    "longsword": ["Steel Long Sword", "Iron Long Sword", "Adamantine Long Sword"],
+    "quarterstaff": ["Oak Staff", "Apprentice's Staff", "Staff of the Magi"],
+    "battleaxe": ["Steel Battle Axe", "Dwarven Battle Axe"],
+    "polearm": ["Polearm"],
+    "rapier": ["Steel Rapier", "Duelists Rapier"],
+    "hammer": ["Iron Hammer", "Dragonsbane Warhammer", "Steel Maul"],
+    "mace": ["Steel Mace"],
+    "flail": ["Dwarven Flail", "Flameheart Flail"],
+}
+
+iron_dagger = Weapon(
+    name="Iron Dagger",
+    char="dgr", # Using same char as other weapons for now
     color=(180, 180, 180),
     description="A small, light blade.",
     damage_dice="1d4",
     damage_modifier=0,
     attack_bonus=0,
-    price = 10
+    price = 10,
+    category="dagger"
 )
 
-short_sword = Weapon(
-    name="Short Sword",
-    char="/",
+silver_dagger = Weapon(
+    name="Silver Dagger",
+    char="sdr", # Using same char as other weapons for now
+    color=(180, 180, 180),
+    description="A silver blade.",
+    damage_dice="1d4",
+    damage_modifier=1,
+    attack_bonus=3,
+    price = 20,
+    category="dagger"
+)
+
+iron_short_sword = Weapon(
+    name="Iron Short Sword",
+    char="shs",
     color=(150, 150, 150),
     description="A basic short sword.",
     damage_dice="1d6",
     damage_modifier=0,
     attack_bonus=0,
-    price = 10
+    price = 10,
+    category="shortsword"
 )
 
-long_sword = Weapon(
-    name="Long Sword",
-    char="|",
+flameheart_short_sword = Weapon(
+    name="Flameheart Short Sword",
+    char="fhs",
+    color=(150, 150, 150),
+    description="A short sword infused in fire magic.",
+    damage_dice="1d6",
+    damage_modifier=2,
+    attack_bonus=2,
+    price = 30,
+    category="shortsword"
+)
+
+bronze_short_sword = Weapon(
+    name="Bronze Short Sword",
+    char="bss",
+    color=(150, 150, 150),
+    description="An old bronze shortsword.",
+    damage_dice="1d4",
+    damage_modifier=0,
+    attack_bonus=0,
+    price = 5,
+    category="shortsword"
+)
+
+
+iron_long_sword = Weapon(
+    name="Iron Long Sword",
+    char="lns",
     color=(150, 150, 150),
     description="A adventurer's sword.",
     damage_dice="1d6",
+    damage_modifier=0,
+    attack_bonus=1,
+    price = 15,
+    category="longsword"
+)
+
+steel_long_sword = Weapon(
+    name="Steel Long Sword",
+    char="sls",
+    color=(150, 150, 150),
+    description="A steel longsword.",
+    damage_dice="1d6",
     damage_modifier=1,
     attack_bonus=2,
-    price = 10
+    price = 25,
+    category="longsword"
 )
 
-battle_axe = Weapon(
-    name="Battle Axe",
-    char="?",
+adamantine_long_sword = Weapon(
+    name="Adamantine Long Sword",
+    char="als",
     color=(150, 150, 150),
-    description="A battle tested axe.",
+    description="A adamantine long sword.",
     damage_dice="1d8",
+    damage_modifier=4,
+    attack_bonus=2,
+    price = 50,
+    category="longsword"
+)
+
+
+steel_battle_axe = Weapon(
+    name="Steel Battle Axe",
+    char="sba",
+    color=(150, 150, 150),
+    description="Steel battle axe.",
+    damage_dice="1d6",
     damage_modifier=1,
     attack_bonus=0,
-    price = 10
+    price = 10,
+    category="battleaxe"
 )
 
-quarterstaff = Weapon(
-    name="Quarterstaff",
-    char="l",
+dwarven_battle_axe = Weapon(
+    name="Dwarven Battle Axe",
+    char="dba",
     color=(150, 150, 150),
-    description="A sturdy wooden staff.",
+    description="A dwarven battle tested axe.",
+    damage_dice="1d8",
+    damage_modifier=1,
+    attack_bonus=3,
+    price = 30,
+    is_two_handed=True,
+    category="battleaxe"
+)
+
+pole_arm = Weapon(
+    name="Pole Arm",
+    char="pla",
+    color=(150, 150, 150),
+    description="A battle tested axe.",
+    damage_dice="1d6",
+    damage_modifier=1,
+    attack_bonus=2,
+    price = 25,
+    is_two_handed=True,
+    category="battleaxe"
+)
+
+oak_staff = Weapon(
+    name="Oak Staff",
+    char="oas",
+    color=(150, 150, 150),
+    description="A sturdy wooden staff, doubles as arcane focus.",
     damage_dice="1d6",
     damage_modifier=0,
-    attack_bonus=0,
-    price = 10
+    attack_bonus=1,
+    price = 20,
+    category="quarterstaff"
 )
 
-leather_armor = Armor(
-    name="Leather Armor",
-    char="lta",
+apprentices_staff = Weapon(
+    name="Apprentice's Staff",
+    char="aps",
+    color=(150, 150, 150),
+    description="A sturdy wooden staff, doubles as arcane focus.",
+    damage_dice="1d6",
+    damage_modifier=2,
+    attack_bonus=1,
+    price = 30,
+    category="quarterstaff"
+)
+
+staff_of_magi = Weapon(
+    name="Staff of the Magi",
+    char="som",
+    color=(10, 10, 220),
+    description="A staff of the magi.",
+    damage_dice="1d6",
+    damage_modifier=4,
+    attack_bonus=1,
+    price = 50,
+    category="quarterstaff"
+)
+
+steel_rapier = Weapon(
+    name="Steel Rapier",
+    char="srp",
+    color=(175, 175, 175),
+    description="Steel rapier.",
+    damage_dice="1d6",
+    damage_modifier=1,
+    attack_bonus=0,
+    price=20,
+    category="rapier"
+)
+
+duelists_rapier = Weapon(
+    name="Duelists Rapier",
+    char="dlr",
+    color=(175, 175, 175),
+    description="A duelists rapier.",
+    damage_dice="2d6",
+    damage_modifier=2,
+    attack_bonus=1,
+    price=40,
+    category="rapier"
+)
+
+iron_hammer = Weapon(
+    name="Iron Hammer",
+    char="irh",
+    color=(175, 175, 175),
+    description="A iron hammer.",
+    damage_dice="1d6",
+    damage_modifier=1,
+    attack_bonus=0,
+    price=15,
+    category="hammer"
+)
+
+dragonsbane_warhammer = Weapon(
+    name="Dragonsbane Warhammer",
+    char="dbw",
+    color=(175, 175, 175),
+    description="A warhammer that has seen the end of countless dragons.",
+    damage_dice="1d8",
+    damage_modifier=3,
+    attack_bonus=3,
+    price=50,
+    is_two_handed=True,
+    category="hammer"
+)
+
+steel_maul = Weapon(
+    name="Steel Maul",
+    char="mul",
+    color=(175, 175, 175),
+    description="A steel maul.",
+    damage_dice="1d8",
+    damage_modifier=2,
+    attack_bonus=1,
+    price=30,
+    is_two_handed=True,
+    category="hammer"
+)
+
+steel_mace = Weapon(
+    name="Steel Mace",
+    char="stm",
+    color=(200, 200, 200),
+    description="A steel mace.",
+    damage_dice="1d6",
+    damage_modifier=1,
+    attack_bonus=1,
+    price=25,
+    category="mace"
+)
+
+dwarven_flail = Weapon(
+    name="Dwarven Flail",
+    char="dwf",
+    color=(200, 200, 200),
+    description="A dwarven flail.",
+    damage_dice="1d6",
+    damage_modifier=2,
+    attack_bonus=1,
+    price=35,
+    category="flail"
+)
+
+flameheart_flail = Weapon(
+    name="Flameheart Flail",
+    char="fhf",
+    color=(200, 200, 200),
+    description="A flameheart flail.",
+    damage_dice="1d6",
+    damage_modifier=4,
+    attack_bonus=2,
+    price=50,
+    category="flail"
+)
+
+
+
+
+
+ARMOR_CATEGORIES = {
+    "light": ["Padded Armor", "Studded Leather Armor", "Robes", "Robes of Protection"],
+    "medium": ["Chainmail Armor", "Half Plate Armor"],
+    "heavy": ["Full Plate Armor"],
+
+    "shield": ["Round Shield", "Kite Shield", "Tower Shield"]
+}
+
+round_shield = Armor(
+    name="Round Shield",
+    char="rsh",
+    color=(175, 175, 175),
+    description="A round shield.",
+    ac_bonus=1, # Adds 1 to base AC
+    price=15,
+    category="shield"
+
+)
+
+kite_shield = Armor(
+    name="Kite Shield",
+    char="ksh",
+    color=(175, 175, 175),
+    description="A kite shield.",
+    ac_bonus=2, 
+    price=35,
+    category="shield"
+)
+
+tower_shield = Armor(
+    name="Round Shield",
+    char="tsh",
+    color=(175, 175, 175),
+    description="A tower shield.",
+    ac_bonus=3, 
+    price=50,
+    category="shield"
+)
+
+padded_armor = Armor(
+    name="Padded Armor",
+    char="pda",
     color=(139, 69, 19),
     description="Light leather armor.",
     ac_bonus=1, # Adds 1 to base AC
-    price = 10
+    price = 10,
+    category="light"
+)
+
+studded_leather_armor = Armor(
+    name="Studded Leather Armor",
+    char="sla",
+    color=(139, 69, 19),
+    description="A studded leather armor.",
+    ac_bonus=2,
+    price=20,
+    category="light"
 )
 
 chainmail_armor = Armor(
@@ -261,7 +547,28 @@ chainmail_armor = Armor(
     color=(175, 175, 175),
     description="Chainmail armor.",
     ac_bonus=3, # Adds 1 to base AC
-    price = 10
+    price = 10,
+    category="medium"
+)
+
+half_plate_armor = Armor(
+    name="Half Plate Armor",
+    char="hpa",
+    color=(175, 175, 175),
+    description="A half plate armor.",
+    ac_bonus=4,
+    price=30,
+    category="medium"
+)
+
+full_plate_armor = Armor(
+    name="Full Plate Armor",
+    char="fpa",
+    color=(175, 175, 175),
+    description=("Full plate armor."),
+    ac_bonus=6,
+    price=50,
+    category="heavy"
 )
 
 robes = Armor(
@@ -270,7 +577,18 @@ robes = Armor(
     color=(100, 100, 200),
     description="Simple cloth robes.",
     ac_bonus=0, # Robes typically provide no AC bonus, relying on Dex
-    price = 10
+    price = 10,
+    category="light"
+)
+
+robes_of_protection = Armor(
+    name="Robes of Protection",
+    char="rop",
+    color=(150, 20, 20),
+    description="A robe infused with protection magic.",
+    ac_bonus=4,
+    price=40,
+    category="light"
 )
 
 thieves_tools = Tools(
@@ -286,7 +604,12 @@ thieves_tools = Tools(
 def generate_random_loot(level_number):
     loot = []
     # Basic loot pool
-    loot_pool = [lesser_healing_potion, greater_healing_potion, dagger, short_sword, long_sword, quarterstaff, battle_axe, leather_armor, chainmail_armor]
+    loot_pool = [
+        lesser_healing_potion, greater_healing_potion, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor,
+        robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, 
+        apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail,
+        round_shield, kite_shield, tower_shield,
+    ]
 
     # Add 1-3 random items
     num_items = random.randint(1, 2)

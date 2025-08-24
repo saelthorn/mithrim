@@ -1,7 +1,7 @@
 import random
 
 from core.game import GameState
-from items.items import lesser_healing_potion, greater_healing_potion, dagger, short_sword, long_sword, battle_axe, quarterstaff, leather_armor, chainmail_armor, robes
+from items.items import lesser_healing_potion, greater_healing_potion, silver_dagger, iron_short_sword, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes
 from entities.base_entity import NPC
 
 class DungeonHealer(NPC):
@@ -34,11 +34,11 @@ class DungeonMerchant(NPC):
         self.items_for_sale = [
             lesser_healing_potion,  # Assuming these are defined as instances of Potion
             greater_healing_potion,
-            dagger,
-            short_sword,
-            battle_axe,
-            quarterstaff,
-            leather_armor,
+            silver_dagger,
+            iron_short_sword,
+            steel_battle_axe,
+            oak_staff,
+            padded_armor,
             chainmail_armor,            
         ]
 
