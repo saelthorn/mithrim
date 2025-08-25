@@ -132,7 +132,7 @@ class Game:
 
         # NEW: Start in character creation state
         self.game_state = GameState.CHARACTER_CREATION 
-        self._previous_game_state = GameState.CHARACTER_CREATION # Or None, depending on desired flow
+        self._previous_game_state = None
         self.current_level = 1
         self.max_level_reached = 1
         self.player_has_acted = False
@@ -193,6 +193,8 @@ class Game:
         self.minimap_surface = None
         self.minimap_rect = None
         self.minimap_needs_redraw = True # Flag to redraw minimap only when needed
+
+        self.menu_open = None
 
         self._recalculate_minimap_dimensions()
 
@@ -856,8 +858,6 @@ class Game:
                     # Handle other key events (like opening inventory) only if not in trade state
                     if event.key == pygame.K_i:
                         # Store the state *before* any menu or targeting was active
-                        if self.game_state not in [GameState.INVENTORY, GameState.INVENTORY_MENU, GameState.CHARACTER_MENU, GameState.TARGETING]:
-                            self._previous_game_state = self.game_state 
 
                         if self.game_state == GameState.TARGETING:
                             self.message_log.add_message("Targeting cancelled (Inventory opened).", (150, 150, 150))
@@ -875,7 +875,6 @@ class Game:
                             self.selected_inventory_item = None
                             self.message_log.add_message("Returning to Inventory.", (100, 200, 255))
                         else:  # If not in inventory, open it
-                            self._previous_game_state = self.game_state  # Store the current state
                             self.game_state = GameState.INVENTORY  # Open inventory
                             self.message_log.add_message("Opening Inventory...", (100, 200, 255))
                         return True  # Consume event, don't process other game states          
@@ -896,13 +895,7 @@ class Game:
 
                     # --- Always accessible menus ---
 
-                    # Handle 'C' key for Character Menu
                     if event.key == pygame.K_c:
-                        # Store the state *before* any menu or targeting was active
-                        # This is crucial for returning to the correct game state after closing menus.
-                        if self.game_state not in [GameState.INVENTORY, GameState.INVENTORY_MENU, GameState.CHARACTER_MENU, GameState.TARGETING]:
-                            self._previous_game_state = self.game_state 
-                        # If currently in TARGETING state, cancel it first
                         if self.game_state == GameState.TARGETING:
                             self.message_log.add_message("Targeting cancelled (Character Menu opened).", (150, 150, 150))
                             self.ability_in_use = None # Clear the ability
