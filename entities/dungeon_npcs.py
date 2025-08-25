@@ -50,17 +50,17 @@ class DungeonMerchant(NPC):
 
         # Define items for sale
         self.items_for_sale = [
-            lesser_healing_potion(),  # Assuming these are defined as instances of Potion
-            greater_healing_potion(),
-            full_plate_armor(),
-            robes_of_protection(),
-            adamantine_long_sword(),
-            staff_of_magi(), 
-            duelists_rapier(),
-            dwarven_battle_axe(),
-            flameheart_flail(),
-            flameheart_short_sword(),
-            dragonsbane_warhammer(),
+            lesser_healing_potion,  # Assuming these are defined as instances of Potion
+            greater_healing_potion,
+            full_plate_armor,
+            robes_of_protection,
+            adamantine_long_sword,
+            staff_of_magi, 
+            duelists_rapier,
+            dwarven_battle_axe,
+            flameheart_flail,
+            flameheart_short_sword,
+            dragonsbane_warhammer,
             CampfireKit()
         ]
 

@@ -352,15 +352,12 @@ class Monster:
         if self.hp <= 0:
             self.hp = 0
             self.alive = False
-            return self.die(game_instance)
             
         return damage_taken
 
     def die(self, game_instance):
         """Handle death and return XP value"""
-        xp_gained = self.base_xp  # Get the base XP for this monster
-        game_instance.message_log.add_message(f"{self.name} has been slain! You gain {xp_gained} XP.", (200, 0, 0))
-        return xp_gained  # Return the XP gained
+        return self.base_xp  # Return the XP gained
 
     def add_status_effect(self, effect_name, duration, game_instance, source=None):
         """Adds a status effect to the monster."""

@@ -488,6 +488,7 @@ class Fireball(Ability):
                         if isinstance(entity, Monster):
                             xp_gained = entity.die(game_instance)  # Pass game_instance to the die method
                             user.gain_xp(xp_gained, game_instance)  # Award XP to the player
+                            game_instance.message_log.add_message(f"You gain {xp_gained} XP!", (100, 255, 100))  # Log the XP gained
 
         # Destroy destructible tiles in the area of effect
         for x in range(target_x - self.radius, target_x + self.radius + 1):

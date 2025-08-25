@@ -1467,7 +1467,7 @@ class Game:
             # --- Step 3: Handle interaction with an entity at the new position ---
             if target_at_new_pos:
                 if isinstance(target_at_new_pos, Monster):
-                    self.handle_player_attack(target_at_new_pos)  # Player attacks monster
+                    self.handle_player_attack(target_at_new_pos, self)  # Player attacks monster
                     return True  # Action taken
                 elif isinstance(target_at_new_pos, DungeonHealer):
                     target_at_new_pos.offer_rest(self.player, self)
@@ -1621,7 +1621,7 @@ class Game:
 
     
 
-    def handle_player_attack(self, target, advantage=False, disadvantage=False):
+    def handle_player_attack(self, target, game_instance, advantage=False, disadvantage=False):
         if not target.alive:
             return
         
@@ -1751,9 +1751,9 @@ class Game:
     
     
             if not target.alive:
-                xp_gained = target.die()
-                self.player.gain_xp(xp_gained, self)  # Use 'self' (player) here
-                self.message_log.add_message(f"The {target.name} dies! [+{xp_gained} XP]", (100, 255, 100))
+                xp_gained = target.die(game_instance)
+                self.player.gain_xp(xp_gained, game_instance)  # Use 'self' (player) here
+                self.message_log.add_message(f"You gain {xp_gained} XP!", (100, 255, 100))  # Log the XP gained
                 if random.random() < 0.7:
                     self.add_ambient_combat_message()
             else:
