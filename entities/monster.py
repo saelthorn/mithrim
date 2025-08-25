@@ -136,9 +136,8 @@ class Monster:
         else:
             # If the player is not detected, patrol the area
             if self.patrol(game_map):
-                game.message_log.add_message(f"The {self.name} patrols the area.", (150, 150, 150))
-            else:
-                game.message_log.add_message(f"The {self.name} is unable to move.", (150, 150, 150))
+                # game.message_log.add_message(f"The {self.name} patrols the area.", (150, 150, 150))
+                pass
             
 
     def is_adjacent_to(self, other):

@@ -1,5 +1,3 @@
-# MultipleFiles/tile.py
-
 class Tile:
     def __init__(self, blocked=True, char="#", color=(255, 255, 255), block_sight=None, destructible=False, name="Tile"):
         self.blocked = blocked

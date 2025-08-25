@@ -41,6 +41,7 @@ from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, Fire
 from core.message_log import MessageBox
 from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff
 from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, CampfireKit
+from items.items import lesser_healing_potion, greater_healing_potion, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail, round_shield, kite_shield, tower_shield
 from core.pathfinding import astar
 from world.tile import floor, MimicTile, TrapTile
 from core.floating_text import FloatingText 
@@ -565,19 +566,10 @@ class Game:
                 self.message_log.add_message("DEBUG: Dungeon Healer could not find a suitable spawn spot.", (100, 100, 100))                
 
         item_templates = [
-            Potion(name="Healing Potion", char="!", color=(255, 0, 0), description="Restores a small amount of health.", effect_type="heal", effect_value=14, price=10),
-           
-            Weapon(name="Dagger", char="dgr", color=(150, 150, 150), description="A small, light blade.", damage_dice="1d4", damage_modifier=0, attack_bonus=0, price=10),
-            Weapon(name="Short Sword", char="shs", color=(150, 150, 150), description="A basic short sword.", damage_dice="1d6", damage_modifier=0, attack_bonus=0, price=10),
-            Weapon(name="Long Sword", char="lns", color=(150, 150, 150), description="A adventurer's sword.", damage_dice="1d6", damage_modifier=1, attack_bonus=2, price=10),
-            Weapon(name="Battle Axe", char="sba", color=(150, 150, 150), description="A battle tested axe.", damage_dice="1d8", damage_modifier=0, attack_bonus=0, price=10),
-            Weapon(name="Oak Staff", char="oak", color=(150, 150, 150), description="A sturdy wooden staff.", damage_dice="1d6", damage_modifier=0, attack_bonus=0, price=10),
-            
-            
-            Armor(name="Padded Armor", char="pda", color=(139, 69, 19), description="Light leather armor.", ac_bonus=1, price=10),
-            Armor(name="Chainmail Armor", char="cha", color=(139, 69, 19), description="Chainmail armor.", ac_bonus=3, price=10),
-            Armor(name="Robes", char="rbs", color=(139, 69, 19), description="Simple cloth robes", ac_bonus=0, price=10),
-
+            lesser_healing_potion, greater_healing_potion, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor,
+            robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, 
+            apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail,
+            round_shield, kite_shield, tower_shield
         ]
 
         item_spawn_chance = 0.99
@@ -832,7 +824,7 @@ class Game:
                             self.message_log.show_input_area = False  # Hide input area after submission
                         elif event.key == pygame.K_ESCAPE:  # Cancel trade
                             self.message_log.add_message("Trade cancelled.", (255, 0, 0))
-                            self.game_state = GameState.TAVERN  # Return to tavern state
+                            self.game_state = self._previous_game_state  # Return to previous state
                         elif event.key == pygame.K_BACKSPACE:  # Handle backspace
                             self.message_log.current_input = self.message_log.current_input[:-1]  # Remove the last character
                         else:
@@ -2194,59 +2186,54 @@ class Game:
    
 
     def render_inventory_screen(self):
-        """Renders the inventory screen."""
+        """Renders the inventory screen with a two-column layout."""
         target_surface = self.inventory_ui_surface
-        target_surface.fill((0,0,0,0))
-        inventory_width_ratio = 0.7
-        inventory_height_ratio = 0.8
-        inventory_rect_width = int(target_surface.get_width() * inventory_width_ratio)
-        inventory_rect_height = int(target_surface.get_height() * inventory_height_ratio)
-        
-        inventory_x = (target_surface.get_width() - inventory_rect_width) // 2
-        inventory_y = (target_surface.get_height() - inventory_rect_height) // 2
-        
-        inventory_rect = pygame.Rect(inventory_x, inventory_y, inventory_rect_width, inventory_rect_height)
-        pygame.draw.rect(target_surface, (30, 30, 30), inventory_rect)
-        pygame.draw.rect(target_surface, (100, 100, 100), inventory_rect, 2)
-        
-        title_text = "INVENTORY"
-        title_surface = self.inventory_font_header.render(title_text, True, (255, 215, 0))
-        title_rect = title_surface.get_rect(center=(inventory_rect.centerx, inventory_y + self.inventory_font_header.get_linesize() // 2 + 10))
-        target_surface.blit(title_surface, title_rect)
-        current_y = inventory_y + self.inventory_font_header.get_linesize() + 30
-        
-        item_start_x = inventory_x + 20
-        line_spacing = self.inventory_font_info.get_linesize() + 8
-        if not self.player.inventory.items:
-            no_items_text = "Inventory is empty."
-            no_items_surface = self.inventory_font_info.render(no_items_text, True, (150, 150, 150))
-            no_items_rect = no_items_surface.get_rect(center=(inventory_rect.centerx, current_y + 20))
-            target_surface.blit(no_items_surface, no_items_rect)
-        else:
-            for i, item in enumerate(self.player.inventory.items):
-                item_text = f"{i+1}. {item.name}"
-                if item == self.selected_inventory_item:
-                    item_color = (255, 255, 0)
-                else:
-                    item_color = item.color
-                item_surface = self.inventory_font_info.render(item_text, True, item_color)
-                target_surface.blit(item_surface, (item_start_x, current_y))
-                current_y += line_spacing
-                
-                if item == self.selected_inventory_item:
-                    wrapped_desc = self._wrap_text(item.description, self.inventory_font_small, inventory_rect_width - 40)
-                    for line in wrapped_desc:
-                        desc_surface = self.inventory_font_small.render(line, True, (200, 200, 200))
-                        target_surface.blit(desc_surface, (item_start_x + 10, current_y))
-                        current_y += self.inventory_font_small.get_linesize() + 2
-                    current_y += 5
+        target_surface.fill((0, 0, 0, 0))  # Clear the surface
 
-        instructions_y_start = inventory_rect.bottom - (self.inventory_font_small.get_linesize() * 2) - 20
-        
-        if self.game_state == GameState.INVENTORY:
-            self._draw_text(target_surface, self.inventory_font_small, "Press 1-9/0 to select an item.", (150, 150, 150), item_start_x, instructions_y_start)
-            self._draw_text(target_surface, self.inventory_font_small, "Press 'I' to close inventory.", (150, 150, 150), item_start_x, instructions_y_start + self.inventory_font_small.get_linesize() + 5)
-            
+        # Define column widths
+        left_column_width = target_surface.get_width() * 0.7  # 70% for inventory
+        right_column_width = target_surface.get_width() * 0.3  # 30% for character info
+
+        # Draw left column for inventory items
+        left_column_rect = pygame.Rect(10, 10, left_column_width, target_surface.get_height() - 20)
+        pygame.draw.rect(target_surface, (30, 30, 30), left_column_rect)
+        pygame.draw.rect(target_surface, (100, 100, 100), left_column_rect, 2)
+
+        # Draw right column for character info and equipped items
+        right_column_rect = pygame.Rect(left_column_width + 20, 10, right_column_width, target_surface.get_height() - 20)
+        pygame.draw.rect(target_surface, (30, 30, 30), right_column_rect)
+        pygame.draw.rect(target_surface, (100, 100, 100), right_column_rect, 2)
+
+        # Draw inventory items in the left column
+        current_y = 20
+        for i, item in enumerate(self.player.inventory.items):
+            item_color = (255, 255, 0) if item == self.selected_inventory_item else (255, 255, 255)
+            self._draw_text(target_surface, self.font_info, f"{i + 1}. {item.name}", item_color, 20, current_y)
+            current_y += self.font_info.get_linesize() + 5
+
+        # Draw character graphic in the right column
+        character_graphic = self.player.char  # Assuming this is the character's graphic representation
+        character_surface = self.font_header.render(character_graphic, True, (255, 215, 0))  # Render character graphic
+        target_surface.blit(character_surface, (left_column_width + 30, 20))  # Position it in the right column
+
+        # Display equipped items as graphics
+        equipped_weapon, equipped_armor, equipped_off_hand = self.player.get_equipped_items()
+        weapon_name = equipped_weapon.name if equipped_weapon else "None"
+        armor_name = equipped_armor.name if equipped_armor else "None"
+        off_hand_name = equipped_off_hand.name if equipped_off_hand else "None"
+
+        # Draw equipped weapon icon
+        self._draw_text(target_surface, self.font_info, f"Equipped Weapon: {weapon_name}", (255, 255, 255), left_column_width + 30, 100)
+        # Draw equipped armor icon
+        self._draw_text(target_surface, self.font_info, f"Equipped Armor: {armor_name}", (255, 255, 255), left_column_width + 30, 120)
+        # Draw equipped off-hand icon
+        self._draw_text(target_surface, self.font_info, f"Equipped Off-Hand: {off_hand_name}", (255, 255, 255), left_column_width + 30, 140)
+
+        # Instructions for user
+        self._draw_text(target_surface, self.font_small, "Press 1-9/0 to select an item.", (150, 150, 150), 20, current_y)
+        self._draw_text(target_surface, self.font_small, "Press 'I' to close inventory.", (150, 150, 150), 20, current_y + 20)
+
+
 
     def render_inventory_menu_popup(self):
         """Renders a small pop-up menu for selected inventory item actions."""

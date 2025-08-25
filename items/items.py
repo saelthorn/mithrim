@@ -81,6 +81,19 @@ class Armor(Item):
         self.ac_bonus = ac_bonus # Bonus to AC
         self.category = category
 
+class OffHand(Item):
+    def __init__(self, name, char, color, description, price, defense_bonus=0, attack_bonus=0, damage_dice=None, damage_modifier=0, category=None):
+        super().__init__(name, char, color, description, price)
+        self.defense_bonus = defense_bonus  # Bonus to armor class if it's a shield
+        self.attack_bonus = attack_bonus  # Bonus to attack rolls if it's a weapon
+        self.damage_dice = damage_dice  # Damage dice for one-handed weapons (e.g., "1d6")
+        self.damage_modifier = damage_modifier  # Additional damage modifier
+        self.category = category
+
+    def use(self, user, game_instance):
+        """Define how the item is used, if applicable."""
+        # Implement specific use logic for off-hand items if needed
+        pass
 
 class Tools(Item):
     """An item that can be used in certain situations"""
@@ -208,7 +221,7 @@ WEAPON_CATEGORIES = {
     "flail": ["Dwarven Flail", "Flameheart Flail"],
 }
 
-iron_dagger = Weapon(
+iron_dagger = OffHand(
     name="Iron Dagger",
     char="dgr", # Using same char as other weapons for now
     color=(180, 180, 180),
@@ -220,7 +233,7 @@ iron_dagger = Weapon(
     category="dagger"
 )
 
-silver_dagger = Weapon(
+silver_dagger = OffHand(
     name="Silver Dagger",
     char="sdr", # Using same char as other weapons for now
     color=(180, 180, 180),
@@ -341,7 +354,7 @@ pole_arm = Weapon(
     attack_bonus=2,
     price = 25,
     is_two_handed=True,
-    category="battleaxe"
+    category="polearm"
 )
 
 oak_staff = Weapon(
@@ -404,7 +417,7 @@ duelists_rapier = Weapon(
     category="rapier"
 )
 
-iron_hammer = Weapon(
+iron_hammer = OffHand(
     name="Iron Hammer",
     char="irh",
     color=(175, 175, 175),
@@ -490,33 +503,33 @@ ARMOR_CATEGORIES = {
     "shield": ["Round Shield", "Kite Shield", "Tower Shield"]
 }
 
-round_shield = Armor(
+round_shield = OffHand(
     name="Round Shield",
     char="rsh",
     color=(175, 175, 175),
     description="A round shield.",
-    ac_bonus=1, # Adds 1 to base AC
+    defense_bonus=1, # Adds 1 to base AC
     price=15,
     category="shield"
 
 )
 
-kite_shield = Armor(
+kite_shield = OffHand(
     name="Kite Shield",
     char="ksh",
     color=(175, 175, 175),
     description="A kite shield.",
-    ac_bonus=2, 
+    defense_bonus=2, 
     price=35,
     category="shield"
 )
 
-tower_shield = Armor(
-    name="Round Shield",
+tower_shield = OffHand(
+    name="Tower Shield",
     char="tsh",
     color=(175, 175, 175),
     description="A tower shield.",
-    ac_bonus=3, 
+    defense_bonus=3, 
     price=50,
     category="shield"
 )

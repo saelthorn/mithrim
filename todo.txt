@@ -7,13 +7,11 @@ If there's only one way in and no way out, it's a tomb. Yours.
 
 
 
-
-Prioritize - Add Main-Hand and Off-Hand for Weapons
+Prioritize - UI Rework pt.2
  - Exclusive Dungeon Merchant Items
  - Add Locked Chests
  - Fix Targeting State
  - Make Mithrim Logo
- - Rework the UI
  - Add More Traps and Status Effects
  - Add Companions
  - Add Torches as an Items

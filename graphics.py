@@ -1,5 +1,3 @@
-# MultipleFiles/graphics.py
-
 import pygame
 import config
 
@@ -144,6 +142,10 @@ def setup_tile_mapping():
 
         'rbs': (3 * CELL_DIM, 13 * CELL_DIM),  # Robes 
         'rop': (3 * CELL_DIM, 14 * CELL_DIM),  # Robes of Protection
+        
+        'rsh': (12 * CELL_DIM, 13 * CELL_DIM),  # Round Shield
+        'ksh': (12 * CELL_DIM, 14 * CELL_DIM),  # Kite Shield
+        'tsh': (12 * CELL_DIM, 15 * CELL_DIM),  # Tower Shield     
 
         # Weapons
         'dgr': (4 * CELL_DIM, 13 * CELL_DIM),  # Iron Dagger
@@ -159,11 +161,22 @@ def setup_tile_mapping():
 
         'sba': (8 * CELL_DIM, 13 * CELL_DIM),  # Steel Battleaxe
         'dba': (8 * CELL_DIM, 14 * CELL_DIM),  # Dwarven Battleaxe
-        'pla': (8 * CELL_DIM, 15 * CELL_DIM),  # Battleaxe
+        'pla': (8 * CELL_DIM, 15 * CELL_DIM),  # Polearm
 
         'oas': (7 * CELL_DIM, 13 * CELL_DIM),  # Oak Staff
         'aps': (7 * CELL_DIM, 14 * CELL_DIM),  # Apprentice's Staff
         'qts': (7 * CELL_DIM, 15 * CELL_DIM),  # Quarterstaff
+
+        'srp': (9 * CELL_DIM, 13 * CELL_DIM),  # Steel Rapier
+        'dlr': (9 * CELL_DIM, 14 * CELL_DIM),  # Duelists Rapier
+
+        'irh': (10 * CELL_DIM, 13 * CELL_DIM),  # Iron Hammer
+        'dbw': (10 * CELL_DIM, 14 * CELL_DIM),  # Dragonsbane Warhammer
+        'mul': (10 * CELL_DIM, 15 * CELL_DIM),  # Maul
+
+        'stm': (11 * CELL_DIM, 13 * CELL_DIM),  # Steel Mace
+        'dwf': (11 * CELL_DIM, 14 * CELL_DIM),  # Dwarven Flail
+        'fhf': (11 * CELL_DIM, 15 * CELL_DIM),  # FLameheart Flail  
 
 
 
