@@ -51,6 +51,8 @@ def setup_tile_mapping():
 
 
         # Map Tiles
+        '{': (0 * CELL_DIM, 6 * CELL_DIM),  # Tavern Crate
+        '}': (2 * CELL_DIM, 6 * CELL_DIM),  # Tavern Barrel
         ',': (0 * CELL_DIM, 16 * CELL_DIM), # Tavern Floor
         ':': (1 * CELL_DIM, 16 * CELL_DIM), # Kitchen Tavern Floor
         '.': (0 * CELL_DIM, 3 * CELL_DIM),  # Floor
@@ -232,7 +234,7 @@ def get_tile_surface(char):
 
 def draw_tile(screen_surface, draw_x, draw_y, char, color_tint=None):
     tile_surface = get_tile_surface(char)
-    
+
     if color_tint:
         tinted_surface = tile_surface.copy()
         tinted_surface.fill(color_tint, special_flags=pygame.BLEND_RGBA_MULT)

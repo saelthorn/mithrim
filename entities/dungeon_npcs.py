@@ -13,6 +13,15 @@ class DungeonHealer(NPC):
         ]
         super().__init__(x, y, 'H', 'Healer', (0, 255, 255), dialogue) # Cyan color
     
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }    
+
     def offer_rest(self, player, game):
         game.message_log.add_message(f"{self.name}: You feel your wounds mend.", (0, 255, 0))
         player.hp = player.max_hp # Full heal for simplicity
@@ -29,21 +38,30 @@ class DungeonMerchant(NPC):
         ]
         super().__init__(x, y, 'rc', 'Merchant', (255, 215, 0), dialogue)  # Yellow color for the Merchant
 
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }    
+
 
         # Define items for sale
         self.items_for_sale = [
-            lesser_healing_potion,  # Assuming these are defined as instances of Potion
-            greater_healing_potion,
-            full_plate_armor,
-            robes_of_protection,
-            adamantine_long_sword,
-            staff_of_magi, 
-            duelists_rapier,
-            dwarven_battle_axe,
-            flameheart_flail,
-            flameheart_short_sword,
-            dragonsbane_warhammer,
-            CampfireKit
+            lesser_healing_potion(),  # Assuming these are defined as instances of Potion
+            greater_healing_potion(),
+            full_plate_armor(),
+            robes_of_protection(),
+            adamantine_long_sword(),
+            staff_of_magi(), 
+            duelists_rapier(),
+            dwarven_battle_axe(),
+            flameheart_flail(),
+            flameheart_short_sword(),
+            dragonsbane_warhammer(),
+            CampfireKit()
         ]
 
 

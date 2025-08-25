@@ -2050,7 +2050,7 @@ class Game:
                         entity_color_tint = (60, 60, 60, 255)
                     # Always draw floor under entities, as map rendering might have drawn a decorative tile
                     # --- MODIFIED: Pass float draw_x, draw_y to graphics.draw_tile ---
-                    graphics.draw_tile(self.internal_surface, draw_x, draw_y, floor.char, color_tint=entity_color_tint)
+                    # graphics.draw_tile(self.internal_surface, draw_x, draw_y, floor.char, color_tint=entity_color_tint)
                     graphics.draw_tile(self.internal_surface, draw_x, draw_y, entity.char, color_tint=entity_color_tint)
 
 
@@ -2090,7 +2090,7 @@ class Game:
                     
                     # Always draw floor under items, as map rendering might have drawn a decorative tile
                     # --- MODIFIED: Pass float draw_x, draw_y to graphics.draw_tile ---
-                    graphics.draw_tile(self.internal_surface, draw_x, draw_y, floor.char, color_tint=item_color_tint)
+                    # graphics.draw_tile(self.internal_surface, draw_x, draw_y, floor.char, color_tint=item_color_tint)
                     graphics.draw_tile(self.internal_surface, draw_x, draw_y, item.char, color_tint=item_color_tint)
 
 

@@ -1,4 +1,4 @@
-from world.tile import tavern_floor, tavern_wall, bar_counter, table, chair, door, fireplace, wall, tavern_floor, torch, floor, crate, barrel, tavern_kitchen_floor # Ensure 'door' is imported
+from world.tile import tavern_floor, tavern_wall, bar_counter, table, chair, door, fireplace, wall, tavern_floor, tavern_barrel, tavern_crate, torch, floor, crate, barrel, tavern_kitchen_floor # Ensure 'door' is imported
 from entities.dungeon_npcs import DungeonHealer
 from entities.tavern_npcs import Bartender, Patron
 from core import game
@@ -19,10 +19,10 @@ def generate_tavern(game_map, player):
         "#              #",
         "#              #",
         "#              ##T##",
-        "# c  c  c      :bbk#",
-        "T========      :::kT",
+        "# c  c  c      :}}{#",
+        "T========      :::{T",
         "#              ::::T",
-        "#              ::kb#",
+        "#              ::{}#",
         "###################"
     ]
 
@@ -33,6 +33,8 @@ def generate_tavern(game_map, player):
     door_position = (9, 0)
 
     char_to_tile = {
+        '{': tavern_crate,
+        '}': tavern_barrel,
         '#': wall,
         ' ': floor,
         ':': tavern_kitchen_floor,

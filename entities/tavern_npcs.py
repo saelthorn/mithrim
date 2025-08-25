@@ -2,7 +2,7 @@ import random
 import pygame
 
 from core.game import GameState
-from items.items import lesser_healing_potion, greater_healing_potion, silver_dagger, iron_short_sword, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes
+from items.items import lesser_healing_potion, greater_healing_potion, silver_dagger, iron_short_sword, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes, CampfireKit
 from entities.dungeon_npcs import DungeonHealer # <--- NEW IMPORT
 from entities.base_entity import NPC
 
@@ -64,7 +64,8 @@ class Merchant(NPC):
             steel_battle_axe,
             oak_staff,
             padded_armor,
-            chainmail_armor,            
+            chainmail_armor, 
+            CampfireKit()           
         ]
 
     def offer_trade(self, player, game):

@@ -5,6 +5,7 @@ from core.status_effects import PowerAttackBuff, EvasionBuff
 from core.game import GameState
 from entities.monster import Monster, Mimic
 from entities.summons import MageHandEntity
+from entities.base_entity import NPC
 from core.floating_text import FloatingText
 from items.items import Potion, lesser_healing_potion, greater_healing_potion # NEW: Import for potion drop
 
@@ -65,7 +66,7 @@ class Ability:
 class SpotTrapsAbility(Ability):
     def __init__(self):
         # Cooldown: e.g., 10 turns. Cost: 0 for now, could be stamina later.
-        super().__init__("Spot Traps", "Actively search for hidden traps in adjacent tiles.", cost=0, cooldown=5)
+        super().__init__("Spot Traps", "Actively search for hidden traps in adjacent tiles.", cost=0, cooldown=3)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance): # Handles cooldown check
@@ -113,7 +114,7 @@ class SpotTrapsAbility(Ability):
 class DisarmTrapsAbility(Ability):
     def __init__(self):
         # Cooldown: e.g., 15 turns. Cost: 0 for now.
-        super().__init__("Disarm Traps", "Attempt to disarm a revealed trap in an adjacent tile.", cost=0, cooldown=10)
+        super().__init__("Disarm Traps", "Attempt to disarm a revealed trap in an adjacent tile.", cost=0, cooldown=3)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance): # Handles cooldown check
@@ -160,7 +161,7 @@ class DisarmTrapsAbility(Ability):
 
 class SecondWind(Ability):
     def __init__(self):
-        super().__init__("Second Wind", "Heal yourself for a small amount of HP.", cooldown=75) # 15 turns cooldown
+        super().__init__("Second Wind", "Heal yourself for a small amount of HP.", cooldown=75) # 75 turns cooldown
 
     def use(self, user, game_instance):
         # Call base class use to handle cooldown and initial checks.
@@ -209,20 +210,20 @@ class CunningAction(Ability):
 
 class Evasion(Ability):
     def __init__(self):
-        super().__init__("Evasion", "Become incredibly agile, greatly increasing dodge chance and taking half damage if hit. Lasts 3 turns.", cooldown=35)
+        super().__init__("Evasion", "Become incredibly agile, greatly increasing dodge chance and taking half damage if hit. Lasts 3 turns.", cooldown=40)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
             return False
         
-        user.add_status_effect("EvasionBuff", duration=8, game_instance=game_instance)
+        user.add_status_effect("EvasionBuff", duration=10, game_instance=game_instance)
         game_instance.message_log.add_message(f"{user.name} activates Evasion!", (100, 255, 255))
         return True
 
 
 class FireBolt(Ability):
     def __init__(self):
-        super().__init__("Fire Bolt", "Hurl a searing bolt of fire at a foe.", cost=0, cooldown=0)
+        super().__init__("Fire Bolt", "Hurl a searing bolt of fire at a foe.", cost=0, cooldown=2)
         self.range = 6  # Example range in tiles
 
     def use(self, user, game_instance):
@@ -320,15 +321,13 @@ class FireBolt(Ability):
             game_instance.floating_texts.append(damage_text)
 
             if not target_monster.alive:
-                xp_gained = target_monster.die()
+                xp_gained = target_monster.die(game_instance)
                 user.gain_xp(xp_gained, game_instance)  # Use 'user' (player) here
-                game_instance.message_log.add_message(f"The {target_monster.name} dies! [+{xp_gained} XP]", (100, 255, 100))
             return True  # Successfully used ability
 
         elif target_tile.destructible:  # <--- NEW: Check if the tile is destructible
             destructible_messages = [
                 f"Your Fire Bolt incinerates the {target_tile.name}!",
-                f"The {target_tile.name} explodes in a burst of flame!",
                 f"A magical inferno consumes the {target_tile.name}!",
             ]
             game_instance.message_log.add_message(random.choice(destructible_messages), (255, 165, 0))                
@@ -339,7 +338,7 @@ class FireBolt(Ability):
             game_instance.game_map.tiles[target_y][target_x] = floor  # Replace with floor tile
             self.minimap_needs_redraw = True # Map changed, redraw minimap
             
-            # --- 20% chance to drop a healing potion ---
+            # --- 10% chance to drop a healing potion ---
             if target_tile.name in ["Crate", "Barrel"]: # Check if it was a crate or barrel                
                 if random.random() < 0.1:  # 10% chance
                     # Create a new instance of the potion to avoid modifying the global one
@@ -391,6 +390,124 @@ class FireBolt(Ability):
             game_instance.floating_texts.append(FloatingText(target_x, target_y, "INVALID!", (255, 0, 0)))
             print(f"DEBUG: FireBolt added INVALID! FloatingText for ({target_x},{target_y}). List size: {len(game_instance.floating_texts)}")  # <--- ADD THIS DEBUG
             return False  # Invalid target, stay in targeting mode
+
+class Fireball(Ability):
+    def __init__(self):
+        super().__init__("Fireball", "A bright streak flashes and explodes in a fiery blast.", cost=0, cooldown=150)
+        self.radius = 3  # Radius of the fireball effect
+        self.range = 8
+        self.damage_dice = 8  # Number of damage dice
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+        
+        # Find only monster targets within range
+        monster_targets = []
+        for entity in game_instance.entities:
+            if isinstance(entity, Monster) and entity.alive:
+                distance = user.distance_to(entity.x, entity.y)
+                if distance <= self.range:  # Check against ability range
+                    # Check if the target is within the player's FOV
+                    if game_instance.fov.get_visibility_type(entity.x, entity.y) in ['player', 'torch', 'darkvision']:
+                        monster_targets.append(entity)
+        # If there are monster targets, auto-target the closest one
+        if monster_targets:
+            target = min(monster_targets, key=lambda m: user.distance_to(m.x, m.y))
+            
+            # Set the game state to targeting mode
+            game_instance.game_state = GameState.TARGETING
+            game_instance.ability_in_use = self  # Store which ability is being used
+            game_instance.targeting_ability_range = self.range
+            
+            # Initialize targeting cursor at the auto-selected monster's position
+            game_instance.targeting_cursor_x = target.x
+            game_instance.targeting_cursor_y = target.y
+            
+            game_instance.message_log.add_message(f"{user.name} conjures Fireball! Auto-targeting {target.name}.", (255, 100, 0))
+            game_instance.message_log.add_message("Use Arrow Keys to change target, Enter to confirm, Esc to cancel.", (255, 100, 0))
+            return True  # Indicate successful initiation of targeting
+        
+        # If no monster targets are found, revert to manual targeting starting at player
+        else:
+            game_instance.message_log.add_message(f"{user.name} conjures Fireball! No enemies in range. Select a target (Arrow Keys, Enter to confirm, Esc to cancel).", (255, 100, 0))
+            game_instance.game_state = GameState.TARGETING
+            game_instance.ability_in_use = self  # Store which ability is being used
+            game_instance.targeting_ability_range = self.range
+            
+            # Initialize targeting cursor at player's position
+            game_instance.targeting_cursor_x = user.x
+            game_instance.targeting_cursor_y = user.y
+            
+            return True  # Indicate successful initiation of targeting
+
+    def execute_on_target(self, user, game_instance, target_x, target_y):
+        """
+        Executes the Fireball effect on the selected target.
+        """
+        from entities.player import Player
+        # Check if the target is within the player's FOV
+        if not game_instance.fov.get_visibility_type(target_x, target_y) in ['player', 'torch', 'darkvision']:
+            game_instance.message_log.add_message(f"You cannot cast Fireball at {target_x}, {target_y} because it is out of sight!", (255, 0, 0))
+            return False  # Do not consume a turn
+
+        # Calculate the damage
+        damage_rolls = [random.randint(1, 6) for _ in range(self.damage_dice)]  # Roll 8d6
+        total_damage = sum(damage_rolls)
+
+        # Notify the player of the damage
+        game_instance.message_log.add_message(f"{user.name} casts Fireball and rolls 8d6 {damage_rolls}.", (255, 165, 0))
+        game_instance.message_log.add_message(f"Fireball deals {total_damage} fire damage!", (255, 165, 0))
+
+        # Apply damage to all entities in the area of effect
+        for entity in game_instance.entities:
+            if entity.alive and self.is_within_radius(entity.x, entity.y, target_x, target_y, self.radius):
+                if isinstance(entity, (Monster, Player)):
+                    # Each entity makes a Dexterity saving throw
+                    dexterity_save = entity.get_saving_throw_bonus("DEX")
+                    d20_roll = random.randint(1, 20)
+                    save_total = d20_roll + dexterity_save
+
+                    game_instance.message_log.add_message(f"{entity.name} rolls a d20: {d20_roll} + {dexterity_save} = {save_total} (DC 15)", (200, 200, 255))
+
+                    if save_total >= 15:  # Assuming a DC of 15 for Fireball
+                        damage_dealt = total_damage // 2  # Half damage on success
+                        game_instance.message_log.add_message(f"{entity.name} succeeds on the saving throw and takes {damage_dealt} fire damage!", (100, 255, 100))
+                    else:
+                        damage_dealt = total_damage  # Full damage on failure
+                        game_instance.message_log.add_message(f"{entity.name} fails the saving throw and takes {damage_dealt} fire damage!", (255, 100, 100))
+
+                    damage_dealt = entity.take_damage(damage_dealt, game_instance, damage_type='fire')  # Apply damage
+
+                    # Create floating text for damage dealt
+                    damage_text = FloatingText(entity.x, entity.y - 0.5, str(damage_dealt), (255, 0, 0))  # Adjust Y for visibility
+                    game_instance.floating_texts.append(damage_text)  # Add to floating texts
+
+                    # Check if the entity is dead and award XP
+                    if not entity.alive:
+                        if isinstance(entity, Monster):
+                            xp_gained = entity.die(game_instance)  # Pass game_instance to the die method
+                            user.gain_xp(xp_gained, game_instance)  # Award XP to the player
+
+        # Destroy destructible tiles in the area of effect
+        for x in range(target_x - self.radius, target_x + self.radius + 1):
+            for y in range(target_y - self.radius, target_y + self.radius + 1):
+                if self.is_within_radius(x, y, target_x, target_y, self.radius):
+                    target_tile = game_instance.game_map.tiles[y][x]
+                    if target_tile.destructible:
+                        game_instance.message_log.add_message(f"The {target_tile.name} is destroyed by the Fireball!", (255, 0, 0))
+                        game_instance.game_map.tiles[y][x] = floor  # Replace with floor tile
+                        game_instance.minimap_needs_redraw = True  # Mark minimap for redraw
+
+                        # Create floating text for the destruction of the tile
+                        destruction_text = FloatingText(x, y - 0.5, f"EXPROSION!", (255, 0, 0))  # Adjust Y for visibility
+                        game_instance.floating_texts.append(destruction_text)  # Add to floating texts
+
+        return True  # Successfully used ability
+
+    def is_within_radius(self, x, y, center_x, center_y, radius):
+        """Check if the (x, y) coordinates are within the radius of the center point."""
+        return (x - center_x) ** 2 + (y - center_y) ** 2 <= radius ** 2
 
 
 class MistyStep(Ability):

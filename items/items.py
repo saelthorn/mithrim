@@ -146,8 +146,8 @@ class Chest(Item):
 
 class CampfireKit(Item):
     def __init__(self):
-        super().__init__(name="Campfire Kit", char="cf", color=(255, 140, 0), description="A kit to set up a campfire.", price=15)
-        self.uses_left = 3  # Number of uses for the campfire kit
+        super().__init__(name="Campfire Kit", char="cf", color=(255, 140, 0), description="A kit to set up a campfire.", price=25)
+        self.uses_left = 5  # Number of uses for the campfire kit
 
     def use(self, user, game_instance):
         """Use the campfire kit to drop it at the player's position and emit light."""

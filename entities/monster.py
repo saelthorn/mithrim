@@ -23,6 +23,15 @@ class Monster:
         self.blocks_movement = True
         self.active_status_effects = []
 
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": False,
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+
         self.last_known_player_position = None  # New attribute to store last known player position
         self.detection_range = 5
        
@@ -51,6 +60,16 @@ class Monster:
         self.burn_dc = 14
         self.burn_duration = 3
         self.burn_damage_per_turn = random.randint(1, 4)
+
+    def get_saving_throw_bonus(self, ability_name):
+        """Calculate the saving throw bonus for the specified ability."""
+        # Get the ability score based on the ability name
+        ability_score = getattr(self, ability_name.lower(), 0)  # Default to 0 if not found
+        modifier = (ability_score - 10) // 2  # Calculate the modifier
+        # Check if the monster has proficiency in this saving throw
+        if self.saving_throw_proficiencies.get(ability_name.upper(), False):
+            return modifier + 2  # Assuming a base proficiency bonus of +2 for simplicity
+        return modifier
 
     def roll_initiative(self):
         """Roll for turn order"""
@@ -333,12 +352,15 @@ class Monster:
         if self.hp <= 0:
             self.hp = 0
             self.alive = False
+            return self.die(game_instance)
             
         return damage_taken
 
-    def die(self):
+    def die(self, game_instance):
         """Handle death and return XP value"""
-        return self.base_xp
+        xp_gained = self.base_xp  # Get the base XP for this monster
+        game_instance.message_log.add_message(f"{self.name} has been slain! You gain {xp_gained} XP.", (200, 0, 0))
+        return xp_gained  # Return the XP gained
 
     def add_status_effect(self, effect_name, duration, game_instance, source=None):
         """Adds a status effect to the monster."""
@@ -492,6 +514,15 @@ class GiantRat(Monster):
         self.num_damage_dice = 1
         # self.can_disease = True  # Filth Fever (homebrew disease effect)
 
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
+
 class Ooze(Monster):  
     def __init__(self, x, y):
         super().__init__(x, y, 'OZ', 'Ooze', (100, 100, 100))
@@ -508,6 +539,15 @@ class Ooze(Monster):
         self.detection_range = 4
         self.acid_burn_damage_per_turn = 3
 
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
+
 class Goblin(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'GB', 'Goblin', (0, 255, 0))
@@ -520,6 +560,15 @@ class Goblin(Monster):
         self.damage_modifier = 2
         self.detection_range = 6
         self.num_damage_dice = 1
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
 
 class GoblinArcher(Monster):
     def __init__(self, x, y):
@@ -538,7 +587,15 @@ class GoblinArcher(Monster):
         self.range = 4  # Max range for ranged attacks
         self.ranged_die_type = 6  # Base die type for ranged attacks
         self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
-       
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
 
 class Skeleton(Monster):
     def __init__(self, x, y):
@@ -552,6 +609,15 @@ class Skeleton(Monster):
         self.damage_modifier = 2
         self.detection_range = 4
         self.num_damage_dice = 1
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
 
 class SkeletonArcher(Monster):
     def __init__(self, x, y):
@@ -571,6 +637,15 @@ class SkeletonArcher(Monster):
         self.ranged_die_type = 6  # Base die type for ranged attacks
         self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
 
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+
 class Orc(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'OR', 'Orc', (0, 128, 0))
@@ -584,6 +659,15 @@ class Orc(Monster):
         self.detection_range = 6
         self.num_damage_dice = 1
 
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+
 class Centaur(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'CE', 'Centaur', (139, 69, 19))
@@ -596,6 +680,15 @@ class Centaur(Monster):
         self.damage_modifier = 4
         self.detection_range = 6
         self.num_damage_dice = 2
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
 
 class CentaurArcher(Monster):
     def __init__(self, x, y):
@@ -615,6 +708,15 @@ class CentaurArcher(Monster):
         self.ranged_die_type = 8  # Base die type for ranged attacks
         self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
 
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
+
 class Troll(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'TR', 'Troll', (0, 100, 0))
@@ -629,6 +731,15 @@ class Troll(Monster):
         self.num_damage_dice = 2
         # self.regeneration = True
         # self.regen_amount = 10  # per turn unless acid/fire damage
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
 
 class Lizardfolk(Monster):
     def __init__(self, x, y):
@@ -646,6 +757,15 @@ class Lizardfolk(Monster):
         self.poison_dc = 13
         self.poison_duration = 3
         self.poison_damage_per_turn = 2
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
 
 class LizardfolkArcher(Monster):
     def __init__(self, x, y):
@@ -665,6 +785,15 @@ class LizardfolkArcher(Monster):
         self.ranged_die_type = 8  # Base die type for ranged attacks
         self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
 
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+
 class GiantSpider(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'GS', 'Giant Spider', (50, 50, 50))
@@ -682,6 +811,15 @@ class GiantSpider(Monster):
         self.poison_duration = 3
         self.poison_damage_per_turn = 4
         self.web_restrain = True
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
 
 class Beholder(Monster):
     def __init__(self, x, y):
@@ -702,6 +840,15 @@ class Beholder(Monster):
         self.ranged_num_dice = 4  # Number of damage dice for ranged attacks
         # self.eye_ray_effects = ["charm", "paralyze", "petrify", "fear", "disintegrate"]
 
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
+
 class LargeOoze(Monster):  # Gelatinous Cube
     def __init__(self, x, y):
         super().__init__(x, y, 'LO', 'Large Ooze', (34, 139, 34))
@@ -719,6 +866,15 @@ class LargeOoze(Monster):  # Gelatinous Cube
         self.acid_burn_damage_per_turn = 4
         self.split_on_slash = True
 
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
+
 class DragonWhelp(Monster):  # Wyrmling
     def __init__(self, x, y):
         super().__init__(x, y, 'DRA', 'Dragon Whelp', (255, 0, 0))
@@ -735,6 +891,15 @@ class DragonWhelp(Monster):  # Wyrmling
         # self.breath_dc = 13
         # self.breath_damage = "4d6 fire"
 
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
+
 class Owlbear(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'OB', 'Owlbear', (139, 69, 19))
@@ -747,6 +912,15 @@ class Owlbear(Monster):
         self.damage_modifier = 5
         self.detection_range = 5
         self.num_damage_dice = 2
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
 
 class Demogorgon(Monster):
     def __init__(self, x, y):
@@ -763,6 +937,15 @@ class Demogorgon(Monster):
         # self.legendary_resistance = 3
         # self.frightful_presence = True
 
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
+
 class Grick(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'GK', 'Grick', (105, 105, 105))
@@ -776,6 +959,15 @@ class Grick(Monster):
         self.detection_range = 15
         self.num_damage_dice = 2
         # self.resist_nonmagical = True
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
 
 class GibberingMouther(Monster):
     def __init__(self, x, y):
@@ -791,6 +983,15 @@ class GibberingMouther(Monster):
         self.num_damage_dice = 2
         # self.maddening_babble = True
         # self.prone_ground = True
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
 
 class MindFlayer(Monster):
     def __init__(self, x, y):
@@ -812,6 +1013,15 @@ class MindFlayer(Monster):
         # self.psionic_blast_dc = 15
         # self.psionic_stun_duration = 1
 
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
+
 class Minotaur(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'MN', 'Minotaur', (139, 0, 0))
@@ -825,6 +1035,15 @@ class Minotaur(Monster):
         self.detection_range = 6
         self.num_damage_dice = 2
         # self.charge_attack = True
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
 
 class Wererat(Monster):
     def __init__(self, x, y):
@@ -841,6 +1060,15 @@ class Wererat(Monster):
         # self.shapechanger = True
         # self.disease = True
 
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
+
 class Wolf(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'WF', 'Wolf', (112, 128, 144))
@@ -854,6 +1082,15 @@ class Wolf(Monster):
         self.detection_range = 8
         self.num_damage_dice = 1
         # self.knock_prone_dc = 11
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
 
 class Yochlol(Monster):
     def __init__(self, x, y):
@@ -872,6 +1109,15 @@ class Yochlol(Monster):
         self.poison_duration = 3
         self.poison_damage_per_turn = 4
 
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
+
 class BlueSlaad(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'BS', 'BlueSlaad', (112, 128, 144))
@@ -885,6 +1131,15 @@ class BlueSlaad(Monster):
         self.detection_range = 6
         self.num_damage_dice = 2
 
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
+
 class Drider(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'DD', 'Drider', (112, 128, 144))
@@ -897,4 +1152,13 @@ class Drider(Monster):
         self.damage_modifier = 3
         self.detection_range = 12
         self.num_damage_dice = 3
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }        
 

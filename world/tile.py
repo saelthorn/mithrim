@@ -40,7 +40,8 @@ table = Tile(blocked=True, char='t', color=(139, 69, 19), name="Table")
 chair = Tile(blocked=False, char='c', color=(160, 82, 45), block_sight=False, name="Chair")
 door = Tile(blocked=False, char='+', color=(205, 133, 63), name="Door")
 fireplace = Tile(blocked=True, char='F', color=(255, 69, 0), name="Fireplace")
-
+tavern_crate = Tile(blocked=False, char='{', color=(139, 69, 19), name="Tavern Crate")
+tavern_barrel = Tile(blocked=False, char='}', color=(139, 69, 19), name="Tavern Barrel")
 
 class MimicTile(Tile):
     def __init__(self, mimic_entity, char, color, name): # 'char' here will be 'K' or 'B'

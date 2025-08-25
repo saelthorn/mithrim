@@ -39,9 +39,8 @@ def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=5, room
     rooms = []
     stairs_positions = {}
     
-    floor_decoration_tiles = [crate, barrel, bones, dungeon_grass, cob_web, rubble, mushroom, fresh_bones, dungeon_pillar] 
+    floor_decoration_tiles = [crate, barrel, bones, dungeon_grass, cob_web, rubble, mushroom, fresh_bones] 
     floor_decoration_chance = 0.15  # Ensure this is defined
-    torch_placement_chance = 0.1
     torch_light_sources = []
 
     # Trap Definitions and Chance
@@ -195,7 +194,7 @@ def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=5, room
         if 'up' in stairs_positions and (chest_spawn_x, chest_spawn_y) == stairs_positions['up']:
             continue # Skip if stairs_up are at the center of this room
 
-        if random.random() < 0.3: # Increased overall chest spawn chance to 50%
+        if random.random() < 0.2: # Increased overall chest spawn chance to 50%
             # Check if the spot is already occupied by an item (Mimic or Chest)
             is_occupied_by_item = False
             for existing_item in game_map.items_on_ground:
