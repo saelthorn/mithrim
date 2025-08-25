@@ -210,7 +210,8 @@ greater_healing_potion = Potion(
 
 WEAPON_CATEGORIES = {
     "dagger": ["Iron Dagger", "Silver Dagger"],
-    "shortsword": ["Iron Short Sword", "Steel Short Sword", "Flameheart Short Sword"],
+    "orb": ["Glass Orb", "Orb of Chaos"],
+    "shortsword": ["Iron Short Sword", "Bronze Short Sword", "Flameheart Short Sword"],
     "longsword": ["Steel Long Sword", "Iron Long Sword", "Adamantine Long Sword"],
     "quarterstaff": ["Oak Staff", "Apprentice's Staff", "Staff of the Magi"],
     "battleaxe": ["Steel Battle Axe", "Dwarven Battle Axe"],
@@ -243,6 +244,30 @@ silver_dagger = OffHand(
     attack_bonus=3,
     price = 20,
     category="dagger"
+)
+
+glass_orb = OffHand(
+    name="Glass Orb",
+    char="glo",
+    color=(200, 200, 200),
+    description="A glass orb.",
+    damage_dice="1d4",
+    damage_modifier=1,
+    attack_bonus=1,
+    price=20,
+    category="orb"
+)
+
+orb_of_chaos = OffHand(
+    name="Orb of Chaos",
+    char="ooc",
+    color=(200, 200, 200),
+    description="An orb that brings chaos.",
+    damage_dice="1d4",
+    damage_modifier=2,
+    attack_bonus=4,
+    price=20,
+    category="orb"
 )
 
 iron_short_sword = Weapon(
@@ -327,7 +352,7 @@ steel_battle_axe = Weapon(
     damage_dice="1d6",
     damage_modifier=1,
     attack_bonus=0,
-    price = 10,
+    price = 15,
     category="battleaxe"
 )
 

@@ -28,7 +28,7 @@ from entities.monster import (
     SkeletonArcher, Orc, Centaur, CentaurArcher, Troll, Lizardfolk, 
     LizardfolkArcher, GiantSpider, Beholder, LargeOoze, DragonWhelp,
     Owlbear, Demogorgon, Grick, GibberingMouther, MindFlayer, Minotaur,
-    Wererat, Wolf
+    Wererat, Wolf, Yochlol, Drider, BlueSlaad
 )
 
 from entities.base_entity import NPC
@@ -202,7 +202,8 @@ class Game:
         # Level range: [List of monster classes that can spawn]
 
         # Early dungeon fodder
-        (1, 1): [Goblin, GiantRat, Wererat, GoblinArcher, Wolf],
+        (1, 1): [Goblin, GiantRat, Wolf],
+        (2, 2): [Goblin, GoblinArcher, GiantRat, Wererat, Wolf],
         (2, 3): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf],
 
         # Early-mid dangers
@@ -215,9 +216,12 @@ class Game:
 
         # Late-mid bosses and horrors
         (12, 13): [LargeOoze, DragonWhelp, GiantSpider, GibberingMouther],
+        (14, 14): [Drider],
+
 
         # High level threats
-        (14, 15): [Beholder, MindFlayer],
+        (15, 16): [Yochlol, BlueSlaad, LargeOoze],
+        (17, 18): [Beholder, MindFlayer, LargeOoze],
 
         # Endgame / campaign boss
         (16, 99): [Demogorgon],
@@ -464,8 +468,8 @@ class Game:
         
         self.entities = [self.player]
         
-        monsters_per_level = min(1 + level_number, len(rooms) - 1)
-        monster_rooms = rooms[3:monsters_per_level + 5]
+        monsters_per_level = min(5 + level_number, len(rooms) - 1)
+        monster_rooms = rooms[1:monsters_per_level + 2]
 
         # Determine which monsters can spawn on this level based on MONSTER_SPAWN_TIERS
         possible_monsters = []
@@ -687,7 +691,9 @@ class Game:
         # Store previous explored tiles for minimap redraw check
         previous_explored = set(self.fov.explored)
         if self.game_state == GameState.TAVERN:
-            self.fov.compute_fov(self.player.x, self.player.y, radius=20)  # Update FOV for the tavern
+            self.fov.visible_sources.clear() 
+            # Pass player.darkvision_radius to compute_fov
+            self.fov.compute_fov(self.player.x, self.player.y, radius=4, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
         else:
             # Clear only visible sources, keep explored for persistent map
             self.fov.visible_sources.clear() 
@@ -857,8 +863,6 @@ class Game:
 
                     # Handle other key events (like opening inventory) only if not in trade state
                     if event.key == pygame.K_i:
-                        # Store the state *before* any menu or targeting was active
-
                         if self.game_state == GameState.TARGETING:
                             self.message_log.add_message("Targeting cancelled (Inventory opened).", (150, 150, 150))
                             self.ability_in_use = None # Clear the ability
@@ -2356,6 +2360,8 @@ class Game:
         current_y_right += self.inventory_font_info.get_linesize() + 5
         self._draw_text(target_surface, self.inventory_font_info, f"Proficiency Bonus: +{self.player.proficiency_bonus}", (255, 255, 255), right_column_x, current_y_right)
         current_y_right += self.inventory_font_info.get_linesize() + 5
+        self._draw_text(target_surface, self.inventory_font_info, f"Attack Power: +{self.player.attack_power}", (255, 255, 255), right_column_x, current_y_right)
+        current_y_right += self.inventory_font_info.get_linesize() + 5
         self._draw_text(target_surface, self.inventory_font_info, f"Attack Bonus: +{self.player.attack_bonus}", (255, 255, 255), right_column_x, current_y_right)
         current_y_right += self.inventory_font_info.get_linesize() + 15
 
@@ -2363,9 +2369,11 @@ class Game:
         current_y_right += self.inventory_font_section.get_linesize() + 5
         
         equipped_weapon_name = self.player.equipped_weapon.name if self.player.equipped_weapon else "None"
+        equipped_off_hand_name = self.player.equipped_off_hand.name if self.player.equipped_off_hand else "None"
         equipped_armor_name = self.player.equipped_armor.name if self.player.equipped_armor else "None"
 
         current_y_right = draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_info, f"Weapon: {equipped_weapon_name}", (255, 255, 255), right_column_x, current_y_right, column_width)
+        current_y_right = draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_info, f"Offhand: {equipped_off_hand_name}", (255, 255, 255), right_column_x, current_y_right, column_width)
         current_y_right = draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_info, f"Armor: {equipped_armor_name}", (255, 255, 255), right_column_x, current_y_right, column_width)
         current_y_right += 15
 

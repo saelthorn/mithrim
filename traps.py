@@ -125,7 +125,7 @@ class DartTrap(Trap):
             damage_type='piercing'
         )
         self.can_poison = True # Specific to Dart Trap
-        self.poison_dc = 10
+        self.poison_dc = 16
         self.poison_duration = 3
         self.poison_damage_per_turn = 1
 

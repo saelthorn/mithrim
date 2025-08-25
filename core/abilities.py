@@ -209,13 +209,13 @@ class CunningAction(Ability):
 
 class Evasion(Ability):
     def __init__(self):
-        super().__init__("Evasion", "Become incredibly agile, greatly increasing dodge chance and taking half damage if hit. Lasts 3 turns.", cooldown=75)
+        super().__init__("Evasion", "Become incredibly agile, greatly increasing dodge chance and taking half damage if hit. Lasts 3 turns.", cooldown=35)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
             return False
         
-        user.add_status_effect("EvasionBuff", duration=5, game_instance=game_instance)
+        user.add_status_effect("EvasionBuff", duration=8, game_instance=game_instance)
         game_instance.message_log.add_message(f"{user.name} activates Evasion!", (100, 255, 255))
         return True
 
@@ -337,38 +337,40 @@ class FireBolt(Ability):
             # In a more complex system, destructible tiles might have HP.
             game_instance.message_log.add_message(f"Your Fire Bolt smashes the {target_tile.name}!", (255, 165, 0))
             game_instance.game_map.tiles[target_y][target_x] = floor  # Replace with floor tile
+            self.minimap_needs_redraw = True # Map changed, redraw minimap
             
             # --- 20% chance to drop a healing potion ---
-            if random.random() < 0.20:  # 20% chance
-                # Create a new instance of the potion to avoid modifying the global one
-                potion_to_drop = lesser_healing_potion.__class__(
-                    name=lesser_healing_potion.name,
-                    char=lesser_healing_potion.char,
-                    color=lesser_healing_potion.color,
-                    description=lesser_healing_potion.description,
-                    effect_type=lesser_healing_potion.effect_type,
-                    effect_value=lesser_healing_potion.effect_value,
-                    price=lesser_healing_potion.price
-                )
-                potion_to_drop.x = target_x
-                potion_to_drop.y = target_y
-                game_instance.game_map.items_on_ground.append(potion_to_drop)
-                game_instance.message_log.add_message(f"A {potion_to_drop.name} drops from the {target_tile.name}!", potion_to_drop.color)
-            elif random.random() < 0.20:  # 20% chance
-                # Create a new instance of the potion to avoid modifying the global one
-                potion_to_drop = greater_healing_potion.__class__(
-                    name=greater_healing_potion.name,
-                    char=greater_healing_potion.char,
-                    color=greater_healing_potion.color,
-                    description=greater_healing_potion.description,
-                    effect_type=greater_healing_potion.effect_type,
-                    effect_value=greater_healing_potion.effect_value,
-                    price=greater_healing_potion.price
-                )
-                potion_to_drop.x = target_x
-                potion_to_drop.y = target_y
-                game_instance.game_map.items_on_ground.append(potion_to_drop)
-                game_instance.message_log.add_message(f"A {potion_to_drop.name} drops from the {target_tile.name}!", potion_to_drop.color)                
+            if target_tile.name in ["Crate", "Barrel"]: # Check if it was a crate or barrel                
+                if random.random() < 0.1:  # 10% chance
+                    # Create a new instance of the potion to avoid modifying the global one
+                    potion_to_drop = lesser_healing_potion.__class__(
+                        name=lesser_healing_potion.name,
+                        char=lesser_healing_potion.char,
+                        color=lesser_healing_potion.color,
+                        description=lesser_healing_potion.description,
+                        effect_type=lesser_healing_potion.effect_type,
+                        effect_value=lesser_healing_potion.effect_value,
+                        price=lesser_healing_potion.price
+                    )
+                    potion_to_drop.x = target_x
+                    potion_to_drop.y = target_y
+                    game_instance.game_map.items_on_ground.append(potion_to_drop)
+                    game_instance.message_log.add_message(f"A {potion_to_drop.name} drops from the {target_tile.name}!", potion_to_drop.color)
+                elif random.random() < 0.05:  # 5% chance
+                    # Create a new instance of the potion to avoid modifying the global one
+                    potion_to_drop = greater_healing_potion.__class__(
+                        name=greater_healing_potion.name,
+                        char=greater_healing_potion.char,
+                        color=greater_healing_potion.color,
+                        description=greater_healing_potion.description,
+                        effect_type=greater_healing_potion.effect_type,
+                        effect_value=greater_healing_potion.effect_value,
+                        price=greater_healing_potion.price
+                    )
+                    potion_to_drop.x = target_x
+                    potion_to_drop.y = target_y
+                    game_instance.game_map.items_on_ground.append(potion_to_drop)
+                    game_instance.message_log.add_message(f"A {potion_to_drop.name} drops from the {target_tile.name}!", potion_to_drop.color)                
 
 
             # --- MISSING FLOATING TEXT CREATION HERE FOR DESTRUCTIBLE ---

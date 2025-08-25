@@ -2,7 +2,7 @@ import random
 from core.inventory import Inventory
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand
 from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning
-from items.items import iron_long_sword, chainmail_armor, iron_short_sword, steel_long_sword, padded_armor, half_plate_armor, iron_dagger, silver_dagger, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
+from items.items import iron_long_sword, chainmail_armor, iron_short_sword, steel_long_sword, steel_battle_axe, padded_armor, half_plate_armor, iron_dagger, silver_dagger, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
 from core.floating_text import FloatingText
@@ -82,15 +82,7 @@ class Player: # This is our base class for playable characters
         self.hp = 0     # Will be set by subclass
         
         self.attack_power = 0  # Base attack power
-        self.attack_bonus = 0
-
-        if self.equipped_weapon:
-            self.attack_bonus += self.equipped_weapon.attack_bonus
-            self.attack_power += self.equipped_weapon.damage_modifier
-        
-        if self.equipped_off_hand:
-            self.attack_bonus += self.equipped_off_hand.attack_bonus
-            self.attack_power += self.equipped_off_hand.damage_modifier        
+        self.attack_bonus = 0      
 
         self.armor_class = 0  # Will be set by subclass
         
@@ -118,9 +110,14 @@ class Player: # This is our base class for playable characters
             self.attack_power = self.get_ability_modifier(getattr(self, self.primary_stat))  # Base attack power from primary stat
             if self.equipped_weapon:
                 self.attack_power += self.equipped_weapon.damage_modifier  # Add weapon's damage modifier
+                self.attack_bonus += self.equipped_weapon.attack_bonus
+                print(f"Weapon Attack Power: {self.equipped_weapon.damage_modifier}")  # Debugging output
+                print(f"Weapon Attack Bonus: {self.equipped_weapon.attack_bonus}")  # Debugging output
             if self.equipped_off_hand:
                 self.attack_bonus = self.get_ability_modifier(getattr(self, self.primary_stat)) + self.equipped_off_hand.attack_bonus  # Add off-hand weapon's attack bonus
-                self.attack_power += self.equipped_off_hand.damage_modifier + self.equipped_weapon.damage_modifier
+                self.attack_power += self.equipped_off_hand.damage_modifier 
+                print(f"Offhand Attack Power: {self.equipped_weapon.damage_modifier}")  # Debugging output
+                print(f"Offhand Attack Bonus: {self.equipped_weapon.attack_bonus}")  # Debugging output
         else:
             self.attack_power = 0  # Default to 0 if no primary stat is set
         print(f"Updated Attack Power: {self.attack_power}")  # Debugging output
@@ -598,7 +595,7 @@ class Fighter(Player):
         
         self.strength = 15
         self.dexterity = 13
-        self.constitution = 140
+        self.constitution = 14
         self.intelligence = 8
         self.wisdom = 12
         self.charisma = 10
@@ -611,13 +608,11 @@ class Fighter(Player):
         self.primary_stat = 'strength'  # Set primary stat for Fighter        
         
         # Set starting equipment
-        self.inventory.add_item(half_plate_armor)
-        self.inventory.add_item(iron_long_sword)
-        self.inventory.add_item(silver_dagger)
-        self.inventory.add_item(tower_shield)
+        self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
 
         self.equipped_weapon = iron_short_sword
+        self.equipped_off_hand = round_shield
         self.equipped_armor = chainmail_armor
        
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
@@ -626,8 +621,8 @@ class Fighter(Player):
         self.armor_class = self._calculate_ac()
 
         # Class-specific weapon and armor proficiencies
-        self.class_weapon_proficiencies = ["battleaxe", "handaxe", "light hammer", "warhammer", "shortsword", "longsword"]
-        self.class_armor_proficiencies = ["light", "medium", "heavy"]  # Fighters can wear all types of armor
+        self.class_weapon_proficiencies = ["battleaxe", "handaxe", "light hammer", "warhammer", "hammer", "shortsword", "longsword"]
+        self.class_armor_proficiencies = ["light", "medium", "heavy", "shield"]  # Fighters can wear all types of armor
 
         self.weapon_proficiencies = self.class_weapon_proficiencies.copy()
         self.armor_proficiencies = self.class_armor_proficiencies.copy()
@@ -667,10 +662,10 @@ class Rogue(Player):
         # Set starting equipment
         self.inventory.add_item(thieves_tools)
         self.inventory.add_item(lesser_healing_potion)
-        self.inventory.add_item(iron_dagger)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
 
         self.equipped_weapon = iron_short_sword
+        self.equipped_off_hand = iron_dagger
         self.equipped_armor = padded_armor
 
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
@@ -722,6 +717,7 @@ class Wizard(Player):
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
 
         self.equipped_weapon = iron_dagger
+        self.equipped_off_hand = glass_orb
         self.equipped_armor = robes
         
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear

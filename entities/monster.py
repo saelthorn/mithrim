@@ -535,7 +535,7 @@ class GoblinArcher(Monster):
         self.num_damage_dice = 1
         self.is_ranged = True
         self.ranged_attack_bonus = 2  # Base ranged attack bonus
-        self.range = 5  # Max range for ranged attacks
+        self.range = 4  # Max range for ranged attacks
         self.ranged_die_type = 6  # Base die type for ranged attacks
         self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
        
@@ -855,7 +855,46 @@ class Wolf(Monster):
         self.num_damage_dice = 1
         # self.knock_prone_dc = 11
 
+class Yochlol(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'YL', 'Yochlol', (112, 128, 144))
+        self.hp = 136
+        self.max_hp = 136
+        self.attack_bonus = 3
+        self.armor_class = 15
+        self.base_xp = 5900
+        self.monster_die_type = 8
+        self.damage_modifier = 3
+        self.detection_range = 12
+        self.num_damage_dice = 1
+        self.can_poison = True
+        self.poison_dc = 10
+        self.poison_duration = 3
+        self.poison_damage_per_turn = 4
 
+class BlueSlaad(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'BS', 'BlueSlaad', (112, 128, 144))
+        self.hp = 123
+        self.max_hp = 123
+        self.attack_bonus = 5
+        self.armor_class = 15
+        self.base_xp = 2900
+        self.monster_die_type = 8
+        self.damage_modifier = 5
+        self.detection_range = 6
+        self.num_damage_dice = 2
 
-
+class Drider(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'DD', 'Drider', (112, 128, 144))
+        self.hp = 123
+        self.max_hp = 123
+        self.attack_bonus = 3
+        self.armor_class = 19
+        self.base_xp = 2300
+        self.monster_die_type = 6
+        self.damage_modifier = 3
+        self.detection_range = 12
+        self.num_damage_dice = 3
 

@@ -14,6 +14,7 @@ wall  = Tile(blocked=True, char='#', color=(130, 110, 50), name="Wall")
 stairs_down = Tile(blocked=False, char='>', color=(255, 255, 255), name="Stairs Down")
 stairs_up = Tile(blocked=False, char='<', color=(255, 255, 255), name="Stairs Up")
 dungeon_door = Tile(blocked=False, char='dd', color=(139, 69, 19), name="Dungeon Door")
+dungeon_pillar = Tile(blocked=True, char='dp', color=(230, 230, 230), block_sight=True, name="Dungeon Pillar")
 
 pressure_plate = Tile(blocked=False, char='_', color=(200, 180, 50), name="Pressure Plate")
 
@@ -25,8 +26,6 @@ mushroom = Tile(blocked=False, char='*', color=(255, 0, 255), name="Mushroom")
 fresh_bones = Tile(blocked=False, char='fb', color=(200, 200, 180), name="Fresh Bones")
 bones = Tile(blocked=False, char=';', color=(200, 200, 180), name="Bones")
 torch = Tile(blocked=True, char='i', color=(255, 165, 0), block_sight=False, name="Torch")
-altar = Tile(blocked=True, char='^', color=(150, 0, 150), name="Altar")
-statue = Tile(blocked=True, char='S', color=(120, 120, 120), name="Statue")
 
 # Static Crate and Barrel (using distinct chars)
 crate = Tile(blocked=True, char='k', color=(139, 69, 19), block_sight=False, destructible=True, name="Crate") # <--- CHANGED char to 'k'
@@ -38,7 +37,7 @@ tavern_kitchen_floor = Tile(blocked=False, char=':', color=(139, 69, 19), name="
 tavern_wall = Tile(blocked=True, char='#', color=(101, 67, 33), name="Tavern Wall")
 bar_counter = Tile(blocked=True, char='=', color=(160, 82, 45), block_sight=False, name="Bar Counter")
 table = Tile(blocked=True, char='t', color=(139, 69, 19), name="Table")
-chair = Tile(blocked=False, char='c', color=(160, 82, 45), name="Chair")
+chair = Tile(blocked=False, char='c', color=(160, 82, 45), block_sight=False, name="Chair")
 door = Tile(blocked=False, char='+', color=(205, 133, 63), name="Door")
 fireplace = Tile(blocked=True, char='F', color=(255, 69, 0), name="Fireplace")
 

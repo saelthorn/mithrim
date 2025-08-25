@@ -8,9 +8,8 @@ If there's only one way in and no way out, it's a tomb. Yours.
 
 
 Prioritize - UI Rework pt.2
- - Exclusive Dungeon Merchant Items
+ - When Monster is Attacked it Chases The Player
  - Add Locked Chests
- - Fix Targeting State
  - Make Mithrim Logo
  - Add More Traps and Status Effects
  - Add Companions

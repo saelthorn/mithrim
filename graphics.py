@@ -64,6 +64,7 @@ def setup_tile_mapping():
         '*': (4 * CELL_DIM, 4 * CELL_DIM),  # Mushroom
         'fb': (5 * CELL_DIM, 4 * CELL_DIM), # Fresh Bones
         '`': (6 * CELL_DIM, 4 * CELL_DIM),  # Dungeon Grass
+        'dp': (7 * CELL_DIM, 4 * CELL_DIM), # Dungeon Pillar
         
         # IMPORTANT: Ensure 'C' is your *closed* chest graphic
         'C': (4 * CELL_DIM, 5 * CELL_DIM),  # Chest (Closed)
@@ -117,6 +118,11 @@ def setup_tile_mapping():
         'MN': (6 * CELL_DIM, 9 * CELL_DIM),  # Minotaur
         'WR': (7 * CELL_DIM, 9 * CELL_DIM),  # Wererat
         'WF': (7 * CELL_DIM, 8 * CELL_DIM),  # Wolf        
+
+        'YL': (8 * CELL_DIM, 7 * CELL_DIM),  # Yochlol
+        'DD': (8 * CELL_DIM, 8 * CELL_DIM),  # Drider
+        'BS': (8 * CELL_DIM, 9 * CELL_DIM),  # Blue Slaad
+
 
         # Tavern Entities and Misc.
         'A': (9 * CELL_DIM, 0 * CELL_DIM),  # Bartender (NPC)
@@ -178,7 +184,8 @@ def setup_tile_mapping():
         'dwf': (11 * CELL_DIM, 14 * CELL_DIM),  # Dwarven Flail
         'fhf': (11 * CELL_DIM, 15 * CELL_DIM),  # FLameheart Flail  
 
-
+        'glo': (13 * CELL_DIM, 13 * CELL_DIM), # Glass Orb
+        'ooc': (13 * CELL_DIM, 14 * CELL_DIM), # Orb of Chaos
 
        
     }
