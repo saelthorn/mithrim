@@ -104,7 +104,6 @@ class Monster:
         # Execute behavior based on AI state
         if self.ai_state == AI_State.FLEEING:
             if self.flee(player, game_map, game):
-                game.message_log.add_message(f"The {self.name} attempts to flee!", (255, 255, 0))
                 game.floating_texts.append(FloatingText(self.x, self.y, "FLEE!", (255, 255, 0)))
                 return  # Monster took action (fled)
             else:
@@ -113,7 +112,6 @@ class Monster:
 
         if self.ai_state == AI_State.DESPERATE_FIGHT:
             game.message_log.add_message(f"The {self.name} is desperate and fights on!", (255, 100, 100))
-            game.floating_texts.append(FloatingText(self.x, self.y, "DESPERATE!", (255, 100, 100)))
             self.attack(player, game)  # Use base melee attack
             return
 
