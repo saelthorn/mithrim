@@ -523,6 +523,15 @@ class Mimic(Monster):
         # Mimics are not "intelligent" in the sense of fleeing, they are ambush predators
         self.is_intelligent = False 
 
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        } 
+
     def take_damage(self, amount, game_instance, damage_type=None):
         """
         Mimic's take_damage method.

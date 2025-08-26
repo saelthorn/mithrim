@@ -7,7 +7,7 @@ from entities.monster import Monster, Mimic
 from entities.summons import MageHandEntity
 from entities.base_entity import NPC
 from core.floating_text import FloatingText
-from items.items import Potion, lesser_healing_potion, greater_healing_potion # NEW: Import for potion drop
+from items.items import Potion, lesser_healing_potion, greater_healing_potion, wood_plank # NEW: Import for potion drop
 
 
 class Ability:
@@ -494,16 +494,79 @@ class Fireball(Ability):
         for x in range(target_x - self.radius, target_x + self.radius + 1):
             for y in range(target_y - self.radius, target_y + self.radius + 1):
                 if self.is_within_radius(x, y, target_x, target_y, self.radius):
+                    # Ensure coordinates are within map bounds
+                    if not (0 <= x < game_instance.game_map.width and 0 <= y < game_instance.game_map.height):
+                        continue
+
                     target_tile = game_instance.game_map.tiles[y][x]
+
+                    # --- NEW MIMIC REVEAL LOGIC ---
+                    if isinstance(target_tile, MimicTile):
+                        mimic_entity = target_tile.mimic_entity
+                        if mimic_entity.disguised:
+                            game_instance.message_log.add_message(f"The Fireball strikes the disguised {mimic_entity.name}!", (255, 165, 0))
+                            # Mimics take damage from the fireball, which will trigger their reveal
+                            # We pass the full damage of the fireball to the mimic
+                            mimic_entity.take_damage(total_damage, game_instance, damage_type='fire')
+                            # If the mimic is still disguised after taking damage (meaning it didn't die from the hit)
+                            if mimic_entity.disguised: # Check again if it's still disguised
+                                mimic_entity.reveal(game_instance) # Force reveal if it didn't die
+                            # No need to replace the tile with floor here, as the mimic's reveal handles it.
+                            game_instance.floating_texts.append(FloatingText(x, y, "REVEAL!", (255, 255, 0)))
+                            game_instance.minimap_needs_redraw = True
+                            continue # Move to the next tile in the radius
+
+                    # --- EXISTING DESTRUCTIBLE TILE LOGIC (only if not a MimicTile) ---
                     if target_tile.destructible:
                         game_instance.message_log.add_message(f"The {target_tile.name} is destroyed by the Fireball!", (255, 0, 0))
                         game_instance.game_map.tiles[y][x] = floor  # Replace with floor tile
                         game_instance.minimap_needs_redraw = True  # Mark minimap for redraw
 
                         # Create floating text for the destruction of the tile
-                        destruction_text = FloatingText(x, y - 0.5, f"EXPROSION!", (255, 0, 0))  # Adjust Y for visibility
+                        destruction_text = FloatingText(x, y - 0.5, f"SMASH!", (255, 0, 0))  # Adjust Y for visibility
                         game_instance.floating_texts.append(destruction_text)  # Add to floating texts
 
+                        # --- Existing potion drop logic for crates/barrels ---
+                        if target_tile.name in ["Crate", "Barrel"]:
+                            if random.random() < 0.02:
+                                potion_to_drop = lesser_healing_potion.__class__(
+                                    name=lesser_healing_potion.name,
+                                    char=lesser_healing_potion.char,
+                                    color=lesser_healing_potion.color,
+                                    description=lesser_healing_potion.description,
+                                    effect_type=lesser_healing_potion.effect_type,
+                                    effect_value=lesser_healing_potion.effect_value,
+                                    price=lesser_healing_potion.price
+                                )
+                                potion_to_drop.x = x
+                                potion_to_drop.y = y
+                                game_instance.game_map.items_on_ground.append(potion_to_drop)
+                                game_instance.message_log.add_message(f"A {potion_to_drop.name} drops from the {target_tile.name}!", potion_to_drop.color)
+                            elif random.random() < 0.005:
+                                potion_to_drop = greater_healing_potion.__class__(
+                                    name=greater_healing_potion.name,
+                                    char=greater_healing_potion.char,
+                                    color=greater_healing_potion.color,
+                                    description=greater_healing_potion.description,
+                                    effect_type=greater_healing_potion.effect_type,
+                                    effect_value=greater_healing_potion.effect_value,
+                                    price=greater_healing_potion.price
+                                )
+                                potion_to_drop.x = x
+                                potion_to_drop.y = y
+                                game_instance.game_map.items_on_ground.append(potion_to_drop)
+                                game_instance.message_log.add_message(f"A {potion_to_drop.name} drops from the {target_tile.name}!", potion_to_drop.color)
+                            elif random.random() < 0.70:
+                                new_junk = wood_plank.__class__(
+                                    name=wood_plank.name,
+                                    char=wood_plank.char,
+                                    color=wood_plank.color,
+                                    description=wood_plank.description
+                                )
+                                new_junk.x = x
+                                new_junk.y = y
+                                game_instance.game_map.items_on_ground.append(new_junk)
+                                game_instance.message_log.add_message(f"A {new_junk.name} drops from the {target_tile.name}!", new_junk.color)                                
         return True  # Successfully used ability
 
     def is_within_radius(self, x, y, center_x, center_y, radius):
