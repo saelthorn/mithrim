@@ -15,9 +15,9 @@ To do:
      - Add Companions
      - Add Torches as an Items
      - Add Boss Rooms
+     - Food as a Resource
 
 
 
 To fix:
-    - Not being able to buy items on dungeon merchant.
-    - Two-handed weapons should automatically unequip the off-hand
+    - Something wrong about the update of AC and attack bonus, with the AC it becomes static after equipping the highest AC score, with the attack bonus it just keeps incrementing, when going to next level

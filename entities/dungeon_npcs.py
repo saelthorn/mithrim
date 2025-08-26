@@ -47,10 +47,8 @@ class DungeonMerchant(NPC):
             "CHA": False,
         }    
 
-
-        # Define items for sale
-        self.items_for_sale = [
-            lesser_healing_potion,  # Assuming these are defined as instances of Potion
+        item_templates = [
+            lesser_healing_potion,
             greater_healing_potion,
             full_plate_armor,
             robes_of_protection,
@@ -61,8 +59,26 @@ class DungeonMerchant(NPC):
             flameheart_flail,
             flameheart_short_sword,
             dragonsbane_warhammer,
-            CampfireKit()
+            CampfireKit() # CampfireKit is already an instance and doesn't need special handling here
         ]
+        
+        # Create new instances for the merchant's actual stock
+        self.items_for_sale = []
+        for template_item in item_templates:
+            # For CampfireKit, it's already an instance, so just add it directly
+            if isinstance(template_item, CampfireKit):
+                self.items_for_sale.append(CampfireKit()) # Create a new one each time
+                continue
+            
+            new_item = template_item.__class__(
+                name=template_item.name,
+                char=template_item.char,
+                color=template_item.color,
+                description=template_item.description,
+                # Use a dictionary comprehension to copy other specific attributes
+                **{k: v for k, v in template_item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+            )
+            self.items_for_sale.append(new_item)
 
 
     def offer_trade(self, player, game):

@@ -2,7 +2,7 @@ import random
 import pygame
 
 from core.game import GameState
-from items.items import lesser_healing_potion, greater_healing_potion, silver_dagger, iron_short_sword, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes, CampfireKit
+from items.items import lesser_healing_potion, greater_healing_potion, silver_dagger, iron_short_sword, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes, CampfireKit
 from entities.dungeon_npcs import DungeonHealer # <--- NEW IMPORT
 from entities.base_entity import NPC
 
@@ -65,6 +65,12 @@ class Merchant(NPC):
             oak_staff,
             padded_armor,
             chainmail_armor, 
+            adamantine_long_sword,
+            staff_of_magi,
+            duelists_rapier,
+            dragonsbane_warhammer,
+            steel_long_sword,
+            dwarven_battle_axe,
             CampfireKit()           
         ]
 

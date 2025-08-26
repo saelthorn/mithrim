@@ -2188,8 +2188,8 @@ class Game:
         target_surface.fill((0, 0, 0, 0))  # Clear the surface
 
         # Define column widths
-        left_column_width = target_surface.get_width() * 0.7  # 70% for inventory
-        right_column_width = target_surface.get_width() * 0.3  # 30% for character info
+        left_column_width = target_surface.get_width() * 0.65  # 70% for inventory
+        right_column_width = target_surface.get_width() * 0.32  # 30% for character info
 
         # Draw left column for inventory items
         left_column_rect = pygame.Rect(10, 10, left_column_width, target_surface.get_height() - 20)
@@ -2219,16 +2219,22 @@ class Game:
         armor_name = equipped_armor.name if equipped_armor else "None"
         off_hand_name = equipped_off_hand.name if equipped_off_hand else "None"
 
-        # Draw equipped weapon icon
-        self._draw_text(target_surface, self.font_info, f"Equipped Weapon: {weapon_name}", (255, 255, 255), left_column_width + 30, 100)
-        # Draw equipped armor icon
-        self._draw_text(target_surface, self.font_info, f"Equipped Armor: {armor_name}", (255, 255, 255), left_column_width + 30, 120)
-        # Draw equipped off-hand icon
-        self._draw_text(target_surface, self.font_info, f"Equipped Off-Hand: {off_hand_name}", (255, 255, 255), left_column_width + 30, 140)
 
-        # Instructions for user
-        self._draw_text(target_surface, self.font_small, "Press 1-9/0 to select an item.", (150, 150, 150), 20, current_y)
-        self._draw_text(target_surface, self.font_small, "Press 'I' to close inventory.", (150, 150, 150), 20, current_y + 20)
+        self._draw_text(target_surface, self.font_info, f"Name: {self.player.name}", (255, 255, 255), left_column_width + 30, 100)
+        self._draw_text(target_surface, self.font_info, f"Gold: {self.player.gold}", (255, 255, 255), left_column_width + 30, 120)
+        self._draw_text(target_surface, self.font_info, f"AC: {self.player.armor_class}", (255, 255, 255), left_column_width + 30, 160)
+        self._draw_text(target_surface, self.font_info, f"Proficiency Bonus: +{self.player.proficiency_bonus}", (255, 255, 255), left_column_width + 30, 180)
+        self._draw_text(target_surface, self.font_info, f"Attack Power: +{self.player.attack_power}", (255, 255, 255), left_column_width + 30, 200)
+        self._draw_text(target_surface, self.font_info, f"Attack Bonus: +{self.player.attack_bonus}", (255, 255, 255), left_column_width + 30, 220)
+
+
+        # Draw equipped weapon icon
+        self._draw_text(target_surface, self.font_info, f"Equipped Weapon: {weapon_name}", (255, 255, 255), left_column_width + 30, 260)
+        # Draw equipped armor icon
+        self._draw_text(target_surface, self.font_info, f"Equipped Armor: {armor_name}", (255, 255, 255), left_column_width + 30, 280)
+        # Draw equipped off-hand icon
+        self._draw_text(target_surface, self.font_info, f"Equipped Off-Hand: {off_hand_name}", (255, 255, 255), left_column_width + 30, 300)
+            
 
 
 

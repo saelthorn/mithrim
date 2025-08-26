@@ -2,7 +2,7 @@ import random
 from core.inventory import Inventory
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball
 from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning
-from items.items import iron_long_sword, chainmail_armor, iron_short_sword, steel_long_sword, steel_battle_axe, padded_armor, half_plate_armor, iron_dagger, silver_dagger, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
+from items.items import iron_long_sword, chainmail_armor, iron_short_sword, steel_long_sword, steel_battle_axe, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
 from core.floating_text import FloatingText
@@ -103,25 +103,30 @@ class Player: # This is our base class for playable characters
 
     def get_ability_modifier(self, score):
         return (score - 10) // 2
-
+    
     def update_attack_power(self):
         """Recalculate the attack power based on the primary stat and equipped items."""
-        if self.primary_stat:
-            self.attack_power = self.get_ability_modifier(getattr(self, self.primary_stat))  # Base attack power from primary stat
-            if self.equipped_weapon:
-                self.attack_power += self.equipped_weapon.damage_modifier  # Add weapon's damage modifier
-                self.attack_bonus += self.equipped_weapon.attack_bonus
-                print(f"Weapon Attack Power: {self.equipped_weapon.damage_modifier}")  # Debugging output
-                print(f"Weapon Attack Bonus: {self.equipped_weapon.attack_bonus}")  # Debugging output
-            if self.equipped_off_hand:
-                self.attack_bonus = self.get_ability_modifier(getattr(self, self.primary_stat)) + self.equipped_off_hand.attack_bonus  # Add off-hand weapon's attack bonus
-                self.attack_power += self.equipped_off_hand.damage_modifier 
-                print(f"Offhand Attack Power: {self.equipped_weapon.damage_modifier}")  # Debugging output
-                print(f"Offhand Attack Bonus: {self.equipped_weapon.attack_bonus}")  # Debugging output
-        else:
-            self.attack_power = 0  # Default to 0 if no primary stat is set
+        # Base attack power from primary stat
+        base_attack_power = self.get_ability_modifier(self.dexterity)
+    
+        # Initialize attack power and attack bonus
+        self.attack_power = base_attack_power
+        self.attack_bonus = base_attack_power + self.proficiency_bonus  # Base attack bonus
+    
+        # Check if a main weapon is equipped
+        if self.equipped_weapon:
+            self.attack_power += self.equipped_weapon.damage_modifier  # Add weapon's damage modifier
+            self.attack_bonus += self.equipped_weapon.attack_bonus  # Add weapon's attack bonus
+    
+        # Check if an off-hand weapon is equipped
+        if self.equipped_off_hand:
+            # Off-hand weapons typically do not get the proficiency bonus
+            self.attack_power += self.equipped_off_hand.damage_modifier  # Add off-hand weapon's damage modifier
+            self.attack_bonus += self.equipped_off_hand.attack_bonus  # Add off-hand weapon's attack bonus
+    
         print(f"Updated Attack Power: {self.attack_power}")  # Debugging output
         print(f"Updated Attack Bonus: {self.attack_bonus}")  # Debugging output
+    
 
 
     def get_saving_throw_bonus(self, ability_name):
@@ -415,7 +420,23 @@ class Player: # This is our base class for playable characters
 
     def equip_item(self, item, game_instance):
         from items.items import Weapon, Armor, OffHand
+        
         if isinstance(item, Weapon):
+            # Check if the weapon is two-handed
+            if item.is_two_handed:  # Assuming you have an attribute to check if it's two-handed
+                # Automatically unequip the off-hand item
+                if self.equipped_off_hand:
+                    self.inventory.add_item(self.equipped_off_hand) 
+                    game_instance.message_log.add_message(f"You unequip {self.equipped_off_hand.name}.", (150, 150, 150))
+                    self.equipped_off_hand = None  # Clear the off-hand slot
+
+                    # Recalculate AC after equipping the shield
+                    self.armor_class = self._calculate_ac()  # Recalculate AC to include the shield's defense bonus
+
+                    # Recalculate attack bonus after equipping the off-hand weapon
+                    self.update_attack_power()  # Call the method to update the attack bonus                    
+
+            # If the player is equipping a weapon, check for existing equipped weapon
             if self.equipped_weapon:
                 self.inventory.add_item(self.equipped_weapon) 
                 game_instance.message_log.add_message(f"You unequip {self.equipped_weapon.name}.", (150, 150, 150))
@@ -425,12 +446,12 @@ class Player: # This is our base class for playable characters
             
             # Check for weapon proficiency based on categories
             proficiency_penalty = 0
-            standardized_weapon_name = item.name.lower().replace(" ", "")  # Standardize the name
+            standardized_weapon_name = item.name.lower().replace(" ", "")
             
             # Check if the player is proficient with the weapon category
             weapon_category = None
             for category, weapons in WEAPON_CATEGORIES.items():
-                if standardized_weapon_name in [w.lower().replace(" ", "") for w in weapons]:  # Standardize weapon names in the category
+                if standardized_weapon_name in [w.lower().replace(" ", "") for w in weapons]:
                     weapon_category = category
                     break
                 
@@ -439,7 +460,6 @@ class Player: # This is our base class for playable characters
                 proficiency_penalty = -4  # No category found
                 game_instance.message_log.add_message(f"You are not proficient with {item.name}. Attack rolls with it will be penalized by {proficiency_penalty}.", (255, 100, 100))
             else:
-                # Check if the category is in the player's proficiencies
                 if weapon_category not in self.weapon_proficiencies and weapon_category not in self.class_weapon_proficiencies:
                     proficiency_penalty = -4  # Example penalty for non-proficiency
                     game_instance.message_log.add_message(f"You are not proficient with {item.name}. Attack rolls with it will be penalized by {proficiency_penalty}.", (255, 100, 100))
@@ -467,7 +487,7 @@ class Player: # This is our base class for playable characters
             # Check if the player is proficient with the armor category
             armor_category = None
             for category, armors in ARMOR_CATEGORIES.items():
-                if standardized_armor_name in [a.lower().replace(" ", "") for a in armors]:  # Standardize armor names in the category
+                if standardized_armor_name in [a.lower().replace(" ", "") for a in armors]:
                     armor_category = category
                     break
                 
@@ -476,13 +496,11 @@ class Player: # This is our base class for playable characters
                 proficiency_penalty = -4  # No category found
                 game_instance.message_log.add_message(f"You are not proficient with {item.name}. Armor rolls will be penalized by {proficiency_penalty}.", (255, 100, 100))
             else:
-                # Check if the category is in the player's proficiencies
                 if armor_category not in self.armor_proficiencies and armor_category not in self.class_armor_proficiencies:
                     proficiency_penalty = -4  # Example penalty for non-proficiency
                     game_instance.message_log.add_message(f"You are not proficient with {item.name}. Armor rolls will be penalized by {proficiency_penalty}.", (255, 100, 100))
                 else:
                     game_instance.message_log.add_message(f"You are proficient with {item.name}.", (100, 255, 100))
-
 
             self.armor_class = self._calculate_ac()  # Recalculate AC to include the shield's defense bonus
 
@@ -491,6 +509,11 @@ class Player: # This is our base class for playable characters
             return True
 
         elif isinstance(item, OffHand):  # Handle off-hand items
+            # Check if a two-handed weapon is already equipped
+            if self.equipped_weapon and self.equipped_weapon.is_two_handed:
+                game_instance.message_log.add_message(f"You cannot equip {item.name} while wielding a two-handed weapon.", (255, 0, 0))
+                return False
+            
             if self.equipped_off_hand:
                 self.inventory.add_item(self.equipped_off_hand) 
                 game_instance.message_log.add_message(f"You unequip {self.equipped_off_hand.name}.", (150, 150, 150))
@@ -500,7 +523,6 @@ class Player: # This is our base class for playable characters
             
             game_instance.message_log.add_message(f"You equip {item.name} in your off-hand.", (0, 255, 0))
             
-
             # Recalculate AC after equipping the shield
             self.armor_class = self._calculate_ac()  # Recalculate AC to include the shield's defense bonus
 
@@ -610,6 +632,7 @@ class Fighter(Player):
         # Set starting equipment
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
+        self.inventory.add_item(dragonsbane_warhammer)
 
         self.equipped_weapon = iron_short_sword
         self.equipped_off_hand = round_shield
