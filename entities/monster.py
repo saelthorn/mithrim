@@ -104,7 +104,6 @@ class Monster:
         # Execute behavior based on AI state
         if self.ai_state == AI_State.FLEEING:
             if self.flee(player, game_map, game):
-                game.floating_texts.append(FloatingText(self.x, self.y, "FLEE!", (255, 255, 0)))
                 return  # Monster took action (fled)
             else:
                 game.message_log.add_message(f"The {self.name} tries to flee but is cornered!", (255, 100, 0))

@@ -476,7 +476,8 @@ class Fireball(Ability):
                     else:
                         damage_dealt = total_damage  # Full damage on failure
                         game_instance.message_log.add_message(f"{entity.name} fails the saving throw and takes {damage_dealt} fire damage!", (255, 100, 100))
-                        
+
+                    damage_dealt = entity.take_damage(damage_dealt, game_instance, damage_type='fire')  # Apply damage
 
                     # Create floating text for damage dealt
                     damage_text = FloatingText(entity.x, entity.y - 0.5, str(damage_dealt), (255, 0, 0))  # Adjust Y for visibility
