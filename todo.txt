@@ -6,15 +6,18 @@ If there's only one way in and no way out, it's a tomb. Yours.
 - Some dungeon-delver, probably.
 
 
+To do:
+    Prioritize - UI Rework pt.2
+     - When Monster is Attacked it Chases The Player
+     - Add Locked Chests
+     - Make Mithrim Logo
+     - Add More Traps and Status Effects
+     - Add Companions
+     - Add Torches as an Items
+     - Add Boss Rooms
 
-Prioritize - UI Rework pt.2
- - When Monster is Attacked it Chases The Player
- - Add Locked Chests
- - Make Mithrim Logo
- - Add More Traps and Status Effects
- - Add Companions
- - Add Torches as an Items
- - Add Boss Rooms
 
 
-
+To fix:
+    - Not being able to buy items on dungeon merchant.
+    - Two-handed weapons should automatically unequip the off-hand

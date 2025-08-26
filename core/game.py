@@ -1104,7 +1104,7 @@ class Game:
                                         target.reveal(self)
                                         action_taken = True
                                     elif isinstance(target, Monster): # If it's a monster, attack it
-                                        self.handle_player_attack(target)
+                                        self.handle_player_attack(target, self)
                                         action_taken = True
                                     else:
                                         self.message_log.add_message(f"You can't interact with {target.name} that way.", (150, 150, 150))
@@ -1739,7 +1739,7 @@ class Game:
                 (255, 200, 100)
             )
     
-            damage_dealt = target.take_damage(damage_total, self, damage_type='physical') 
+            damage_dealt = target.take_damage(damage_total, game_instance, damage_type='physical') 
     
             self.message_log.add_message(
                 f"You hit the {target.name} for {damage_dealt} damage!",
