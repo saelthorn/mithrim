@@ -302,7 +302,7 @@ class Monster:
             game.message_log.add_message(f"The {self.name} rolls with Advantage!", (255, 200, 100))
         elif disadvantage:
             final_d20_roll = min(roll1, roll2)
-            roll_message_part = f"2d20 (Disadvantage): {roll1}, {roll2} -> {final_d20_roll}"
+            roll_message_part = f"2d20 (Disadvantage): {roll1}, {2} -> {final_d20_roll}"
             game.message_log.add_message(f"The {self.name} rolls with Disadvantage!", (150, 150, 255))
         attack_roll_total = final_d20_roll + attack_bonus
         
@@ -357,6 +357,19 @@ class Monster:
                 hp_message = f"{target.name} has {target.hp}/{target.max_hp} HP"
                 hp_color = (255, 200, 0) if target.hp > target.max_hp * 0.3 else (255, 100, 0)
                 game.message_log.add_message(hp_message, hp_color)
+
+            # --- NEW: Apply Status Effects ---
+            if self.can_poison:
+                if not target.make_saving_throw("CON", self.poison_dc, game):
+                    target.add_status_effect("Poisoned", self.poison_duration, game, source=self)
+            if self.can_acid_burn:
+                if not target.make_saving_throw("DEX", self.acid_burn_dc, game): # Acid often uses Dex save
+                    target.add_status_effect("AcidBurned", self.acid_burn_duration, game, source=self)
+            if self.can_burn:
+                if not target.make_saving_throw("DEX", self.burn_dc, game): # Fire often uses Dex save
+                    target.add_status_effect("Burning", self.burn_duration, game, source=self)
+            # Add more status effects here as needed (e.g., Restrained, Stunned, etc.)
+
         else:
             # Miss handling
             miss_messages = [
@@ -433,6 +446,19 @@ class Monster:
                 hp_message = f"{target.name} has {target.hp}/{target.max_hp} HP"
                 hp_color = (255, 200, 0) if target.hp > target.max_hp * 0.3 else (255, 100, 0)
                 game.message_log.add_message(hp_message, hp_color)
+
+            # --- NEW: Apply Status Effects (Ranged) ---
+            if self.can_poison:
+                if not target.make_saving_throw("CON", self.poison_dc, game):
+                    target.add_status_effect("Poisoned", self.poison_duration, game, source=self)
+            if self.can_acid_burn:
+                if not target.make_saving_throw("DEX", self.acid_burn_dc, game):
+                    target.add_status_effect("AcidBurned", self.acid_burn_duration, game, source=self)
+            if self.can_burn:
+                if not target.make_saving_throw("DEX", self.burn_dc, game):
+                    target.add_status_effect("Burning", self.burn_duration, game, source=self)
+            # Add more ranged status effects here as needed
+
         else:
             # Miss handling
             miss_messages = [
