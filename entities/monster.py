@@ -1,8 +1,14 @@
-# MultipleFiles/monster.py
 import random
 from core.pathfinding import astar
 from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff
 from core.floating_text import FloatingText 
+
+from enum import Enum
+
+class AI_State(Enum):
+    CHASING = 1
+    FLEEING = 2
+    DESPERATE_FIGHT = 3
 
 class Monster:
     def __init__(self, x, y, char, name, color):
@@ -61,6 +67,101 @@ class Monster:
         self.burn_duration = 3
         self.burn_damage_per_turn = random.randint(1, 4)
 
+        # NEW: AI Behavior attributes
+        self.is_intelligent = False  # Default to False. Set to True for intelligent monsters.
+        self.flee_hp_threshold = 0.40  # Flee if monster HP < 25%
+        self.player_safe_hp_threshold = 0.60  # Flee if player HP > 60%
+        self.desperate_fight_hp_threshold = 0.50  # Fight if player HP < 40% (and monster HP is also low)
+        self.ai_state = AI_State.CHASING  # Default state
+
+
+    def take_turn(self, player, game_map, game):
+        """Handle monster's combat and movement"""
+        if not self.alive:
+            return
+
+        # Process status effects at the start of the monster's turn
+        self.process_status_effects(game)
+        if not self.alive:  # Check if monster died from status effect
+            return
+
+        # Check if the player is detected before chasing
+        player_detected = self.detect_player(player, game)
+
+        # Determine AI state based on health
+        monster_hp_low = self.hp_percentage() < self.flee_hp_threshold
+        player_hp_high = game.get_player_hp_percentage() > self.player_safe_hp_threshold
+        player_hp_low = game.get_player_hp_percentage() < self.desperate_fight_hp_threshold
+
+        if self.is_intelligent:
+            if monster_hp_low and player_hp_high:
+                self.ai_state = AI_State.FLEEING
+            elif monster_hp_low and player_hp_low:
+                self.ai_state = AI_State.DESPERATE_FIGHT
+            else:
+                self.ai_state = AI_State.CHASING
+
+        # Execute behavior based on AI state
+        if self.ai_state == AI_State.FLEEING:
+            if self.flee(player, game_map, game):
+                game.message_log.add_message(f"The {self.name} attempts to flee!", (255, 255, 0))
+                game.floating_texts.append(FloatingText(self.x, self.y, "FLEE!", (255, 255, 0)))
+                return  # Monster took action (fled)
+            else:
+                game.message_log.add_message(f"The {self.name} tries to flee but is cornered!", (255, 100, 0))
+                # If cannot flee, fall through to desperate fight or attack
+
+        if self.ai_state == AI_State.DESPERATE_FIGHT:
+            game.message_log.add_message(f"The {self.name} is desperate and fights on!", (255, 100, 100))
+            game.floating_texts.append(FloatingText(self.x, self.y, "DESPERATE!", (255, 100, 100)))
+            self.attack(player, game)  # Use base melee attack
+            return
+
+        # If not fleeing or in desperate fight, proceed with normal attack/chase
+        if player_detected:
+            # If monster has ranged attack, check if player is in range and line of sight
+            distance_to_player = self.distance_to(player.x, player.y)
+            if self.is_ranged:
+                if distance_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
+                    self.ranged_attack(player, game)
+                    return
+
+            # Check if adjacent to player (including diagonals) - melee attack
+            if self.is_adjacent_to(player):
+                self.attack(player, game)  # Use base melee attack
+                return
+
+            # Otherwise, move toward the player's current position using A* pathfinding
+            path = astar(game_map, (self.x, self.y), (player.x, player.y), entities=[e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement])
+
+            if path and len(path) > 1:
+                next_step = path[1]
+                new_x, new_y = next_step  # Ensure next_step is unpacked correctly
+
+                is_blocked = False
+                for entity in game.entities:
+                    if entity != self and entity.x == new_x and entity.y == new_y and entity.alive and entity.blocks_movement:
+                        is_blocked = True
+                        break
+
+                if not is_blocked:
+                    self.x, self.y = new_x, new_y  # Correctly assign new_x and new_y
+                else:
+                    game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
+            else:
+                game.message_log.add_message(f"The {self.name} cannot find a path to the player.", (150, 150, 150))
+        else:
+            # If the player is not detected, patrol the area
+            if self.patrol(game_map):
+                # game.message_log.add_message(f"The {self.name} patrols the area.", (150, 150, 150))
+                pass
+
+    def hp_percentage(self):
+        """Returns the monster's current HP as a percentage."""
+        if self.max_hp == 0:
+            return 0.0
+        return self.hp / self.max_hp
+
     def get_saving_throw_bonus(self, ability_name):
         """Calculate the saving throw bonus for the specified ability."""
         # Get the ability score based on the ability name
@@ -106,58 +207,49 @@ class Monster:
             self.x, self.y = next_position
             return True  # Successfully patrolled to the next position
         return False  # Could not move
+            
+    def flee(self, player, game_map, game):
+        """
+        Attempts to move the monster directly away from the player.
+        Returns True if a move was made, False otherwise.
+        """
+        # Calculate direction away from player
+        dx = self.x - player.x
+        dy = self.y - player.y
 
-    def take_turn(self, player, game_map, game):
-        """Handle monster's combat and movement"""
-        if not self.alive:
-            return
-    
-        # Process status effects at the start of the monster's turn
-        self.process_status_effects(game)
-        if not self.alive:  # Check if monster died from status effect
-            return
-    
-        # Check if the player is detected before chasing
-        player_detected = self.detect_player(player, game)
-    
-        if player_detected:
-            # If monster has ranged attack, check if player is in range and line of sight
-            distance_to_player = self.distance_to(player.x, player.y)
-            if self.is_ranged:
-                if distance_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
-                    self.ranged_attack(player, game)
-                    return
-    
-            # Check if adjacent to player (including diagonals) - melee attack
-            if self.is_adjacent_to(player):
-                self.attack(player, game)  # Use base melee attack
-                return
-    
-            # Otherwise, move toward the player's current position using A* pathfinding
-            path = astar(game_map, (self.x, self.y), (player.x, player.y), entities=[e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement])
-    
-            if path and len(path) > 1:
-                next_step = path[1]
-                new_x, new_y = next_step  # Ensure next_step is unpacked correctly
-    
+        # Normalize dx, dy to -1, 0, or 1
+        move_x = 0
+        if dx > 0: move_x = 1
+        elif dx < 0: move_x = -1
+
+        move_y = 0
+        if dy > 0: move_y = 1
+        elif dy < 0: move_y = -1
+        
+        # Prioritize moving away in both axes if possible
+        potential_moves = []
+        if move_x != 0 and move_y != 0:
+            potential_moves.append((move_x, move_y)) # Diagonal away
+        if move_x != 0:
+            potential_moves.append((move_x, 0)) # Horizontal away
+        if move_y != 0:
+            potential_moves.append((0, move_y)) # Vertical away
+        
+        # Add other directions if primary ones are blocked (less ideal but still away)
+        # This is a very basic fleeing. Phase 2 will improve this with A*
+        for check_dx, check_dy in potential_moves:
+            new_x, new_y = self.x + check_dx, self.y + check_dy
+            if game_map.is_walkable(new_x, new_y):
                 is_blocked = False
                 for entity in game.entities:
                     if entity != self and entity.x == new_x and entity.y == new_y and entity.alive and entity.blocks_movement:
                         is_blocked = True
                         break
-                    
                 if not is_blocked:
-                    self.x, self.y = new_x, new_y  # Correctly assign new_x and new_y
-                else:
-                    game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
-            else:
-                game.message_log.add_message(f"The {self.name} cannot find a path to the player.", (150, 150, 150))
-        else:
-            # If the player is not detected, patrol the area
-            if self.patrol(game_map):
-                # game.message_log.add_message(f"The {self.name} patrols the area.", (150, 150, 150))
-                pass
-            
+                    self.x, self.y = new_x, new_y
+                    return True # Successfully fled one step
+        return False # Could not find a valid tile to flee to
+
 
     def is_adjacent_to(self, other):
         """Check if next to another entity (cardinal directions + diagonals)"""
@@ -431,6 +523,8 @@ class Mimic(Monster):
         self.acid_burn_damage_per_turn = 3
         self.damage_modifier = 3
         self.num_damage_dice = 1
+        # Mimics are not "intelligent" in the sense of fleeing, they are ambush predators
+        self.is_intelligent = False 
 
     def take_damage(self, amount, game_instance, damage_type=None):
         """
@@ -510,6 +604,7 @@ class GiantRat(Monster):
         self.detection_range = 8
         self.num_damage_dice = 1
         # self.can_disease = True  # Filth Fever (homebrew disease effect)
+        self.is_intelligent = False # Not intelligent enough to flee
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -535,6 +630,7 @@ class Ooze(Monster):
         self.damage_modifier = 1
         self.detection_range = 4
         self.acid_burn_damage_per_turn = 3
+        self.is_intelligent = False # Not intelligent enough to flee
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -557,6 +653,7 @@ class Goblin(Monster):
         self.damage_modifier = 2
         self.detection_range = 6
         self.num_damage_dice = 1
+        self.is_intelligent = True # Intelligent enough to flee
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -584,6 +681,7 @@ class GoblinArcher(Monster):
         self.range = 4  # Max range for ranged attacks
         self.ranged_die_type = 6  # Base die type for ranged attacks
         self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
+        self.is_intelligent = True # Intelligent enough to flee
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -606,6 +704,7 @@ class Skeleton(Monster):
         self.damage_modifier = 2
         self.detection_range = 4
         self.num_damage_dice = 1
+        self.is_intelligent = False # Not intelligent enough to flee
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -633,6 +732,7 @@ class SkeletonArcher(Monster):
         self.range = 5  # Max range for ranged attacks
         self.ranged_die_type = 6  # Base die type for ranged attacks
         self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
+        self.is_intelligent = False # Not intelligent enough to flee
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -655,6 +755,7 @@ class Orc(Monster):
         self.damage_modifier = 3
         self.detection_range = 6
         self.num_damage_dice = 1
+        self.is_intelligent = True # Intelligent enough to flee
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -677,6 +778,7 @@ class Centaur(Monster):
         self.damage_modifier = 4
         self.detection_range = 6
         self.num_damage_dice = 2
+        self.is_intelligent = True # Intelligent enough to flee
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -698,12 +800,13 @@ class CentaurArcher(Monster):
         self.monster_die_type = 6
         self.damage_modifier = 3
         self.detection_range = 6
-        self.num_damage_dice = 2
+        self.num_damage_dice = 1
         self.is_ranged = True
         self.ranged_attack_bonus = 2  # Base ranged attack bonus
         self.range = 5  # Max range for ranged attacks
         self.ranged_die_type = 8  # Base die type for ranged attacks
         self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
+        self.is_intelligent = True # Intelligent enough to flee
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -728,6 +831,7 @@ class Troll(Monster):
         self.num_damage_dice = 2
         # self.regeneration = True
         # self.regen_amount = 10  # per turn unless acid/fire damage
+        self.is_intelligent = False # Not intelligent enough to flee (more brute force)
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -754,6 +858,7 @@ class Lizardfolk(Monster):
         self.poison_dc = 13
         self.poison_duration = 3
         self.poison_damage_per_turn = 2
+        self.is_intelligent = True # Intelligent enough to flee
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -781,6 +886,7 @@ class LizardfolkArcher(Monster):
         self.range = 5  # Max range for ranged attacks
         self.ranged_die_type = 8  # Base die type for ranged attacks
         self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
+        self.is_intelligent = True # Intelligent enough to flee
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -808,6 +914,7 @@ class GiantSpider(Monster):
         self.poison_duration = 3
         self.poison_damage_per_turn = 4
         self.web_restrain = True
+        self.is_intelligent = False # More instinct-driven
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -836,6 +943,7 @@ class Beholder(Monster):
         self.ranged_die_type = 8  # Base die type for ranged attacks
         self.ranged_num_dice = 4  # Number of damage dice for ranged attacks
         # self.eye_ray_effects = ["charm", "paralyze", "petrify", "fear", "disintegrate"]
+        self.is_intelligent = True # Highly intelligent
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -862,6 +970,7 @@ class LargeOoze(Monster):  # Gelatinous Cube
         self.acid_burn_duration = 4
         self.acid_burn_damage_per_turn = 4
         self.split_on_slash = True
+        self.is_intelligent = False # Mindless
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -887,6 +996,7 @@ class DragonWhelp(Monster):  # Wyrmling
         # self.breath_weapon = True
         # self.breath_dc = 13
         # self.breath_damage = "4d6 fire"
+        self.is_intelligent = True # Intelligent enough to flee
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -909,6 +1019,7 @@ class Owlbear(Monster):
         self.damage_modifier = 5
         self.detection_range = 5
         self.num_damage_dice = 2
+        self.is_intelligent = False # More beast-like
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -933,6 +1044,7 @@ class Demogorgon(Monster):
         self.num_damage_dice = 3
         # self.legendary_resistance = 3
         # self.frightful_presence = True
+        self.is_intelligent = True # Highly intelligent, but likely never flees (boss)
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -956,6 +1068,7 @@ class Grick(Monster):
         self.detection_range = 15
         self.num_damage_dice = 2
         # self.resist_nonmagical = True
+        self.is_intelligent = False # Ambush predator, not intelligent
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -980,6 +1093,7 @@ class GibberingMouther(Monster):
         self.num_damage_dice = 2
         # self.maddening_babble = True
         # self.prone_ground = True
+        self.is_intelligent = False # Mindless aberration
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -1009,6 +1123,7 @@ class MindFlayer(Monster):
         self.ranged_num_dice = 2  # Number of damage dice for ranged attacks
         # self.psionic_blast_dc = 15
         # self.psionic_stun_duration = 1
+        self.is_intelligent = True # Highly intelligent
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -1032,6 +1147,7 @@ class Minotaur(Monster):
         self.detection_range = 6
         self.num_damage_dice = 2
         # self.charge_attack = True
+        self.is_intelligent = True # Intelligent enough to flee
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -1056,6 +1172,7 @@ class Wererat(Monster):
         self.num_damage_dice = 1
         # self.shapechanger = True
         # self.disease = True
+        self.is_intelligent = True # Intelligent enough to flee
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -1079,6 +1196,7 @@ class Wolf(Monster):
         self.detection_range = 8
         self.num_damage_dice = 1
         # self.knock_prone_dc = 11
+        self.is_intelligent = False # More beast-like
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -1105,6 +1223,7 @@ class Yochlol(Monster):
         self.poison_dc = 10
         self.poison_duration = 3
         self.poison_damage_per_turn = 4
+        self.is_intelligent = True # Intelligent enough to flee
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -1127,6 +1246,7 @@ class BlueSlaad(Monster):
         self.damage_modifier = 5
         self.detection_range = 6
         self.num_damage_dice = 2
+        self.is_intelligent = True # Intelligent enough to flee
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -1149,6 +1269,7 @@ class Drider(Monster):
         self.damage_modifier = 3
         self.detection_range = 12
         self.num_damage_dice = 3
+        self.is_intelligent = True # Intelligent enough to flee
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -1158,4 +1279,3 @@ class Drider(Monster):
             "WIS": False,
             "CHA": False,
         }        
-

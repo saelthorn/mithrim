@@ -223,7 +223,7 @@ class Evasion(Ability):
 
 class FireBolt(Ability):
     def __init__(self):
-        super().__init__("Fire Bolt", "Hurl a searing bolt of fire at a foe.", cost=0, cooldown=2)
+        super().__init__("Fire Bolt", "Hurl a searing bolt of fire at a foe.", cost=0, cooldown=1)
         self.range = 6  # Example range in tiles
 
     def use(self, user, game_instance):
@@ -393,7 +393,7 @@ class FireBolt(Ability):
 
 class Fireball(Ability):
     def __init__(self):
-        super().__init__("Fireball", "A bright streak flashes and explodes in a fiery blast.", cost=0, cooldown=150)
+        super().__init__("Fireball", "A bright streak flashes and explodes in a fiery blast.", cost=0, cooldown=1)
         self.radius = 3  # Radius of the fireball effect
         self.range = 8
         self.damage_dice = 8  # Number of damage dice
@@ -476,8 +476,7 @@ class Fireball(Ability):
                     else:
                         damage_dealt = total_damage  # Full damage on failure
                         game_instance.message_log.add_message(f"{entity.name} fails the saving throw and takes {damage_dealt} fire damage!", (255, 100, 100))
-
-                    damage_dealt = entity.take_damage(damage_dealt, game_instance, damage_type='fire')  # Apply damage
+                        
 
                     # Create floating text for damage dealt
                     damage_text = FloatingText(entity.x, entity.y - 0.5, str(damage_dealt), (255, 0, 0))  # Adjust Y for visibility

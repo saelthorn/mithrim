@@ -224,7 +224,7 @@ class Game:
         (17, 18): [Beholder, MindFlayer, LargeOoze],
 
         # Endgame / campaign boss
-        (16, 99): [Demogorgon],
+        (19, 99): [Demogorgon],
     }
 
 
@@ -633,6 +633,12 @@ class Game:
         if hasattr(self, 'stairs_positions'):
             self.message_log.add_message(f"Stairs down at {self.stairs_positions.get('down')}", (150, 150, 255))
         self.minimap_needs_redraw = True # New map, redraw minimap
+
+    def get_player_hp_percentage(self):
+        """Returns the player's current HP as a percentage."""
+        if self.player.max_hp == 0:
+            return 0.0
+        return self.player.hp / self.player.max_hp
 
 
     def check_tavern_door_interaction(self):

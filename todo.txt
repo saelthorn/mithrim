@@ -7,10 +7,10 @@ If there's only one way in and no way out, it's a tomb. Yours.
 
 
 To do:
-    Prioritize - UI Rework pt.2
-     - When Monster is Attacked it Chases The Player
+     - UI Rework pt.2
+    Prioritize - When Monster is Attacked it Chases The Player
      - Add Locked Chests
-     - Make Mithrim Logo
+    Prioritize - Make Mithrim Logo
      - Add More Traps and Status Effects
      - Add Companions
      - Add Torches as an Items
@@ -20,4 +20,7 @@ To do:
 
 
 To fix:
-    - Something wrong about the update of AC and attack bonus, with the AC it becomes static after equipping the highest AC score, with the attack bonus it just keeps incrementing, when going to next level
+     - Every level-up my attack_power and attack_bonus stats reset
+     - When the inventory is full and equip a two-handed weapon, one of the two weapons that was equipped will be going to the shadow realm
+     - No penalty for equipping weapons that the player is not proficient.
+     - Fireball and Mimics
