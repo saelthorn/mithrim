@@ -565,8 +565,7 @@ class Fireball(Ability):
                                 )
                                 new_junk.x = x
                                 new_junk.y = y
-                                game_instance.game_map.items_on_ground.append(new_junk)
-                                game_instance.message_log.add_message(f"A {new_junk.name} drops from the {target_tile.name}!", new_junk.color)                                
+                                game_instance.game_map.items_on_ground.append(new_junk)                              
         return True  # Successfully used ability
 
     def is_within_radius(self, x, y, center_x, center_y, radius):

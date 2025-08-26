@@ -228,9 +228,9 @@ iron_dagger = OffHand(
     color=(180, 180, 180),
     description="A small, light blade.",
     damage_dice="1d4",
-    damage_modifier=0,
-    attack_bonus=0,
-    price = 10,
+    damage_modifier=1,
+    attack_bonus=1,
+    price = 15,
     category="dagger"
 )
 
@@ -240,7 +240,7 @@ silver_dagger = OffHand(
     color=(180, 180, 180),
     description="A silver blade.",
     damage_dice="1d4",
-    damage_modifier=1,
+    damage_modifier=2,
     attack_bonus=3,
     price = 20,
     category="dagger"

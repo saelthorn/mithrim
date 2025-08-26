@@ -8,7 +8,6 @@ If there's only one way in and no way out, it's a tomb. Yours.
 
 To do:
      - UI Rework pt.2
-    Prioritize - When Monster is Attacked it Chases The Player
      - Add Locked Chests
     Prioritize - Make Mithrim Logo
      - Add More Traps and Status Effects
@@ -20,7 +19,4 @@ To do:
 
 
 To fix:
-     - Every level-up my attack_power and attack_bonus stats reset
-     - When the inventory is full and equip a two-handed weapon, one of the two weapons that was equipped will be going to the shadow realm
      - No penalty for equipping weapons that the player is not proficient.
-     - Fireball and Mimics

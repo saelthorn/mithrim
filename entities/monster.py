@@ -69,7 +69,7 @@ class Monster:
 
         # NEW: AI Behavior attributes
         self.is_intelligent = False  # Default to False. Set to True for intelligent monsters.
-        self.flee_hp_threshold = 0.40  # Flee if monster HP < 25%
+        self.flee_hp_threshold = 0.30  # Flee if monster HP < 25%
         self.player_safe_hp_threshold = 0.60  # Flee if player HP > 60%
         self.desperate_fight_hp_threshold = 0.50  # Fight if player HP < 40% (and monster HP is also low)
         self.ai_state = AI_State.CHASING  # Default state
@@ -189,7 +189,18 @@ class Monster:
             if game_instance.check_line_of_sight(self.x, self.y, player.x, player.y):
                 self.last_known_player_position = (player.x, player.y)  # Store the player's position
                 return True  # Player detected
+        # --- IMPORTANT: If last_known_player_position is set, it means we know where they are! ---
+        if self.last_known_player_position:
+            # Check if we still have line of sight to the last known position
+            if game_instance.check_line_of_sight(self.x, self.y, self.last_known_player_position[0], self.last_known_player_position[1]):
+                return True # Continue chasing to last known position
+            else:
+                # If we lost sight, clear last known position and revert to patrolling
+                self.last_known_player_position = None
+                self.ai_state = AI_State.CHASING # Revert to default chasing if intelligent
+                return False
         return False  # Player not detected
+
  
     def patrol(self, game_map):
         """Move the monster along a patrol path or randomly within a defined area."""
@@ -433,11 +444,19 @@ class Monster:
             game.floating_texts.append(miss_text)
 
 
-    def take_damage(self, amount, game_instance=None, damage_type=None): 
+    def take_damage(self, amount, game_instance=None, damage_type=None):
         """Handle taking damage and return actual damage taken"""
         damage_taken = amount 
         self.hp -= damage_taken
         
+        # --- NEW: If monster takes damage, it knows where the player is ---
+        if game_instance and game_instance.player:
+            # Set last_known_player_position to player's current location
+            self.last_known_player_position = (game_instance.player.x, game_instance.player.y)
+            # Force AI state to chasing if it's an intelligent monster and not already fleeing/desperate
+            if self.is_intelligent and self.ai_state not in [AI_State.FLEEING, AI_State.DESPERATE_FIGHT]:
+                self.ai_state = AI_State.CHASING
+                game_instance.message_log.add_message(f"The {self.name} is enraged and focuses on you!", (255, 100, 0))
         if self.hp <= 0:
             self.hp = 0
             self.alive = False
