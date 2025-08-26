@@ -5,13 +5,15 @@ import graphics
 
 def main():
     pygame.init()
+
+    pygame.key.set_repeat(400, 150) # Delay 200ms, repeat every 75ms
     
     # --- MODIFIED: Removed pygame.SCALED flag ---
     screen = pygame.display.set_mode((config.BASE_SCREEN_WIDTH, config.BASE_SCREEN_HEIGHT), pygame.RESIZABLE)
     
     pygame.display.set_caption("Mithrim")
     
-    graphics.load_tileset('assets/mithrim_tileset-2.png') 
+    graphics.load_tileset('assets/mithrim_tileset-2.png')
     graphics.setup_tile_mapping() 
     clock = pygame.time.Clock()
     game = Game(screen) 

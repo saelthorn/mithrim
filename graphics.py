@@ -1,5 +1,3 @@
-# MultipleFiles/graphics.py
-
 import pygame
 import config
 
@@ -53,6 +51,10 @@ def setup_tile_mapping():
 
 
         # Map Tiles
+        '{': (0 * CELL_DIM, 6 * CELL_DIM),  # Tavern Crate
+        '}': (2 * CELL_DIM, 6 * CELL_DIM),  # Tavern Barrel
+        ',': (0 * CELL_DIM, 16 * CELL_DIM), # Tavern Floor
+        ':': (1 * CELL_DIM, 16 * CELL_DIM), # Kitchen Tavern Floor
         '.': (0 * CELL_DIM, 3 * CELL_DIM),  # Floor
         '#': (1 * CELL_DIM, 3 * CELL_DIM),  # Wall
         '>': (8 * CELL_DIM, 3 * CELL_DIM),  # Stairs Down
@@ -64,6 +66,7 @@ def setup_tile_mapping():
         '*': (4 * CELL_DIM, 4 * CELL_DIM),  # Mushroom
         'fb': (5 * CELL_DIM, 4 * CELL_DIM), # Fresh Bones
         '`': (6 * CELL_DIM, 4 * CELL_DIM),  # Dungeon Grass
+        'dp': (7 * CELL_DIM, 4 * CELL_DIM), # Dungeon Pillar
         
         # IMPORTANT: Ensure 'C' is your *closed* chest graphic
         'C': (4 * CELL_DIM, 5 * CELL_DIM),  # Chest (Closed)
@@ -90,35 +93,106 @@ def setup_tile_mapping():
 
         # Entity Characters
         '@': (0 * CELL_DIM, 0 * CELL_DIM),  # Player
-        'r': (0 * CELL_DIM, 7 * CELL_DIM),  # Rat (Monster)
-        'g': (1 * CELL_DIM, 7 * CELL_DIM),  # Goblin
-        'S': (2 * CELL_DIM, 7 * CELL_DIM),  # Skeleton (Monster)
+
+        'R': (0 * CELL_DIM, 7 * CELL_DIM),   # Rat (Monster)
+        'GB': (1 * CELL_DIM, 7 * CELL_DIM),  # Goblin
+        'SK': (2 * CELL_DIM, 7 * CELL_DIM),  # Skeleton (Monster)
         'OR': (5 * CELL_DIM, 8 * CELL_DIM),  # Orc (Monster)
-        'T': (5 * CELL_DIM, 7 * CELL_DIM),  # Troll
-        'D': (7 * CELL_DIM, 7 * CELL_DIM),  # Dragon (Monster)
+        'TR': (5 * CELL_DIM, 7 * CELL_DIM),  # Troll
+        'DRA': (7 * CELL_DIM, 7 * CELL_DIM),  # Dragon (Monster)
         
-        's': (0 * CELL_DIM, 8 * CELL_DIM),  # Ooze (Monster)
-        'ga': (1 * CELL_DIM, 8 * CELL_DIM),  # Goblin Archer
+        'OZ': (0 * CELL_DIM, 8 * CELL_DIM),  # Ooze (Monster)
+        'GA': (1 * CELL_DIM, 8 * CELL_DIM),  # Goblin Archer
         'SA': (2 * CELL_DIM, 8 * CELL_DIM),  # Skeleton Archer
-        'CT': (3 * CELL_DIM, 7 * CELL_DIM),  # Centaur
+        'CE': (3 * CELL_DIM, 7 * CELL_DIM),  # Centaur
         'CA': (3 * CELL_DIM, 8 * CELL_DIM),  # Cebtaur Archer
-        'L': (4 * CELL_DIM, 7 * CELL_DIM),  # Lizardfolk
+        'LF': (4 * CELL_DIM, 7 * CELL_DIM),  # Lizardfolk
         'LA': (4 * CELL_DIM, 8 * CELL_DIM),  # Lizardfolk Archer
         'GS': (0 * CELL_DIM, 9 * CELL_DIM),  # Giant Spider
         'LO': (6 * CELL_DIM, 8 * CELL_DIM),  # Large Ooze
         'BH': (6 * CELL_DIM, 7 * CELL_DIM),  # Beholder
 
-        # IMPORTANT: Ensure 'M' is your *generic revealed mimic* graphic
-        'A': (7 * CELL_DIM, 0 * CELL_DIM),  # Bartender (NPC)
+        'OB': (1 * CELL_DIM, 9 * CELL_DIM),  # Owlbear
+        'DG': (2 * CELL_DIM, 9 * CELL_DIM),  # Demogorgon
+        'GK': (3 * CELL_DIM, 9 * CELL_DIM),  # Grick
+        'GM': (4 * CELL_DIM, 9 * CELL_DIM),  # Gibbering Mouther
+        'MF': (5 * CELL_DIM, 9 * CELL_DIM),  # Mind Flayer
+        'MN': (6 * CELL_DIM, 9 * CELL_DIM),  # Minotaur
+        'WR': (7 * CELL_DIM, 9 * CELL_DIM),  # Wererat
+        'WF': (7 * CELL_DIM, 8 * CELL_DIM),  # Wolf        
+
+        'YL': (8 * CELL_DIM, 7 * CELL_DIM),  # Yochlol
+        'DD': (8 * CELL_DIM, 8 * CELL_DIM),  # Drider
+        'BS': (8 * CELL_DIM, 9 * CELL_DIM),  # Blue Slaad
+
+
+        # Tavern Entities and Misc.
+        'A': (9 * CELL_DIM, 0 * CELL_DIM),  # Bartender (NPC)
         'p': (8 * CELL_DIM, 0 * CELL_DIM),  # Patron (NPC)
         'H': (6 * CELL_DIM, 0 * CELL_DIM),  # Healer (NPC)
+        'rc': (7 * CELL_DIM, 0 * CELL_DIM), # Merchant (NPC)
+        'mh': (6 * CELL_DIM, 2 * CELL_DIM), # Mage Hand (Skill)
         
         # Item Characters
-        '!': (0 * CELL_DIM, 6 * CELL_DIM),  # Potion
-        '/': (4 * CELL_DIM, 6 * CELL_DIM),  # Weapon
-        '[': (1 * CELL_DIM, 6 * CELL_DIM),  # Armor
+        'cf': (8 * CELL_DIM, 2 * CELL_DIM), # Campfire 
+        'pn': (9 * CELL_DIM, 2 * CELL_DIM), # Wood Plank (Junk)
+        'tt': (7 * CELL_DIM, 2 * CELL_DIM), # Thieves' Tools
+        '!': (0 * CELL_DIM, 13 * CELL_DIM), # Potions
+
+
+        # Armors and Robes
+        'pda': (1 * CELL_DIM, 13 * CELL_DIM),  # Leather Armor
+        'sla': (1 * CELL_DIM, 14 * CELL_DIM),  # Studded Leather Armor
+
+        'cha': (2 * CELL_DIM, 13 * CELL_DIM),  # Chainmail Armor
+        'hpa': (2 * CELL_DIM, 14 * CELL_DIM),  # Half Plate Armor
+        'fpa': (2 * CELL_DIM, 15 * CELL_DIM),  # Full Plate Armor
+
+        'rbs': (3 * CELL_DIM, 13 * CELL_DIM),  # Robes 
+        'rop': (3 * CELL_DIM, 14 * CELL_DIM),  # Robes of Protection
+        
+        'rsh': (12 * CELL_DIM, 13 * CELL_DIM),  # Round Shield
+        'ksh': (12 * CELL_DIM, 14 * CELL_DIM),  # Kite Shield
+        'tsh': (12 * CELL_DIM, 15 * CELL_DIM),  # Tower Shield     
+
+        # Weapons
+        'dgr': (4 * CELL_DIM, 13 * CELL_DIM),  # Iron Dagger
+        'sdr': (4 * CELL_DIM, 14 * CELL_DIM),  # SIlver Dagger
+
+        'shs': (5 * CELL_DIM, 13 * CELL_DIM),  # Shortsword
+        'fhs': (5 * CELL_DIM, 14 * CELL_DIM),  # Flameheart Shortsword
+        'bss': (5 * CELL_DIM, 15 * CELL_DIM),  # Shortsword
+
+        'lns': (6 * CELL_DIM, 13 * CELL_DIM),  # Iron Longsword 
+        'sls': (6 * CELL_DIM, 14 * CELL_DIM),  # Steel Longsword 
+        'als': (6 * CELL_DIM, 15 * CELL_DIM),  # Adamantine Longsword 
+
+        'sba': (8 * CELL_DIM, 13 * CELL_DIM),  # Steel Battleaxe
+        'dba': (8 * CELL_DIM, 14 * CELL_DIM),  # Dwarven Battleaxe
+        'pla': (8 * CELL_DIM, 15 * CELL_DIM),  # Polearm
+
+        'oas': (7 * CELL_DIM, 13 * CELL_DIM),  # Oak Staff
+        'aps': (7 * CELL_DIM, 14 * CELL_DIM),  # Apprentice's Staff
+        'qts': (7 * CELL_DIM, 15 * CELL_DIM),  # Quarterstaff
+
+        'srp': (9 * CELL_DIM, 13 * CELL_DIM),  # Steel Rapier
+        'dlr': (9 * CELL_DIM, 14 * CELL_DIM),  # Duelists Rapier
+
+        'irh': (10 * CELL_DIM, 13 * CELL_DIM),  # Iron Hammer
+        'dbw': (10 * CELL_DIM, 14 * CELL_DIM),  # Dragonsbane Warhammer
+        'mul': (10 * CELL_DIM, 15 * CELL_DIM),  # Maul
+
+        'stm': (11 * CELL_DIM, 13 * CELL_DIM),  # Steel Mace
+        'dwf': (11 * CELL_DIM, 14 * CELL_DIM),  # Dwarven Flail
+        'fhf': (11 * CELL_DIM, 15 * CELL_DIM),  # FLameheart Flail  
+
+        'glo': (13 * CELL_DIM, 13 * CELL_DIM), # Glass Orb
+        'ooc': (13 * CELL_DIM, 14 * CELL_DIM), # Orb of Chaos
+
+       
     }
     print("Tile mapping setup complete.")        
+
 
 
 
@@ -160,7 +234,7 @@ def get_tile_surface(char):
 
 def draw_tile(screen_surface, draw_x, draw_y, char, color_tint=None):
     tile_surface = get_tile_surface(char)
-    
+
     if color_tint:
         tinted_surface = tile_surface.copy()
         tinted_surface.fill(color_tint, special_flags=pygame.BLEND_RGBA_MULT)

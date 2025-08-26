@@ -24,11 +24,16 @@ class Race:
 
         player_instance.darkvision_radius = self.darkvision_radius
 
+        # Overwrite class proficiencies with race proficiencies
+        player_instance.weapon_proficiencies = self.weapon_proficiencies
+        player_instance.armor_proficiencies = self.armor_proficiencies        
+
 
 
 class Human(Race):
     def __init__(self):
-        super().__init__("Human", "A versatile and adaptable people, gaining +1 to all ability scores.")
+        super().__init__("Human", "A versatile and adaptable people, gaining +1 to all ability scores.",
+                         darkvision_radius=6)
 
     def apply_traits(self, player_instance, game_instance):
         super().apply_traits(player_instance, game_instance) # Call base method for logging
@@ -44,13 +49,13 @@ class Human(Race):
             f"{player_instance.name} gains +1 to all abilities from being Human.",
             (200, 200, 255)
         )
-
+        
       
 class HillDwarf(Race):
     def __init__(self):
         # NEW: Add weapon_proficiencies for HillDwarf
         super().__init__("Hill Dwarf", "Stout and hardy, with a keen intuition. +2 CON, +1 WIS, and +1 HP per level. Has Darkvision and Poison Resistance. Proficient with axes and hammers.",
-                         darkvision_radius=10, damage_resistances=['poison'],
+                         darkvision_radius=8, damage_resistances=['poison'],
                          weapon_proficiencies=["battleaxe", "handaxe", "light hammer", "warhammer"]) # Example proficiencies
 
     def apply_traits(self, player_instance, game_instance):
@@ -81,13 +86,13 @@ class HillDwarf(Race):
                 (150, 200, 255)
             )
 
-
+        
 class DrowElf(Race):
     def __init__(self):
         super().__init__(
             "Drow Elf",
             "A dark-skinned elf with keen senses and a natural affinity for magic, often dwelling in the Underdark. Gains +2 Dexterity, +1 Charisma, and Superior Darkvision.",
-            darkvision_radius=16, # Superior Darkvision (e.g., 12 tiles)
+            darkvision_radius=10, # Superior Darkvision (e.g., 12 tiles)
             damage_resistances=[], 
             skill_proficiencies=[], 
             weapon_proficiencies=["rapier", "shortsword", "hand crossbow"], 

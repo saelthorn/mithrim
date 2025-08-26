@@ -7,6 +7,8 @@ class GameMap:
         # Initialize with walls
         self.tiles = [[wall for _ in range(width)] for _ in range(height)]
         self.items_on_ground = [] # <--- NEW: List to hold items dropped or generated on the map
+        self.fov = None
+        self.torch_light_sources = []
 
     def is_walkable(self, x, y):
         """Check if a position is walkable"""
@@ -21,3 +23,5 @@ class GameMap:
                 tile = self.tiles[y][x]
                 char_surface = font.render(tile.char, True, tile.color)
                 screen.blit(char_surface, (x * tile_size, y * tile_size))
+
+

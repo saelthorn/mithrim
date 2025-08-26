@@ -1,10 +1,10 @@
 import random
 from random import randint, choice
 from world import tile
-from world.tile import stairs_down, stairs_up, dungeon_door, bones, torch, crate, barrel, wall, floor, dungeon_grass, rubble, cob_web, mushroom, fresh_bones, MimicTile, TrapTile
+from world.tile import stairs_down, stairs_up, dungeon_door, bones, torch, crate, barrel, wall, floor, dungeon_grass, rubble, cob_web, mushroom, fresh_bones, dungeon_pillar, MimicTile, TrapTile
 from items.items import Chest, generate_random_loot
 from entities.monster import Mimic
-from traps import DartTrap, SpikeTrap, FireTrap
+from traps import DartTrap, SpikeTrap, FireTrap, ExplosiveTrap
 
 class RectRoom:
     def __init__(self, x, y, w, h):
@@ -35,18 +35,17 @@ def dig_tunnel_y(game_map, y1, y2, x):
     for y in range(min(y1, y2), max(y1, y2) + 1):
         game_map.tiles[y][x] = tile.floor
 
-def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_max_size=10):
+def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=5, room_max_size=12):
     rooms = []
     stairs_positions = {}
     
     floor_decoration_tiles = [crate, barrel, bones, dungeon_grass, cob_web, rubble, mushroom, fresh_bones] 
-    floor_decoration_chance = 0.2  # Ensure this is defined
-    torch_placement_chance = 0.1
+    floor_decoration_chance = 0.15  # Ensure this is defined
     torch_light_sources = []
 
     # Trap Definitions and Chance
-    possible_traps = [DartTrap(), SpikeTrap(), FireTrap()] # List of trap instances
-    trap_placement_chance = 0.15 # 15% chance for a floor tile to become a trap    
+    possible_traps = [DartTrap, SpikeTrap, FireTrap, ExplosiveTrap] # List of trap instances
+    trap_placement_chance = 0.20 # 15% chance for a floor tile to become a trap    
     
     # Attempt to generate rooms
     for _ in range(max_rooms * 2): # Try more times than max_rooms to ensure we get enough
@@ -165,13 +164,15 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
                     # --- NEW: Trap Placement Logic ---
                     if room_index in trap_rooms and random.random() < trap_placement_chance:
                         chosen_trap_instance = random.choice(possible_traps)
+                        new_trap_instance = chosen_trap_instance()
+
                         # Create a TrapTile, disguised as a floor tile
-                        game_map.tiles[ry][rx] = TrapTile(chosen_trap_instance, floor.char, floor.color, rx, ry, chosen_trap_instance.name)
+                        game_map.tiles[ry][rx] = TrapTile(new_trap_instance, floor.char, floor.color, rx, ry, new_trap_instance.name)
                         continue
 
                     # --- Floor Decorations ---                    
                     if random.random() < floor_decoration_chance:
-                        if random.random() < 0.1: # 15% chance for a decoration to be a Mimic
+                        if random.random() < 0.02: # 5% chance for a decoration to be a Mimic
                             mimic_type_tile_obj = random.choice([crate, barrel])
                             mimic_entity_disguise_char = 'K' if mimic_type_tile_obj == crate else 'B'
                             mimic_tile_initial_display_char = 'k' if mimic_type_tile_obj == crate else 'b'
@@ -193,7 +194,7 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
         if 'up' in stairs_positions and (chest_spawn_x, chest_spawn_y) == stairs_positions['up']:
             continue # Skip if stairs_up are at the center of this room
 
-        if random.random() < 0.6: # Increased overall chest spawn chance to 60%
+        if random.random() < 0.2: # Increased overall chest spawn chance to 50%
             # Check if the spot is already occupied by an item (Mimic or Chest)
             is_occupied_by_item = False
             for existing_item in game_map.items_on_ground:
@@ -209,7 +210,7 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
             # IMPORTANT: If a decorative tile (like crate/barrel) was placed here,
             # it will be overwritten by the MimicTile or remain a floor tile for the Chest.
             # This is the correct behavior.
-            if random.random() < 0.2: # 75% chance for a chest to be a mimic
+            if random.random() < 0.1: # 20% chance for a chest to be a mimic
                 new_mimic = Mimic(chest_spawn_x, chest_spawn_y, 'C', (139, 69, 19))
                 new_mimic.name = "Disguised Chest Mimic"
                 game_map.tiles[chest_spawn_y][chest_spawn_x] = MimicTile(new_mimic, 'C', (139, 69, 19), "Chest")
@@ -220,7 +221,7 @@ def generate_dungeon(game_map, level_number, max_rooms=5, room_min_size=5, room_
                 game_map.items_on_ground.append(new_chest)
                 # Ensure the tile under the chest is a floor tile, not a decoration.
                 game_map.tiles[chest_spawn_y][chest_spawn_x] = floor # <--- ADD THIS LINE
-
+    
     return rooms, stairs_positions, torch_light_sources
 
 

@@ -65,4 +65,3 @@ class FloatingText:
         draw_y = screen_y_pixel - self.rect.height
         # print(f"DEBUG: Drawing FloatingText '{self.text}' at world ({self.x:.2f},{self.y:.2f}) -> screen_pixel ({draw_x},{draw_y})")
         screen_surface.blit(self.surface, (draw_x, draw_y))
-

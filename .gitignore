@@ -1,3 +1,6 @@
+# Assets
+assets/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -24,6 +27,7 @@ share/python-wheels/
 MANIFEST
 
 # Virtual environments
+.txt
 .env
 .venv
 env/

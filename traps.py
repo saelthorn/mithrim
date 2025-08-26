@@ -1,6 +1,8 @@
 import random
 from core.status_effects import Poisoned, Restrained, Burning # We'll add Restrained later if needed
 from core.floating_text import FloatingText
+from world.tile import TrapTile
+
 
 class Trap:
     def __init__(self, name, char, color, description, detection_dc, disarm_dc, damage_dice, damage_modifier, damage_type='physical'):
@@ -25,17 +27,22 @@ class Trap:
             # Add floating text for "TRAP!"
             game_instance.floating_texts.append(FloatingText(x, y, "TRAP!", (255, 100, 0)))
             # The tile itself will be updated in render_map_with_fov based on is_hidden state
+            print(f"DEBUG: Trap '{self.name}' at ({x},{y}) (ID: {id(self)}) revealed.") # <--- ADD THIS DEBUG PRINT
             return True
         return False
 
     def trigger(self, player, game_instance, x, y):
-        """Activates the trap's effect on the player."""
+        """Activates the trap's effect on the player."""        
         if self.is_triggered or self.is_disarmed:
+            print(f"DEBUG: Trap '{self.name}' at ({x},{y}) (ID: {id(self)}) already triggered or disarmed. Skipping.") 
             return False # Already triggered or disarmed
 
         self.is_triggered = True
         game_instance.message_log.add_message(f"You trigger a {self.name}!", (255, 0, 0))
         game_instance.floating_texts.append(FloatingText(x, y, "ZAP!", (255, 0, 0))) # Generic trigger text
+        print(f"DEBUG: Trap '{self.name}' at ({x},{y}) (ID: {id(self)}) triggered.") 
+
+        game_instance.game_map.tiles[y][x] = TrapTile(self, self.char, self.color, x, y, self.name)
 
         # Calculate damage
         dice_count_str, die_type_str = self.damage_dice.split('d')
@@ -52,8 +59,8 @@ class Trap:
         if not player.alive:
             game_instance.message_log.add_message("You fall victim to the trap!", (255, 0, 0))
         
-        # Trap is now "spent"
-        return True
+
+
 
     def attempt_disarm(self, player, game_instance, x, y):
         """Attempts to disarm the trap."""
@@ -91,6 +98,7 @@ class Trap:
             self.is_disarmed = True
             game_instance.message_log.add_message(f"You successfully disarm the {self.name}!", (0, 255, 0))
             game_instance.floating_texts.append(FloatingText(x, y, "DISARMED!", (0, 255, 0)))
+            print(f"DEBUG: Trap '{self.name}' at ({x},{y}) (ID: {id(self)}) disarmed.") # <--- ADD THIS DEBUG PRINT
             return True
         else:
             game_instance.message_log.add_message(f"You fail to disarm the {self.name}!", (255, 100, 100))
@@ -98,6 +106,7 @@ class Trap:
             if random.random() < 0.5: # 50% chance to trigger on failure
                 game_instance.message_log.add_message(f"The {self.name} springs!", (255, 0, 0))
                 self.trigger(player, game_instance, x, y)
+            print(f"DEBUG: Trap '{self.name}' at ({x},{y}) (ID: {id(self)}) disarm failed.") # <--- ADD THIS DEBUG PRINT
             return False
 
 # --- Specific Trap Types ---
@@ -109,14 +118,14 @@ class DartTrap(Trap):
             char="^", # Revealed graphic
             color=(150, 150, 150),
             description="A pressure plate connected to hidden dart launchers.",
-            detection_dc=12,
-            disarm_dc=13,
+            detection_dc=10,
+            disarm_dc=12,
             damage_dice="1d4",
             damage_modifier=0,
             damage_type='piercing'
         )
         self.can_poison = True # Specific to Dart Trap
-        self.poison_dc = 10
+        self.poison_dc = 16
         self.poison_duration = 3
         self.poison_damage_per_turn = 1
 
@@ -138,10 +147,10 @@ class SpikeTrap(Trap):
             char="^", # Revealed graphic
             color=(180, 0, 0),
             description="A hidden pit or floor section that reveals sharp spikes.",
-            detection_dc=14,
+            detection_dc=10,
             disarm_dc=14,
             damage_dice="2d6",
-            damage_modifier=0,
+            damage_modifier=2,
             damage_type='piercing'
         )
 
@@ -152,9 +161,9 @@ class FireTrap(Trap):
             char="^", # Revealed graphic
             color=(255, 100, 0),
             description="A magical glyph or mechanism that erupts in flames.",
-            detection_dc=15,
-            disarm_dc=16,
-            damage_dice="1d4",
+            detection_dc=10,
+            disarm_dc=14,
+            damage_dice="3d6",
             damage_modifier=0,
             damage_type='fire'
         )
@@ -173,4 +182,37 @@ class FireTrap(Trap):
                     game_instance.message_log.add_message(f"{player.name} resists the flames!", (150, 255, 150))
             return True
         return False
+
+
+class ExplosiveTrap(Trap):
+    def __init__(self):
+        super().__init__(
+            name="Fire Trap",
+            char="^", # Revealed graphic
+            color=(255, 100, 0),
+            description="A magical glyph or mechanism that explodes when activated.",
+            detection_dc=10,
+            disarm_dc=14,
+            damage_dice="3d6",
+            damage_modifier=2,
+            damage_type='explosion'
+        )                
+        self.explosion_radius = 3  # Radius of the explosion effect
+        self.can_burn = True
+        self.burn_dc = 16
+        self.burn_duration = 3
+        self.damage_per_turn = 4
+
+
+    # def trigger(self, player, game_instance, x, y):
+    #     if super().trigger(player, game_instance, x, y): # Call base trigger for damage
+    #         if self.can_burn and player.alive:
+    #             game_instance.message_log.add_message(f"FLames erupts on {player.name}!", (255, 150, 0))
+    #             if not player.make_saving_throw("DEX", self.burn_dc, game_instance):
+    #                 player.add_status_effect("Burning", duration=self.burn_duration, game_instance=game_instance, source=self)
+    #             else:
+    #                 game_instance.message_log.add_message(f"{player.name} resists the flames!", (150, 255, 150))
+    #         return True
+    #     return False
+
 
