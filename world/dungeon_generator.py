@@ -4,7 +4,7 @@ from world import tile
 from world.tile import stairs_down, stairs_up, dungeon_door, bones, torch, crate, barrel, wall, floor, dungeon_grass, rubble, cob_web, mushroom, fresh_bones, dungeon_pillar, MimicTile, TrapTile
 from items.items import Chest, generate_random_loot
 from entities.monster import Mimic
-from traps import DartTrap, SpikeTrap, FireTrap, ExplosiveTrap
+from traps import DartTrap, SpikeTrap, FireTrap, ExplosiveTrap, AcidSprayTrap
 
 class RectRoom:
     def __init__(self, x, y, w, h):
@@ -44,7 +44,7 @@ def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=5, room
     torch_light_sources = []
 
     # Trap Definitions and Chance
-    possible_traps = [DartTrap, SpikeTrap, FireTrap, ExplosiveTrap] # List of trap instances
+    possible_traps = [DartTrap, SpikeTrap, FireTrap, ExplosiveTrap, AcidSprayTrap] # List of trap instances
     trap_placement_chance = 0.20 # 15% chance for a floor tile to become a trap    
     
     # Attempt to generate rooms

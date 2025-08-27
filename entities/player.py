@@ -153,6 +153,7 @@ class Player: # This is our base class for playable characters
         d20_roll = random.randint(1, 20)
         save_bonus = self.get_saving_throw_bonus(ability_name)
         save_total = d20_roll + save_bonus
+        print(f"DEBUG: {self.name} {ability_name} Save: Roll={d20_roll}, Bonus={save_bonus}, Total={save_total}, DC={dc}") # ADD THIS
 
         game_instance.message_log.add_message(
             f"You make a {ability_name} saving throw: {d20_roll} + {save_bonus} = {save_total} (DC {dc})",
@@ -571,6 +572,7 @@ class Player: # This is our base class for playable characters
             new_effect = CunningActionDashBuff(duration)
         elif effect_name == "EvasionBuff":
             new_effect = EvasionBuff(duration)
+        
         if new_effect:
             for existing_effect in self.active_status_effects:
                 if type(existing_effect) is type(new_effect):
@@ -578,6 +580,8 @@ class Player: # This is our base class for playable characters
                     game_instance.message_log.add_message(f"{self.name}'s {new_effect.name} effect is refreshed.", (200, 200, 255))
                     return
             self.active_status_effects.append(new_effect)
+            game_instance.message_log.add_message(f"{self.name} is now {new_effect.name.lower()}!", (255, 100, 0))
+            print(f"DEBUG: {effect_name} successfully added to {self.name}.") # ADD THIS            
         else:
             game_instance.message_log.add_message(f"Warning: Attempted to add unknown status effect: {effect_name}", (255, 0, 0))
             print(f"Warning: Attempted to add unknown status effect: {effect_name}")

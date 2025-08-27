@@ -660,7 +660,6 @@ class MageHand(Ability):
         if not super().use(user, game_instance):
             return False
 
-        game_instance.message_log.add_message(f"{user.name} casts Mage Hand!", (100, 255, 255))
         game_instance.message_log.add_message("Select a target to trigger a trap or pick up an item (Arrow Keys, Enter to confirm, Esc to cancel).", (255, 100, 0))
         
         game_instance.game_state = GameState.TARGETING

@@ -1,4 +1,5 @@
 from entities.base_entity import NPC # Reusing NPC as a base for simplicity
+from core.status_effects import Poisoned, AcidBurned, Burning
 
 class SummonedEntity(NPC):
     """
@@ -70,6 +71,30 @@ class MageHandEntity(SummonedEntity):
         if game_instance:
             game_instance.message_log.add_message(f"The {self.name} shimmers but is unaffected.", self.color)
         return 0 # No damage taken
+
+    def add_status_effect(self, effect_name, duration, game_instance, source=None):
+        """Adds a status effect to the player."""
+        new_effect = None
+        
+        if effect_name == "Poisoned":
+            new_effect = Poisoned(duration, source)
+        elif effect_name == "AcidBurned":
+            new_effect = AcidBurned(duration, source)
+        elif effect_name == "Burning":
+            new_effect = Burning(duration, source) 
+        
+        if new_effect:
+            for existing_effect in self.active_status_effects:
+                if type(existing_effect) is type(new_effect):
+                    existing_effect.turns_left = new_effect.duration
+                    game_instance.message_log.add_message(f"{self.name}'s {new_effect.name} effect is refreshed.", (200, 200, 255))
+                    return
+            self.active_status_effects.append(new_effect)
+            game_instance.message_log.add_message(f"{self.name} triggers the trap and dissipates!", (255, 100, 0))
+            print(f"DEBUG: {effect_name} successfully added to {self.name}.") # ADD THIS            
+        else:
+            game_instance.message_log.add_message(f"Warning: Attempted to add unknown status effect: {effect_name}", (255, 0, 0))
+            print(f"Warning: Attempted to add unknown status effect: {effect_name}")
 
     def take_turn(self, player, game_map, game):
         """

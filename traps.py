@@ -1,5 +1,5 @@
 import random
-from core.status_effects import Poisoned, Restrained, Burning # We'll add Restrained later if needed
+from core.status_effects import Poisoned, Restrained, Burning, AcidBurned # We'll add Restrained later if needed
 from core.floating_text import FloatingText
 from world.tile import TrapTile
 
@@ -31,34 +31,41 @@ class Trap:
             return True
         return False
 
-    def trigger(self, player, game_instance, x, y):
-        """Activates the trap's effect on the player."""        
+
+    def trigger(self, target_entity, game_instance, x, y):
         if self.is_triggered or self.is_disarmed:
-            print(f"DEBUG: Trap '{self.name}' at ({x},{y}) (ID: {id(self)}) already triggered or disarmed. Skipping.") 
-            return False # Already triggered or disarmed
-
+            return False # Already triggered or disarmed, do nothing
+       
+        game_instance.message_log.add_message(f"The {self.name} is triggered!", (255, 0, 0))
         self.is_triggered = True
-        game_instance.message_log.add_message(f"You trigger a {self.name}!", (255, 0, 0))
-        game_instance.floating_texts.append(FloatingText(x, y, "ZAP!", (255, 0, 0))) # Generic trigger text
-        print(f"DEBUG: Trap '{self.name}' at ({x},{y}) (ID: {id(self)}) triggered.") 
-
-        game_instance.game_map.tiles[y][x] = TrapTile(self, self.char, self.color, x, y, self.name)
-
-        # Calculate damage
-        dice_count_str, die_type_str = self.damage_dice.split('d')
-        num_dice = int(dice_count_str)
-        die_type = int(die_type_str)
+        self.is_hidden = False # A triggered trap is no longer hidden
         
-        damage_roll = sum(random.randint(1, die_type) for _ in range(num_dice))
-        total_damage = max(1, damage_roll + self.damage_modifier)
-
-        damage_dealt = player.take_damage(total_damage, game_instance, damage_type=self.damage_type)
-        game_instance.message_log.add_message(f"The {self.name} deals {damage_dealt} {self.damage_type} damage!", (255, 50, 50))
-        game_instance.floating_texts.append(FloatingText(player.x, player.y - 0.5, str(damage_dealt), (255, 0, 0)))
-
-        if not player.alive:
-            game_instance.message_log.add_message("You fall victim to the trap!", (255, 0, 0))
+        # Apply damage
+        if target_entity.alive:
+            # Parse damage dice (e.g., "2d6")
+            dice_count_str, die_type_str = self.damage_dice.split('d')
+            num_dice = int(dice_count_str)
+            die_type = int(die_type_str)
+            damage_rolls = [random.randint(1, die_type) for _ in range(num_dice)]
+            total_damage = sum(damage_rolls) + self.damage_modifier
         
+            game_instance.message_log.add_message(
+                f"The {self.name} deals {total_damage} {self.damage_type} damage to {target_entity.name}!",
+                (255, 100, 100)
+            )
+            damage_dealt = target_entity.take_damage(total_damage, game_instance, damage_type=self.damage_type)
+        
+            # Add floating text for damage
+            damage_text = FloatingText(target_entity.x, target_entity.y - 0.5, str(damage_dealt), (255, 0, 0))
+            game_instance.floating_texts.append(damage_text)
+        
+            if not target_entity.alive:
+                game_instance.message_log.add_message(f"{target_entity.name} was slain by the {self.name}!", (200, 0, 0))
+        
+        # Ensure the tile graphic updates to the revealed state
+        game_instance.game_map.tiles[y][x].trap_instance = self # Update the trap instance on the tile
+        game_instance.minimap_needs_redraw = True # Map changed, redraw minimap
+        return True # Trap successfully triggered and applied damage        
 
 
 
@@ -126,17 +133,22 @@ class DartTrap(Trap):
         )
         self.can_poison = True # Specific to Dart Trap
         self.poison_dc = 16
-        self.poison_duration = 3
+        self.poison_duration = 6
         self.poison_damage_per_turn = 1
 
     def trigger(self, player, game_instance, x, y):
-        if super().trigger(player, game_instance, x, y): # Call base trigger for damage
+        if super().trigger(player, game_instance, x, y):  # Call base trigger for damage
             if self.can_poison and player.alive:
-                game_instance.message_log.add_message(f"Poisoned darts strike {player.name}!", (255, 150, 0))
-                if not player.make_saving_throw("CON", self.poison_dc, game_instance):
-                    player.add_status_effect("Poisoned", duration=self.poison_duration, game_instance=game_instance, source=self)
+                game_instance.message_log.add_message(f"{player.name} triggers poisoned dart trap!", (0, 255, 0))
+                # Check if the triggering entity has the make_saving_throw method
+                if hasattr(player, 'make_saving_throw'):
+                    if not player.make_saving_throw("CON", self.poison_dc, game_instance):
+                        player.add_status_effect("Poisoned", duration=self.poison_duration, game_instance=game_instance, source=self)
+                    else:
+                        game_instance.message_log.add_message(f"{player.name} resists the poison!", (150, 255, 150))
                 else:
-                    game_instance.message_log.add_message(f"{player.name} resists the poison!", (150, 255, 150))
+                    # If it's a MageHandEntity, apply the effect directly without saving throw
+                    player.add_status_effect("Poisoned", duration=self.poison_duration, game_instance=game_instance, source=self)
             return True
         return False
 
@@ -173,15 +185,55 @@ class FireTrap(Trap):
         self.damage_per_turn = 4
 
     def trigger(self, player, game_instance, x, y):
-        if super().trigger(player, game_instance, x, y): # Call base trigger for damage
+        if super().trigger(player, game_instance, x, y):  # Call base trigger for damage
             if self.can_burn and player.alive:
-                game_instance.message_log.add_message(f"FLames erupts on {player.name}!", (255, 150, 0))
-                if not player.make_saving_throw("DEX", self.burn_dc, game_instance):
-                    player.add_status_effect("Burning", duration=self.burn_duration, game_instance=game_instance, source=self)
+                game_instance.message_log.add_message(f"{player.name} triggers fire trap!", (0, 255, 0))
+                # Check if the triggering entity has the make_saving_throw method
+                if hasattr(player, 'make_saving_throw'):
+                    if not player.make_saving_throw("DEX", self.burn_dc, game_instance):
+                        player.add_status_effect("Burning", duration=self.burn_duration, game_instance=game_instance, source=self)
+                    else:
+                        game_instance.message_log.add_message(f"{player.name} resists the fire!", (150, 255, 150))
                 else:
-                    game_instance.message_log.add_message(f"{player.name} resists the flames!", (150, 255, 150))
+                    # If it's a MageHandEntity, apply the effect directly without saving throw
+                    player.add_status_effect("Burning", duration=self.burn_duration, game_instance=game_instance, source=self)
             return True
         return False
+
+class AcidSprayTrap(Trap):
+    def __init__(self):
+        super().__init__(
+            name="Acid Spray Trap",
+            char="^",  # Revealed graphic
+            color=(0, 255, 0),
+            description="A hidden nozzle that sprays corrosive acid.",
+            detection_dc=12,
+            disarm_dc=16,
+            damage_dice="2d6",
+            damage_modifier=0,
+            damage_type='acid'
+        )
+        self.can_acid_burn = True
+        self.acid_burn_dc = 14
+        self.acid_burn_duration = 3
+        self.damage_per_turn = 3
+
+    def trigger(self, player, game_instance, x, y):
+        if super().trigger(player, game_instance, x, y):  # Call base trigger for damage
+            if self.can_acid_burn and player.alive:
+                game_instance.message_log.add_message(f"Acid sprays onto {player.name}!", (0, 255, 0))
+                # Check if the triggering entity has the make_saving_throw method
+                if hasattr(player, 'make_saving_throw'):
+                    if not player.make_saving_throw("DEX", self.acid_burn_dc, game_instance):
+                        player.add_status_effect("AcidBurned", duration=self.acid_burn_duration, game_instance=game_instance, source=self)
+                    else:
+                        game_instance.message_log.add_message(f"{player.name} resists the acid!", (150, 255, 150))
+                else:
+                    # If it's a MageHandEntity, apply the effect directly without saving throw
+                    player.add_status_effect("AcidBurned", duration=self.acid_burn_duration, game_instance=game_instance, source=self)
+            return True
+        return False
+
 
 
 class ExplosiveTrap(Trap):
@@ -204,15 +256,20 @@ class ExplosiveTrap(Trap):
         self.damage_per_turn = 4
 
 
-    # def trigger(self, player, game_instance, x, y):
-    #     if super().trigger(player, game_instance, x, y): # Call base trigger for damage
-    #         if self.can_burn and player.alive:
-    #             game_instance.message_log.add_message(f"FLames erupts on {player.name}!", (255, 150, 0))
-    #             if not player.make_saving_throw("DEX", self.burn_dc, game_instance):
-    #                 player.add_status_effect("Burning", duration=self.burn_duration, game_instance=game_instance, source=self)
-    #             else:
-    #                 game_instance.message_log.add_message(f"{player.name} resists the flames!", (150, 255, 150))
-    #         return True
-    #     return False
+    def trigger(self, player, game_instance, x, y):
+        if super().trigger(player, game_instance, x, y):  # Call base trigger for damage
+            if self.can_burn and player.alive:
+                game_instance.message_log.add_message(f"Trap explodes onto {player.name}!", (0, 255, 0))
+                # Check if the triggering entity has the make_saving_throw method
+                if hasattr(player, 'make_saving_throw'):
+                    if not player.make_saving_throw("DEX", self.burn_dc, game_instance):
+                        player.add_status_effect("Burning", duration=self.burn_duration, game_instance=game_instance, source=self)
+                    else:
+                        game_instance.message_log.add_message(f"{player.name} resists the explosion!", (150, 255, 150))
+                else:
+                    # If it's a MageHandEntity, apply the effect directly without saving throw
+                    player.add_status_effect("Burning", duration=self.burn_duration, game_instance=game_instance, source=self)
+            return True
+        return False
 
 
