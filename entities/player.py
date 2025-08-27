@@ -2,7 +2,7 @@ import random
 from core.inventory import Inventory
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball
 from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning
-from items.items import iron_long_sword, chainmail_armor, iron_short_sword, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
+from items.items import Food, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
 from core.floating_text import FloatingText
@@ -86,7 +86,7 @@ class Player: # This is our base class for playable characters
 
         self.hunger = 100  # Max hunger value
         self.hunger_decrease_rate = 1  # Hunger decreases by 1 per turn
-        self.hunger_threshold = 30  # Threshold for negative effects
+        self.hunger_threshold = 20  # Threshold for negative effects
         self.turns_since_last_hunger_decrease = 0 
 
         self.attack_power = 0  # Base attack power
@@ -112,7 +112,7 @@ class Player: # This is our base class for playable characters
     def update_hunger(self, game_instance):
         """Decrease hunger every 2 turns."""
         self.turns_since_last_hunger_decrease += 1
-        if self.turns_since_last_hunger_decrease >= 2:  
+        if self.turns_since_last_hunger_decrease >= 5:  
             if self.hunger > 0:
                 self.hunger -= self.hunger_decrease_rate
             self.turns_since_last_hunger_decrease = 0  # Reset the counter
@@ -124,11 +124,16 @@ class Player: # This is our base class for playable characters
    
     def eat_food(self, food_item, game_instance):
         """Consume food to restore hunger."""
-        if food_item.on_eat(self, game_instance):
-            self.hunger = min(self.hunger + food_item.healing_value, 100)  # Restore hunger, max 100
-            game_instance.message_log.add_message(f"{self.name} eats {food_item.name} and restores hunger!", (0, 255, 0))
-            return True
-        return False
+        if not isinstance(food_item, Food):
+            game_instance.message_log.add_message(f"That's not food!", (255, 100, 100))
+            return False
+        if self.hunger >= 100:
+            game_instance.message_log.add_message(f"You're not hungry right now.", (150, 150, 150))
+            return False
+        self.hunger = min(self.hunger + food_item.healing_value, 100)  # Restore hunger, max 100
+        game_instance.message_log.add_message(f"{self.name} eats the {food_item.name} and feels more satiated!", (0, 255, 0))
+        self.inventory.remove_item(food_item) # Remove food after consumption
+        return True
 
     def get_ability_modifier(self, score):
         return (score - 10) // 2
@@ -443,10 +448,12 @@ class Player: # This is our base class for playable characters
         return dx <= 1 and dy <= 1 and (dx != 0 or dy != 0)
 
     def use_item(self, item, game_instance):
-        from items.items import Potion
+        from items.items import Potion, Food # Ensure Food is imported here too
         if isinstance(item, Potion):
-            item.use(self, game_instance)
-            return True
+            return item.use(self, game_instance) # Potion's use method handles removal
+        elif isinstance(item, Food): # NEW: Check for Food type
+            return self.eat_food(item, game_instance) # Call the new eat_food method
+        
         game_instance.message_log.add_message(f"You can't use {item.name} this way.", (255, 100, 100))
         return False
 
@@ -660,7 +667,7 @@ class Fighter(Player):
         
         self.strength = 15
         self.dexterity = 13
-        self.constitution = 1400
+        self.constitution = 14
         self.intelligence = 8
         self.wisdom = 12
         self.charisma = 10
@@ -673,7 +680,7 @@ class Fighter(Player):
         self.primary_stat = 'strength'  # Set primary stat for Fighter        
         
         # Set starting equipment
-        self.inventory.add_item(lesser_healing_potion)
+        self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
         self.inventory.add_item(dragonsbane_warhammer)
@@ -688,7 +695,7 @@ class Fighter(Player):
         self.armor_class = self._calculate_ac()
 
         # Class-specific weapon and armor proficiencies
-        self.class_weapon_proficiencies = ["battleaxe", "handaxe", "light hammer", "warhammer", "hammer", "shortsword", "longsword"]
+        self.class_weapon_proficiencies = ["battleaxe", "handaxe", "light hammer", "warhammer", "hammer", "shortsword", "longsword", "dagger", "mace", "flail", "rapier"]
         self.class_armor_proficiencies = ["light", "medium", "heavy", "shield"]  # Fighters can wear all types of armor
 
         self.weapon_proficiencies = self.class_weapon_proficiencies.copy()
@@ -714,7 +721,7 @@ class Rogue(Player):
 
         self.strength = 8
         self.dexterity = 15
-        self.constitution = 130
+        self.constitution = 13
         self.intelligence = 12
         self.wisdom = 10
         self.charisma = 14
@@ -727,9 +734,9 @@ class Rogue(Player):
         self.primary_stat = 'dexterity'  # Set primary stat for Fighter 
 
         # Set starting equipment
-        self.inventory.add_item(dragonsbane_warhammer)
-        self.inventory.add_item(chainmail_armor)
         self.inventory.add_item(thieves_tools)
+        self.inventory.add_item(bread)
+        self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
 
@@ -768,7 +775,7 @@ class Wizard(Player):
 
         self.strength = 8
         self.dexterity = 12
-        self.constitution = 130
+        self.constitution = 13
         self.intelligence = 15
         self.wisdom = 10
         self.charisma = 10
@@ -781,6 +788,8 @@ class Wizard(Player):
         self.primary_stat = 'intelligence'  # Set primary stat for Fighter 
 
         # Set starting equipment
+        self.inventory.add_item(bread)
+        self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(greater_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
@@ -796,7 +805,7 @@ class Wizard(Player):
         self.armor_class = self._calculate_ac()
 
         # Class-specific weapon and armor proficiencies
-        self.class_weapon_proficiencies = ["dagger", "quarterstaff"]  # Wizards typically use these
+        self.class_weapon_proficiencies = ["dagger", "quarterstaff", "orb"]  # Wizards typically use these
         self.class_armor_proficiencies = ["light"]  # Wizards can wear light armor
         
         self.weapon_proficiencies = self.class_weapon_proficiencies.copy()

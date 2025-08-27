@@ -67,6 +67,9 @@ def setup_tile_mapping():
         'fb': (5 * CELL_DIM, 4 * CELL_DIM), # Fresh Bones
         '`': (6 * CELL_DIM, 4 * CELL_DIM),  # Dungeon Grass
         'dp': (7 * CELL_DIM, 4 * CELL_DIM), # Dungeon Pillar
+        '.2': (8 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Two
+        '.3': (9 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Three
+        '`2': (10 * CELL_DIM, 4 * CELL_DIM), # Dungeon Grass Two
         
         # IMPORTANT: Ensure 'C' is your *closed* chest graphic
         'C': (4 * CELL_DIM, 5 * CELL_DIM),  # Chest (Closed)
@@ -139,6 +142,12 @@ def setup_tile_mapping():
         'tt': (7 * CELL_DIM, 2 * CELL_DIM), # Thieves' Tools
         '!': (0 * CELL_DIM, 13 * CELL_DIM), # Potions
 
+        # Food Characters
+        'met': (11 * CELL_DIM, 1 * CELL_DIM), # Meat
+        'gra': (12 * CELL_DIM, 1 * CELL_DIM), # Green Apple
+        'frg': (13 * CELL_DIM, 1 * CELL_DIM), # Fromage
+        'brd': (14 * CELL_DIM, 1 * CELL_DIM), # Bread
+        'msm': (15 * CELL_DIM, 1 * CELL_DIM), # Mushroom
 
         # Armors and Robes
         'pda': (1 * CELL_DIM, 13 * CELL_DIM),  # Leather Armor

@@ -8,7 +8,7 @@ If there's only one way in and no way out, it's a tomb. Yours.
 
 
 UI to add/fix:
-     - Recolor everything
+     - Recolor everything (especially the inventory)
 
 
 

@@ -43,30 +43,6 @@ class Bartender(NPC):
         ]
         super().__init__(x, y, 'A', 'Bartender', (255, 215, 0), dialogue)
         
-        self.items_for_sale = [
-            Food("Fresh Meal", "A delicious meal prepared by the chef.", healing_value=20, price=5, char='F'),
-            # Add more food items as needed
-        ]
-
-    def offer_trade(self, player, game):
-        """Handle the trading logic with the player."""
-        game.message_log.add_message(f"{self.name}: Welcome, traveler! Care to browse my meals?", (0, 255, 0))
-        game.message_log.add_message("Meals for sale:", (200, 200, 255))
-       
-        # Display items for sale
-        for item in self.items_for_sale:
-            game.message_log.add_message(f"{item.name} - {item.price} gold", (255, 255, 255))
-       
-        # Allow player to buy or sell
-        game.message_log.add_message("Type 'buy {item}' to buy and 'sell {item}' to sell.", (200, 200, 255))
-        game.message_log.add_message("Type your input:", (200, 200, 255))
-        game.message_log.add_message(" ", (200, 200, 255))
-       
-        # Set the game state to trade temporarily
-        game.game_state = GameState.TRADE  # Set game state to trade
-        game.message_log.show_input_area = True  # Show input area for trade input
-        game.message_log.current_input = ""  # Clear input when activating the input area
-
 
 
 class Merchant(NPC):

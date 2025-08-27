@@ -40,7 +40,7 @@ from entities.summons import MageHandEntity
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, MageHand
 from core.message_log import MessageBox
 from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff
-from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, CampfireKit
+from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, bread, mushroom, CampfireKit
 from items.items import lesser_healing_potion, greater_healing_potion, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail, round_shield, kite_shield, tower_shield
 from core.pathfinding import astar
 from world.tile import floor, MimicTile, TrapTile
@@ -208,7 +208,7 @@ class Game:
         (2, 3): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf],
 
         # Early-mid dangers
-        (4, 5): [Skeleton, SkeletonArcher, Orc, LargeOoze, Grick],
+        (4, 5): [Skeleton, SkeletonArcher, Orc, Grick, Ooze],
         (6, 7): [Lizardfolk, LizardfolkArcher, GiantSpider, Wererat],
 
         # Mid-game threats
@@ -938,9 +938,13 @@ class Game:
                                 self.selected_inventory_index = (self.selected_inventory_index + 1) % len(self.player.inventory.items)
                         elif event.key == pygame.K_RETURN:  # Enter key to select item
                             if self.player.inventory.items:
-                                self.selected_inventory_item = self.player.inventory.items[self.selected_inventory_index]
-                                self.game_state = GameState.INVENTORY_MENU
-                                self.message_log.add_message(f"Selected: {self.selected_inventory_item.name}", self.selected_inventory_item.color)
+                                # Ensure the index is within bounds
+                                if 0 <= self.selected_inventory_index < len(self.player.inventory.items):
+                                    self.selected_inventory_item = self.player.inventory.items[self.selected_inventory_index]
+                                    self.game_state = GameState.INVENTORY_MENU
+                                    self.message_log.add_message(f"Selected: {self.selected_inventory_item.name}", self.selected_inventory_item.color)
+                                else:
+                                    self.message_log.add_message("Invalid item selection.", (255, 0, 0))  # Log an error message
                         return True  # Consume event
 
                 # --- Trade Interaction --- 
@@ -1596,37 +1600,8 @@ class Game:
             self.minimap_needs_redraw = True # Map changed, redraw minimap
             
             # --- NEW: 10% chance to drop a Lesser Healing Potion ---
-            if target_tile.name in ["Crate", "Barrel"]: # Check if it was a crate or barrel
-                if random.random() < 0.1:
-                    # Create a new instance of the potion
-                    new_potion = lesser_healing_potion.__class__(
-                        name=lesser_healing_potion.name,
-                        char=lesser_healing_potion.char,
-                        color=lesser_healing_potion.color,
-                        description=lesser_healing_potion.description,
-                        effect_type=lesser_healing_potion.effect_type,
-                        effect_value=lesser_healing_potion.effect_value,
-                        price=lesser_healing_potion.price
-                    )
-                    new_potion.x = x
-                    new_potion.y = y
-                    self.game_map.items_on_ground.append(new_potion)
-                    self.message_log.add_message(f"A {new_potion.name} drops from the {target_tile.name}!", new_potion.color)
-                elif random.random() < 0.05:
-                    new_potion = greater_healing_potion.__class__(
-                        name=greater_healing_potion.name,
-                        char=greater_healing_potion.char,
-                        color=greater_healing_potion.color,
-                        description=greater_healing_potion.description,
-                        effect_type=greater_healing_potion.effect_type,
-                        effect_value=greater_healing_potion.effect_value,
-                        price=greater_healing_potion.price
-                    )
-                    new_potion.x = x
-                    new_potion.y = y
-                    self.game_map.items_on_ground.append(new_potion)
-                    self.message_log.add_message(f"A {new_potion.name} drops from the {target_tile.name}!", new_potion.color)  
-                elif random.random() < 0.70:
+            if target_tile.name in ["Crate", "Barrel"]: # Check if it was a crate or barrel 
+                if random.random() < 0.70:
                     new_junk = wood_plank.__class__(
                         name=wood_plank.name,
                         char=wood_plank.char,
@@ -1637,6 +1612,71 @@ class Game:
                     new_junk.y = y
                     self.game_map.items_on_ground.append(new_junk)
                     self.message_log.add_message(f"A {new_junk.name} drops from the {target_tile.name}!", new_junk.color)
+                elif random.random() < 0.2:
+                    new_food = meat.__class__(
+                        name=meat.name,
+                        char=meat.char,
+                        color=meat.color,
+                        description=meat.description,
+                        healing_value=meat.healing_value,
+                        price=meat.price
+                    )
+                    new_food.x = x
+                    new_food.y = y
+                    self.game_map.items_on_ground.append(new_food)
+                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
+                elif random.random() < 0.35:
+                    new_food = green_apple.__class__(
+                        name=green_apple.name,
+                        char=green_apple.char,
+                        color=green_apple.color,
+                        description=green_apple.description,
+                        healing_value=green_apple.healing_value,
+                        price=green_apple.price
+                    )
+                    new_food.x = x
+                    new_food.y = y
+                    self.game_map.items_on_ground.append(new_food)
+                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
+                elif random.random() < 0.25:
+                    new_food = fromage.__class__(
+                        name=fromage.name,
+                        char=fromage.char,
+                        color=fromage.color,
+                        description=fromage.description,
+                        healing_value=fromage.healing_value,
+                        price=fromage.price
+                    )
+                    new_food.x = x
+                    new_food.y = y
+                    self.game_map.items_on_ground.append(new_food)
+                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
+                elif random.random() < 0.3:
+                    new_food = bread.__class__(
+                        name=bread.name,
+                        char=bread.char,
+                        color=bread.color,
+                        description=bread.description,
+                        healing_value=bread.healing_value,
+                        price=bread.price
+                    )
+                    new_food.x = x
+                    new_food.y = y
+                    self.game_map.items_on_ground.append(new_food)
+                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
+                elif random.random() < 0.4:
+                    new_food = mushroom.__class__(
+                        name=mushroom.name,
+                        char=mushroom.char,
+                        color=mushroom.color,
+                        description=mushroom.description,
+                        healing_value=mushroom.healing_value,
+                        price=mushroom.price
+                    )
+                    new_food.x = x
+                    new_food.y = y
+                    self.game_map.items_on_ground.append(new_food)
+                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
             # --- END NEW DROP LOGIC ---
 
             return True

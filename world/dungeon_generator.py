@@ -1,7 +1,7 @@
 import random
 from random import randint, choice
 from world import tile
-from world.tile import stairs_down, stairs_up, dungeon_door, bones, torch, crate, barrel, wall, floor, dungeon_grass, rubble, cob_web, mushroom, fresh_bones, dungeon_pillar, MimicTile, TrapTile
+from world.tile import stairs_down, stairs_up, dungeon_door, bones, torch, crate, barrel, wall, floor, dungeon_grass, dungeon_grass_two, dungeon_floor_two, dungeon_floor_three, rubble, cob_web, mushroom, fresh_bones, dungeon_pillar, MimicTile, TrapTile
 from items.items import Chest, generate_random_loot
 from entities.monster import Mimic
 from traps import DartTrap, SpikeTrap, FireTrap, ExplosiveTrap, AcidSprayTrap
@@ -35,17 +35,17 @@ def dig_tunnel_y(game_map, y1, y2, x):
     for y in range(min(y1, y2), max(y1, y2) + 1):
         game_map.tiles[y][x] = tile.floor
 
-def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=5, room_max_size=12):
+def generate_dungeon(game_map, level_number, max_rooms=16, room_min_size=5, room_max_size=16):
     rooms = []
     stairs_positions = {}
     
-    floor_decoration_tiles = [crate, barrel, bones, dungeon_grass, cob_web, rubble, mushroom, fresh_bones] 
-    floor_decoration_chance = 0.15  # Ensure this is defined
+    floor_decoration_tiles = [crate, barrel, bones, dungeon_grass, cob_web, rubble, mushroom, fresh_bones, dungeon_grass_two, dungeon_floor_two, dungeon_floor_three] 
+    floor_decoration_chance = 0.20  # Ensure this is defined
     torch_light_sources = []
 
     # Trap Definitions and Chance
     possible_traps = [DartTrap, SpikeTrap, FireTrap, ExplosiveTrap, AcidSprayTrap] # List of trap instances
-    trap_placement_chance = 0.20 # 15% chance for a floor tile to become a trap    
+    trap_placement_chance = 0.1 # 10% chance for a floor tile to become a trap    
     
     # Attempt to generate rooms
     for _ in range(max_rooms * 2): # Try more times than max_rooms to ensure we get enough
@@ -119,7 +119,6 @@ def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=5, room
         stairs_x, stairs_y = stairs_up_room.center()
 
         found_stairs_up_spot = False
-        # Prioritize center, then adjacent, then random within room
         possible_stairs_spots = [(stairs_x, stairs_y)] + \
                                 [(stairs_x + dx, stairs_y + dy) for dx in [-1, 0, 1] for dy in [-1, 0, 1] if (dx, dy) != (0,0)] + \
                                 [(x, y) for y in range(stairs_up_room.y1 + 1, stairs_up_room.y2) for x in range(stairs_up_room.x1 + 1, stairs_up_room.x2)]
@@ -172,7 +171,7 @@ def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=5, room
 
                     # --- Floor Decorations ---                    
                     if random.random() < floor_decoration_chance:
-                        if random.random() < 0.02: # 5% chance for a decoration to be a Mimic
+                        if random.random() < 0.015: # 5% chance for a decoration to be a Mimic
                             mimic_type_tile_obj = random.choice([crate, barrel])
                             mimic_entity_disguise_char = 'K' if mimic_type_tile_obj == crate else 'B'
                             mimic_tile_initial_display_char = 'k' if mimic_type_tile_obj == crate else 'b'
@@ -194,7 +193,7 @@ def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=5, room
         if 'up' in stairs_positions and (chest_spawn_x, chest_spawn_y) == stairs_positions['up']:
             continue # Skip if stairs_up are at the center of this room
 
-        if random.random() < 0.2: # Increased overall chest spawn chance to 50%
+        if random.random() < 0.15: # Increased overall chest spawn chance to 50%
             # Check if the spot is already occupied by an item (Mimic or Chest)
             is_occupied_by_item = False
             for existing_item in game_map.items_on_ground:

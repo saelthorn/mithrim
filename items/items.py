@@ -63,25 +63,14 @@ class Potion(Item):
         game_instance.message_log.add_message(f"The {self.name} is consumed.", (150, 150, 150))
 
 
-class Food:
-    def __init__(self, name, description, healing_value, price, char):
-        self.name = name
-        self.description = description
-        self.healing_value = healing_value  # Amount of hunger restored
-        self.price = price  # Cost of the food item
-        self.char = char  # Character representation (can be customized)
-        self.color = (255, 255, 0)  # Color representation (can be customized)
+class Food(Item):
+    def __init__(self, name, char, color, description, healing_value, price=0):
+        super().__init__(name, char, color, description, price)
+        self.healing_value = healing_value # Amount of hunger restored
 
-    def on_eat(self, player, game_instance):
-        """Handle the effect of eating the food."""
-        if player.hunger < 100:
-            restored_hunger = min(self.healing_value, 100 - player.hunger)
-            player.hunger += restored_hunger
-            game_instance.message_log.add_message(f"{player.name} eats {self.name} and restores {restored_hunger} hunger!", (0, 255, 0))
-            return True
-        else:
-            game_instance.message_log.add_message(f"{player.name} is already full!", (255, 100, 100))
-            return False
+    def use(self, user, game_instance):
+        """This method will be called by Player.use_item, but the actual hunger logic is in Player.eat_food."""
+        return True # Indicate that it's a usable item type        
 
 
 
@@ -227,6 +216,51 @@ greater_healing_potion = Potion(
     effect_type="heal",
     effect_value=24,
     price = 20
+)
+
+meat = Food(
+    name="Meat",
+    description="A meat from unknown origin, chewy but full of taste.",
+    healing_value=40,
+    price=15,
+    char="met",
+    color=(255, 0, 0)
+)
+
+green_apple = Food(
+    name="Green Apple",
+    description="A fruit that has sweet and tarty taste.",
+    healing_value=15,
+    price=5,
+    char="gra",
+    color=(0, 255, 0)
+)
+
+fromage = Food(
+    name="Fromage",
+    description="Ce type de fromage est un peu salé et a une saveur umami.",
+    healing_value=30,
+    price=12,
+    char="frg",
+    color=(255, 255, 0)
+)
+
+bread = Food(
+    name="Bread",
+    description="Food that is often brought when crawling dungeons.",
+    healing_value=25,
+    price=8,
+    char="brd",
+    color=(200, 200, 100)
+)
+
+mushroom = Food(
+    name="Mushroom",
+    description="Food that is often found in dungeon, has a distinct earthy flavour.",
+    healing_value=10,
+    price=0,
+    char="msm",
+    color=(220, 220, 220)
 )
 
 

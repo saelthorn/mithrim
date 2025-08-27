@@ -106,8 +106,9 @@ class Monster:
             if self.flee(player, game_map, game):
                 return  # Monster took action (fled)
             else:
-                game.message_log.add_message(f"The {self.name} tries to flee but is cornered!", (255, 100, 0))
+                # game.message_log.add_message(f"The {self.name} tries to flee but is cornered!", (255, 100, 0))
                 # If cannot flee, fall through to desperate fight or attack
+                pass
 
         if self.ai_state == AI_State.DESPERATE_FIGHT:
             game.message_log.add_message(f"The {self.name} is desperate and fights on!", (255, 100, 100))
