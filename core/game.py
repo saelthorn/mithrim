@@ -157,6 +157,7 @@ class Game:
         self.player = None 
         
         self.selected_inventory_item = None
+        self.selected_inventory_index = 0  # Initialize the selected inventory index        
 
         # Character creation specific variables
         # UPDATED: Add DrowElf to available races
@@ -904,7 +905,6 @@ class Game:
                     
 
                     # --- Always accessible menus ---
-
                     if event.key == pygame.K_c:
                         if self.game_state == GameState.TARGETING:
                             self.message_log.add_message("Targeting cancelled (Character Menu opened).", (150, 150, 150))
@@ -921,6 +921,21 @@ class Game:
                             self.message_log.add_message("Opening Character Menu...", (100, 200, 255))
                         return True # Consume event, don't process other game states  
 
+
+                    # --- Inventory Navigation ---
+                    if self.game_state == GameState.INVENTORY:
+                        if event.key in (pygame.K_UP, pygame.K_w):  # Up arrow or W key
+                            if self.player.inventory.items:  # Check if there are items in inventory
+                                self.selected_inventory_index = (self.selected_inventory_index - 1) % len(self.player.inventory.items)
+                        elif event.key in (pygame.K_DOWN, pygame.K_s):  # Down arrow or S key
+                            if self.player.inventory.items:  # Check if there are items in inventory
+                                self.selected_inventory_index = (self.selected_inventory_index + 1) % len(self.player.inventory.items)
+                        elif event.key == pygame.K_RETURN:  # Enter key to select item
+                            if self.player.inventory.items:
+                                self.selected_inventory_item = self.player.inventory.items[self.selected_inventory_index]
+                                self.game_state = GameState.INVENTORY_MENU
+                                self.message_log.add_message(f"Selected: {self.selected_inventory_item.name}", self.selected_inventory_item.color)
+                        return True  # Consume event
 
                 # --- Trade Interaction --- 
                 if self.game_state in GameState.DUNGEON:
@@ -942,7 +957,7 @@ class Game:
                             return True  # Consume event
 
 
-                # --- NEW: Handle Character Creation Input ---
+                # --- Handle Character Creation Input ---
                 if self.game_state == GameState.CHARACTER_CREATION:
                    if self.game_state == GameState.CHARACTER_CREATION:
                        if event.key == pygame.K_UP:
@@ -977,8 +992,6 @@ class Game:
 
               
                 # --- Handle input based on game state ---
-                # These blocks should only be entered if the game_state is specifically that menu
-                # or if it's the main game (DUNGEON/TAVERN)
                 if self.game_state == GameState.INVENTORY:
                     self.handle_inventory_input(event.key)
                     return True
@@ -2210,8 +2223,14 @@ class Game:
         # Draw inventory items in the left column
         current_y = 20
         for i, item in enumerate(self.player.inventory.items):
-            item_color = (255, 255, 0) if item == self.selected_inventory_item else (255, 255, 255)
-            self._draw_text(target_surface, self.font_info, f"{i + 1}. {item.name}", item_color, 20, current_y)
+            # Highlight the selected item
+            if i == self.selected_inventory_index:
+                item_color = (255, 255, 0)  # Yellow for selected item
+                item_text = f"> {item.name} <"  # Add arrows to indicate selection
+            else:
+                item_color = (255, 255, 255)  # Default color for unselected items
+                item_text = item.name  # Normal item name
+            self._draw_text(target_surface, self.font_info, item_text, item_color, 20, current_y)
             current_y += self.font_info.get_linesize() + 5
 
         # Draw character graphic in the right column

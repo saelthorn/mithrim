@@ -9,7 +9,6 @@ If there's only one way in and no way out, it's a tomb. Yours.
 To do:
      - UI Rework pt.2 (Inventory Navigation)
     Prioritize - Make Mithrim Logo
-     - Add More Traps and Status Effects
      - Add Companions
      - Add Torches as an Items
      - Add Boss Rooms
