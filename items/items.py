@@ -63,6 +63,28 @@ class Potion(Item):
         game_instance.message_log.add_message(f"The {self.name} is consumed.", (150, 150, 150))
 
 
+class Food:
+    def __init__(self, name, description, healing_value, price, char):
+        self.name = name
+        self.description = description
+        self.healing_value = healing_value  # Amount of hunger restored
+        self.price = price  # Cost of the food item
+        self.char = char  # Character representation (can be customized)
+        self.color = (255, 255, 0)  # Color representation (can be customized)
+
+    def on_eat(self, player, game_instance):
+        """Handle the effect of eating the food."""
+        if player.hunger < 100:
+            restored_hunger = min(self.healing_value, 100 - player.hunger)
+            player.hunger += restored_hunger
+            game_instance.message_log.add_message(f"{player.name} eats {self.name} and restores {restored_hunger} hunger!", (0, 255, 0))
+            return True
+        else:
+            game_instance.message_log.add_message(f"{player.name} is already full!", (255, 100, 100))
+            return False
+
+
+
 class Weapon(Item):
     """An item that can be equipped for combat."""
     def __init__(self, name, char, color, description, damage_dice, damage_modifier, price, attack_bonus=0, is_two_handed=False, category=None):

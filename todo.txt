@@ -6,13 +6,19 @@ If there's only one way in and no way out, it's a tomb. Yours.
 - Some dungeon-delver, probably.
 
 
+
+UI to add/fix:
+     - Recolor everything
+
+
+
 To do:
-     - UI Rework pt.2 (Inventory Navigation)
     Prioritize - Make Mithrim Logo
      - Add Companions
      - Add Torches as an Items
      - Add Boss Rooms
      - Food as a Resource
+     - Make dungeon merchant sell few items
 
 
 

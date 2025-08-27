@@ -2,8 +2,8 @@ import random
 import pygame
 
 from core.game import GameState
-from items.items import lesser_healing_potion, greater_healing_potion, silver_dagger, iron_short_sword, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes, CampfireKit
-from entities.dungeon_npcs import DungeonHealer # <--- NEW IMPORT
+from items.items import lesser_healing_potion, greater_healing_potion, silver_dagger, iron_short_sword, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes, CampfireKit, Food
+from entities.dungeon_npcs import DungeonHealer 
 from entities.base_entity import NPC
 
 class NPC:
@@ -42,6 +42,32 @@ class Bartender(NPC):
             "Need a drink before you face the depths?",
         ]
         super().__init__(x, y, 'A', 'Bartender', (255, 215, 0), dialogue)
+        
+        self.items_for_sale = [
+            Food("Fresh Meal", "A delicious meal prepared by the chef.", healing_value=20, price=5, char='F'),
+            # Add more food items as needed
+        ]
+
+    def offer_trade(self, player, game):
+        """Handle the trading logic with the player."""
+        game.message_log.add_message(f"{self.name}: Welcome, traveler! Care to browse my meals?", (0, 255, 0))
+        game.message_log.add_message("Meals for sale:", (200, 200, 255))
+       
+        # Display items for sale
+        for item in self.items_for_sale:
+            game.message_log.add_message(f"{item.name} - {item.price} gold", (255, 255, 255))
+       
+        # Allow player to buy or sell
+        game.message_log.add_message("Type 'buy {item}' to buy and 'sell {item}' to sell.", (200, 200, 255))
+        game.message_log.add_message("Type your input:", (200, 200, 255))
+        game.message_log.add_message(" ", (200, 200, 255))
+       
+        # Set the game state to trade temporarily
+        game.game_state = GameState.TRADE  # Set game state to trade
+        game.message_log.show_input_area = True  # Show input area for trade input
+        game.message_log.current_input = ""  # Clear input when activating the input area
+
+
 
 class Merchant(NPC):
     def __init__(self, x, y):

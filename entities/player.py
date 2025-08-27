@@ -81,13 +81,18 @@ class Player: # This is our base class for playable characters
         self.starting_equipment = None 
         
         # Recalculate max HP and AC based on base stats and equipped gear
-        self.max_hp = 0 # Will be set by subclass
-        self.hp = 0     # Will be set by subclass
-        
+        self.max_hp = 0 
+        self.hp = 0     
+
+        self.hunger = 100  # Max hunger value
+        self.hunger_decrease_rate = 1  # Hunger decreases by 1 per turn
+        self.hunger_threshold = 30  # Threshold for negative effects
+        self.turns_since_last_hunger_decrease = 0 
+
         self.attack_power = 0  # Base attack power
         self.attack_bonus = 0      
 
-        self.armor_class = 0  # Will be set by subclass
+        self.armor_class = 0  
         
         self.inventory = Inventory(capacity=20)
         self.inventory.owner = self # Ensure inventory owner is set
@@ -103,6 +108,27 @@ class Player: # This is our base class for playable characters
         self.dash_active = False # <--- NEW: Flag for dash status      
 
         self.current_action_state = None  
+
+    def update_hunger(self, game_instance):
+        """Decrease hunger every 2 turns."""
+        self.turns_since_last_hunger_decrease += 1
+        if self.turns_since_last_hunger_decrease >= 2:  
+            if self.hunger > 0:
+                self.hunger -= self.hunger_decrease_rate
+            self.turns_since_last_hunger_decrease = 0  # Reset the counter
+            # Check if hunger has reached 0
+            if self.hunger <= 0:
+                self.hunger = 0
+                game_instance.message_log.add_message(f"{self.name} has died from hunger!", (255, 0, 0)) # Log message here
+                self.die(game_instance)  # Call the die method and pass game_instance
+   
+    def eat_food(self, food_item, game_instance):
+        """Consume food to restore hunger."""
+        if food_item.on_eat(self, game_instance):
+            self.hunger = min(self.hunger + food_item.healing_value, 100)  # Restore hunger, max 100
+            game_instance.message_log.add_message(f"{self.name} eats {food_item.name} and restores hunger!", (0, 255, 0))
+            return True
+        return False
 
     def get_ability_modifier(self, score):
         return (score - 10) // 2
@@ -397,7 +423,18 @@ class Player: # This is our base class for playable characters
         # Update the turn order to include the new enemies
         game_instance.turn_order.extend(spawned_enemies)  # Add all spawned enemies to the turn order
         game_instance.turn_order = sorted(game_instance.turn_order, key=lambda e: e.initiative, reverse=True)  # Sort by initiative
-    
+
+
+    def die(self, game_instance=None):
+        """
+        Handles the player's death.
+        Sets alive to False and logs a death message.
+        """
+        self.alive = False
+        if game_instance:
+            game_instance.message_log.add_message(f"{self.name} has fallen!", (255, 0, 0))
+        print(f"{self.name} has died.") # For console debugging  
+
 
     def is_adjacent_to(self, other):
         """Check if next to another entity (cardinal directions + diagonals)"""

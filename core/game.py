@@ -736,7 +736,13 @@ class Game:
         # Process status effects for the entity that just completed its turn (or was about to)
         if current_acting_entity:
             current_acting_entity.process_status_effects(self)
-
+            if current_acting_entity == self.player:
+                self.player.update_hunger(self)  # Decrease hunger each turn
+                if self.player.hunger < self.player.hunger_threshold:
+                    self.message_log.add_message(f"{self.player.name} is feeling hungry!", (255, 100, 0))
+                if not self.player.alive:  # Check if the player has died from hunger
+                    return  # End the turn if the player is dead                    
+       
         self.cleanup_entities()
 
         # If after cleanup, there are no entities left (e.g., all monsters died)
@@ -2485,9 +2491,7 @@ class Game:
         draw_centered_header(self.screen, font_header, "PLAYER", (255, 215, 0), current_y)
         current_y += font_header.get_linesize() + 10
         self._draw_text(self.screen, font_info, f"Name: {self.player.name}", (255, 255, 255), panel_offset_x, current_y)
-        current_y += font_info.get_linesize() + 5
-        self._draw_text(self.screen, font_info, f"Class: {self.player.class_name}", (255, 255, 255), panel_offset_x, current_y)
-        current_y += font_info.get_linesize() + 5    
+        current_y += font_info.get_linesize() + 5   
         self._draw_text(self.screen, font_info, f"Level: {self.player.level}", (255, 255, 255), panel_offset_x, current_y)
         current_y += font_info.get_linesize() + 5
         self._draw_text(self.screen, font_info, f"XP: {self.player.current_xp}/{self.player.xp_to_next_level}", (255, 255, 255), panel_offset_x, current_y)
@@ -2503,18 +2507,16 @@ class Game:
         hp_color = (255, 0, 0) if self.player.hp < self.player.max_hp // 3 else (255, 255, 0) if self.player.hp < self.player.max_hp * 2 // 3 else (0, 255, 0)
         self._draw_text(self.screen, font_info, f"HP: {self.player.hp}/{self.player.max_hp}", hp_color, panel_offset_x, current_y)
         current_y += font_info.get_linesize() + 5
-        
-        bar_width = config.UI_PANEL_WIDTH - 40
-        bar_height = 10
-        hp_bar_rect = pygame.Rect(panel_offset_x, current_y, bar_width, bar_height)
-        pygame.draw.rect(self.screen, (50, 0, 0), hp_bar_rect)
-        pygame.draw.rect(self.screen, (20, 20, 20), hp_bar_rect, 1)
-        fill_width = int(bar_width * (self.player.hp / self.player.max_hp))
-        pygame.draw.rect(self.screen, hp_color, (panel_offset_x, current_y, fill_width, bar_height))
-        current_y += bar_height + 15
+
+        hunger_color = (0, 255, 0) if self.player.hunger > 50 else (255, 255, 0) if self.player.hunger > 20 else (255, 0, 0)
+        self._draw_text(self.screen, self.font_info, f"Hunger: {self.player.hunger}/100", hunger_color, panel_offset_x, current_y)
+        current_y += self.font_info.get_linesize() + 5 
+        current_y += 15                      
+
+
         pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
         current_y += 15
-
+        
         draw_centered_header(self.screen, font_header, "ABILITIES", (255, 215, 0), current_y)
         current_y += font_header.get_linesize() + 10
         
@@ -2531,6 +2533,7 @@ class Game:
                 current_y = draw_wrapped_and_update_y(self.screen, font_info, ability_display_text, ability_color, panel_offset_x, current_y)
                 current_y += 5
         current_y += 10
+        
         pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
         current_y += 15
         
