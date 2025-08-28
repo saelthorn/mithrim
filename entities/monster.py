@@ -85,9 +85,6 @@ class Monster:
         if not self.alive:  # Check if monster died from status effect
             return
 
-        # Check if the player is detected before chasing
-        player_detected = self.detect_player(player, game)
-
         # Determine AI state based on health
         monster_hp_low = self.hp_percentage() < self.flee_hp_threshold
         player_hp_high = game.get_player_hp_percentage() > self.player_safe_hp_threshold
@@ -100,8 +97,15 @@ class Monster:
                 self.ai_state = AI_State.DESPERATE_FIGHT
             else:
                 self.ai_state = AI_State.CHASING
+        # Non-intelligent monsters always default to CHASING behavior (or whatever their default is)
+        else:
+            self.ai_state = AI_State.CHASING # Or a simpler AI state if they don't flee/desperate fight
 
-        # Execute behavior based on AI state
+        # Get distance to player for various checks
+        distance_to_player = self.distance_to(player.x, player.y)
+        player_detected = self.detect_player(player, game) # This updates last_known_player_position
+
+        # --- AI State Behavior Execution ---
         if self.ai_state == AI_State.FLEEING:
             if self.flee(player, game_map, game):
                 return  # Monster took action (fled)
@@ -110,19 +114,47 @@ class Monster:
                 # If cannot flee, fall through to desperate fight or attack
                 pass
 
-        if self.ai_state == AI_State.DESPERATE_FIGHT:
+        elif self.ai_state == AI_State.DESPERATE_FIGHT:
             game.message_log.add_message(f"The {self.name} is desperate and fights on!", (255, 100, 100))
-            self.attack(player, game)  # Use base melee attack
-            return
+            
+            # Prioritize attacking if in range
+            if self.is_ranged and distance_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
+                self.ranged_attack(player, game)
+                return
+            elif self.is_adjacent_to(player):
+                self.attack(player, game)
+                return
+            
+            # If not in attack range, chase the player
+            else:
+                # Use the same chasing logic as the CHASING state
+                path = astar(game_map, (self.x, self.y), (player.x, player.y), entities=[e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement])
 
-        # If not fleeing or in desperate fight, proceed with normal attack/chase
-        if player_detected:
+                if path and len(path) > 1:
+                    next_step = path[1]
+                    new_x, new_y = next_step
+
+                    is_blocked = False
+                    for entity in game.entities:
+                        if entity != self and entity.x == new_x and entity.y == new_y and entity.alive and entity.blocks_movement:
+                            is_blocked = True
+                            break
+
+                    if not is_blocked:
+                        self.x, self.y = new_x, new_y
+                        game.message_log.add_message(f"The {self.name} desperately moves towards {player.name}!", (255, 100, 100))
+                    else:
+                        game.message_log.add_message(f"The {self.name} is blocked and cannot reach {player.name}!", (100, 100, 100))
+                else:
+                    game.message_log.add_message(f"The {self.name} cannot find a path to {player.name}!", (150, 150, 150))
+                return # Action taken (attempted to move)
+
+        # --- Default CHASING behavior (if not fleeing or desperate, or if fleeing failed) ---
+        if player_detected: # Only chase if player is detected
             # If monster has ranged attack, check if player is in range and line of sight
-            distance_to_player = self.distance_to(player.x, player.y)
-            if self.is_ranged:
-                if distance_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
-                    self.ranged_attack(player, game)
-                    return
+            if self.is_ranged and distance_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
+                self.ranged_attack(player, game)
+                return
 
             # Check if adjacent to player (including diagonals) - melee attack
             if self.is_adjacent_to(player):
@@ -130,29 +162,32 @@ class Monster:
                 return
 
             # Otherwise, move toward the player's current position using A* pathfinding
-            path = astar(game_map, (self.x, self.y), (player.x, player.y), entities=[e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement])
+            # Use last_known_player_position if player is not currently visible but was recently
+            target_pos = (player.x, player.y) if game.check_line_of_sight(self.x, self.y, player.x, player.y) else self.last_known_player_position
+            
+            if target_pos: # Only pathfind if there's a target position
+                path = astar(game_map, (self.x, self.y), target_pos, entities=[e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement])
 
-            if path and len(path) > 1:
-                next_step = path[1]
-                new_x, new_y = next_step  # Ensure next_step is unpacked correctly
+                if path and len(path) > 1:
+                    next_step = path[1]
+                    new_x, new_y = next_step
 
-                is_blocked = False
-                for entity in game.entities:
-                    if entity != self and entity.x == new_x and entity.y == new_y and entity.alive and entity.blocks_movement:
-                        is_blocked = True
-                        break
+                    is_blocked = False
+                    for entity in game.entities:
+                        if entity != self and entity.x == new_x and entity.y == new_y and entity.alive and entity.blocks_movement:
+                            is_blocked = True
+                            break
 
-                if not is_blocked:
-                    self.x, self.y = new_x, new_y  # Correctly assign new_x and new_y
+                    if not is_blocked:
+                        self.x, self.y = new_x, new_y
+                    else:
+                        game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
                 else:
-                    game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
-            else:
-                game.message_log.add_message(f"The {self.name} cannot find a path to the player.", (150, 150, 150))
+                    game.message_log.add_message(f"The {self.name} cannot find a path to the player.", (150, 150, 150))
         else:
             # If the player is not detected, patrol the area
             if self.patrol(game_map):
-                # game.message_log.add_message(f"The {self.name} patrols the area.", (150, 150, 150))
-                pass
+                pass # Monster patrolled
 
     def hp_percentage(self):
         """Returns the monster's current HP as a percentage."""

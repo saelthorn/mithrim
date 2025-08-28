@@ -203,7 +203,7 @@ class Game:
         # Level range: [List of monster classes that can spawn]
 
         # Early dungeon fodder
-        (1, 1): [Goblin, GiantRat, Wolf],
+        (1, 1): [Goblin, Wolf, GiantRat],
         (2, 2): [Goblin, GoblinArcher, GiantRat, Wererat, Wolf],
         (2, 3): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf],
 
@@ -2273,7 +2273,7 @@ class Game:
         target_surface.fill((0, 0, 0, 200))  # Fill with a semi-transparent black to create a modal effect
 
         # Draw a background box for the menu
-        menu_width = int(target_surface.get_width() * 0.8)  # Make it wider
+        menu_width = int(target_surface.get_width() * 0.9)  # Make it wider
         menu_height = int(target_surface.get_height() * 0.8)
         menu_x = (target_surface.get_width() - menu_width) // 2
         menu_y = (target_surface.get_height() - menu_height) // 2
