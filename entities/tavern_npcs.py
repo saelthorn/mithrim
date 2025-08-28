@@ -2,7 +2,7 @@ import random
 import pygame
 
 from core.game import GameState
-from items.items import lesser_healing_potion, greater_healing_potion, silver_dagger, iron_short_sword, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes, CampfireKit, Food
+from items.items import lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, silver_dagger, iron_short_sword, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes, CampfireKit, Food
 from entities.dungeon_npcs import DungeonHealer 
 from entities.base_entity import NPC
 
@@ -45,36 +45,72 @@ class Bartender(NPC):
         
 
 
+
 class Merchant(NPC):
     def __init__(self, x, y):
         dialogue = [
-            "Welcome to my shop! What would you like to buy?",
-            "I have the finest goods in the land!",
-            "Feel free to browse my wares.",
-            "If you have something to sell, I'm all ears!",
-            "Careful out there… but first, care to buy a potion or two?"
+            "Welcome to my tavern shop! Looking for something special?",
+            "I have some fine goods and tasty treats.",
+            "Feel free to browse my selection.",
+            "If you want to sell something, just let me know.",
+            "Careful out there, adventurer!"
         ]
-        super().__init__(x, y, 'rc', 'Merchant', (255, 215, 0), dialogue)  # Yellow color for the Merchant
-
-
-        # Define items for sale
-        self.items_for_sale = [
-            lesser_healing_potion,  # Assuming these are defined as instances of Potion
+        super().__init__(x, y, 'rc', 'Tavern Merchant', (255, 215, 100), dialogue)  # Different char/color for tavern merchant
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+        # Default items always sold
+        default_items = [
+            CampfireKit(),
+            lesser_healing_potion,
             greater_healing_potion,
-            silver_dagger,
-            iron_short_sword,
-            steel_battle_axe,
-            oak_staff,
-            padded_armor,
-            chainmail_armor, 
-            adamantine_long_sword,
-            staff_of_magi,
-            duelists_rapier,
-            dragonsbane_warhammer,
-            steel_long_sword,
-            dwarven_battle_axe,
-            CampfireKit()           
+            meat,
+            green_apple,
+            bread,
+            fromage,
+            mushroom
         ]
+        # Chance-based items with their spawn probabilities (fewer and simpler than dungeon merchant)
+        chance_items_with_chance = [
+            (lesser_healing_potion, 0.3),
+            (greater_healing_potion, 0.2),
+            (bread, 0.25),
+            (green_apple, 0.25),
+            # Add more tavern-specific items and chances if desired
+        ]
+
+        self.items_for_sale = []
+       
+        # Add default items
+        for item in default_items:
+            if isinstance(item, CampfireKit):
+                self.items_for_sale.append(item)
+            else:
+                new_item = item.__class__(
+                    name=item.name,
+                    char=item.char,
+                    color=item.color,
+                    description=item.description,
+                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                )
+                self.items_for_sale.append(new_item)
+       
+        # Add chance-based items
+        for item_template, chance in chance_items_with_chance:
+            if random.random() < chance:
+                new_item = item_template.__class__(
+                    name=item_template.name,
+                    char=item_template.char,
+                    color=item_template.color,
+                    description=item_template.description,
+                    **{k: v for k, v in item_template.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                )
+                self.items_for_sale.append(new_item)
 
     def offer_trade(self, player, game):
         """Handle the trading logic with the player."""

@@ -1,7 +1,7 @@
 import random
 
 from core.game import GameState
-from items.items import lesser_healing_potion, greater_healing_potion, full_plate_armor, robes_of_protection, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, CampfireKit
+from items.items import lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, full_plate_armor, robes_of_protection, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, CampfireKit
 from entities.base_entity import NPC
 
 class DungeonHealer(NPC):
@@ -47,38 +47,61 @@ class DungeonMerchant(NPC):
             "CHA": False,
         }    
 
-        item_templates = [
+        # Default items always sold
+        default_items = [
+            CampfireKit(),  # Already an instance
             lesser_healing_potion,
             greater_healing_potion,
-            full_plate_armor,
-            robes_of_protection,
-            adamantine_long_sword,
-            staff_of_magi, 
-            duelists_rapier,
-            dwarven_battle_axe,
-            flameheart_flail,
-            flameheart_short_sword,
-            dragonsbane_warhammer,
-            CampfireKit() # CampfireKit is already an instance and doesn't need special handling here
+            meat,
+            green_apple,
+            bread,
+            fromage,
+            mushroom
         ]
-        
-        # Create new instances for the merchant's actual stock
+
+        # Chance-based items with their spawn probabilities
+        chance_items_with_chance = [
+            (full_plate_armor, 0.1),
+            (robes_of_protection, 0.15),
+            (adamantine_long_sword, 0.05),
+            (staff_of_magi, 0.05),
+            (duelists_rapier, 0.1),
+            (dwarven_battle_axe, 0.1),
+            (dragonsbane_warhammer, 0.05),
+            (flameheart_flail, 0.07),
+            (flameheart_short_sword, 0.07),
+            # Add more items and chances as needed
+        ]
+
         self.items_for_sale = []
-        for template_item in item_templates:
-            # For CampfireKit, it's already an instance, so just add it directly
-            if isinstance(template_item, CampfireKit):
-                self.items_for_sale.append(CampfireKit()) # Create a new one each time
-                continue
-            
-            new_item = template_item.__class__(
-                name=template_item.name,
-                char=template_item.char,
-                color=template_item.color,
-                description=template_item.description,
-                # Use a dictionary comprehension to copy other specific attributes
-                **{k: v for k, v in template_item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
-            )
-            self.items_for_sale.append(new_item)
+
+        # Add default items (create new instances for non-instance items)
+        for item in default_items:
+            if isinstance(item, CampfireKit):
+                self.items_for_sale.append(item)  # Already an instance
+            else:
+                new_item = item.__class__(
+                    name=item.name,
+                    char=item.char,
+                    color=item.color,
+                    description=item.description,
+                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                )
+                self.items_for_sale.append(new_item)
+
+        # Add chance-based items based on their probabilities
+        import random
+        for item_template, chance in chance_items_with_chance:
+            if random.random() < chance:
+                new_item = item_template.__class__(
+                    name=item_template.name,
+                    char=item_template.char,
+                    color=item_template.color,
+                    description=item_template.description,
+                    **{k: v for k, v in item_template.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                )
+                self.items_for_sale.append(new_item)
+
 
 
     def offer_trade(self, player, game):
@@ -104,12 +127,12 @@ class DungeonMerchant(NPC):
 
     def buy_item(self, player, item_name, game):
         """Handle the logic for buying an item."""
-        for item in self.items_for_sale:
+        for item in self.item_templates:
             if item.name.lower() == item_name.lower():  # Case insensitive comparison
                 if player.gold >= item.price:  # Assuming player has a gold attribute
                     player.gold -= item.price
                     player.inventory.add_item(item)  # Add the item to the player's inventory
-                    self.items_for_sale.remove(item)  # Remove the item from the merchant's inventory
+                    self.item_templates.remove(item)  # Remove the item from the merchant's inventory
                     return f"You bought {item.name}!"
                 else:
                     return "Scram! you don't have enough gold!"
@@ -122,7 +145,7 @@ class DungeonMerchant(NPC):
             if item.name.lower() == item_name.lower():  # Case insensitive comparison
                 player.inventory.remove_item(item)  # Remove the item from the player's inventory
                 player.gold += item.price // 2  # Assuming the merchant pays half the price
-                self.items_for_sale.append(item)  # Add the item back to the merchant's inventory
+                self.item_templates.append(item)  # Add the item back to the merchant's inventory
                 return f"You sold {item.name}!"
         return "Item not found in your inventory."
 
