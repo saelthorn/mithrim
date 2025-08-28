@@ -272,7 +272,7 @@ class Game:
         self.player.race = chosen_race
         self.player.race.apply_traits(self.player, self) 
         
-        # REMOVED: self.player.has_darkvision = self.player.race.has_darkvision (handled by apply_traits)
+        # REMOVED: self.player.darkvision_radius = self.player.race.darkvision_radius (handled by apply_traits)
         self.player.damage_resistances.extend(self.player.race.damage_resistances)
         self.player.skill_proficiencies.extend(self.player.race.skill_proficiencies)
         self.player.weapon_proficiencies.extend(self.player.race.weapon_proficiencies)
@@ -2031,12 +2031,14 @@ class Game:
             # Draw minimap if in dungeon or tavern state
             if self.game_state in [GameState.DUNGEON, GameState.TAVERN]:
                 self.draw_minimap()
-        self.message_log.render(self.screen)
 
         # Draw FPS in the top left corner
         # fps_text = f"FPS: {int(self.fps)}"  # Convert FPS to an integer for display
         # fps_surface = self.fps_font.render(fps_text, True, (255, 255, 255))  # White color for FPS text
         # self.screen.blit(fps_surface, (10, 10))  # Position it at (10, 10)        
+
+        if self.game_state not in [GameState.CHARACTER_CREATION, GameState.CLASS_SELECTION]:
+            self.message_log.render(self.screen)
 
         pygame.display.flip()
 
@@ -2158,94 +2160,255 @@ class Game:
                     # graphics.draw_tile(self.internal_surface, draw_x, draw_y, floor.char, color_tint=item_color_tint)
                     graphics.draw_tile(self.internal_surface, draw_x, draw_y, item.char, color_tint=item_color_tint)
 
-
+   
     def render_character_creation_screen(self):
-        target_surface = self.inventory_ui_surface # Use this surface for drawing
-        target_surface.fill((0,0,0,0)) # Clear it
-        
+        # Use the main screen surface for drawing
+        target_surface = self.screen  # Change to self.screen to cover the entire window
+        target_surface.fill((0, 0, 0, 200))  # Fill with a semi-transparent black to create a modal effect
+
         # Draw a background box for the menu
-        menu_width = int(target_surface.get_width() * 0.7)
+        menu_width = int(target_surface.get_width() * 0.9)  # Make it wider to accommodate two columns
         menu_height = int(target_surface.get_height() * 0.8)
         menu_x = (target_surface.get_width() - menu_width) // 2
         menu_y = (target_surface.get_height() - menu_height) // 2
         menu_rect = pygame.Rect(menu_x, menu_y, menu_width, menu_height)
         pygame.draw.rect(target_surface, (30, 30, 30), menu_rect)
         pygame.draw.rect(target_surface, (100, 100, 100), menu_rect, 2)
-        
+
         title_text = "CHOOSE YOUR RACE"
         title_surface = self.inventory_font_header.render(title_text, True, (255, 215, 0))
         title_rect = title_surface.get_rect(center=(menu_rect.centerx, menu_y + self.inventory_font_header.get_linesize() // 2 + 10))
         target_surface.blit(title_surface, title_rect)
-        
-        current_y = title_rect.bottom + 30
-        item_start_x = menu_x + 40
+
+        # Define column positions
+        left_column_x = menu_x + 20
+        right_column_x = menu_x + menu_width // 2 + 20  # Start right column after half width + padding
+        column_width = menu_width // 2 - 40  # Adjust for padding on both sides
+
+        current_y_left = title_rect.bottom + 30
         line_spacing = self.inventory_font_info.get_linesize() + 8
-        
+
+        # Left Column: Race Choices
+        self._draw_text(target_surface, self.inventory_font_section, "Races:", (255, 255, 0), left_column_x, current_y_left)
+        current_y_left += self.inventory_font_section.get_linesize() + 10
+
         for i, race in enumerate(self.available_races):
-            race_text = f"{i+1}. {race.name}"
+            race_text = f"{i + 1}. {race.name}"
             color = (255, 255, 0) if i == self.selected_race_index else (200, 200, 200)
-            race_surface = self.inventory_font_section.render(race_text, True, color)
-            target_surface.blit(race_surface, (item_start_x, current_y))
-            current_y += line_spacing
-        
-            if i == self.selected_race_index:
-                wrapped_desc = self._wrap_text(race.description, self.inventory_font_small, menu_width - 80)
-        
-                for line in wrapped_desc:
-                    desc_surface = self.inventory_font_small.render(line, True, (150, 150, 150))
-                    target_surface.blit(desc_surface, (item_start_x + 20, current_y))
-                    current_y += self.inventory_font_small.get_linesize() + 2
-        
-                current_y += 10 # Extra space after description
-        
+            self._draw_text(target_surface, self.inventory_font_section, race_text, color, left_column_x, current_y_left)
+            current_y_left += line_spacing
+
+        # Right Column: Race Information
+        current_y_right = title_rect.bottom + 30
+        selected_race = self.available_races[self.selected_race_index]
+
+        self._draw_text(target_surface, self.inventory_font_section, f"{selected_race.name} Details:", (255, 215, 0), right_column_x, current_y_right)
+        current_y_right += self.inventory_font_section.get_linesize() + 10
+
+        # Description
+        current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, selected_race.description, (150, 150, 150), right_column_x, current_y_right, column_width)
+        current_y_right += 10
+
+        # Traits
+        self._draw_text(target_surface, self.inventory_font_info, "Traits:", (200, 200, 255), right_column_x, current_y_right)
+        current_y_right += self.inventory_font_info.get_linesize() + 5
+
+        if selected_race.darkvision_radius > 0:
+            self._draw_text(target_surface, self.inventory_font_small, f"- Darkvision: {selected_race.darkvision_radius} tiles.", (255, 255, 255), right_column_x + 10, current_y_right)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        if selected_race.damage_resistances:
+            self._draw_text(target_surface, self.inventory_font_small, f"- Damage Resistances: {', '.join(selected_race.damage_resistances)}", (255, 255, 255), right_column_x + 10, current_y_right)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        if selected_race.skill_proficiencies:
+            # Use the wrapped text method for skill proficiencies
+            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Skill Proficiencies: {', '.join(selected_race.skill_proficiencies)}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        if selected_race.weapon_proficiencies:
+            # Use the wrapped text method for weapon proficiencies
+            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Weapon Proficiencies: {', '.join(selected_race.weapon_proficiencies)}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        if selected_race.armor_proficiencies:
+            self._draw_text(target_surface, self.inventory_font_small, f"- Armor Proficiencies: {', '.join(selected_race.armor_proficiencies)}", (255, 255, 255), right_column_x + 10, current_y_right)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        # Instructions (at the bottom, centered)
         instructions_y = menu_rect.bottom - (self.inventory_font_small.get_linesize() * 2) - 20
-        self._draw_text(target_surface, self.inventory_font_small, "Use UP/DOWN arrows to select.", (150, 150, 150), item_start_x, instructions_y)
-        self._draw_text(target_surface, self.inventory_font_small, "Press ENTER to confirm.", (150, 150, 150), item_start_x, instructions_y + self.inventory_font_small.get_linesize() + 5)    
+        self._draw_text(target_surface, self.inventory_font_small, "Use UP/DOWN arrows to select.", (150, 150, 150), menu_rect.centerx - self.inventory_font_small.size("Use UP/DOWN arrows to select.")[0] // 2, instructions_y)
+        self._draw_text(target_surface, self.inventory_font_small, "Press ENTER to confirm.", (150, 150, 150), menu_rect.centerx - self.inventory_font_small.size("Press ENTER to confirm.")[0] // 2, instructions_y + self.inventory_font_small.get_linesize() + 5)
+
+    def _draw_wrapped_and_update_y_menu(self, surface, font, text, color, x, y_start, max_width):
+        """Wraps text and draws it on the surface, updating the y position."""
+        words = text.split(' ')
+        lines = []
+        current_line = []
+
+        for word in words:
+            test_line = ' '.join(current_line + [word])
+            if font.size(test_line)[0] <= max_width:  # Check if the line fits within the max width
+                current_line.append(word)
+            else:
+                if current_line:  # If there's a current line, add it to lines
+                    lines.append(' '.join(current_line))
+                current_line = [word]  # Start a new line with the current word
+
+        if current_line:  # Add the last line if it exists
+            lines.append(' '.join(current_line))
+
+        # Draw each line and update the y position
+        y_offset = y_start
+        for line in lines:
+            self._draw_text(surface, font, line, color, x, y_offset)
+            y_offset += font.get_linesize() + 2  # Add some spacing between lines
+
+        return y_offset  # Return the new y position
+
 
     def render_class_selection_screen(self):
-        target_surface = self.inventory_ui_surface
-        target_surface.fill((0,0,0,0))
-        
-        menu_width = int(target_surface.get_width() * 0.7)
+        # Use the main screen surface for drawing
+        target_surface = self.screen  # Change to self.screen to cover the entire window
+        target_surface.fill((0, 0, 0, 200))  # Fill with a semi-transparent black to create a modal effect
+
+        # Draw a background box for the menu
+        menu_width = int(target_surface.get_width() * 0.8)  # Make it wider
         menu_height = int(target_surface.get_height() * 0.8)
         menu_x = (target_surface.get_width() - menu_width) // 2
         menu_y = (target_surface.get_height() - menu_height) // 2
         menu_rect = pygame.Rect(menu_x, menu_y, menu_width, menu_height)
         pygame.draw.rect(target_surface, (30, 30, 30), menu_rect)
         pygame.draw.rect(target_surface, (100, 100, 100), menu_rect, 2)
-        
+
         title_text = "CHOOSE YOUR CLASS"
         title_surface = self.inventory_font_header.render(title_text, True, (255, 215, 0))
         title_rect = title_surface.get_rect(center=(menu_rect.centerx, menu_y + self.inventory_font_header.get_linesize() // 2 + 10))
         target_surface.blit(title_surface, title_rect)
-        
-        current_y = title_rect.bottom + 30
-        item_start_x = menu_x + 40
+
+        # Define column positions
+        left_column_x = menu_x + 20
+        right_column_x = menu_x + menu_width // 2 + 20
+        column_width = menu_width // 2 - 40
+
+        current_y_left = title_rect.bottom + 30
         line_spacing = self.inventory_font_info.get_linesize() + 8
-        
+
+        # Left Column: Class Choices
+        self._draw_text(target_surface, self.inventory_font_section, "Classes:", (255, 255, 0), left_column_x, current_y_left)
+        current_y_left += self.inventory_font_section.get_linesize() + 10
+
         for i, class_constructor in enumerate(self.available_classes):
-            class_name = class_constructor.__name__ # Get the class name string
-            class_text = f"{i+1}. {class_name}"
+            class_name = class_constructor.__name__  # Get the class name string
+            class_text = f"{i + 1}. {class_name}"
             color = (255, 255, 0) if i == self.selected_class_index else (200, 200, 200)
-            class_surface = self.inventory_font_section.render(class_text, True, color)
-            target_surface.blit(class_surface, (item_start_x, current_y))
-            current_y += line_spacing
-            
-            if i == self.selected_class_index:
-                # You can add more detailed class descriptions here if you want to define them
-                # For now, a generic one:
-                class_description = "A brief description of this class's playstyle and abilities."
-                wrapped_desc = self._wrap_text(class_description, self.inventory_font_small, menu_width - 80)
-                for line in wrapped_desc:
-                    desc_surface = self.inventory_font_small.render(line, True, (150, 150, 150))
-                    target_surface.blit(desc_surface, (item_start_x + 20, current_y))
-                    current_y += self.inventory_font_small.get_linesize() + 2
-                current_y += 10 # Extra space after description
-        
+            self._draw_text(target_surface, self.inventory_font_section, class_text, color, left_column_x, current_y_left)
+            current_y_left += line_spacing
+
+        # Right Column: Class Information
+        current_y_right = title_rect.bottom + 30
+        selected_class_constructor = self.available_classes[self.selected_class_index]
+        selected_class_name = selected_class_constructor.__name__
+
+        self._draw_text(target_surface, self.inventory_font_section, f"{selected_class_name} Details:", (255, 215, 0), right_column_x, current_y_right)
+        current_y_right += self.inventory_font_section.get_linesize() + 10
+
+        # Get class-specific description and traits
+        class_info = self._get_class_details(selected_class_constructor)
+
+        # Description
+        current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, class_info["description"], (150, 150, 150), right_column_x, current_y_right, column_width)
+        current_y_right += 10
+
+        # Key Features
+        self._draw_text(target_surface, self.inventory_font_info, "Key Features:", (200, 200, 255), right_column_x, current_y_right)
+        current_y_right += self.inventory_font_info.get_linesize() + 5
+
+        # Hit Die
+        current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Hit Die: {class_info['hit_die']}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
+        current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        # Primary Ability
+        current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Primary Ability: {class_info['primary_ability']}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
+        current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        # Saving Throw Proficiencies
+        if class_info['saving_throws']:
+            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Saving Throws: {', '.join(class_info['saving_throws'])}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        # Armor Proficiencies
+        if class_info['armor_proficiencies']:
+            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Armor Proficiencies: {', '.join(class_info['armor_proficiencies'])}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        # Weapon Proficiencies
+        if class_info['weapon_proficiencies']:
+            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Weapon Proficiencies: {', '.join(class_info['weapon_proficiencies'])}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        # Starting Equipment
+        if class_info['starting_equipment']:
+            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Starting Equipment: {', '.join(class_info['starting_equipment'])}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        # Instructions (at the bottom, centered)
         instructions_y = menu_rect.bottom - (self.inventory_font_small.get_linesize() * 2) - 20
-        self._draw_text(target_surface, self.inventory_font_small, "Use UP/DOWN arrows to select.", (150, 150, 150), item_start_x, instructions_y)
-        self._draw_text(target_surface, self.inventory_font_small, "Press ENTER to confirm.", (150, 150, 150), item_start_x, instructions_y + self.inventory_font_small.get_linesize() + 5)
-   
+        self._draw_text(target_surface, self.inventory_font_small, "Use UP/DOWN arrows to select.", (150, 150, 150), menu_rect.centerx - self.inventory_font_small.size("Use UP/DOWN arrows to select.")[0] // 2, instructions_y)
+        self._draw_text(target_surface, self.inventory_font_small, "Press ENTER to confirm.", (150, 150, 150), menu_rect.centerx - self.inventory_font_small.size("Press ENTER to confirm.")[0] // 2, instructions_y + self.inventory_font_small.get_linesize() + 5)
+
+
+    def _get_class_details(self, class_constructor):
+        """
+        Returns a dictionary of details for a given class constructor.
+        You will need to expand this with actual data for each class.
+        """
+        # Create a dummy instance to access class attributes
+        dummy_instance = class_constructor(0, 0, '@', 'Dummy', (255, 255, 255))
+
+        # Get the class name from the constructor
+        selected_class_name = dummy_instance.class_name  # Assuming class_name is set in the class constructor
+
+        details = {
+            "Fighter": {
+                "description": "A master of martial combat, skilled with a variety of weapons and armor. Fighters are versatile warriors who can specialize in offense or defense.",
+                "hit_die": "1d10",
+                "primary_ability": "Strength or Dexterity",
+                "saving_throws": ["Strength", "Constitution"],
+                "armor_proficiencies": ["Light", "Medium", "Heavy", "Shields"],
+                "weapon_proficiencies": ["Simple", "Martial"],
+                "starting_equipment": ["Chain mail", "A martial weapon and a shield", "A light crossbow and 20 bolts", "An explorer's pack"]
+            },
+            "Rogue": {
+                "description": "A master of stealth, cunning, and trickery. Rogues excel at striking from the shadows and disarming traps.",
+                "hit_die": "1d8",
+                "primary_ability": "Dexterity",
+                "saving_throws": ["Dexterity", "Intelligence"],
+                "armor_proficiencies": ["Light"],
+                "weapon_proficiencies": ["Simple", "Hand crossbows", "Longswords", "Rapiers", "Shortswords"],
+                "starting_equipment": ["A rapier", "A shortbow and quiver of 20 arrows", "A burglar's pack", "Leather armor", "Two daggers", "Thieves' tools"]
+            },
+            "Wizard": {
+                "description": "A scholarly magic-user capable of manipulating the fabric of reality. Wizards wield powerful spells learned from ancient tomes.",
+                "hit_die": "1d6",
+                "primary_ability": "Intelligence",
+                "saving_throws": ["Intelligence", "Wisdom"],
+                "armor_proficiencies": ["None"],
+                "weapon_proficiencies": ["Daggers", "Darts", "Slings", "Quarterstaffs", "Light crossbows"],
+                "starting_equipment": ["A quarterstaff", "A component pouch", "A scholar's pack", "A spellbook"]
+            }
+        }
+        # Return specific details for the class, or a generic message if not found
+        return details.get(selected_class_name, {
+            "description": "No detailed description available for this class.",
+            "hit_die": "N/A",
+            "primary_ability": "N/A",
+            "saving_throws": [],
+            "armor_proficiencies": [],
+            "weapon_proficiencies": [],
+            "starting_equipment": []
+        })
+    
 
     def render_inventory_screen(self):
         """Renders the inventory screen with a two-column layout."""
