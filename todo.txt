@@ -1,5 +1,3 @@
-youre a senior game developer helping me make a classic turnbased roguelike rpg heavily based on dnd 5e, 
-
 If there is more than one way in and out, it's a maze.
 If there's only one way in and out, it's a labyrinth.
 If there's only one way in and no way out, it's a tomb. Yours.
@@ -16,8 +14,8 @@ To do:
     Prioritize - Make Mithrim Logo
      - Add Companions
      - Add Torches as an Items
-     - Add Boss Rooms
 
 
 
 To fix:
+     - Fix the choppy turns

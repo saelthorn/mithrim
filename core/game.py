@@ -202,6 +202,15 @@ class Game:
 
         self._recalculate_minimap_dimensions()
 
+    # Boss schedule: every 5th floor, ordered list
+    BOSS_FLOORS = [
+        (5, 'GoblinKing'),
+        (10, 'GiantSpider'),
+        (15, 'Beholder'),
+        (20, 'RedDragon'),
+        (25, 'Demogorgon'),
+    ]
+
     MONSTER_SPAWN_TIERS = {
         # Level range: [List of monster classes that can spawn]
 
@@ -475,8 +484,8 @@ class Game:
         monsters_per_level = min(5 + level_number, len(rooms) - 1)
         monster_rooms = rooms[1:monsters_per_level + 2]
 
-        # Boss floors: every 5th floor; for testing also floor 1
-        is_boss_floor = (level_number % 5 == 0) or (level_number == 1)
+        # Boss floors: every 5th floor via schedule
+        is_boss_floor = any(level_number == f for (f, _) in self.BOSS_FLOORS)
         boss_entity = None
         boss_room = None
         if rooms and is_boss_floor:
@@ -538,8 +547,18 @@ class Game:
                         break
 
                 if spawn_x is not None:
-                    # Pick a boss appropriate for early testing; later can vary by depth
-                    boss_entity = Demogorgon(spawn_x, spawn_y)
+                    # Pick boss by schedule
+                    boss_name = next((name for (f, name) in self.BOSS_FLOORS if f == level_number), None)
+                    # Map names to classes (fallback to Demogorgon if missing)
+                    name_to_cls = {
+                        'GoblinKing': Goblin,  # TODO: replace with GoblinKing class when available
+                        'GiantSpider': GiantSpider,
+                        'Beholder': Beholder,
+                        'RedDragon': DragonWhelp,  # TODO: replace with Red Dragon class when available
+                        'Demogorgon': Demogorgon,
+                    }
+                    boss_cls = name_to_cls.get(boss_name, Demogorgon)
+                    boss_entity = boss_cls(spawn_x, spawn_y)
                     # Mark as boss for rendering/logic hooks
                     setattr(boss_entity, 'is_boss', True)
                     setattr(boss_entity, 'footprint_size', 2)
@@ -2020,10 +2039,10 @@ class Game:
             # Player's turn, waiting for input. Do nothing here.
             pass
         elif current and current != self.player and current.alive: # <--- THIS IS THE MONSTER'S TURN
-            # Only allow entities within 15 tiles (Chebyshev distance) to act
+            # Only allow entities within 10 tiles (Chebyshev distance) to act
             dist_x = abs(current.x - self.player.x)
             dist_y = abs(current.y - self.player.y)
-            if max(dist_x, dist_y) <= 15:
+            if max(dist_x, dist_y) <= 10:
                 current.take_turn(self.player, self.game_map, self)
             # Even if it skipped acting, advance the turn to avoid stalling
             self.next_turn()
