@@ -112,7 +112,7 @@ class Player: # This is our base class for playable characters
     def update_hunger(self, game_instance):
         """Decrease hunger every 2 turns."""
         self.turns_since_last_hunger_decrease += 1
-        if self.turns_since_last_hunger_decrease >= 5:  
+        if self.turns_since_last_hunger_decrease >= 4:  
             if self.hunger > 0:
                 self.hunger -= self.hunger_decrease_rate
             self.turns_since_last_hunger_decrease = 0  # Reset the counter
@@ -682,8 +682,7 @@ class Fighter(Player):
         # Set starting equipment
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
-        self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
-        self.inventory.add_item(dragonsbane_warhammer)
+        self.inventory.add_item(CampfireKit())  
 
         self.equipped_weapon = iron_short_sword
         self.equipped_off_hand = round_shield
@@ -703,10 +702,7 @@ class Fighter(Player):
        
         # Fighter's primary attack stat is Strength
         self.attack_power = self.get_ability_modifier(self.strength) + self.equipped_weapon.damage_modifier
-        self.attack_bonus = self.get_ability_modifier(self.strength) + self.proficiency_bonus + self.equipped_weapon.attack_bonus
-
-        print(f"Attack Power after loading class: {self.attack_power}")  # Debugging output
-        print(f"Attack Bonus after loading class: {self.attack_bonus}")  # Debugging output        
+        self.attack_bonus = self.get_ability_modifier(self.strength) + self.proficiency_bonus + self.equipped_weapon.attack_bonus     
 
         # Fighter abilities
         self.abilities["second_wind"] = SecondWind()
@@ -791,7 +787,6 @@ class Wizard(Player):
         self.inventory.add_item(bread)
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
-        self.inventory.add_item(greater_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
 
         self.equipped_weapon = oak_staff

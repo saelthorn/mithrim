@@ -17,9 +17,7 @@ To do:
      - Add Companions
      - Add Torches as an Items
      - Add Boss Rooms
-     - Make dungeon merchant sell few items
 
 
 
 To fix:
-     - When monsters are in desperate state they can attack from miles away

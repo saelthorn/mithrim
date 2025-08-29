@@ -970,11 +970,11 @@ class Game:
                 # --- Handle Character Creation Input ---
                 if self.game_state == GameState.CHARACTER_CREATION:
                    if self.game_state == GameState.CHARACTER_CREATION:
-                       if event.key == pygame.K_UP:
+                       if event.key in (pygame.K_UP, pygame.K_w):
                            self.selected_race_index = (self.selected_race_index - 1) % len(self.available_races)
                            self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
                            self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
-                       elif event.key == pygame.K_DOWN:
+                       elif event.key in (pygame.K_DOWN, pygame.K_s):
                            self.selected_race_index = (self.selected_race_index + 1) % len(self.available_races)
                            self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
                            self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
@@ -984,12 +984,12 @@ class Game:
 
                 if self.game_state == GameState.CLASS_SELECTION:
                     print(f"DEBUG: In CLASS_SELECTION state. Selected Class Index: {self.selected_class_index}")
-                    if event.key == pygame.K_UP:
+                    if event.key in (pygame.K_UP, pygame.K_w):
                         print("DEBUG: K_UP pressed in CLASS_SELECTION")
                         self.selected_class_index = (self.selected_class_index - 1) % len(self.available_classes)
                         self.message_log.add_message(f"Current Class: {self.available_classes[self.selected_class_index].__name__}", (255, 255, 255))
                         self.message_log.add_message("A brief description of the class will go here.", (150, 150, 150))
-                    elif event.key == pygame.K_DOWN:
+                    elif event.key in (pygame.K_DOWN, pygame.K_s):
                         print("DEBUG: K_DOWN pressed in CLASS_SELECTION")
                         self.selected_class_index = (self.selected_class_index + 1) % len(self.available_classes)
                         self.message_log.add_message(f"Current Class: {self.available_classes[self.selected_class_index].__name__}", (255, 255, 255))

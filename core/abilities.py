@@ -393,8 +393,8 @@ class FireBolt(Ability):
 
 class Fireball(Ability):
     def __init__(self):
-        super().__init__("Fireball", "A bright streak flashes and explodes in a fiery blast.", cost=0, cooldown=1)
-        self.radius = 3  # Radius of the fireball effect
+        super().__init__("Fireball", "A bright streak flashes and explodes in a fiery blast.", cost=0, cooldown=100)
+        self.radius = 4  # Radius of the fireball effect
         self.range = 8
         self.damage_dice = 8  # Number of damage dice
 
