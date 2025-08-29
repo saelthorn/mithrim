@@ -2020,7 +2020,12 @@ class Game:
             # Player's turn, waiting for input. Do nothing here.
             pass
         elif current and current != self.player and current.alive: # <--- THIS IS THE MONSTER'S TURN
-            current.take_turn(self.player, self.game_map, self)
+            # Only allow entities within 15 tiles (Chebyshev distance) to act
+            dist_x = abs(current.x - self.player.x)
+            dist_y = abs(current.y - self.player.y)
+            if max(dist_x, dist_y) <= 15:
+                current.take_turn(self.player, self.game_map, self)
+            # Even if it skipped acting, advance the turn to avoid stalling
             self.next_turn()
         else:
             pass # No active entity or entity is dead.

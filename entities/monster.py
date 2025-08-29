@@ -204,21 +204,36 @@ class Monster:
             target_pos = (player.x, player.y) if game.check_line_of_sight(self.x, self.y, player.x, player.y) else self.last_known_player_position
             
             if target_pos: # Only pathfind if there's a target position
-                path = astar(game_map, (self.x, self.y), target_pos, entities=[e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement], moving_entity=self)
+                path = astar(game_map, (self.x, self.y), target_pos, entities=[e for e in game.entities if e != self and e.alive and e.blocks_movement], moving_entity=self)
 
                 if path and len(path) > 1:
                     next_step = path[1]
                     new_x, new_y = next_step
 
-                    is_blocked = False
-                    for entity in game.entities:
-                        if entity != self and entity.x == new_x and entity.y == new_y and entity.alive and entity.blocks_movement:
-                            is_blocked = True
-                            break
-
-                    if not is_blocked:
-                        self.x, self.y = new_x, new_y
+                    moved = False
+                    # For multi-tile entities, require full clearance at the new top-left anchor
+                    if getattr(self, 'footprint_size', 1) > 1 and hasattr(self, 'can_occupy_position'):
+                        if self.can_occupy_position(new_x, new_y, game_map, game.entities, exclusions=[self]):
+                            self.x, self.y = new_x, new_y
+                            moved = True
                     else:
+                        # Single-tile default movement with entity blocking check
+                        is_blocked = False
+                        for entity in game.entities:
+                            if entity != self and entity.alive and entity.blocks_movement:
+                                if hasattr(entity, 'occupies_tile'):
+                                    if entity.occupies_tile(new_x, new_y):
+                                        is_blocked = True
+                                        break
+                                else:
+                                    if entity.x == new_x and entity.y == new_y:
+                                        is_blocked = True
+                                        break
+                        if not is_blocked:
+                            self.x, self.y = new_x, new_y
+                            moved = True
+
+                    if not moved:
                         game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
                 else:
                     game.message_log.add_message(f"The {self.name} cannot find a path to the player.", (150, 150, 150))
