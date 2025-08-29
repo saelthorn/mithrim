@@ -472,6 +472,63 @@ class Game:
         monsters_per_level = min(5 + level_number, len(rooms) - 1)
         monster_rooms = rooms[1:monsters_per_level + 2]
 
+        # Boss floors: every 5th floor; for testing also floor 1
+        is_boss_floor = (level_number % 5 == 0) or (level_number == 1)
+        boss_entity = None
+        boss_room = None
+        if rooms and is_boss_floor:
+            # Choose the largest room by area, prefer not to use the player's start room
+            candidate_rooms = rooms[1:] if len(rooms) > 1 else rooms
+            if candidate_rooms:
+                boss_room = max(
+                    candidate_rooms,
+                    key=lambda r: max(0, (r.x2 - r.x1 - 1)) * max(0, (r.y2 - r.y1 - 1))
+                )
+                # Find a spawn point inside the boss room that is walkable and not on stairs
+                preferred_spots = []
+                center_x, center_y = boss_room.center()
+                preferred_spots.append((center_x, center_y))
+                # Add a few more fallback points within the room area
+                for y_coord in range(boss_room.y1 + 1, boss_room.y2):
+                    for x_coord in range(boss_room.x1 + 1, boss_room.x2):
+                        preferred_spots.append((x_coord, y_coord))
+
+                spawn_x, spawn_y = None, None
+                for sx, sy in preferred_spots:
+                    # Require 2x2 walkable area for boss spawn
+                    size_ok = True
+                    for ox in (0, 1):
+                        for oy in (0, 1):
+                            tx, ty = sx + ox, sy + oy
+                            if not (0 <= tx < self.game_map.width and 0 <= ty < self.game_map.height):
+                                size_ok = False
+                                break
+                            if not self.game_map.is_walkable(tx, ty):
+                                size_ok = False
+                                break
+                            if ('down' in self.stairs_positions and (tx, ty) == self.stairs_positions.get('down')):
+                                size_ok = False
+                                break
+                            if ('up' in self.stairs_positions and (tx, ty) == self.stairs_positions.get('up')):
+                                size_ok = False
+                                break
+                        if not size_ok:
+                            break
+                    if size_ok:
+                        spawn_x, spawn_y = sx, sy
+                        break
+
+                if spawn_x is not None:
+                    # Pick a boss appropriate for early testing; later can vary by depth
+                    boss_entity = Demogorgon(spawn_x, spawn_y)
+                    # Mark as boss for rendering/logic hooks
+                    setattr(boss_entity, 'is_boss', True)
+                    setattr(boss_entity, 'footprint_size', 2)
+                    self.entities.append(boss_entity)
+                    self.message_log.add_message(f"A boss appears: {boss_entity.name}!", (255, 64, 64))
+                    # Don't spawn regular monsters in the boss room
+                    monster_rooms = [r for r in monster_rooms if r is not boss_room]
+
         # Determine which monsters can spawn on this level based on MONSTER_SPAWN_TIERS
         possible_monsters = []
         for level_range, monster_list in self.MONSTER_SPAWN_TIERS.items():
@@ -1070,9 +1127,15 @@ class Game:
                             # Check if the next tile is walkable and not blocked by an entity
                             is_blocked_by_entity = False
                             for entity in self.entities:
-                                if entity != self.player and entity.x == check_x and entity.y == check_y and entity.alive and entity.blocks_movement:
-                                    is_blocked_by_entity = True
-                                    break
+                                if entity != self.player and entity.alive and entity.blocks_movement:
+                                    if hasattr(entity, 'occupies_tile'):
+                                        if entity.occupies_tile(check_x, check_y):
+                                            is_blocked_by_entity = True
+                                            break
+                                    else:
+                                        if entity.x == check_x and entity.y == check_y:
+                                            is_blocked_by_entity = True
+                                            break
 
                             if not self.game_map.is_walkable(check_x, check_y) or is_blocked_by_entity:
                                 # Obstacle found, stop one tile before it if possible
@@ -1447,8 +1510,12 @@ class Game:
 
     def get_target_at(self, x, y):
         for entity in self.entities:
-            if entity.x == x and entity.y == y and entity != self.player and entity.alive:
-                return entity
+            if entity != self.player and entity.alive:
+                if hasattr(entity, 'occupies_tile'):
+                    if entity.occupies_tile(x, y):
+                        return entity
+                elif entity.x == x and entity.y == y:
+                    return entity
         return None
 
     def get_adjacent_target(self):
@@ -1507,6 +1574,18 @@ class Game:
 
             # --- Step 4: Handle movement to an empty, walkable tile or TRAP ---
             if self.game_map.is_walkable(new_x, new_y):
+                # Prevent moving into any tile occupied by a blocking entity (supports multi-tile)
+                for entity in self.entities:
+                    if entity is self.player or not getattr(entity, 'alive', True) or not getattr(entity, 'blocks_movement', False):
+                        continue
+                    if hasattr(entity, 'occupies_tile'):
+                        if entity.occupies_tile(new_x, new_y):
+                            self.message_log.add_message(f"You can't move onto {entity.name}.", (255, 150, 0))
+                            return False
+                    else:
+                        if getattr(entity, 'x', None) == new_x and getattr(entity, 'y', None) == new_y:
+                            self.message_log.add_message(f"You can't move onto {entity.name}.", (255, 150, 0))
+                            return False
                 # --- NEW: Trap Check BEFORE Movement ---
                 target_tile_obj = self.game_map.tiles[new_y][new_x]
                 if isinstance(target_tile_obj, TrapTile) and target_tile_obj.trap_instance.is_hidden:
@@ -1690,8 +1769,23 @@ class Game:
         if not target.alive:
             return
         
-        # Check if the target is in the player's FOV
-        if not self.fov.get_visibility_type(target.x, target.y) in ['player', 'torch', 'darkvision']:
+        # Check if ANY tile of the target is in the player's FOV (supports multi-tile entities)
+        visible_ok = False
+        allowed_vis = ['player', 'torch', 'darkvision']
+        footprint_size = getattr(target, 'footprint_size', 1)
+        if footprint_size > 1:
+            for oy in range(footprint_size):
+                for ox in range(footprint_size):
+                    tx, ty = target.x + ox, target.y + oy
+                    if self.fov.get_visibility_type(tx, ty) in allowed_vis:
+                        visible_ok = True
+                        break
+                if visible_ok:
+                    break
+        else:
+            visible_ok = self.fov.get_visibility_type(target.x, target.y) in allowed_vis
+
+        if not visible_ok:
             self.message_log.add_message(f"You cannot attack {target.name} because it is out of sight!", (255, 0, 0))
             return
     
@@ -2115,10 +2209,14 @@ class Game:
                         entity_color_tint = (90, 90, 90, 255)
                     elif visibility_type == 'explored':
                         entity_color_tint = (60, 60, 60, 255)
-                    # Always draw floor under entities, as map rendering might have drawn a decorative tile
-                    # --- MODIFIED: Pass float draw_x, draw_y to graphics.draw_tile ---
-                    # graphics.draw_tile(self.internal_surface, draw_x, draw_y, floor.char, color_tint=entity_color_tint)
-                    graphics.draw_tile(self.internal_surface, draw_x, draw_y, entity.char, color_tint=entity_color_tint)
+                    # Determine tile size (multi-tile entities render scaled by footprint size)
+                    footprint_size = getattr(entity, 'footprint_size', 1)
+                    if footprint_size > 1:
+                        tile_size_override = config.TILE_SIZE * footprint_size
+                        # Draw at top-left of anchor tile so it covers footprint_size x footprint_size tiles
+                        graphics.draw_tile(self.internal_surface, draw_x, draw_y, entity.char, color_tint=entity_color_tint, tile_size=tile_size_override)
+                    else:
+                        graphics.draw_tile(self.internal_surface, draw_x, draw_y, entity.char, color_tint=entity_color_tint)
 
 
 

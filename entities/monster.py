@@ -29,6 +29,10 @@ class Monster:
         self.blocks_movement = True
         self.active_status_effects = []
 
+        # Rendering/footprint attributes
+        # footprint_size represents how many tiles on a side this entity occupies (1 = 1x1)
+        self.footprint_size = 1
+
         self.saving_throw_proficiencies = {
             "STR": False,
             "DEX": False,
@@ -128,22 +132,39 @@ class Monster:
             # If not in attack range, chase the player
             else:
                 # Use the same chasing logic as the CHASING state
-                path = astar(game_map, (self.x, self.y), (player.x, player.y), entities=[e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement])
+                path = astar(game_map, (self.x, self.y), (player.x, player.y), entities=[e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement], moving_entity=self)
 
                 if path and len(path) > 1:
                     next_step = path[1]
                     new_x, new_y = next_step
 
-                    is_blocked = False
-                    for entity in game.entities:
-                        if entity != self and entity.x == new_x and entity.y == new_y and entity.alive and entity.blocks_movement:
-                            is_blocked = True
-                            break
-
-                    if not is_blocked:
-                        self.x, self.y = new_x, new_y
-                        game.message_log.add_message(f"The {self.name} desperately moves towards {player.name}!", (255, 100, 100))
+                    moved = False
+                    # For multi-tile entities, require full clearance at the new top-left anchor
+                    if hasattr(self, 'can_occupy_position') and getattr(self, 'footprint_size', 1) > 1:
+                        if self.can_occupy_position(new_x, new_y, game_map, game.entities, exclusions=[self]):
+                            self.x, self.y = new_x, new_y
+                            moved = True
+                        else:
+                            game.message_log.add_message(f"The {self.name} is too large to squeeze through.", (150, 100, 100))
                     else:
+                        # Single-tile default movement
+                        is_blocked = False
+                        for entity in game.entities:
+                            if entity != self and entity.alive and entity.blocks_movement:
+                                if hasattr(entity, 'occupies_tile'):
+                                    if entity.occupies_tile(new_x, new_y):
+                                        is_blocked = True
+                                        break
+                                else:
+                                    if entity.x == new_x and entity.y == new_y:
+                                        is_blocked = True
+                                        break
+
+                        if not is_blocked:
+                            self.x, self.y = new_x, new_y
+                            moved = True
+
+                    if not moved:
                         game.message_log.add_message(f"The {self.name} is blocked and cannot reach {player.name}!", (100, 100, 100))
                 else:
                     game.message_log.add_message(f"The {self.name} cannot find a path to {player.name}!", (150, 150, 150))
@@ -166,7 +187,7 @@ class Monster:
             target_pos = (player.x, player.y) if game.check_line_of_sight(self.x, self.y, player.x, player.y) else self.last_known_player_position
             
             if target_pos: # Only pathfind if there's a target position
-                path = astar(game_map, (self.x, self.y), target_pos, entities=[e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement])
+                path = astar(game_map, (self.x, self.y), target_pos, entities=[e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement], moving_entity=self)
 
                 if path and len(path) > 1:
                     next_step = path[1]
@@ -569,6 +590,58 @@ class Monster:
             self.active_status_effects.remove(effect)
             effect.on_end(self, game_instance)
 
+
+    def occupies_tile(self, x: int, y: int) -> bool:
+        """Return True if this entity occupies the tile at (x, y).
+        Supports multi-tile entities via self.footprint_size.
+        Top-left anchor is at (self.x, self.y).
+        """
+        size = getattr(self, 'footprint_size', 1)
+        return (self.x <= x < self.x + size) and (self.y <= y < self.y + size)
+
+    def can_occupy_position(self, target_x: int, target_y: int, game_map, entities, exclusions=None) -> bool:
+        """Check if this entity can occupy a top-left position with its full footprint.
+        Excludes any entities in the exclusions iterable from blocking checks.
+        """
+        size = getattr(self, 'footprint_size', 1)
+        if exclusions is None:
+            exclusions = []
+        # For single-tile, just defer to the normal checks
+        if size <= 1:
+            if not (0 <= target_x < game_map.width and 0 <= target_y < game_map.height):
+                return False
+            if not game_map.is_walkable(target_x, target_y):
+                return False
+            for entity in entities:
+                if entity in exclusions or entity is self:
+                    continue
+                if getattr(entity, 'alive', True) and getattr(entity, 'blocks_movement', False):
+                    if hasattr(entity, 'occupies_tile'):
+                        if entity.occupies_tile(target_x, target_y):
+                            return False
+                    elif entity.x == target_x and entity.y == target_y:
+                        return False
+            return True
+
+        # Multi-tile clearance
+        for offset_y in range(size):
+            for offset_x in range(size):
+                tile_x = target_x + offset_x
+                tile_y = target_y + offset_y
+                if not (0 <= tile_x < game_map.width and 0 <= tile_y < game_map.height):
+                    return False
+                if not game_map.is_walkable(tile_x, tile_y):
+                    return False
+                for entity in entities:
+                    if entity in exclusions or entity is self:
+                        continue
+                    if getattr(entity, 'alive', True) and getattr(entity, 'blocks_movement', False):
+                        if hasattr(entity, 'occupies_tile'):
+                            if entity.occupies_tile(tile_x, tile_y):
+                                return False
+                        elif getattr(entity, 'x', None) == tile_x and getattr(entity, 'y', None) == tile_y:
+                            return False
+        return True
 
 class Mimic(Monster):
     def __init__(self, x, y, disguise_char, initial_color): 
@@ -1029,6 +1102,7 @@ class Beholder(Monster):
         self.range = 6  # Max range for ranged attacks
         self.ranged_die_type = 8  # Base die type for ranged attacks
         self.ranged_num_dice = 4  # Number of damage dice for ranged attacks
+        self.footprint_size = 2
         # self.eye_ray_effects = ["charm", "paralyze", "petrify", "fear", "disintegrate"]
         self.is_intelligent = True # Highly intelligent
 
@@ -1129,6 +1203,7 @@ class Demogorgon(Monster):
         self.damage_modifier = 7
         self.detection_range = 8
         self.num_damage_dice = 3
+        self.footprint_size = 2
         # self.legendary_resistance = 3
         # self.frightful_presence = True
         self.is_intelligent = True # Highly intelligent, but likely never flees (boss)

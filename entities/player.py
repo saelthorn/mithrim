@@ -338,13 +338,28 @@ class Player: # This is our base class for playable characters
 
         target = None
         for entity in entities:
-            if entity.x == new_x and entity.y == new_y and entity != self and entity.alive:
-                target = entity
-                break
+            if entity != self and entity.alive:
+                if hasattr(entity, 'occupies_tile'):
+                    is_on_target = entity.occupies_tile(new_x, new_y)
+                else:
+                    is_on_target = (entity.x == new_x and entity.y == new_y)
+                if is_on_target:
+                    target = entity
+                    break
 
         if target:
             return True
         elif game_map.is_walkable(new_x, new_y):
+            # Do not move into any blocking entity's occupied tile (supports multi-tile)
+            for entity in entities:
+                if entity is self or not getattr(entity, 'alive', True) or not getattr(entity, 'blocks_movement', False):
+                    continue
+                if hasattr(entity, 'occupies_tile'):
+                    if entity.occupies_tile(new_x, new_y):
+                        return False
+                else:
+                    if getattr(entity, 'x', None) == new_x and getattr(entity, 'y', None) == new_y:
+                        return False
             self.x = new_x
             self.y = new_y
             return True
@@ -442,7 +457,34 @@ class Player: # This is our base class for playable characters
 
 
     def is_adjacent_to(self, other):
-        """Check if next to another entity (cardinal directions + diagonals)"""
+        """Check adjacency (including diagonals). Supports multi-tile entities."""
+        # If other has a footprint, compute min Chebyshev distance to its occupied rectangle
+        footprint_size = getattr(other, 'footprint_size', 1)
+        if footprint_size > 1:
+            left = other.x
+            right = other.x + footprint_size - 1
+            top = other.y
+            bottom = other.y + footprint_size - 1
+
+            # Compute minimal dx, dy to the rectangle
+            if self.x < left:
+                dx = left - self.x
+            elif self.x > right:
+                dx = self.x - right
+            else:
+                dx = 0
+
+            if self.y < top:
+                dy = top - self.y
+            elif self.y > bottom:
+                dy = self.y - bottom
+            else:
+                dy = 0
+
+            # Adjacent if Chebyshev distance == 1 (touching any edge/corner) and not overlapping
+            return max(dx, dy) == 1
+
+        # Single-tile fallback
         dx = abs(self.x - other.x)
         dy = abs(self.y - other.y)
         return dx <= 1 and dy <= 1 and (dx != 0 or dy != 0)
@@ -667,7 +709,7 @@ class Fighter(Player):
         
         self.strength = 15
         self.dexterity = 13
-        self.constitution = 14
+        self.constitution = 1400
         self.intelligence = 8
         self.wisdom = 12
         self.charisma = 10
@@ -771,7 +813,7 @@ class Wizard(Player):
 
         self.strength = 8
         self.dexterity = 12
-        self.constitution = 13
+        self.constitution = 1300
         self.intelligence = 15
         self.wisdom = 10
         self.charisma = 10

@@ -20,7 +20,7 @@ class Node:
     def __lt__(self, other):
         return self.f < other.f
 
-def astar(game_map, start, end, entities=None):
+def astar(game_map, start, end, entities=None, moving_entity=None):
     """
     Returns a list of tuples as a path from the given start to the given end in the given game_map.
     :param game_map: The GameMap object.
@@ -39,6 +39,32 @@ def astar(game_map, start, end, entities=None):
 
     # Add the start node
     heapq.heappush(open_list, start_node)
+
+    # Helper to check clearance for moving_entity's footprint at a given top-left position
+    def has_footprint_clearance(pos_x, pos_y) -> bool:
+        # If no moving entity or footprint is 1, defer to single tile checks
+        size = getattr(moving_entity, 'footprint_size', 1) if moving_entity is not None else 1
+        if size <= 1:
+            # Bounds and terrain check are done elsewhere per-tile
+            return True
+
+        # Check area walkability and entity blocking
+        for oy in range(size):
+            for ox in range(size):
+                tx, ty = pos_x + ox, pos_y + oy
+                if not (0 <= tx < game_map.width and 0 <= ty < game_map.height):
+                    return False
+                if not game_map.is_walkable(tx, ty):
+                    return False
+                if entities:
+                    for ent in entities:
+                        if hasattr(ent, 'occupies_tile'):
+                            if ent.occupies_tile(tx, ty) and (tx, ty) != end:
+                                return False
+                        else:
+                            if getattr(ent, 'x', None) == tx and getattr(ent, 'y', None) == ty and (tx, ty) != end:
+                                return False
+        return True
 
     # Loop until the open list is empty
     while open_list:
@@ -64,21 +90,33 @@ def astar(game_map, start, end, entities=None):
             if not (0 <= node_position[0] < game_map.width and 0 <= node_position[1] < game_map.height):
                 continue
 
-            # Make sure walkable terrain
-            if not game_map.is_walkable(node_position[0], node_position[1]):
-                continue
+            # Make sure walkable terrain (and clearance if multi-tile entity)
+            if getattr(moving_entity, 'footprint_size', 1) > 1:
+                if not has_footprint_clearance(node_position[0], node_position[1]):
+                    continue
+            else:
+                if not game_map.is_walkable(node_position[0], node_position[1]):
+                    continue
 
             # Make sure not blocked by another entity (excluding the current entity and the target)
             if entities:
                 is_blocked_by_entity = False
-                for entity in entities:
-                    # Don't block if the entity is the start or end of the path
-                    if entity.x == node_position[0] and entity.y == node_position[1] and \
-                       (node_position != start) and (node_position != end):
-                        is_blocked_by_entity = True
-                        break
-                if is_blocked_by_entity:
-                    continue
+                # For multi-tile movement, entity blocking is checked by has_footprint_clearance already
+                if getattr(moving_entity, 'footprint_size', 1) <= 1:
+                    for entity in entities:
+                        # Don't block if the entity is the start or end of the path
+                        if hasattr(entity, 'occupies_tile'):
+                            if entity.occupies_tile(node_position[0], node_position[1]) and \
+                               (node_position != start) and (node_position != end):
+                                is_blocked_by_entity = True
+                                break
+                        else:
+                            if entity.x == node_position[0] and entity.y == node_position[1] and \
+                               (node_position != start) and (node_position != end):
+                                is_blocked_by_entity = True
+                                break
+                    if is_blocked_by_entity:
+                        continue
 
             # Create new node
             new_node = Node(current_node, node_position)

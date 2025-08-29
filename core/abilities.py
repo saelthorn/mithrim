@@ -230,14 +230,38 @@ class FireBolt(Ability):
         if not super().use(user, game_instance):
             return False
 
-        # Find only monster targets within range
+        # Helper: footprint-aware visibility
+        def is_entity_visible(ent):
+            allowed = ['player', 'torch', 'darkvision']
+            size = getattr(ent, 'footprint_size', 1)
+            if size > 1:
+                for oy in range(size):
+                    for ox in range(size):
+                        if game_instance.fov.get_visibility_type(ent.x + ox, ent.y + oy) in allowed:
+                            return True
+                return False
+            return game_instance.fov.get_visibility_type(ent.x, ent.y) in allowed
+
+        # Helper: footprint-aware distance (min distance to any occupied tile)
+        def distance_to_entity(ent):
+            size = getattr(ent, 'footprint_size', 1)
+            if size > 1:
+                best = None
+                for oy in range(size):
+                    for ox in range(size):
+                        d = user.distance_to(ent.x + ox, ent.y + oy)
+                        if best is None or d < best:
+                            best = d
+                return best if best is not None else 9999
+            return user.distance_to(ent.x, ent.y)
+
+        # Find only monster targets within range (footprint-aware)
         monster_targets = []
         for entity in game_instance.entities:
             if isinstance(entity, Monster) and entity.alive:
-                distance = user.distance_to(entity.x, entity.y)
+                distance = distance_to_entity(entity)
                 if distance <= self.range:  # Check against ability range
-                    # Check if the target is within the player's FOV
-                    if game_instance.fov.get_visibility_type(entity.x, entity.y) in ['player', 'torch', 'darkvision']:
+                    if is_entity_visible(entity):  # Footprint-aware FOV
                         monster_targets.append(entity)
         # If there are monster targets, auto-target the closest one
         if monster_targets:
@@ -276,7 +300,7 @@ class FireBolt(Ability):
         target_monster = game_instance.get_target_at(target_x, target_y)
         target_tile = game_instance.game_map.tiles[target_y][target_x]  # Get the tile object at target
 
-        # Check if the target is within the player's FOV
+        # Check if the target is within the player's FOV (tile or any tile of monster footprint)
         if not game_instance.fov.get_visibility_type(target_x, target_y) in ['player', 'torch', 'darkvision']:
             game_instance.message_log.add_message(f"You cannot attack {target_x}, {target_y} because it is out of sight!", (255, 0, 0))
             return False  # Do not consume a turn
