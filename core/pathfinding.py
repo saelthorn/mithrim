@@ -82,8 +82,13 @@ def astar(game_map, start, end, entities=None, moving_entity=None):
             return path[::-1] # Return reversed path
 
         # Generate children
-        # Adjacent squares (8 directions)
-        for new_position in [(0, -1), (0, 1), (-1, 0), (1, 0), (-1, -1), (-1, 1), (1, -1), (1, 1)]:
+        # Adjacent squares: restrict diagonals for multi-tile movers
+        if getattr(moving_entity, 'footprint_size', 1) > 1:
+            neighbor_steps = [(0, -1), (0, 1), (-1, 0), (1, 0), (-1, -1), (-1, 1), (1, -1), (1, 1)]  
+        else:
+            neighbor_steps = [(0, -1), (0, 1), (-1, 0), (1, 0), (-1, -1), (-1, 1), (1, -1), (1, 1)]
+
+        for new_position in neighbor_steps:
             node_position = (current_node.position[0] + new_position[0], current_node.position[1] + new_position[1])
 
             # Make sure within map bounds

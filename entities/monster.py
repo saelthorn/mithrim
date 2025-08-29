@@ -78,10 +78,27 @@ class Monster:
         self.desperate_fight_hp_threshold = 0.50  # Fight if player HP < 40% (and monster HP is also low)
         self.ai_state = AI_State.CHASING  # Default state
 
+        # Telegraph fields: when set by a monster, game will render highlights
+        self.pending_telegraph_tiles = []  # list[(x,y)] tiles the monster intends to hit next turn
+        self.telegraph_color = (255, 0, 0, 100)  # translucent red
+
 
     def take_turn(self, player, game_map, game):
         """Handle monster's combat and movement"""
         if not self.alive:
+            return
+
+        # If a telegraphed attack was set on previous turn, resolve it now
+        if getattr(self, 'pending_telegraph_tiles', None):
+            tiles = list(self.pending_telegraph_tiles)
+            self.pending_telegraph_tiles = []
+            # Apply damage to player if standing in any tile
+            for tx, ty in tiles:
+                if player.x == tx and player.y == ty and player.alive:
+                    dmg = max(1, getattr(self, 'damage_modifier', 2) + random.randint(1, 6)) 
+                    player.take_damage(dmg, game, damage_type='fire')
+                    game.floating_texts.append(FloatingText(tx, ty, f"-{dmg}", (255, 80, 80)))
+            # After resolving, monster's turn ends to give player counterplay
             return
 
         # Process status effects at the start of the monster's turn
@@ -340,9 +357,24 @@ class Monster:
 
 
     def attack(self, target, game, advantage=False, disadvantage=False):
-        """Updated attack method with better damage scaling"""
+        """Updated attack with optional telegraph phase for bosses."""
         if not target.alive:
             return
+
+        # If monster is a boss (footprint_size > 1), telegraph an AoE instead of immediate hit
+        if getattr(self, 'footprint_size', 1) > 1: 
+            # Example: choose tiles around the player's current position (3x3) to telegraph
+            telegraphed = []
+            center_x, center_y = target.x, target.y
+            for dy in (-1, 0, 1): 
+                for dx in (-1, 0, 1):
+                    tx, ty = center_x + dx, center_y + dy
+                    if 0 <= tx < game.game_map.width and 0 <= ty < game.game_map.height:
+                        telegraphed.append((tx, ty))
+            self.pending_telegraph_tiles = telegraphed
+            game.message_log.add_message(f"The {self.name} prepares a devastating attack!", (255, 80, 80))
+            return  # Telegraph now; damage will apply at start of next turn cycle
+      
         # Attack roll
         roll1 = random.randint(1, 20)
         roll2 = random.randint(1, 20)

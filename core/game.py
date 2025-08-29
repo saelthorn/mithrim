@@ -159,6 +159,9 @@ class Game:
         self.selected_inventory_item = None
         self.selected_inventory_index = 0  # Initialize the selected inventory index        
 
+        # Tile highlights for telegraphed attacks or effects: list of (x, y, (r,g,b,a))
+        self.tile_highlights = []
+
         # Character creation specific variables
         # UPDATED: Add DrowElf to available races
         self.available_races = [Human(), HillDwarf(), DrowElf()]
@@ -487,15 +490,25 @@ class Game:
                 # Find a spawn point inside the boss room that is walkable and not on stairs
                 preferred_spots = []
                 center_x, center_y = boss_room.center()
-                preferred_spots.append((center_x, center_y))
-                # Add a few more fallback points within the room area
-                for y_coord in range(boss_room.y1 + 1, boss_room.y2):
-                    for x_coord in range(boss_room.x1 + 1, boss_room.x2):
+                # Require a 1-tile margin from room walls to avoid spawning overlapping walls visually
+                margin = 2  # ensures a 2x2 footprint plus 1 tile buffer from walls
+                min_x = boss_room.x1 + margin
+                max_x = boss_room.x2 - margin  # exclusive upper bound in range()
+                min_y = boss_room.y1 + margin
+                max_y = boss_room.y2 - margin
+
+                # Prefer center if it satisfies margin
+                if min_x <= center_x < max_x and min_y <= center_y < max_y:
+                    preferred_spots.append((center_x, center_y))
+
+                # Add fallback points strictly inside the margin box
+                for y_coord in range(min_y, max_y):
+                    for x_coord in range(min_x, max_x):
                         preferred_spots.append((x_coord, y_coord))
 
                 spawn_x, spawn_y = None, None
                 for sx, sy in preferred_spots:
-                    # Require 2x2 walkable area for boss spawn
+                    # Require 2x2 walkable area for boss spawn AND ensure all 4 tiles are floor-like (not walls/doors)
                     size_ok = True
                     for ox in (0, 1):
                         for oy in (0, 1):
@@ -506,10 +519,16 @@ class Game:
                             if not self.game_map.is_walkable(tx, ty):
                                 size_ok = False
                                 break
+                            # Avoid stairs positions
                             if ('down' in self.stairs_positions and (tx, ty) == self.stairs_positions.get('down')):
                                 size_ok = False
                                 break
                             if ('up' in self.stairs_positions and (tx, ty) == self.stairs_positions.get('up')):
+                                size_ok = False
+                                break
+                            # Ensure tile type is floor-ish (avoid walls/doors overlap). Use tile char check.
+                            tile_char = self.game_map.tiles[ty][tx].char if hasattr(self.game_map.tiles[ty][tx], 'char') else None
+                            if tile_char in ['#', '+']:
                                 size_ok = False
                                 break
                         if not size_ok:
@@ -810,6 +829,8 @@ class Game:
                 self.player_has_acted = False  # Reset for player's next turn
                 self.update_fov()  # Update FOV for the player
             return  # No more turns to process if no entities
+
+        # Before advancing, don't resolve telegraphs here; handled in monster's own turn
 
         # Advance the turn index to the next entity
         self.current_turn_index = (self.current_turn_index + 1) % len(self.turn_order)
@@ -2052,6 +2073,7 @@ class Game:
 
             self.render_map_with_fov()
             self.render_items_on_ground()
+            self.render_tile_highlights()
             self.render_entities()
 
             # <--- THIS IS THE CRITICAL LOOP ---
@@ -2179,6 +2201,27 @@ class Game:
                     # Draw the base tile (floor, wall, or trap's hidden/revealed char)
                     graphics.draw_tile(self.internal_surface, draw_x, draw_y, display_char, color_tint=render_color_tint)                        
 
+
+    def render_tile_highlights(self):
+        # Draw per-entity telegraphs every frame to avoid stale global state
+        for entity in self.entities:
+            tiles = getattr(entity, 'pending_telegraph_tiles', None)
+            if not tiles:
+                continue
+            color = getattr(entity, 'telegraph_color', (255, 0, 0, 100))
+            for hx, hy in tiles:
+                if not (0 <= hx < self.game_map.width and 0 <= hy < self.game_map.height):
+                    continue
+                vis = self.fov.get_visibility_type(hx, hy)
+                if vis not in ['player', 'torch', 'darkvision', 'explored']:
+                    continue
+                sx, sy = self.camera.world_to_screen(hx, hy)
+                px = sx * config.TILE_SIZE
+                py = sy * config.TILE_SIZE
+                r, g, b, a = color
+                overlay = pygame.Surface((config.TILE_SIZE, config.TILE_SIZE), pygame.SRCALPHA)
+                overlay.fill((r, g, b, a))
+                self.internal_surface.blit(overlay, (px, py))
 
 
     def render_entities(self):
