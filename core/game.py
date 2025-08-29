@@ -198,12 +198,15 @@ class Game:
         self.minimap_rect = None
         self.minimap_needs_redraw = True # Flag to redraw minimap only when needed
 
+        self.dirty_rects = [] # New list to store dirty rectangles
+
         self.menu_open = None
 
         self._recalculate_minimap_dimensions()
 
     # Boss schedule: every 5th floor, ordered list
     BOSS_FLOORS = [
+        (1, 'Beholder'),
         (5, 'GoblinKing'),
         (10, 'GiantSpider'),
         (15, 'Beholder'),
@@ -230,7 +233,6 @@ class Game:
         # Late-mid bosses and horrors
         (12, 13): [LargeOoze, DragonWhelp, GiantSpider, GibberingMouther],
         (14, 14): [Drider],
-
 
         # High level threats
         (15, 16): [Yochlol, BlueSlaad, LargeOoze],
@@ -805,6 +807,22 @@ class Game:
         # Check if new tiles were explored for minimap redraw
         if self.fov.explored != previous_explored:
             self.minimap_needs_redraw = True
+
+
+        for entity in self.entities:
+            if isinstance(entity, Monster):
+                visibility_type = self.fov.get_visibility_type(entity.x, entity.y)
+                if visibility_type in ['player', 'torch', 'darkvision']:
+                    if not entity.is_active:
+                        entity.is_active = True
+                        entity.sleep_cooldown = 0 # Wake up immediately
+                        self.message_log.add_message(f"You spot a {entity.name}!", entity.color)
+                else:
+                    # If monster is not visible, put it to sleep after a short delay
+                    if entity.is_active and entity.sleep_cooldown <= 0:
+                        entity.is_active = False
+                        entity.sleep_cooldown = random.randint(5, 15) # Sleep for 5-15 turns
+                        # self.message_log.add_message(f"The {entity.name} seems to have fallen asleep.", (100, 100, 100)) # Optional: for debugging            
     
 
 
@@ -1991,14 +2009,15 @@ class Game:
         if len(self.floating_texts) != initial_floating_texts_count: # <--- ADD THIS
             print(f"DEBUG: FloatingTexts updated. Removed {initial_floating_texts_count - len(self.floating_texts)} expired texts. New list size: {len(self.floating_texts)}") # <--- ADD THIS
 
-
-        # NEW: Only update camera and process turns if player exists and game is in an active state
-        if self.player and (self.game_state == GameState.DUNGEON or self.game_state == GameState.TAVERN or self.game_state == GameState.TARGETING): # Include TARGETING
-            # If in targeting mode for Mage Hand, camera should follow the cursor
-            if self.game_state == GameState.TARGETING and self.ability_in_use and isinstance(self.ability_in_use, MageHand):
-                self.camera.update(self.targeting_cursor_x, self.targeting_cursor_y, self.game_map.width, self.game_map.height)
+        # --- NEW: Only process turns for active monsters ---
+        current = self.get_current_entity()
+        if current and current != self.player and current.alive:
+            if isinstance(current, Monster) and not current.is_active:
+                # Skip this monster's turn if it's not active
+                self.next_turn()
             else:
-                self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height)
+                current.take_turn(self.player, self.game_map, self)
+                self.next_turn()
         
 
         if not self.player: # If player hasn't been created yet (e.g., in character creation)
@@ -2015,7 +2034,35 @@ class Game:
                 self.message_log.add_message(chosen_death_message, (255, 0, 0))
                 self._game_over_displayed = True
             return
-        
+
+        # --- NEW: Batch Monster Turn Processing ---
+        if self.game_state == GameState.DUNGEON: # Only in dungeon where monsters are active
+            while True:
+                current_entity = self.get_current_entity()
+                if current_entity == self.player:
+                    # It's the player's turn, break out of the monster processing loop
+                    if not self.player_has_acted:
+                        # Player's turn, waiting for input. Do nothing here.
+                        pass
+                    else:
+                        # Player has acted, advance turn to next entity (which might be a monster)
+                        self.player_has_acted = False # Reset for player's next turn
+                        self.next_turn()
+                    break # Exit the monster turn processing loop
+                elif isinstance(current_entity, Monster) and current_entity.alive:
+                    # Process monster's turn
+                    if current_entity.is_active: # Only process if monster is active
+                        current_entity.take_turn(self.player, self.game_map, self)
+                    self.next_turn() # Advance to the next entity in turn order
+                else:
+                    # If current_entity is not player, not a monster, or dead, just advance turn
+                    self.next_turn()
+                    # If all entities are dead or inactive, this loop might run indefinitely.
+                    # Add a safeguard if needed, e.g., a max iteration count or check if turn_order is empty.
+                    if not self.turn_order: # Safeguard if all entities are gone
+                        break
+
+
         self.floating_texts = [text for text in self.floating_texts if text.update()]        
         
         # This condition was already here, but now it's after the player check
@@ -2048,6 +2095,15 @@ class Game:
             self.next_turn()
         else:
             pass # No active entity or entity is dead.
+
+
+        # NEW: Only update camera and process turns if player exists and game is in an active state
+        if self.player and (self.game_state == GameState.DUNGEON or self.game_state == GameState.TAVERN or self.game_state == GameState.TARGETING): # Include TARGETING
+            # If in targeting mode for Mage Hand, camera should follow the cursor
+            if self.game_state == GameState.TARGETING and self.ability_in_use and isinstance(self.ability_in_use, MageHand):
+                self.camera.update(self.targeting_cursor_x, self.targeting_cursor_y, self.game_map.width, self.game_map.height)
+            else:
+                self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height)        
         
 
     def handle_window_resize(self):
@@ -2063,55 +2119,62 @@ class Game:
 
         self._recalculate_minimap_dimensions()            
 
+
+    def add_dirty_rect(self, x, y, width, height):
+        """Adds a rectangle to the list of dirty rects, converting world to screen coords."""
+        # This needs to be carefully managed. For now, let's assume it's in pixel coordinates
+        # relative to the internal_surface.
+        # The actual screen blit will handle scaling.
+        self.dirty_rects.append(pygame.Rect(x, y, width, height))
+
+
     def render(self):
         """Main render method - draws everything"""
+        # Clear the entire screen at the start of each frame
         self.screen.fill((0, 0, 0))
-        self.internal_surface.fill((0, 0, 0))
 
-        self.inventory_ui_surface.fill((0,0,0,0))
-        if self.game_state == GameState.CHARACTER_CREATION: # NEW: Character Creation Render
+        # --- Render the main game area (dungeon/tavern) to internal_surface ---
+        self.internal_surface.fill((0, 0, 0)) # Clear internal surface
+
+        # Render map, items, entities, highlights, floating texts to internal_surface
+        if self.game_state == GameState.CHARACTER_CREATION:
             self.render_character_creation_screen()
-            self.screen.blit(self.inventory_ui_surface, (0, 0)) # Use inventory_ui_surface for overlay
+            # For character creation, we draw directly to screen, so no internal_surface blit here
+            # The screen.fill((0,0,0)) at the top handles clearing.
         elif self.game_state == GameState.CLASS_SELECTION:
             self.render_class_selection_screen()
-            self.screen.blit(self.inventory_ui_surface, (0, 0))
+            # Same as character creation
         elif self.game_state == GameState.INVENTORY:
             self.render_inventory_screen()
-            self.screen.blit(self.inventory_ui_surface, (0, 0))
+            # Inventory also draws to inventory_ui_surface, which is then blitted to screen
+            self.screen.blit(self.inventory_ui_surface, (0, 0)) # Blit inventory UI directly
         elif self.game_state == GameState.INVENTORY_MENU:
             self.render_inventory_screen()
             self.screen.blit(self.inventory_ui_surface, (0, 0))
-            self.render_inventory_menu_popup()
+            self.render_inventory_menu_popup() # Popup draws directly to screen
         elif self.game_state == GameState.CHARACTER_MENU:
             self.render_character_menu()
             self.screen.blit(self.inventory_ui_surface, (0, 0))
-        else: # This block handles DUNGEON and TAVERN, and now TARGETING
-            # --- NEW: Camera Update Logic for Targeting State ---
+        else: # This block handles DUNGEON, TAVERN, and TARGETING
+            # --- Camera Update Logic ---
             if self.game_state == GameState.TARGETING:
-                # In targeting mode, camera follows the targeting cursor
                 self.camera.update(self.targeting_cursor_x, self.targeting_cursor_y, self.game_map.width, self.game_map.height)
             else:
-                # Otherwise, camera follows the player (normal dungeon/tavern view)
                 self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height)
-            # --- END NEW CAMERA LOGIC ---
 
             self.render_map_with_fov()
             self.render_items_on_ground()
             self.render_tile_highlights()
             self.render_entities()
 
-            # <--- THIS IS THE CRITICAL LOOP ---
-            for text_obj in self.floating_texts: # <--- ADD THIS LOOP
-                text_obj.draw(self.internal_surface, self.camera) # Draw on internal surface
-
+            for text_obj in self.floating_texts:
+                text_obj.draw(self.internal_surface, self.camera)
 
             if self.game_state == GameState.TARGETING:
                 screen_x, screen_y = self.camera.world_to_screen(
                     self.targeting_cursor_x,
                     self.targeting_cursor_y
                 )
-
-                # Check if we're targeting a monster or destructible
                 target_type = None
                 target_entity = self.get_target_at(self.targeting_cursor_x, self.targeting_cursor_y)
                 if isinstance(target_entity, Monster):
@@ -2119,20 +2182,15 @@ class Game:
                 elif (tile := self.game_map.tiles[self.targeting_cursor_y][self.targeting_cursor_x]) and tile.destructible:
                     target_type = "destructible"
 
-                # Set cursor color based on target type
                 cursor_color = (
-                    (255, 100, 100) if target_type == "monster" else  # Red for monsters
-                    (255, 200, 100) if target_type == "destructible" else  # Yellow for objects
-                    (100, 100, 255)  # Blue for empty tiles
+                    (255, 100, 100) if target_type == "monster" else
+                    (255, 200, 100) if target_type == "destructible" else
+                    (100, 100, 255)
                 )
 
-                # --- START MODIFICATION FOR MAGE HAND GRAPHIC ---
                 if isinstance(self.ability_in_use, MageHand):
-                    # Draw the Mage Hand graphic at the cursor position
-                    # You might want a specific color for the Mage Hand graphic
                     graphics.draw_tile(self.internal_surface, screen_x * config.TILE_SIZE, screen_y * config.TILE_SIZE, 'mh', color_tint=(150, 200, 255))
                 else:
-                    # Draw cursor rect (more visible than just an outline) for other abilities
                     cursor_width = 3
                     pygame.draw.rect(
                         self.internal_surface,
@@ -2143,15 +2201,13 @@ class Game:
                          config.TILE_SIZE),
                         cursor_width
                     )
-                # --- END MODIFICATION FOR MAGE HAND GRAPHIC ---
 
+            # Scale and blit the internal game area surface to the main screen
             available_width = config.GAME_AREA_WIDTH
             available_height = config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT
 
-            internal_surface_aspect_ratio = config.INTERNAL_GAME_AREA_PIXEL_WIDTH / config.INTERNAL_GAME_AREA_PIXEL_HEIGHT
             scale_to_fit_width = available_width / config.INTERNAL_GAME_AREA_PIXEL_WIDTH
             scale_to_fit_height = available_height / config.INTERNAL_GAME_AREA_PIXEL_HEIGHT
-
             actual_display_scale = min(scale_to_fit_width, scale_to_fit_height)
 
             scaled_width = int(config.INTERNAL_GAME_AREA_PIXEL_WIDTH * actual_display_scale)
@@ -2161,31 +2217,37 @@ class Game:
             offset_y = (available_height - scaled_height) // 2
 
             target_rect = pygame.Rect(offset_x, offset_y, scaled_width, scaled_height)
-
             scaled_game_area = pygame.transform.scale(self.internal_surface, target_rect.size)
             self.screen.blit(scaled_game_area, target_rect.topleft)
 
-        # Only draw UI if player exists (after character creation)
-        if self.player:
-            self.draw_ui()
+
+        # --- Always draw UI, Minimap, and Message Log directly to the screen ---
+        # This ensures they are always fully redrawn and prevents flickering.
+        if self.player: # Only draw UI if player exists (after character creation)
+            self.draw_ui() # This method now draws directly to self.screen
             # Draw minimap if in dungeon or tavern state
             if self.game_state in [GameState.DUNGEON, GameState.TAVERN]:
-                self.draw_minimap()
+                self.draw_minimap() # This method now draws directly to self.screen
 
-        # Draw FPS in the top left corner
-        # fps_text = f"FPS: {int(self.fps)}"  # Convert FPS to an integer for display
-        # fps_surface = self.fps_font.render(fps_text, True, (255, 255, 255))  # White color for FPS text
-        # self.screen.blit(fps_surface, (10, 10))  # Position it at (10, 10)        
-
+        # Message log is also drawn directly to screen
         if self.game_state not in [GameState.CHARACTER_CREATION, GameState.CLASS_SELECTION]:
             self.message_log.render(self.screen)
 
+        # --- Final Display Update ---
+        # Use flip for full screen update, or update a combined rect for game area + UI panel
+        # For simplicity and to eliminate flickering, let's try flip first.
         pygame.display.flip()
 
+        # Remove the old dirty_rects logic as it's no longer needed with flip()
+        # self.dirty_rects = [] # This line can be removed or commented out
+        # ... (remove all subsequent dirty_rects related code in render) ...
 
-    def render_map_with_fov(self):
-        map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT
 
+    def render_map_with_fov(self, full_redraw=False):
+        if not hasattr(self, 'game_map') or self.game_map is None:
+            # No map to render yet, just return
+            return
+        
         camera_x_int = int(self.camera.x)
         camera_y_int = int(self.camera.y)
 
@@ -2223,13 +2285,19 @@ class Game:
                     display_char = tile.get_display_char()
                     display_color = tile.get_display_color()
                     # Draw the base tile (floor, wall, or trap's hidden/revealed char)
-                    graphics.draw_tile(self.internal_surface, draw_x, draw_y, display_char, color_tint=render_color_tint)                        
+                    graphics.draw_tile(self.internal_surface, draw_x, draw_y, display_char, color_tint=render_color_tint) 
+
+                if full_redraw: # Only add to dirty rects if it's a full redraw or a specific tile changed
+                    self.add_dirty_rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)   
+
+                tile_rect = pygame.Rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)
+                self.dirty_rects.append(tile_rect)                                                            
 
 
     def render_tile_highlights(self):
         # Draw per-entity telegraphs every frame to avoid stale global state
         for entity in self.entities:
-            tiles = getattr(entity, 'pending_telegraph_tiles', None)
+            tiles = getattr(entity, 'pending_telegraph_tiles', None)          
             if not tiles:
                 continue
             color = getattr(entity, 'telegraph_color', (255, 0, 0, 100))
@@ -2248,7 +2316,9 @@ class Game:
                 self.internal_surface.blit(overlay, (px, py))
 
 
-    def render_entities(self):
+    def render_entities(self, full_redraw=False):
+        if not hasattr(self, 'game_map') or self.game_map is None:
+            return        
         map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT 
         for entity in self.entities:
             if isinstance(entity, Mimic) and entity.disguised:
@@ -2285,10 +2355,21 @@ class Game:
                     else:
                         graphics.draw_tile(self.internal_surface, draw_x, draw_y, entity.char, color_tint=entity_color_tint)
 
+                    # Only add dirty rect if draw_x and draw_y are valid and inside bounds
+                    self.add_dirty_rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)
+                else:
+                    # If draw_x or draw_y out of bounds, skip adding dirty rect
+                    pass
+            else:
+                # Entity not visible or not in viewport, skip drawing and dirty rect
+                pass
 
 
-    def render_items_on_ground(self):
+
+    def render_items_on_ground(self, full_redraw=False):
         """Render items lying on the dungeon floor."""
+        if not hasattr(self, 'game_map') or self.game_map is None:
+            return             
         map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT 
         
         for item in self.game_map.items_on_ground:
@@ -2324,6 +2405,9 @@ class Game:
                     # --- MODIFIED: Pass float draw_x, draw_y to graphics.draw_tile ---
                     # graphics.draw_tile(self.internal_surface, draw_x, draw_y, floor.char, color_tint=item_color_tint)
                     graphics.draw_tile(self.internal_surface, draw_x, draw_y, item.char, color_tint=item_color_tint)
+
+
+                    self.add_dirty_rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)                    
 
    
     def render_character_creation_screen(self):
@@ -3041,70 +3125,43 @@ class Game:
 
 
     def draw_minimap(self):
-        """Draws the mini-map on its dedicated surface."""
-        if self.minimap_needs_redraw:
-            self.minimap_surface.fill((0, 0, 0, 0))  # Clear with transparency
+        # Always redraw minimap surface fully every frame
 
-            # Calculate scaling factors for the minimap
-            scale_x = self.minimap_surface.get_width() / self.game_map.width
-            scale_y = self.minimap_surface.get_height() / self.game_map.height
+        # Fill with solid black background (opaque)
+        self.minimap_surface.fill((0, 0, 0))
 
-            # Use the smaller scale to ensure the entire map fits, maintaining aspect ratio
-            minimap_tile_scale = min(scale_x, scale_y)
+        scale_x = self.minimap_surface.get_width() / self.game_map.width
+        scale_y = self.minimap_surface.get_height() / self.game_map.height
+        minimap_tile_scale = min(scale_x, scale_y)
+        actual_minimap_tile_size = max(1, int(config.MINIMAP_TILE_SIZE * minimap_tile_scale))
 
-            # Calculate the actual tile size on the minimap
-            actual_minimap_tile_size = max(1, int(config.MINIMAP_TILE_SIZE * minimap_tile_scale))
+        offset_x = (self.minimap_surface.get_width() - self.game_map.width * actual_minimap_tile_size) // 2
+        offset_y = (self.minimap_surface.get_height() - self.game_map.height * actual_minimap_tile_size) // 2
 
-            # Calculate offsets to center the map within the minimap surface
-            offset_x = (self.minimap_surface.get_width() - self.game_map.width * actual_minimap_tile_size) // 2
-            offset_y = (self.minimap_surface.get_height() - self.game_map.height * actual_minimap_tile_size) // 2
+        for y in range(self.game_map.height):
+            for x in range(self.game_map.width):
+                if (x, y) in self.fov.explored:
+                    tile = self.game_map.tiles[y][x]
+                    color = tile.color if self.fov.get_visibility_type(x, y) in ['player', 'torch', 'darkvision'] else tile.dark_color
+                    pygame.draw.rect(
+                        self.minimap_surface,
+                        color,
+                        (offset_x + x * actual_minimap_tile_size,
+                         offset_y + y * actual_minimap_tile_size,
+                         actual_minimap_tile_size,
+                         actual_minimap_tile_size)
+                    )
 
-            for y in range(self.game_map.height):
-                for x in range(self.game_map.width):
-                    if (x, y) in self.fov.explored:
-                        tile = self.game_map.tiles[y][x]
-                        color = (0, 0, 0)  # Default to black for unexplored
-
-                        if self.game_state == GameState.TAVERN:
-                            # In tavern, all explored tiles are fully visible
-                            color = tile.color
-                        elif self.game_state == GameState.DUNGEON:
-                            # In dungeon, explored tiles are dim, visible tiles are bright
-                            if self.fov.get_visibility_type(x, y) in ['player', 'torch', 'darkvision']:
-                                color = tile.color  # Visible tiles
-                            else:
-                                color = tile.dark_color  # Explored but not currently visible
-
-                        # Draw the tile on the minimap surface
-                        pygame.draw.rect(
-                            self.minimap_surface,
-                            color,
-                            (offset_x + x * actual_minimap_tile_size,
-                             offset_y + y * actual_minimap_tile_size,
-                             actual_minimap_tile_size,
-                             actual_minimap_tile_size)
-                        )
-
-            self.minimap_needs_redraw = False  # Minimap is now up to date
-
-        # Draw player on top of the minimap (always visible if player exists)
         if self.player:
-            scale_x = self.minimap_surface.get_width() / self.game_map.width
-            scale_y = self.minimap_surface.get_height() / self.game_map.height
-            minimap_tile_scale = min(scale_x, scale_y)
-            actual_minimap_tile_size = max(1, int(config.MINIMAP_TILE_SIZE * minimap_tile_scale))
-            offset_x = (self.minimap_surface.get_width() - self.game_map.width * actual_minimap_tile_size) // 2
-            offset_y = (self.minimap_surface.get_height() - self.game_map.height * actual_minimap_tile_size) // 2
-
             player_minimap_x = offset_x + self.player.x * actual_minimap_tile_size
             player_minimap_y = offset_y + self.player.y * actual_minimap_tile_size
 
-            # Draw player as a small white square
             pygame.draw.rect(
                 self.minimap_surface,
-                (255, 255, 255),  # White color for player
+                (255, 255, 255),
                 (player_minimap_x, player_minimap_y, actual_minimap_tile_size, actual_minimap_tile_size)
             )
 
-        # Blit the minimap surface onto the main screen
+        # Blit minimap surface directly to screen every frame
         self.screen.blit(self.minimap_surface, self.minimap_rect.topleft)
+

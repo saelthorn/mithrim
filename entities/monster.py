@@ -29,6 +29,9 @@ class Monster:
         self.blocks_movement = True
         self.active_status_effects = []
 
+        self.is_active = False # New attribute: True if monster is awake/active
+        self.sleep_cooldown = 0 # New attribute: Timer for how long to stay asleep        
+
         # Rendering/footprint attributes
         # footprint_size represents how many tiles on a side this entity occupies (1 = 1x1)
         self.footprint_size = 1
@@ -105,6 +108,21 @@ class Monster:
         self.process_status_effects(game)
         if not self.alive:  # Check if monster died from status effect
             return
+
+        # --- NEW: Sleep/Idle Logic ---
+        if not self.is_active:
+            # If not active, decrement sleep cooldown. If it reaches 0, it can potentially wake up.
+            if self.sleep_cooldown > 0:
+                self.sleep_cooldown -= 1
+            return # Monster is sleeping, do nothing this turn
+
+
+        player_detected = self.detect_player(player, game) # This updates last_known_player_position
+        # --- Pathfinding only runs if player_detected or last_known_player_position is set ---
+        if player_detected or self.last_known_player_position:
+            pass
+        else:
+            self.patrol(game_map) # Or some other idle behavior
 
         # Determine AI state based on health
         monster_hp_low = self.hp_percentage() < self.flee_hp_threshold
@@ -272,23 +290,22 @@ class Monster:
     def detect_player(self, player, game_instance):
         """Check if the player is within detection range and line of sight."""
         distance_to_player = self.distance_to(player.x, player.y)
-        # Check if the player is within detection range
-        if distance_to_player <= self.detection_range:
-            # Check line of sight
-            if game_instance.check_line_of_sight(self.x, self.y, player.x, player.y):
-                self.last_known_player_position = (player.x, player.y)  # Store the player's position
-                return True  # Player detected
-        # --- IMPORTANT: If last_known_player_position is set, it means we know where they are! ---
-        if self.last_known_player_position:
-            # Check if we still have line of sight to the last known position
-            if game_instance.check_line_of_sight(self.x, self.y, self.last_known_player_position[0], self.last_known_player_position[1]):
-                return True # Continue chasing to last known position
-            else:
+        is_visible_to_monster = game_instance.check_line_of_sight(self.x, self.y, player.x, player.y)
+        
+        if distance_to_player <= self.detection_range and is_visible_to_monster:
+            self.last_known_player_position = (player.x, player.y)
+            return True  # Player currently detected
+        else:
+            # If player is not currently visible, check if we still have a last known position
+            if self.last_known_player_position:
                 # If we lost sight, clear last known position and revert to patrolling
-                self.last_known_player_position = None
-                self.ai_state = AI_State.CHASING # Revert to default chasing if intelligent
-                return False
-        return False  # Player not detected
+                # This is where the monster "forgets" the player
+                if not game_instance.check_line_of_sight(self.x, self.y, self.last_known_player_position[0], self.last_known_player_position[1]):
+                    self.last_known_player_position = None
+                    self.ai_state = AI_State.CHASING # Revert to default chasing if intelligent
+                    game_instance.message_log.add_message(f"The {self.name} loses track of you.", (150, 150, 150))
+                return False # Player not currently detected, but might still be aggroed to last_known_position
+            return False # Player not detected at all
 
  
     def patrol(self, game_map):
@@ -310,43 +327,35 @@ class Monster:
         Attempts to move the monster directly away from the player.
         Returns True if a move was made, False otherwise.
         """
-        # Calculate direction away from player
         dx = self.x - player.x
         dy = self.y - player.y
-
-        # Normalize dx, dy to -1, 0, or 1
+    
         move_x = 0
         if dx > 0: move_x = 1
         elif dx < 0: move_x = -1
-
+    
         move_y = 0
         if dy > 0: move_y = 1
         elif dy < 0: move_y = -1
-        
-        # Prioritize moving away in both axes if possible
+    
         potential_moves = []
         if move_x != 0 and move_y != 0:
-            potential_moves.append((move_x, move_y)) # Diagonal away
+            potential_moves.append((move_x, move_y))  # Diagonal away
         if move_x != 0:
-            potential_moves.append((move_x, 0)) # Horizontal away
+            potential_moves.append((move_x, 0))       # Horizontal away
         if move_y != 0:
-            potential_moves.append((0, move_y)) # Vertical away
-        
-        # Add other directions if primary ones are blocked (less ideal but still away)
-        # This is a very basic fleeing. Phase 2 will improve this with A*
+            potential_moves.append((0, move_y))       # Vertical away
+    
         for check_dx, check_dy in potential_moves:
             new_x, new_y = self.x + check_dx, self.y + check_dy
-            if game_map.is_walkable(new_x, new_y):
-                is_blocked = False
-                for entity in game.entities:
-                    if entity != self and entity.x == new_x and entity.y == new_y and entity.alive and entity.blocks_movement:
-                        is_blocked = True
-                        break
-                if not is_blocked:
-                    self.x, self.y = new_x, new_y
-                    return True # Successfully fled one step
-        return False # Could not find a valid tile to flee to
-
+    
+            # Check footprint clearance instead of just single tile
+            if self.can_occupy_position(new_x, new_y, game_map, game.entities, exclusions=[self]):
+                self.x, self.y = new_x, new_y
+                return True  # Successfully fled one step
+    
+        return False  # Could not find a valid tile to flee to
+    
 
     def is_adjacent_to(self, other):
         """Check if next to another entity (cardinal directions + diagonals)"""

@@ -35,16 +35,22 @@ class FloatingText:
         self.surface = self.font.render(self.text, True, self.color)
         self.rect = self.surface.get_rect()
 
+        self.last_draw_rect = None # Store the last rectangle it was drawn to
 
     def update(self):
         """Updates the text's position and remaining duration."""
         # The y_speed is applied to the *world* y coordinate, which is then converted by the camera.
         # This makes the text float up relative to its starting point.
+        old_x, old_y = self.x, self.y        
+
         self.y += self.y_speed / config.FPS # Divide by FPS to make speed frame-rate independent
         self.frames_left -= 1
 
         if self.frames_left <= 0:
-            print(f"DEBUG: FloatingText '{self.text}' at ({self.x:.2f},{self.y:.2f}) expired.") # <--- ADD THIS
+            if self.last_draw_rect:
+                # This requires access to the game instance's dirty_rects list
+                # A better pattern is to have the game loop iterate and collect dirty rects
+                pass # Handled by Game.update's filtering and redraw
 
         return self.frames_left > 0
 
@@ -59,6 +65,8 @@ class FloatingText:
 
         screen_x_pixel = screen_x_tile * config.TILE_SIZE
         screen_y_pixel = screen_y_tile * config.TILE_SIZE
+        
+        current_draw_rect = pygame.Rect(screen_x_pixel, screen_y_pixel, self.rect.width, self.rect.height)
         
         draw_x = screen_x_pixel + (config.TILE_SIZE - self.rect.width) // 2
 
