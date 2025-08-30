@@ -565,7 +565,6 @@ class Game:
                     setattr(boss_entity, 'is_boss', True)
                     setattr(boss_entity, 'footprint_size', 2)
                     self.entities.append(boss_entity)
-                    self.message_log.add_message(f"A boss appears: {boss_entity.name}!", (255, 64, 64))
                     # Don't spawn regular monsters in the boss room
                     monster_rooms = [r for r in monster_rooms if r is not boss_room]
 
@@ -603,7 +602,6 @@ class Game:
                 # For now, their __init__ values are static.
 
                 self.entities.append(monster)
-                self.message_log.add_message(f"A {monster.name} appears!", (255, 150, 0))
 
         if len(rooms) > 2 and random.random() < 0.6: # Healer spawnrate
             shuffled_healer_rooms = list(rooms[1:-1])
@@ -629,8 +627,6 @@ class Game:
                     healer_x, healer_y = random.choice(possible_spawn_points)
                     dungeon_healer = DungeonHealer(healer_x, healer_y)
                     self.entities.append(dungeon_healer)
-                    self.message_log.add_message(f"You sense a benevolent presence nearby...", (0, 255, 255))
-                    self.message_log.add_message(f"A {dungeon_healer.name} is at ({healer_x}, {healer_y})", (0, 255, 255))
                     healer_spawned = True
                     break
             
@@ -661,8 +657,6 @@ class Game:
                     merchat_x, merchant_y = random.choice(possible_spawn_points)
                     dungeon_merchant = DungeonMerchant(merchat_x, merchant_y)
                     self.entities.append(dungeon_merchant)
-                    self.message_log.add_message(f"You sense a benevolent presence nearby...", (0, 255, 255))
-                    self.message_log.add_message(f"A {dungeon_merchant.name} is at ({merchat_x}, {merchant_y})", (0, 255, 255))
                     merchant_spawned = True
                     break
             
@@ -717,7 +711,6 @@ class Game:
                     item_to_add.x = item_x
                     item_to_add.y = item_y
                     self.game_map.items_on_ground.append(item_to_add)
-                    self.message_log.add_message(f"You spot a {item_to_add.name} on the ground.", item_to_add.color)
 
         self.turn_order = [e for e in self.entities if not (isinstance(e, Mimic) and e.disguised)]
         for entity in self.turn_order:
@@ -947,7 +940,6 @@ class Game:
                         return True # Consume event
 
             if event.type == pygame.KEYDOWN:
-                print(f"  DEBUG KEYDOWN event: {pygame.key.name(event.key)} (value: {event.key})")
 
                 # --- Trade Interaction ---
                 if self.game_state == GameState.TRADE:
