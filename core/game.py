@@ -808,11 +808,11 @@ class Game:
                 if visibility_type in ['player', 'torch', 'darkvision']:
                     if not entity.is_active:
                         entity.is_active = True
-                        entity.sleep_cooldown = 0 # Wake up immediately
+                        entity.sleep_cooldown = 2 # Wake up immediately
                         self.message_log.add_message(f"You spot a {entity.name}!", entity.color)
                 else:
                     # If monster is not visible, put it to sleep after a short delay
-                    if entity.is_active and entity.sleep_cooldown <= 6:
+                    if entity.is_active and entity.sleep_cooldown <= 12:
                         entity.is_active = False
                         entity.sleep_cooldown = random.randint(5, 15) # Sleep for 5-15 turns
                         self.message_log.add_message(f"The {entity.name} seems to have fallen asleep.", (100, 100, 100)) # Optional: for debugging            
@@ -828,13 +828,22 @@ class Game:
 
     def next_turn(self):
         if self.game_state == GameState.TAVERN:
-            if random.random() < 0.25:
+            if random.random() < 0.1:
                 ambient_msgs = [
-                    "The torch flickers, casting long shadows...",
-                    "Distant drips echo through the stone halls..."
+                    "The fire crackles in the hearth, filling the tavern with warmth...",
+                    "Laughter erupts from a table of rowdy adventurers...",
+                    "The bard plucks a lazy tune on a worn lute...",
+                    "Mugs clink together as patrons cheer a victorious tale...",
+                    "The innkeeper wipes down the counter with a knowing smile...",
+                    "The smell of roasted meat drifts from the kitchen...",
+                    "A pair of dice clatter across a wooden table, followed by groans...",
+                    "Someone hums a forgotten ballad in the corner...",
+                    "The tavern cat weaves between the legs of travelers, tail high...",
+                    "A weary adventurer sighs, staring long into his ale..."
                 ]
-                self.message_log.add_message(random.choice(ambient_msgs), (150, 150, 150))
+                self.message_log.add_message(random.choice(ambient_msgs), (200, 180, 140))
             return
+
 
         # Get the entity whose turn it *just was* or *is currently* before advancing the index
         current_acting_entity = self.get_current_entity()
@@ -845,9 +854,18 @@ class Game:
             if current_acting_entity == self.player:
                 self.player.update_hunger(self)  # Decrease hunger each turn
                 if self.player.hunger < self.player.hunger_threshold:
-                    self.message_log.add_message(f"{self.player.name} is feeling hungry!", (255, 100, 0))
+                    hunger_msgs = [
+                        f"{self.player.name}'s stomach growls hungrily...",
+                        f"{self.player.name} feels their strength waning from hunger.",
+                        f"A hollow ache gnaws at {self.player.name}'s insides...",
+                        f"Hunger claws at {self.player.name}, demanding to be fed.",
+                        f"{self.player.name} feels faint — food is needed soon."
+                    ]
+                    self.message_log.add_message(random.choice(hunger_msgs), (255, 100, 0))
+                
                 if not self.player.alive:  # Check if the player has died from hunger
-                    return  # End the turn if the player is dead                    
+                    return  # End the turn if the player is dead
+                                  
        
         self.cleanup_entities()
 
@@ -872,12 +890,26 @@ class Game:
         if current == self.player:
             self.update_fov()
             self.player_has_acted = False  # This is correctly reset for player's turn
-            if random.random() < 0.25:
+            if random.random() < 0.1:
                 ambient_msgs = [
                     "The dungeon emits an eerie glow...",
-                    "Something shuffles in the darkness..."
+                    "Something shuffles in the darkness...",
+                    "You hear distant dripping water echo through the halls...",
+                    "A cold draft snakes across the floor, chilling your bones...",
+                    "The walls seem to breathe for a moment, then fall silent...",
+                    "Far off, chains rattle against stone...",
+                    "A whisper brushes your ear, though no one is near...",
+                    "Dust stirs as if unseen footsteps pass by...",
+                    "A faint growl rumbles from somewhere deeper...",
+                    "Your torch sputters, shadows twisting unnaturally...",
+                    "The air tastes of iron and old blood...",
+                    "You catch the fleeting scent of rot and damp earth...",
+                    "The silence grows so heavy, it feels like pressure on your chest...",
+                    "Something skitters just beyond the edge of your vision...",
+                    "The stone beneath your feet groans as if alive..."
                 ]
                 self.message_log.add_message(random.choice(ambient_msgs), (180, 180, 180))
+
         # If it's a monster's turn, it will be handled by the update loop in Game.update()
 
 
@@ -1354,7 +1386,12 @@ class Game:
                 result = self.merchant.sell_item(self.player, item_name)
                 self.message_log.add_message(result, (255, 255, 255))
             else:
-                self.message_log.add_message("Invalid command. Use 'buy <item>' or 'sell <item>'.", (255, 0, 0))
+                add_ambient_merchant_message = [
+                    "The merchant squints at you: 'I only deal in proper trades. Say *buy <item>* or *sell <item>*.'",
+                    "The trader frowns: 'That makes no sense to me, friend. Try *buy <item>* or *sell <item>* if you mean business.'",
+                    "The merchant raises a brow: 'I’ll not play games. Speak plain: *buy <item>* or *sell <item>*.'",
+                ]
+                self.message_log.add_message(random.choice(add_ambient_merchant_message), (150, 150, 150))
             
             # Return to the previous game state after trading
             self.game_state = self._previous_game_state  # Revert to the previous state
@@ -1671,11 +1708,21 @@ class Game:
                     # If the monster was adjacent AND is no longer adjacent after the move,
                     # it gets an opportunity attack.
                     if not is_still_adjacent_to_monster:
-                        self.message_log.add_message(f"The {monster.name} makes an Opportunity Attack!", (255, 100, 0))
-                        monster.attack(self.player, self) # Monster attacks the player
+                        oa_msgs = [
+                            f"The {monster.name} lashes out as you flee!",
+                            f"{monster.name}'s reflexes are quick — an opportunity strike!",
+                            f"A sudden slash from the {monster.name} catches you off guard!",
+                            f"As you turn away, the {monster.name} seizes its chance to attack!",
+                            f"The {monster.name} strikes swiftly at your exposed flank!"
+                        ]
+                        self.message_log.add_message(random.choice(oa_msgs), (255, 100, 0))
+                        
+                        monster.attack(self.player, self)  # Monster attacks the player
+                        
                         # Important: If the player dies from an OA, the game state should reflect that.
                         if not self.player.alive:
-                            return True # Player died, action taken, end turn.
+                            return True  # Player died, action taken, end turn.
+                    
                 
                 self.update_fov()
                 self.minimap_needs_redraw = True # Player moved, minimap needs redraw
@@ -1982,23 +2029,49 @@ class Game:
             self.floating_texts.append(miss_text)
     
 
-
     def add_ambient_combat_message(self):
-        messages = [
+        common_msgs = [
             "The smell of blood fills the air...",
             "Silence returns to the dungeon...",
-            "Your weapon drips with monster blood..."
+            "Your weapon drips with monster blood...",
+            "A death cry echoes, then fades into silence...",
+            "The ground is slick with gore and ichor...",
+            "Your heartbeat pounds in your ears, then slows...",
+            "The dungeon grows eerily quiet, as if holding its breath...",
+            "A faint metallic tang of blood lingers on your tongue...",
+            "Your boots leave red stains across the stone floor...",
+            "The corpse twitches once before lying still...",
+            "Shadows seem to crowd closer after the violence...",
+            "A rat scurries out, drawn to the fresh kill...",
+            "The clash of steel still rings faintly in your mind...",
+            "You wipe the blade clean, though the stain remains..."
         ]
-        self.message_log.add_message(random.choice(messages), (170, 170, 170))
+
+        rare_msgs = [
+            "Somewhere deeper, a guttural roar answers the bloodshed...",
+            "The clash of battle carries far — something stirs in the dark...",
+            "Your victory echoes like a beacon — but not all ears are friendly...",
+            "A distant screech pierces the silence, hungry and aware...",
+            "The dungeon shifts uneasily, as if the stone itself resents your triumph..."
+        ]
+
+        # 90% chance for common aftermath, 10% chance for rare narrative escalation
+        if random.random() < 0.1:
+            msg = random.choice(rare_msgs)
+            color = (200, 100, 100)  # darker red for danger
+        else:
+            msg = random.choice(common_msgs)
+            color = (170, 170, 170)  # neutral gray
+
+        self.message_log.add_message(msg, color)
+
 
     def update(self, dt):
         self.clock.tick(60)  # Limit to 60 FPS
         self.fps = self.clock.get_fps()  # Get the current FPS
 
         initial_floating_texts_count = len(self.floating_texts) # <--- ADD THIS
-        self.floating_texts = [text for text in self.floating_texts if text.update()]        
-        if len(self.floating_texts) != initial_floating_texts_count: # <--- ADD THIS
-            print(f"DEBUG: FloatingTexts updated. Removed {initial_floating_texts_count - len(self.floating_texts)} expired texts. New list size: {len(self.floating_texts)}") # <--- ADD THIS
+        self.floating_texts = [text for text in self.floating_texts if text.update()]
 
         # --- NEW: Only process turns for active monsters ---
         current = self.get_current_entity()

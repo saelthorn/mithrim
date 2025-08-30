@@ -119,21 +119,54 @@ class Player: # This is our base class for playable characters
             # Check if hunger has reached 0
             if self.hunger <= 0:
                 self.hunger = 0
-                game_instance.message_log.add_message(f"{self.name} has died from hunger!", (255, 0, 0)) # Log message here
+                hunger_death_msgs = [
+                    f"{self.name} collapses, starved beyond saving...",
+                    f"{self.name}'s body gives out, hunger claiming the last breath...",
+                    f"Weak and withered, {self.name} falls to the ground — no strength left to rise...",
+                    f"With hollow eyes and an empty stomach, {self.name} succumbs to hunger...",
+                    f"The dungeon claims another victim, as {self.name} dies in silence...",
+                    f"{self.name}'s life flickers out, consumed by starvation..."
+                ]
+                game_instance.message_log.add_message(random.choice(hunger_death_msgs), (255, 0, 0))
                 self.die(game_instance)  # Call the die method and pass game_instance
+
    
     def eat_food(self, food_item, game_instance):
         """Consume food to restore hunger."""
         if not isinstance(food_item, Food):
-            game_instance.message_log.add_message(f"That's not food!", (255, 100, 100))
+            not_food_msgs = [
+                "You can't eat that!",
+                "That’s no meal, friend...",
+                "Biting into that would be a poor idea...",
+                "Your stomach recoils — that's not food!"
+            ]
+            game_instance.message_log.add_message(random.choice(not_food_msgs), (255, 100, 100))
             return False
+    
         if self.hunger >= 100:
-            game_instance.message_log.add_message(f"You're not hungry right now.", (150, 150, 150))
+            not_hungry_msgs = [
+                "You're not hungry right now.",
+                "Your belly is already full.",
+                "No room for another bite.",
+                "You pat your stomach — satisfied enough for now."
+            ]
+            game_instance.message_log.add_message(random.choice(not_hungry_msgs), (150, 150, 150))
             return False
+    
         self.hunger = min(self.hunger + food_item.healing_value, 100)  # Restore hunger, max 100
-        game_instance.message_log.add_message(f"{self.name} eats the {food_item.name} and feels more satiated!", (0, 255, 0))
-        self.inventory.remove_item(food_item) # Remove food after consumption
+    
+        eat_msgs = [
+            f"{self.name} eats the {food_item.name} and feels more satiated!",
+            f"{self.name} devours the {food_item.name}, easing the pangs of hunger...",
+            f"{self.name} chews the {food_item.name}, strength returning bit by bit...",
+            f"The taste of {food_item.name} fills {self.name}'s mouth, banishing the emptiness...",
+            f"With a grateful bite, {self.name} finishes the {food_item.name} and feels renewed."
+        ]
+        game_instance.message_log.add_message(random.choice(eat_msgs), (0, 255, 0))
+    
+        self.inventory.remove_item(food_item)  # Remove food after consumption
         return True
+    
 
     def get_ability_modifier(self, score):
         return (score - 10) // 2
@@ -376,8 +409,17 @@ class Player: # This is our base class for playable characters
             if entity != self and entity.alive:
                 distance = self.distance_to(entity.x, entity.y)
                 if distance < 10:  # If any enemy is within 10 tiles
-                    game_instance.message_log.add_message("You cannot rest; enemies are too close!", (255, 0, 0))
+                    rest_block_msgs = [
+                        "You cannot rest; enemies are too close!",
+                        "Your instincts scream danger — this is no place to rest!",
+                        "Shadows shift nearby... you cannot lower your guard now.",
+                        "The scrape of claws echoes too near — rest must wait.",
+                        "You tighten your grip on your weapon. Rest will have to wait.",
+                        "The dungeon stirs with hostile presence... too risky to sleep."
+                    ]
+                    game_instance.message_log.add_message(random.choice(rest_block_msgs), (255, 0, 0))
                     return False
+
 
         # Check if the Campfire Kit is on the ground
         campfire_kit = next((item for item in game_instance.game_map.items_on_ground if isinstance(item, CampfireKit)), None)
@@ -387,21 +429,42 @@ class Player: # This is our base class for playable characters
             # Fully recover HP and remove status effects
             self.hp = self.max_hp
             self.active_status_effects.clear()  # Remove all status effects
-            game_instance.message_log.add_message(f"{self.name} rests by the campfire and recovers fully!", (0, 255, 0))
-
+            campfire_msgs = [
+                f"{self.name} rests by the campfire, the flames chasing away the dungeon's chill...",
+                f"The warmth of the campfire eases {self.name}'s wounds and weary spirit...",
+                f"{self.name} finds brief peace by the fire, recovering strength and clarity...",
+                f"As the fire crackles, {self.name}'s body mends and their mind steadies...",
+                f"The campfire glows softly, restoring {self.name} to full vigor..."
+            ]
+            game_instance.message_log.add_message(random.choice(campfire_msgs), (0, 255, 0))
+        
             # Reset ability cooldowns
             for ability in self.abilities.values():
                 ability.current_cooldown = 0  # Reset cooldown for each ability
-
+        
             # Increase ambush chance (e.g., from 20% to 50%)
-            if random.random() < 0.1:  # 20% chance for ambush
-                game_instance.message_log.add_message("You hear rustling nearby... an ambush!", (255, 0, 0))
+            if random.random() < 0.1:  # 10% chance for ambush
+                ambush_msgs = [
+                    "The fire flickers... shadows shift — an ambush!",
+                    "Rustling breaks the quiet — danger approaches!",
+                    "The dungeon is never safe... creatures lunge from the dark!",
+                    "Eyes glint beyond the firelight — you've been found!",
+                    "Your moment of respite shatters as enemies close in!"
+                ]
+                game_instance.message_log.add_message(random.choice(ambush_msgs), (255, 0, 0))
                 self.trigger_ambush(game_instance)
-
                 return True  # Resting was interrupted by ambush
         else:
-            game_instance.message_log.add_message("You need to be adjacent to a campfire to rest.", (255, 0, 0))
+            need_fire_msgs = [
+                "You must be near a campfire to safely rest.",
+                "The dungeon’s chill forbids rest without firelight.",
+                "A campfire’s warmth is needed before you can settle down.",
+                "You can’t rest here — too dark, too cold, too dangerous.",
+                "Without a campfire, rest slips beyond reach..."
+            ]
+            game_instance.message_log.add_message(random.choice(need_fire_msgs), (255, 0, 0))
             return False  # Cannot rest if not adjacent to a campfire
+        
 
         return True  # Indicate successful resting
 

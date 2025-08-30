@@ -487,8 +487,19 @@ class Monster:
             # Miss handling
             miss_messages = [
                 f"The {self.name}'s attack misses!",
-                f"{target.name} dodges the {self.name}'s attack!",
-                f"The {self.name} swings wildly and misses!"
+                f"{target.name} dodges the {self.name}'s strike!",
+                f"The {self.name} swings wildly and misses!",
+                f"{target.name} twists aside just in time!",
+                f"The {self.name}'s blow smashes into stone instead!",
+                f"{target.name} parries and deflects the strike!",
+                f"The {self.name} lunges, but {target.name} slips away!",
+                f"A sudden stumble throws the {self.name}'s aim wide!",
+                f"{target.name} ducks beneath the attack with practiced ease!",
+                f"The {self.name}'s weapon cuts only air!",
+                f"With a deft step, {target.name} avoids certain harm!",
+                f"The {self.name}'s strike glances harmlessly off armor!",
+                f"A burst of sparks flies as the attack scrapes the wall!",
+                f"{target.name} sidesteps smoothly, the attack wasted!"
             ]
             game.message_log.add_message(random.choice(miss_messages), (200, 200, 200))
             miss_text = FloatingText(target.x, target.y, "MISS!", (150, 150, 150))
@@ -526,10 +537,23 @@ class Monster:
 
         hit_successful = False
         if is_critical_hit:
-            game.message_log.add_message("CRITICAL HIT!", (255, 100, 100))
+            crit_msgs = [
+                "CRITICAL HIT! The strike lands with devastating force!",
+                "A perfect blow! Critical Hit!",
+                "The attack finds its mark — a Critical Hit!",
+                "A savage strike! Critical damage dealt!"
+            ]
+            game.message_log.add_message(random.choice(crit_msgs), (255, 80, 80))
             hit_successful = True
+
         elif is_critical_fumble:
-            game.message_log.add_message("CRITICAL FUMBLE!", (150, 150, 150))
+            fumble_msgs = [
+                "CRITICAL FUMBLE! The attack goes horribly wrong!",
+                "A misstep! Critical Fumble!",
+                "Disaster! The strike falters into a Critical Fumble!",
+                "A costly mistake — Critical Fumble!"
+            ]
+            game.message_log.add_message(random.choice(fumble_msgs), (150, 150, 150))
             hit_successful = False
         else:
             hit_successful = (attack_roll_total >= target_ac)
