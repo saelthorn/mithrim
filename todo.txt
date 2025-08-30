@@ -19,3 +19,4 @@ To do:
 
 To fix:
      - Fix the choppy turns
+     - Dungeon Merchant SHop Updates

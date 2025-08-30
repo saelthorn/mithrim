@@ -112,7 +112,7 @@ class Game:
         self.screen = screen
         
         self.fps = 30
-        self.fps_font = pygame.font.SysFont('consolas', 20)  # You can adjust the font size as needed
+        self.fps_font = pygame.font.SysFont('consolas', 15)  # You can adjust the font size as needed
         self.clock = pygame.time.Clock()  # Initialize the clock for FPS tracking
 
 
@@ -819,10 +819,10 @@ class Game:
                         self.message_log.add_message(f"You spot a {entity.name}!", entity.color)
                 else:
                     # If monster is not visible, put it to sleep after a short delay
-                    if entity.is_active and entity.sleep_cooldown <= 0:
+                    if entity.is_active and entity.sleep_cooldown <= 6:
                         entity.is_active = False
                         entity.sleep_cooldown = random.randint(5, 15) # Sleep for 5-15 turns
-                        # self.message_log.add_message(f"The {entity.name} seems to have fallen asleep.", (100, 100, 100)) # Optional: for debugging            
+                        self.message_log.add_message(f"The {entity.name} seems to have fallen asleep.", (100, 100, 100)) # Optional: for debugging            
     
 
 
@@ -948,7 +948,6 @@ class Game:
 
             if event.type == pygame.KEYDOWN:
                 print(f"  DEBUG KEYDOWN event: {pygame.key.name(event.key)} (value: {event.key})")
-                print(f"Current Game State: {self.game_state}")  # Debugging statement
 
                 # --- Trade Interaction ---
                 if self.game_state == GameState.TRADE:
@@ -2001,8 +2000,8 @@ class Game:
         self.message_log.add_message(random.choice(messages), (170, 170, 170))
 
     def update(self, dt):
-        # self.clock.tick(60)  # Limit to 60 FPS
-        # self.fps = self.clock.get_fps()  # Get the current FPS
+        self.clock.tick(60)  # Limit to 60 FPS
+        self.fps = self.clock.get_fps()  # Get the current FPS
 
         initial_floating_texts_count = len(self.floating_texts) # <--- ADD THIS
         self.floating_texts = [text for text in self.floating_texts if text.update()]        
@@ -2232,6 +2231,11 @@ class Game:
         # Message log is also drawn directly to screen
         if self.game_state not in [GameState.CHARACTER_CREATION, GameState.CLASS_SELECTION]:
             self.message_log.render(self.screen)
+
+
+        fps_text = f"FPS: {int(self.fps)}"
+        fps_surface = self.fps_font.render(fps_text, True, (255, 255, 255))  # White color
+        self.screen.blit(fps_surface, (10, 10))  # Position at (10, 10) pixels from top-left
 
         # --- Final Display Update ---
         # Use flip for full screen update, or update a combined rect for game area + UI panel
@@ -3128,7 +3132,7 @@ class Game:
         # Always redraw minimap surface fully every frame
 
         # Fill with solid black background (opaque)
-        self.minimap_surface.fill((0, 0, 0))
+        self.minimap_surface.fill((0, 0, 0, 0))
 
         scale_x = self.minimap_surface.get_width() / self.game_map.width
         scale_y = self.minimap_surface.get_height() / self.game_map.height
