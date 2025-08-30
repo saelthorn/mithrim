@@ -2,7 +2,7 @@ import random
 import pygame
 
 from core.game import GameState
-from items.items import lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, silver_dagger, iron_short_sword, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes, CampfireKit, Food
+from items.items import lesser_healing_potion, greater_healing_potion, apprentices_staff, half_plate_armor, meat, green_apple, fromage, bread, mushroom, silver_dagger, iron_short_sword, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes, CampfireKit, Food
 from entities.dungeon_npcs import DungeonHealer 
 from entities.base_entity import NPC
 
@@ -68,8 +68,6 @@ class Merchant(NPC):
         default_items = [
             CampfireKit(),
             lesser_healing_potion,
-            greater_healing_potion,
-            meat,
             green_apple,
             bread,
             fromage,
@@ -77,10 +75,10 @@ class Merchant(NPC):
         ]
         # Chance-based items with their spawn probabilities (fewer and simpler than dungeon merchant)
         chance_items_with_chance = [
-            (lesser_healing_potion, 0.3),
-            (greater_healing_potion, 0.2),
-            (bread, 0.25),
-            (green_apple, 0.25),
+            (silver_dagger, 0.3),
+            (steel_long_sword, 0.2),
+            (half_plate_armor, 0.25),
+            (apprentices_staff, 0.25),
             # Add more tavern-specific items and chances if desired
         ]
 

@@ -61,15 +61,15 @@ class DungeonMerchant(NPC):
 
         # Chance-based items with their spawn probabilities
         chance_items_with_chance = [
-            (full_plate_armor, 0.1),
-            (robes_of_protection, 0.15),
-            (adamantine_long_sword, 0.05),
-            (staff_of_magi, 0.05),
-            (duelists_rapier, 0.1),
-            (dwarven_battle_axe, 0.1),
-            (dragonsbane_warhammer, 0.05),
-            (flameheart_flail, 0.07),
-            (flameheart_short_sword, 0.07),
+            (full_plate_armor, 0.2),
+            (robes_of_protection, 0.25),
+            (adamantine_long_sword, 0.15),
+            (staff_of_magi, 0.15),
+            (duelists_rapier, 0.2),
+            (dwarven_battle_axe, 0.2),
+            (dragonsbane_warhammer, 0.15),
+            (flameheart_flail, 0.17),
+            (flameheart_short_sword, 0.17),
             # Add more items and chances as needed
         ]
 
@@ -127,12 +127,12 @@ class DungeonMerchant(NPC):
 
     def buy_item(self, player, item_name, game):
         """Handle the logic for buying an item."""
-        for item in self.item_templates:
+        for item in self.items_for_sale:
             if item.name.lower() == item_name.lower():  # Case insensitive comparison
                 if player.gold >= item.price:  # Assuming player has a gold attribute
                     player.gold -= item.price
                     player.inventory.add_item(item)  # Add the item to the player's inventory
-                    self.item_templates.remove(item)  # Remove the item from the merchant's inventory
+                    self.items_for_sale.remove(item)  # Remove the item from the merchant's inventory
                     return f"You bought {item.name}!"
                 else:
                     return "Scram! you don't have enough gold!"
@@ -145,7 +145,7 @@ class DungeonMerchant(NPC):
             if item.name.lower() == item_name.lower():  # Case insensitive comparison
                 player.inventory.remove_item(item)  # Remove the item from the player's inventory
                 player.gold += item.price // 2  # Assuming the merchant pays half the price
-                self.item_templates.append(item)  # Add the item back to the merchant's inventory
+                self.items_for_sale.append(item)  # Add the item back to the merchant's inventory
                 return f"You sold {item.name}!"
         return "Item not found in your inventory."
 
