@@ -241,7 +241,7 @@ def get_tile_surface(char):
         return subsurface
 
 
-def draw_tile(screen_surface, draw_x, draw_y, char, color_tint=None, tile_size=None):
+def draw_tile(screen_surface, draw_x, draw_y, char, color_tint=None, tile_size=None, flip_x=False):
     # Support optional override size for special entities (e.g., bosses)
     if tile_size is None or tile_size == config.TILE_SIZE:
         tile_surface = get_tile_surface(char)
@@ -249,6 +249,9 @@ def draw_tile(screen_surface, draw_x, draw_y, char, color_tint=None, tile_size=N
         # Extract base tile then rescale to requested size
         base_surface = get_tile_surface(char)
         tile_surface = pygame.transform.scale(base_surface, (tile_size, tile_size))
+
+    if flip_x:
+        tile_surface = pygame.transform.flip(tile_surface, True, False)
 
     if color_tint:
         tinted_surface = tile_surface.copy()

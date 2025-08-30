@@ -1248,6 +1248,12 @@ class Game:
                         self.player.current_action_state = None
                         continue # Consume the event and proceed to next turn if action_taken is True                                
                 
+                current_entity = self.get_current_entity()
+                if current_entity == self.player and not self.player_has_acted:
+                    if event.key in (pygame.K_a, pygame.K_LEFT):
+                        self.player.set_facing_direction(True)  # Look left
+                    elif event.key in (pygame.K_d, pygame.K_RIGHT):
+                        self.player.set_facing_direction(False)   # Look right  
 
                 # --- Normal Turn Handling (if no special action state is active) ---
                 if self.player.current_action_state is None:
@@ -1260,6 +1266,7 @@ class Game:
                     elif event.key in (pygame.K_RIGHT, pygame.K_d):
                         dx = 1
                     
+                  
 
                     if dx != 0 or dy != 0:
                         action_taken = self.handle_player_action(dx, dy)
@@ -2393,19 +2400,18 @@ class Game:
             if isinstance(entity, Mimic) and entity.disguised:
                 continue 
             visibility_type = self.fov.get_visibility_type(entity.x, entity.y)
-            # The is_in_viewport check is still useful for broad culling
+
             if entity.alive and self.camera.is_in_viewport(entity.x, entity.y) and \
                (visibility_type == 'player' or visibility_type == 'torch' or visibility_type == 'explored' or visibility_type == 'darkvision'):
 
-                # --- MODIFIED: Get float screen coordinates ---
                 screen_x_float, screen_y_float = self.camera.world_to_screen(entity.x, entity.y)
-                # --- MODIFIED: Calculate pixel draw positions using floats ---
                 draw_x = screen_x_float * config.TILE_SIZE
                 draw_y = screen_y_float * config.TILE_SIZE
-                # The pixel bounds check is still good
+
                 if (0 <= draw_x < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
                     0 <= draw_y < map_render_height):
 
+                    # Initialize entity_color_tint here
                     entity_color_tint = None
                     if visibility_type == 'player':
                         entity_color_tint = None
@@ -2415,22 +2421,29 @@ class Game:
                         entity_color_tint = (90, 90, 90, 255)
                     elif visibility_type == 'explored':
                         entity_color_tint = (60, 60, 60, 255)
-                    # Determine tile size (multi-tile entities render scaled by footprint size)
-                    footprint_size = getattr(entity, 'footprint_size', 1)
-                    if footprint_size > 1:
-                        tile_size_override = config.TILE_SIZE * footprint_size
-                        # Draw at top-left of anchor tile so it covers footprint_size x footprint_size tiles
-                        graphics.draw_tile(self.internal_surface, draw_x, draw_y, entity.char, color_tint=entity_color_tint, tile_size=tile_size_override)
-                    else:
-                        graphics.draw_tile(self.internal_surface, draw_x, draw_y, entity.char, color_tint=entity_color_tint)
 
-                    # Only add dirty rect if draw_x and draw_y are valid and inside bounds
+                    footprint_size = getattr(entity, 'footprint_size', 1)
+                    tile_size_override = config.TILE_SIZE * footprint_size if footprint_size > 1 else None
+
+                    # Determine flip_x only for player
+                    flip_x = False
+                    if entity == self.player:
+                        flip_x = not self.player.facing_right  # Flip if facing left
+
+                    graphics.draw_tile(
+                        self.internal_surface,
+                        draw_x,
+                        draw_y,
+                        entity.char,
+                        color_tint=entity_color_tint,
+                        tile_size=tile_size_override,
+                        flip_x=flip_x
+                    )
+
                     self.add_dirty_rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)
                 else:
-                    # If draw_x or draw_y out of bounds, skip adding dirty rect
                     pass
             else:
-                # Entity not visible or not in viewport, skip drawing and dirty rect
                 pass
 
 

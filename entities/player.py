@@ -27,6 +27,7 @@ class Player: # This is our base class for playable characters
         self.color = color
         self.alive = True
         self.blocks_movement = True
+        self.facing_right = False  # Default facing left
         self.initiative = 0
         self.gold = 50
 
@@ -130,6 +131,9 @@ class Player: # This is our base class for playable characters
                 game_instance.message_log.add_message(random.choice(hunger_death_msgs), (255, 0, 0))
                 self.die(game_instance)  # Call the die method and pass game_instance
 
+    def set_facing_direction(self, facing_right: bool):
+        """Set player's facing direction."""
+        self.facing_right = facing_right
    
     def eat_food(self, food_item, game_instance):
         """Consume food to restore hunger."""
