@@ -1794,7 +1794,6 @@ class Game:
                     new_junk.x = x
                     new_junk.y = y
                     self.game_map.items_on_ground.append(new_junk)
-                    self.message_log.add_message(f"A {new_junk.name} drops from the {target_tile.name}!", new_junk.color)
                 elif random.random() < 0.2:
                     new_food = meat.__class__(
                         name=meat.name,
