@@ -216,7 +216,7 @@ class Game:
 
     # Boss schedule: every 5th floor, ordered list
     BOSS_FLOORS = [
-        (1, 'Beholder'),
+        (1, 'Demogorgon'),
         (5, 'GoblinKing'),
         (10, 'GiantSpider'),
         (15, 'Beholder'),
@@ -573,7 +573,7 @@ class Game:
                     boss_entity = boss_cls(spawn_x, spawn_y)
                     # Mark as boss for rendering/logic hooks
                     setattr(boss_entity, 'is_boss', True)
-                    setattr(boss_entity, 'footprint_size', 2)
+                    setattr(boss_entity, 'footprint_size', boss_entity.footprint_size)
                     self.entities.append(boss_entity)
                     # Don't spawn regular monsters in the boss room
                     monster_rooms = [r for r in monster_rooms if r is not boss_room]

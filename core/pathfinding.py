@@ -20,7 +20,7 @@ class Node:
     def __lt__(self, other):
         return self.f < other.f
 
-def astar(game_map, start, end, entities=None, moving_entity=None):
+def astar(game_map, start, end, entities=None, moving_entity=None, ignore_destructible=False):
     """
     Returns a list of tuples as a path from the given start to the given end in the given game_map.
     :param game_map: The GameMap object.
@@ -94,6 +94,19 @@ def astar(game_map, start, end, entities=None, moving_entity=None):
             # Make sure within map bounds
             if not (0 <= node_position[0] < game_map.width and 0 <= node_position[1] < game_map.height):
                 continue
+
+
+            # Check tile walkability with destructible tile consideration
+            tile = game_map.tiles[node_position[1]][node_position[0]]
+            if ignore_destructible and getattr(moving_entity, 'footprint_size', 1) >= 3:
+                # Treat destructible tiles as walkable for large monsters
+                if tile.destructible:
+                    pass  # Allow pathfinding through destructible tiles
+                elif not game_map.is_walkable(node_position[0], node_position[1]):
+                    continue
+            else:
+                if not game_map.is_walkable(node_position[0], node_position[1]):
+                    continue
 
             # Make sure walkable terrain (and clearance if multi-tile entity)
             if getattr(moving_entity, 'footprint_size', 1) > 1:

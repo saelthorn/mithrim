@@ -1,6 +1,8 @@
 import random
 from core.pathfinding import astar
 from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff
+from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, bread, mushroom, CampfireKit
+from world.tile import floor
 from core.floating_text import FloatingText 
 
 from enum import Enum
@@ -85,7 +87,6 @@ class Monster:
         self.pending_telegraph_tiles = []  # list[(x,y)] tiles the monster intends to hit next turn
         self.telegraph_color = (255, 0, 0, 100)  # translucent red
 
-
     def take_turn(self, player, game_map, game):
         """Handle monster's combat and movement"""
         if not self.alive:
@@ -98,7 +99,7 @@ class Monster:
             # Apply damage to player if standing in any tile
             for tx, ty in tiles:
                 if player.x == tx and player.y == ty and player.alive:
-                    dmg = max(1, getattr(self, 'damage_modifier', 2) + random.randint(1, 6)) 
+                    dmg = max(1, getattr(self, 'damage_modifier', 2) + random.randint(1, 6))
                     player.take_damage(dmg, game, damage_type='fire')
                     game.floating_texts.append(FloatingText(tx, ty, f"-{dmg}", (255, 80, 80)))
             # After resolving, monster's turn ends to give player counterplay
@@ -109,22 +110,15 @@ class Monster:
         if not self.alive:  # Check if monster died from status effect
             return
 
-        # --- NEW: Sleep/Idle Logic ---
+        # Sleep/Idle Logic
         if not self.is_active:
-            # If not active, decrement sleep cooldown. If it reaches 0, it can potentially wake up.
             if self.sleep_cooldown > 0:
                 self.sleep_cooldown -= 1
-            return # Monster is sleeping, do nothing this turn
+            return  # Monster is sleeping, do nothing this turn
 
+        player_detected = self.detect_player(player, game)  # Updates last_known_player_position
 
-        player_detected = self.detect_player(player, game) # This updates last_known_player_position
-        # --- Pathfinding only runs if player_detected or last_known_player_position is set ---
-        if player_detected or self.last_known_player_position:
-            pass
-        else:
-            self.patrol(game_map) # Or some other idle behavior
-
-        # Determine AI state based on health
+        # Determine AI state based on health and player HP
         monster_hp_low = self.hp_percentage() < self.flee_hp_threshold
         player_hp_high = game.get_player_hp_percentage() > self.player_safe_hp_threshold
         player_hp_low = game.get_player_hp_percentage() < self.desperate_fight_hp_threshold
@@ -136,129 +130,225 @@ class Monster:
                 self.ai_state = AI_State.DESPERATE_FIGHT
             else:
                 self.ai_state = AI_State.CHASING
-        # Non-intelligent monsters always default to CHASING behavior (or whatever their default is)
         else:
-            self.ai_state = AI_State.CHASING # Or a simpler AI state if they don't flee/desperate fight
+            self.ai_state = AI_State.CHASING
 
-        # Get distance to player for various checks
         distance_to_player = self.distance_to(player.x, player.y)
-        player_detected = self.detect_player(player, game) # This updates last_known_player_position
+        player_detected = self.detect_player(player, game)
 
-        # --- AI State Behavior Execution ---
+        # AI State Behavior Execution
         if self.ai_state == AI_State.FLEEING:
             if self.flee(player, game_map, game):
-                return  # Monster took action (fled)
-            else:
-                # game.message_log.add_message(f"The {self.name} tries to flee but is cornered!", (255, 100, 0))
-                # If cannot flee, fall through to desperate fight or attack
-                pass
+                return
+            # If cannot flee, fall through to desperate fight or attack
 
-        elif self.ai_state == AI_State.DESPERATE_FIGHT:
+        if self.ai_state == AI_State.DESPERATE_FIGHT:
             game.message_log.add_message(f"The {self.name} is desperate and fights on!", (255, 100, 100))
-            
-            # Prioritize attacking if in range
+
             if self.is_ranged and distance_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
                 self.ranged_attack(player, game)
                 return
             elif self.is_adjacent_to(player):
                 self.attack(player, game)
                 return
-            
-            # If not in attack range, chase the player
             else:
-                # Use the same chasing logic as the CHASING state
-                path = astar(game_map, (self.x, self.y), (player.x, player.y), entities=[e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement], moving_entity=self)
-
+                path = astar(
+                    game_map,
+                    (self.x, self.y),
+                    (player.x, player.y),
+                    entities=[e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement],
+                    moving_entity=self
+                )
                 if path and len(path) > 1:
                     next_step = path[1]
                     new_x, new_y = next_step
-
                     moved = False
-                    # For multi-tile entities, require full clearance at the new top-left anchor
+
                     if hasattr(self, 'can_occupy_position') and getattr(self, 'footprint_size', 1) > 1:
                         if self.can_occupy_position(new_x, new_y, game_map, game.entities, exclusions=[self]):
                             self.x, self.y = new_x, new_y
                             moved = True
-                        else:
-                            game.message_log.add_message(f"The {self.name} is too large to squeeze through.", (150, 100, 100))
                     else:
-                        # Single-tile default movement
-                        is_blocked = False
-                        for entity in game.entities:
-                            if entity != self and entity.alive and entity.blocks_movement:
-                                if hasattr(entity, 'occupies_tile'):
-                                    if entity.occupies_tile(new_x, new_y):
-                                        is_blocked = True
-                                        break
-                                else:
-                                    if entity.x == new_x and entity.y == new_y:
-                                        is_blocked = True
-                                        break
+                        # Single-tile movement with destructible tile destruction for large monsters
+                        if 0 <= new_x < game.game_map.width and 0 <= new_y < game.game_map.height:
+                            target_tile = game.game_map.tiles[new_y][new_x]
+                            blocked_by_entity = any(
+                                (entity != self and entity.alive and entity.blocks_movement and
+                                 ((hasattr(entity, 'occupies_tile') and entity.occupies_tile(new_x, new_y)) or
+                                  (entity.x == new_x and entity.y == new_y)))
+                                for entity in game.entities
+                            )
+                            if blocked_by_entity:
+                                moved = False
+                            elif game_map.is_walkable(new_x, new_y):
+                                self.x, self.y = new_x, new_y
+                                moved = True
+                            elif target_tile.destructible and self.footprint_size >= 3:
+                                game.message_log.add_message(f"The massive {self.name} smashes the {target_tile.name}!", (255, 165, 0))
+                                game.game_map.tiles[new_y][new_x] = floor
+                                game.minimap_needs_redraw = True
+                                game.floating_texts.append(FloatingText(new_x, new_y, "SMASH!", (255, 100, 0)))
 
-                        if not is_blocked:
-                            self.x, self.y = new_x, new_y
-                            moved = True
+                                if target_tile.name in ["Crate", "Barrel"]:
+                                    if random.random() < 0.70:
+                                        new_junk = wood_plank.__class__(
+                                            name=wood_plank.name,
+                                            char=wood_plank.char,
+                                            color=wood_plank.color,
+                                            description=wood_plank.description
+                                        )
+                                        new_junk.x = new_x
+                                        new_junk.y = new_y
+                                        game.game_map.items_on_ground.append(new_junk)
+                                        game.message_log.add_message(f"A {new_junk.name} drops from the {target_tile.name}!", new_junk.color)
+                                    # Add other drops as needed here
 
+                                self.x, self.y = new_x, new_y
+                                moved = True
                     if not moved:
                         game.message_log.add_message(f"The {self.name} is blocked and cannot reach {player.name}!", (100, 100, 100))
                 else:
                     game.message_log.add_message(f"The {self.name} cannot find a path to {player.name}!", (150, 150, 150))
-                return # Action taken (attempted to move)
+                return
 
-        # --- Default CHASING behavior (if not fleeing or desperate, or if fleeing failed) ---
-        if player_detected: # Only chase if player is detected
-            # If monster has ranged attack, check if player is in range and line of sight
+        # Default CHASING behavior
+        if player_detected:
             if self.is_ranged and distance_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
                 self.ranged_attack(player, game)
                 return
 
-            # Check if adjacent to player (including diagonals) - melee attack
             if self.is_adjacent_to(player):
-                self.attack(player, game)  # Use base melee attack
+                self.attack(player, game)
                 return
 
-            # Otherwise, move toward the player's current position using A* pathfinding
-            # Use last_known_player_position if player is not currently visible but was recently
             target_pos = (player.x, player.y) if game.check_line_of_sight(self.x, self.y, player.x, player.y) else self.last_known_player_position
-            
-            if target_pos: # Only pathfind if there's a target position
-                path = astar(game_map, (self.x, self.y), target_pos, entities=[e for e in game.entities if e != self and e.alive and e.blocks_movement], moving_entity=self)
 
+            if target_pos:
+                path = astar(
+                    game_map,
+                    (self.x, self.y),
+                    target_pos,
+                    entities=[e for e in game.entities if e != self and e.alive and e.blocks_movement],
+                    moving_entity=self
+                )
                 if path and len(path) > 1:
                     next_step = path[1]
                     new_x, new_y = next_step
-
                     moved = False
-                    # For multi-tile entities, require full clearance at the new top-left anchor
+
                     if getattr(self, 'footprint_size', 1) > 1 and hasattr(self, 'can_occupy_position'):
                         if self.can_occupy_position(new_x, new_y, game_map, game.entities, exclusions=[self]):
                             self.x, self.y = new_x, new_y
                             moved = True
                     else:
-                        # Single-tile default movement with entity blocking check
-                        is_blocked = False
-                        for entity in game.entities:
-                            if entity != self and entity.alive and entity.blocks_movement:
-                                if hasattr(entity, 'occupies_tile'):
-                                    if entity.occupies_tile(new_x, new_y):
-                                        is_blocked = True
-                                        break
-                                else:
-                                    if entity.x == new_x and entity.y == new_y:
-                                        is_blocked = True
-                                        break
-                        if not is_blocked:
-                            self.x, self.y = new_x, new_y
-                            moved = True
+                        if 0 <= new_x < game_map.width and 0 <= new_y < game_map.height:
+                            target_tile = game_map.tiles[new_y][new_x]
+                            blocked_by_entity = any(
+                                (entity != self and entity.alive and entity.blocks_movement and
+                                 ((hasattr(entity, 'occupies_tile') and entity.occupies_tile(new_x, new_y)) or
+                                  (entity.x == new_x and entity.y == new_y)))
+                                for entity in game.entities
+                            )
+                            if blocked_by_entity:
+                                moved = False
+                            elif game_map.is_walkable(new_x, new_y):
+                                self.x, self.y = new_x, new_y
+                                moved = True
+                            elif target_tile.destructible and self.footprint_size >= 3:
+                                game.message_log.add_message(f"The massive {self.name} smashes the {target_tile.name}!", (255, 165, 0))
+                                game_map.tiles[new_y][new_x] = floor
+                                game.minimap_needs_redraw = True
+                                game.floating_texts.append(FloatingText(new_x, new_y, "SMASH!", (255, 100, 0)))
 
+                                if target_tile.name in ["Crate", "Barrel"]:
+                                    if random.random() < 0.70:
+                                        new_junk = wood_plank.__class__(
+                                            name=wood_plank.name,
+                                            char=wood_plank.char,
+                                            color=wood_plank.color,
+                                            description=wood_plank.description
+                                        )
+                                        new_junk.x = new_x
+                                        new_junk.y = new_y
+                                        game_map.items_on_ground.append(new_junk)
+                                        game.message_log.add_message(f"A {new_junk.name} drops from the {target_tile.name}!", new_junk.color)
+                                    # Add other drops as needed here
+
+                                self.x, self.y = new_x, new_y
+                                moved = True
                     if not moved:
                         game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
                 else:
-                    game.message_log.add_message(f"The {self.name} cannot find a path to the player.", (150, 150, 150))
-        else:
-            # If the player is not detected, patrol the area
-            if self.patrol(game_map):
-                pass # Monster patrolled
+                    # Pathfinding failed: try greedy direct movement towards player
+                    dx = player.x - self.x
+                    dy = player.y - self.y
+
+                    step_x = 0
+                    step_y = 0
+
+                    if dx != 0:
+                        step_x = dx // abs(dx)
+                    if dy != 0:
+                        step_y = dy // abs(dy)
+
+                    candidates = []
+                    if step_x != 0 and step_y != 0:
+                        candidates.append((self.x + step_x, self.y + step_y))  # diagonal
+                    if step_x != 0:
+                        candidates.append((self.x + step_x, self.y))
+                    if step_y != 0:
+                        candidates.append((self.x, self.y + step_y))
+
+                    moved = False
+                    for nx, ny in candidates:
+                        if not (0 <= nx < game_map.width and 0 <= ny < game_map.height):
+                            continue
+
+                        tile = game_map.tiles[ny][nx]
+
+                        blocked_by_entity = any(
+                            (entity != self and entity.alive and entity.blocks_movement and
+                             ((hasattr(entity, 'occupies_tile') and entity.occupies_tile(nx, ny)) or
+                              (entity.x == nx and entity.y == ny)))
+                            for entity in game.entities
+                        )
+                        if blocked_by_entity:
+                            continue
+
+                        if game_map.is_walkable(nx, ny):
+                            self.x, self.y = nx, ny
+                            moved = True
+                            break
+                        elif tile.destructible and self.footprint_size >= 3:
+                            game.message_log.add_message(f"The massive {self.name} smashes the {tile.name}!", (255, 165, 0))
+                            game_map.tiles[ny][nx] = floor
+                            game.minimap_needs_redraw = True
+                            game.floating_texts.append(FloatingText(nx, ny, "SMASH!", (255, 100, 0)))
+
+                            if tile.name in ["Crate", "Barrel"]:
+                                if random.random() < 0.70:
+                                    new_junk = wood_plank.__class__(
+                                        name=wood_plank.name,
+                                        char=wood_plank.char,
+                                        color=wood_plank.color,
+                                        description=wood_plank.description
+                                    )
+                                    new_junk.x = nx
+                                    new_junk.y = ny
+                                    game_map.items_on_ground.append(new_junk)
+                                    game.message_log.add_message(f"A {new_junk.name} drops from the {tile.name}!", new_junk.color)
+                                # Add other drops as needed here
+
+                            self.x, self.y = nx, ny
+                            moved = True
+                            break
+
+                    if not moved:
+                        game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
+            else:
+                # Player not detected, patrol or idle
+                self.patrol(game_map)
+
 
     def hp_percentage(self):
         """Returns the monster's current HP as a percentage."""
@@ -307,7 +397,7 @@ class Monster:
                 return False # Player not currently detected, but might still be aggroed to last_known_position
             return False # Player not detected at all
 
- 
+
     def patrol(self, game_map):
         """Move the monster along a patrol path or randomly within a defined area."""
         # Define a simple patrol path (for example, a square or a line)
@@ -356,7 +446,7 @@ class Monster:
     
         return False  # Could not find a valid tile to flee to
     
-
+    
     def is_adjacent_to(self, other):
         """Check if next to another entity (cardinal directions + diagonals)"""
         dx = abs(self.x - other.x)
@@ -398,7 +488,7 @@ class Monster:
             self.pending_telegraph_tiles = telegraphed
             game.message_log.add_message(f"The {self.name} prepares a devastating attack!", (255, 80, 80))
             return  # Telegraph now; damage will apply at start of next turn cycle
-      
+    
         # Attack roll
         roll1 = random.randint(1, 20)
         roll2 = random.randint(1, 20)
@@ -510,7 +600,7 @@ class Monster:
         """More powerful ranged attacks"""
         if target is None or not target.alive:
             return
-       
+    
         roll1 = random.randint(1, 20)
         final_d20_roll = roll1
 
@@ -722,11 +812,11 @@ class Monster:
                         elif getattr(entity, 'x', None) == tile_x and getattr(entity, 'y', None) == tile_y:
                             return False
         return True
-
+    
 class Mimic(Monster):
     def __init__(self, x, y, disguise_char, initial_color): 
         super().__init__(x, y, disguise_char, 'Mimic', initial_color) 
-        
+    
         self.disguised = True
         
         self._disguise_char = disguise_char 
@@ -1283,7 +1373,7 @@ class Demogorgon(Monster):
         self.damage_modifier = 7
         self.detection_range = 8
         self.num_damage_dice = 3
-        self.footprint_size = 2
+        self.footprint_size = 3
         # self.legendary_resistance = 3
         # self.frightful_presence = True
         self.is_intelligent = True # Highly intelligent, but likely never flees (boss)
