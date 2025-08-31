@@ -29,7 +29,8 @@ class NPC:
         self.initiative = random.randint(1, 20)
 
 
-    def take_damage(self, amount, game_instance):
+
+    def take_damage(self, amount, game_instance, damage_type=None): # Added damage_type for consistency
         """Handle taking damage and return actual damage taken"""
         self.hp -= amount
         if self.hp <= 0:

@@ -14,6 +14,7 @@ class GameState:
     CHARACTER_CREATION = "character_creation"
     CLASS_SELECTION = "class_selection"
     TRADE = "trade"
+    GAME_OVER = "game_over"
 
 
 from core.fov import FOV
@@ -864,6 +865,7 @@ class Game:
                     self.message_log.add_message(random.choice(hunger_msgs), (255, 100, 0))
                 
                 if not self.player.alive:  # Check if the player has died from hunger
+                    self.handle_game_over()
                     return  # End the turn if the player is dead
                                   
        
@@ -871,14 +873,12 @@ class Game:
 
         # If after cleanup, there are no entities left (e.g., all monsters died)
         if not self.turn_order:
-            if self.player.alive:
+            if self.player and self.player.alive:
                 self.turn_order = [self.player]  # Ensure player is in turn order
                 self.current_turn_index = 0
                 self.player_has_acted = False  # Reset for player's next turn
                 self.update_fov()  # Update FOV for the player
             return  # No more turns to process if no entities
-
-        # Before advancing, don't resolve telegraphs here; handled in monster's own turn
 
         # Advance the turn index to the next entity
         self.current_turn_index = (self.current_turn_index + 1) % len(self.turn_order)
@@ -910,52 +910,44 @@ class Game:
                 ]
                 self.message_log.add_message(random.choice(ambient_msgs), (180, 180, 180))
 
-        # If it's a monster's turn, it will be handled by the update loop in Game.update()
+
 
 
     def cleanup_entities(self):
-        # Store the entity whose turn it *was* or *is about to be*
-        entity_whose_turn_it_was = None
-        if self.turn_order and 0 <= self.current_turn_index < len(self.turn_order):
-            entity_whose_turn_it_was = self.turn_order[self.current_turn_index]
-        
-        # Filter out dead entities from the main entities list
-        self.entities = [e for e in self.entities if e.alive]
-        
-        # Rebuild the turn_order list with only alive entities
-        new_turn_order = []
-        for entity in self.turn_order:
-            if entity.alive:
-                new_turn_order.append(entity)
-        self.turn_order = new_turn_order
-        
-        # If the player is the only one left, ensure they are in turn_order
-        if not self.turn_order and self.player.alive:
-            self.turn_order = [self.player]
-            self.current_turn_index = 0
-            return  # Nothing else to do if only player remains
-    
-        # Adjust current_turn_index based on who was supposed to act
-        if entity_whose_turn_it_was and entity_whose_turn_it_was in self.turn_order:
-            # If the entity whose turn it was is still alive, maintain its position
-            self.current_turn_index = self.turn_order.index(entity_whose_turn_it_was)
-        else:
-            # If the entity whose turn it was died or was removed,
-            # move the index back one to compensate for the next_turn increment,
-            # or wrap around if it was the last entity.
-            # This ensures the *next* entity in the sequence gets its turn.
-            self.current_turn_index = (self.current_turn_index - 1 + len(self.turn_order)) % len(self.turn_order) if self.turn_order else 0
-    
-        # Ensure index is within bounds after cleanup
-        if self.current_turn_index >= len(self.turn_order):
-            self.current_turn_index = 0  # Reset if somehow out of bounds (e.g., all entities died except player)
+        """Remove dead monsters and clean up their references."""
+        for entity in self.entities[:]:  # Copy list to safely modify
+            if not entity.alive:
+                if isinstance(entity, Monster):
+                    self.entities.remove(entity)
+                    self.message_log.add_message(f"{entity.name} has fallen.", (180, 0, 0))
+                elif isinstance(entity, Player):
+                    # Player death is handled separately
+                    if self.game_state != GameState.GAME_OVER:
+                        self.message_log.add_message("Your vision fades to black... you are no more.", (200, 0, 0))
+                        self.game_state = GameState.GAME_OVER
+                    # IMPORTANT: Don't remove the player object from self.entities
+                    return  # Stop cleanup early if player is dead
+
     
 
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
-            
+
+            if self.game_state == GameState.GAME_OVER:
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_r:
+                        # Restart the game: reset player, generate tavern or level 1
+                        self._game_over_displayed = False
+                        self.game_state = GameState.CHARACTER_CREATION  # Or directly generate tavern/level 1
+                        self.start_character_creation()
+                        return True
+                    elif event.key == pygame.K_q:
+                        # Quit the game
+                        return False
+                continue  # Skip other event processing when game over
+
             if event.type == pygame.VIDEORESIZE:
                 self.screen = pygame.display.set_mode(event.size, pygame.RESIZABLE)
                 self._recalculate_dimensions()
@@ -1712,9 +1704,7 @@ class Game:
                     # Check if the monster is still adjacent to the player's *new* position
                     is_still_adjacent_to_monster = (abs(self.player.x - monster.x) <= 1 and abs(self.player.y - monster.y) <= 1)
                     
-                    # If the monster was adjacent AND is no longer adjacent after the move,
-                    # it gets an opportunity attack.
-                    if not is_still_adjacent_to_monster:
+                    if self.player.alive and not is_still_adjacent_to_monster:
                         oa_msgs = [
                             f"The {monster.name} lashes out as you flee!",
                             f"{monster.name}'s reflexes are quick — an opportunity strike!",
@@ -1728,7 +1718,8 @@ class Game:
                         
                         # Important: If the player dies from an OA, the game state should reflect that.
                         if not self.player.alive:
-                            return True  # Player died, action taken, end turn.
+                            self.handle_game_over()
+                            return  # Player died, action taken, end turn.
                     
                 
                 self.update_fov()
@@ -2077,7 +2068,6 @@ class Game:
         self.clock.tick(60)  # Limit to 60 FPS
         self.fps = self.clock.get_fps()  # Get the current FPS
 
-        initial_floating_texts_count = len(self.floating_texts) # <--- ADD THIS
         self.floating_texts = [text for text in self.floating_texts if text.update()]
 
         # --- NEW: Only process turns for active monsters ---
@@ -2091,48 +2081,47 @@ class Game:
                 self.next_turn()
         
 
+        if self.player and not self.player.alive and self.game_state != GameState.GAME_OVER:
+            self.handle_game_over()
+            return
         if not self.player: # If player hasn't been created yet (e.g., in character creation)
             return # Do nothing else in update
-        if not self.player.alive:
-            if not hasattr(self, '_game_over_displayed'):
-                death_messages = [
-                    "Your journey ends here, adventurer. The dungeon claims another soul.",
-                    "The light fades from your eyes. Darkness embraces you.",
-                    "You fought bravely, but the dungeon proved too strong. Rest now.",
-                    "The dungeon's embrace is cold and final. You have fallen."
-                ]
-                chosen_death_message = random.choice(death_messages)
-                self.message_log.add_message(chosen_death_message, (255, 0, 0))
-                self._game_over_displayed = True
+        if self.game_state == GameState.GAME_OVER:
             return
 
         # --- NEW: Batch Monster Turn Processing ---
-        if self.game_state == GameState.DUNGEON: # Only in dungeon where monsters are active
+        if self.game_state == GameState.DUNGEON and self.player.alive:
+            # Loop to process turns until it's the player's turn or no more entities
             while True:
+                self.cleanup_entities() # Always clean up before getting current entity
+                if not self.turn_order: # If no entities left (e.g., all monsters died)
+                    break # Exit turn processing loop
                 current_entity = self.get_current_entity()
                 if current_entity == self.player:
-                    # It's the player's turn, break out of the monster processing loop
+                    # It's the player's turn.
                     if not self.player_has_acted:
-                        # Player's turn, waiting for input. Do nothing here.
-                        pass
+                        # Player's turn, waiting for input. Break the loop.
+                        break
                     else:
-                        # Player has acted, advance turn to next entity (which might be a monster)
+                        # Player has acted, advance turn to next entity.
                         self.player_has_acted = False # Reset for player's next turn
-                        self.next_turn()
-                    break # Exit the monster turn processing loop
+                        self.next_turn() # This will call cleanup_entities again and advance index
+                        # After next_turn, it might be a monster's turn or player's again.
+                        # Continue the while loop to process the next entity.
+                        continue # Go back to the start of the while loop
                 elif isinstance(current_entity, Monster) and current_entity.alive:
                     # Process monster's turn
                     if current_entity.is_active: # Only process if monster is active
                         current_entity.take_turn(self.player, self.game_map, self)
-                    self.next_turn() # Advance to the next entity in turn order
+                    # Monster has acted (or skipped if inactive), advance turn.
+                    self.next_turn() # This will call cleanup_entities again and advance index
+                    # Continue the while loop to process the next entity.
+                    continue # Go back to the start of the while loop
                 else:
-                    # If current_entity is not player, not a monster, or dead, just advance turn
+                    # If current_entity is not player, not a monster, or dead (should be caught by cleanup),
+                    # just advance turn. This is a safeguard.
                     self.next_turn()
-                    # If all entities are dead or inactive, this loop might run indefinitely.
-                    # Add a safeguard if needed, e.g., a max iteration count or check if turn_order is empty.
-                    if not self.turn_order: # Safeguard if all entities are gone
-                        break
-
+                    continue # Go back to the start of the while loop
 
         self.floating_texts = [text for text in self.floating_texts if text.update()]        
         
@@ -2175,7 +2164,23 @@ class Game:
                 self.camera.update(self.targeting_cursor_x, self.targeting_cursor_y, self.game_map.width, self.game_map.height)
             else:
                 self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height)        
-        
+
+
+    def handle_game_over(self):
+        if not hasattr(self, '_game_over_displayed'):
+            death_messages = [
+                "Your journey ends here, adventurer. The dungeon claims another soul.",
+                "The light fades from your eyes. Darkness embraces you.",
+                "You fought bravely, but the dungeon proved too strong. Rest now.",
+                "The dungeon's embrace is cold and final. You have fallen."
+            ]
+            chosen_death_message = random.choice(death_messages)
+            self.message_log.add_message(chosen_death_message, (255, 0, 0))
+            self._game_over_displayed = True
+            self.player.die()
+        self.game_state = GameState.GAME_OVER
+
+
 
     def handle_window_resize(self):
         old_scale = self.scale
@@ -2226,6 +2231,12 @@ class Game:
         elif self.game_state == GameState.CHARACTER_MENU:
             self.render_character_menu()
             self.screen.blit(self.inventory_ui_surface, (0, 0))
+        elif self.game_state == GameState.GAME_OVER:
+            # Directly render the game over screen without trying to draw the game world
+            self.render_game_over_screen()
+            # No need to blit internal_surface or draw UI/minimap here, as render_game_over_screen handles the full screen.
+            pygame.display.flip() # Ensure the screen updates
+            return # Exit render function early
         else: # This block handles DUNGEON, TAVERN, and TARGETING
             # --- Camera Update Logic ---
             if self.game_state == GameState.TARGETING:
@@ -2304,6 +2315,9 @@ class Game:
         if self.game_state not in [GameState.CHARACTER_CREATION, GameState.CLASS_SELECTION]:
             self.message_log.render(self.screen)
 
+        if self.game_state == GameState.GAME_OVER:
+            self.render_game_over_screen()
+            return
 
         fps_text = f"FPS: {int(self.fps)}"
         fps_surface = self.fps_font.render(fps_text, True, (255, 255, 255))  # White color
@@ -2317,6 +2331,25 @@ class Game:
         # Remove the old dirty_rects logic as it's no longer needed with flip()
         # self.dirty_rects = [] # This line can be removed or commented out
         # ... (remove all subsequent dirty_rects related code in render) ...
+
+    def render_game_over_screen(self):
+        # Fill screen with black
+        self.screen.fill((0, 0, 0, 0))
+
+        # Render "YOU DIED" text centered
+        font = pygame.font.SysFont('consolas', 72, bold=True)
+        text_surface = font.render("YOU DIED", True, (255, 0, 0))
+        text_rect = text_surface.get_rect(center=(self.screen.get_width() // 2, self.screen.get_height() // 2))
+        self.screen.blit(text_surface, text_rect)
+
+        # Optionally render a smaller message below
+        font_small = pygame.font.SysFont('consolas', 24)
+        subtext = font_small.render("Press R to Restart or Q to Quit", True, (255, 255, 255))
+        subtext_rect = subtext.get_rect(center=(self.screen.get_width() // 2, self.screen.get_height() // 2 + 60))
+        self.screen.blit(subtext, subtext_rect)
+
+        pygame.display.flip()
+
 
 
     def render_map_with_fov(self, full_redraw=False):

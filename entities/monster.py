@@ -382,7 +382,7 @@ class Monster:
 
     def attack(self, target, game, advantage=False, disadvantage=False):
         """Updated attack with optional telegraph phase for bosses."""
-        if not target.alive:
+        if target is None or not target.alive:
             return
 
         # If monster is a boss (footprint_size > 1), telegraph an AoE instead of immediate hit
@@ -508,7 +508,7 @@ class Monster:
 
     def ranged_attack(self, target, game):
         """More powerful ranged attacks"""
-        if not target.alive:
+        if target is None or not target.alive:
             return
        
         roll1 = random.randint(1, 20)

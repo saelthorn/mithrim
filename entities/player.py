@@ -1,4 +1,5 @@
 import random
+from core. game import GameState
 from core.inventory import Inventory
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball
 from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning
@@ -309,6 +310,7 @@ class Player: # This is our base class for playable characters
 
         if self.hp <= 0:
             self.alive = False
+            self.die()
         return damage_taken
 
     def heal(self, amount):
@@ -520,7 +522,7 @@ class Player: # This is our base class for playable characters
         self.alive = False
         if game_instance:
             game_instance.message_log.add_message(f"{self.name} has fallen!", (255, 0, 0))
-        print(f"{self.name} has died.") # For console debugging  
+        print(f"{self.name} has died.") # For console debugging 
 
 
     def is_adjacent_to(self, other):

@@ -16,6 +16,7 @@ To do:
      - Add Torches as an Items
      - Maybe Cunning Action Hide for Rogues
      - Dead Bodies(?)
+     - When Monster Dies it drops loot
 
 
 
