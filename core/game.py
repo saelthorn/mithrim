@@ -2,7 +2,7 @@
 import pygame
 import random
 import config
-
+import math # Import math for distance calculations
 
 class GameState:
     TAVERN = "tavern"
@@ -14,7 +14,7 @@ class GameState:
     CHARACTER_CREATION = "character_creation"
     CLASS_SELECTION = "class_selection"
     TRADE = "trade"
-    GAME_OVER = "game_over"
+    GAME_OVER = "game_over" # NEW: Add GAME_OVER state
 
 
 from core.fov import FOV
@@ -150,7 +150,7 @@ class Game:
         self.targeting_cursor_x = 0
         self.targeting_cursor_y = 0
             
-        self.message_log.add_message("Welcome to the dungeon!", (100, 255, 100))
+        self.message_log.add_message("Welcome to the dungeon!", (100, 255, 255))
         
         self.floating_texts = []  # Initialize floating texts list
 
@@ -204,6 +204,15 @@ class Game:
         self.menu_open = None
 
         self._recalculate_minimap_dimensions()
+
+        # NEW: Flag to track if game over message has been displayed
+        self._game_over_displayed = False
+
+        self.death_screen_alpha = 0  # Alpha for "YOU DIED" text
+        self.death_screen_bg_alpha = 0  # Alpha for background overlay
+        self.death_screen_subtext_alpha = 0  # Alpha for subtext
+        self.death_screen_animation_phase = 0  # 0=text fade-in, 1=bg fade-in, 2=subtext fade-in, 3=done
+        self.death_screen_animation_speed = 2  # Alpha increment per frame (adjust for speed)
 
     # Boss schedule: every 5th floor, ordered list
     BOSS_FLOORS = [
@@ -935,17 +944,18 @@ class Game:
             if event.type == pygame.QUIT:
                 return False
 
+            # NEW: Handle input specifically for GAME_OVER state
             if self.game_state == GameState.GAME_OVER:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:
                         # Restart the game: reset player, generate tavern or level 1
-                        self._game_over_displayed = False
+                        self._game_over_displayed = False # Reset flag for next death
                         self.game_state = GameState.CHARACTER_CREATION  # Or directly generate tavern/level 1
-                        self.start_character_creation()
-                        return True
+                        self.start_character_creation() # Re-initialize character creation process
+                        return True # Consume event
                     elif event.key == pygame.K_q:
                         # Quit the game
-                        return False
+                        return False # Signal to quit
                 continue  # Skip other event processing when game over
 
             if event.type == pygame.VIDEORESIZE:
@@ -2070,6 +2080,30 @@ class Game:
 
         self.floating_texts = [text for text in self.floating_texts if text.update()]
 
+        # NEW: If player is dead and game is not yet in GAME_OVER state, handle game over
+        if self.player and not self.player.alive and self.game_state != GameState.GAME_OVER:
+            self.handle_game_over()
+            return # Stop further updates if game over is triggered
+
+        # NEW: If game is already in GAME_OVER state, simply return
+        if self.game_state == GameState.GAME_OVER:
+            if self.death_screen_animation_phase == 0:
+                self.death_screen_alpha += self.death_screen_animation_speed
+                if self.death_screen_alpha >= 255:
+                    self.death_screen_alpha = 255
+                    self.death_screen_animation_phase = 1
+            elif self.death_screen_animation_phase == 1:
+                self.death_screen_bg_alpha += self.death_screen_animation_speed
+                if self.death_screen_bg_alpha >= 120:  # Max alpha for background overlay
+                    self.death_screen_bg_alpha = 120
+                    self.death_screen_animation_phase = 2
+            elif self.death_screen_animation_phase == 2:
+                self.death_screen_subtext_alpha += self.death_screen_animation_speed
+                if self.death_screen_subtext_alpha >= 255:
+                    self.death_screen_subtext_alpha = 255
+                    self.death_screen_animation_phase = 3
+            return
+
         # --- NEW: Only process turns for active monsters ---
         current = self.get_current_entity()
         if current and current != self.player and current.alive:
@@ -2081,13 +2115,9 @@ class Game:
                 self.next_turn()
         
 
-        if self.player and not self.player.alive and self.game_state != GameState.GAME_OVER:
-            self.handle_game_over()
-            return
         if not self.player: # If player hasn't been created yet (e.g., in character creation)
             return # Do nothing else in update
-        if self.game_state == GameState.GAME_OVER:
-            return
+        
 
         # --- NEW: Batch Monster Turn Processing ---
         if self.game_state == GameState.DUNGEON and self.player.alive:
@@ -2167,7 +2197,7 @@ class Game:
 
 
     def handle_game_over(self):
-        if not hasattr(self, '_game_over_displayed'):
+        if not self._game_over_displayed:
             death_messages = [
                 "Your journey ends here, adventurer. The dungeon claims another soul.",
                 "The light fades from your eyes. Darkness embraces you.",
@@ -2178,6 +2208,13 @@ class Game:
             self.message_log.add_message(chosen_death_message, (255, 0, 0))
             self._game_over_displayed = True
             self.player.die()
+
+            # Reset animation variables for death screen
+            self.death_screen_alpha = 0  # Alpha for "YOU DIED" text
+            self.death_screen_bg_alpha = 0  # Alpha for background overlay
+            self.death_screen_subtext_alpha = 0  # Alpha for subtext
+            self.death_screen_animation_phase = 0  # 0=text fade-in, 1=bg fade-in, 2=subtext fade-in, 3=done
+
         self.game_state = GameState.GAME_OVER
 
 
@@ -2207,10 +2244,10 @@ class Game:
     def render(self):
         """Main render method - draws everything"""
         # Clear the entire screen at the start of each frame
-        self.screen.fill((0, 0, 0))
+        self.screen.fill((0, 0, 0, 0))
 
         # --- Render the main game area (dungeon/tavern) to internal_surface ---
-        self.internal_surface.fill((0, 0, 0)) # Clear internal surface
+        self.internal_surface.fill((0, 0, 0, 0)) # Clear internal surface
 
         # Render map, items, entities, highlights, floating texts to internal_surface
         if self.game_state == GameState.CHARACTER_CREATION:
@@ -2231,13 +2268,7 @@ class Game:
         elif self.game_state == GameState.CHARACTER_MENU:
             self.render_character_menu()
             self.screen.blit(self.inventory_ui_surface, (0, 0))
-        elif self.game_state == GameState.GAME_OVER:
-            # Directly render the game over screen without trying to draw the game world
-            self.render_game_over_screen()
-            # No need to blit internal_surface or draw UI/minimap here, as render_game_over_screen handles the full screen.
-            pygame.display.flip() # Ensure the screen updates
-            return # Exit render function early
-        else: # This block handles DUNGEON, TAVERN, and TARGETING
+        else: # This block handles DUNGEON, TAVERN, and TARGETING (and will be drawn under GAME_OVER)
             # --- Camera Update Logic ---
             if self.game_state == GameState.TARGETING:
                 self.camera.update(self.targeting_cursor_x, self.targeting_cursor_y, self.game_map.width, self.game_map.height)
@@ -2315,9 +2346,11 @@ class Game:
         if self.game_state not in [GameState.CHARACTER_CREATION, GameState.CLASS_SELECTION]:
             self.message_log.render(self.screen)
 
+        # NEW: Render game over screen if in GAME_OVER state
         if self.game_state == GameState.GAME_OVER:
             self.render_game_over_screen()
-            return
+            pygame.display.flip() # Ensure the screen updates
+            return # Exit render function early to prevent further drawing
 
         fps_text = f"FPS: {int(self.fps)}"
         fps_surface = self.fps_font.render(fps_text, True, (255, 255, 255))  # White color
@@ -2333,24 +2366,27 @@ class Game:
         # ... (remove all subsequent dirty_rects related code in render) ...
 
     def render_game_over_screen(self):
-        # Fill screen with black
-        self.screen.fill((0, 0, 0, 0))
+        # Render background overlay with fade-in alpha AFTER "YOU DIED" text
+        if self.death_screen_animation_phase >= 1:
+            overlay_surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+            overlay_surface.fill((0, 0, 0, self.death_screen_bg_alpha))
+            self.screen.blit(overlay_surface, (0, 0))
 
-        # Render "YOU DIED" text centered
+        # Render "YOU DIED" text with fade-in alpha
         font = pygame.font.SysFont('consolas', 72, bold=True)
         text_surface = font.render("YOU DIED", True, (255, 0, 0))
+        text_surface.set_alpha(self.death_screen_alpha)
         text_rect = text_surface.get_rect(center=(self.screen.get_width() // 2, self.screen.get_height() // 2))
         self.screen.blit(text_surface, text_rect)
 
-        # Optionally render a smaller message below
-        font_small = pygame.font.SysFont('consolas', 24)
-        subtext = font_small.render("Press R to Restart or Q to Quit", True, (255, 255, 255))
-        subtext_rect = subtext.get_rect(center=(self.screen.get_width() // 2, self.screen.get_height() // 2 + 60))
-        self.screen.blit(subtext, subtext_rect)
-
-        pygame.display.flip()
-
-
+        # Render subtext with fade-in alpha after background is visible
+        if self.death_screen_animation_phase >= 2:
+            font_small = pygame.font.SysFont('consolas', 24)
+            subtext = font_small.render("Press R to Restart or Q to Quit", True, (255, 255, 255))
+            subtext.set_alpha(self.death_screen_subtext_alpha)
+            subtext_rect = subtext.get_rect(center=(self.screen.get_width() // 2, self.screen.get_height() // 2 + 60))
+            self.screen.blit(subtext, subtext_rect)
+            
 
     def render_map_with_fov(self, full_redraw=False):
         if not hasattr(self, 'game_map') or self.game_map is None:
