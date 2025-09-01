@@ -48,8 +48,8 @@ INTERNAL_GAME_AREA_PIXEL_HEIGHT = INTERNAL_GAME_AREA_HEIGHT_TILES * TILE_SIZE
 
 
 # --- Minimum number of tiles to display (for dynamic scaling) ---
-MIN_GAME_AREA_TILES_WIDTH = 24  # Ensure at least 20 tiles wide are always shown
-MIN_GAME_AREA_TILES_HEIGHT = 12 # Ensure at least 18 tiles high are always shown
+MIN_GAME_AREA_TILES_WIDTH = 26  # Ensure at least 20 tiles wide are always shown
+MIN_GAME_AREA_TILES_HEIGHT = 14 # Ensure at least 18 tiles high are always shown
 
 
 # --- Target effective tile scale for dynamic scaling ---

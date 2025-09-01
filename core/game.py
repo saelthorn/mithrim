@@ -35,6 +35,7 @@ from entities.monster import (
 )
 
 from entities.base_entity import NPC
+from entities.player import Player
 from entities.tavern_npcs import create_tavern_npcs, NPC, Merchant
 from entities.dungeon_npcs import DungeonHealer, DungeonMerchant
 from entities.tavern_npcs import NPC
@@ -800,9 +801,10 @@ class Game:
     def update_fov(self):
         base_radius = 4  # base vision radius
         torch_bonus = 0
-        has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)
+        has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)    
+        
         if has_torchlight:
-            torch_bonus = 4
+            torch_bonus = 2
 
         LIGHT_PRIORITY = {
             'player': 3,
@@ -825,7 +827,8 @@ class Game:
 
         # If torchlight active, compute extended FOV with 'torch' light source
         if torch_bonus > 0:
-            torch_fov = FOV(self.game_map)
+            torch_fov = FOV(self.game_map)          
+
             torch_fov.compute_fov(
                 self.player.x,
                 self.player.y,
@@ -850,19 +853,25 @@ class Game:
             self.minimap_needs_redraw = True
 
         # Existing monster activation logic...
+        WAKE_RADIUS = 12  # Tiles within which monsters wake up regardless of visibility
+
         for entity in self.entities:
             if isinstance(entity, Monster):
                 visibility_type = self.fov.get_visibility_type(entity.x, entity.y)
-                if visibility_type in ['player', 'torch', 'darkvision']:
+                distance_to_player = entity.distance_to(self.player.x, self.player.y)
+
+                # Wake if visible OR within wake radius
+                if visibility_type in ['player', 'torch', 'darkvision'] or distance_to_player <= WAKE_RADIUS:
                     if not entity.is_active:
                         entity.is_active = True
-                        entity.sleep_cooldown = 5
+                        entity.sleep_cooldown = 0
                         self.message_log.add_message(f"You spot a {entity.name}!", entity.color)
                 else:
-                    if entity.is_active and entity.sleep_cooldown <= 12:
+                    if entity.is_active and entity.sleep_cooldown <= 10:
                         entity.is_active = False
                         entity.sleep_cooldown = random.randint(5, 15)
                         self.message_log.add_message(f"The {entity.name} seems to have fallen asleep.", (100, 100, 100))
+
 
 
 
@@ -1126,8 +1135,7 @@ class Game:
 
                 # --- Trade Interaction --- 
                 if self.game_state in GameState.DUNGEON:
-                    if event.key == pygame.K_f:  # Check if 'F' is pressed
-                        # Check for adjacent Dungeon Merchant
+                    if event.key == pygame.K_f:  
                         merchant = self.check_dungeon_npc_interaction()  # Check for adjacent NPC
                         if isinstance(merchant, DungeonMerchant):
                             merchant.offer_trade(self.player, self)  # Call the trade method for the Merchant
@@ -1831,6 +1839,18 @@ class Game:
                     new_junk.x = x
                     new_junk.y = y
                     self.game_map.items_on_ground.append(new_junk)
+                elif random.random() < 0.3:
+                    new_torch = torch.__class__(
+                        name=torch.name,
+                        char=torch.char,
+                        color=torch.color,
+                        description=torch.description,
+                        price=torch.price
+                    )
+                    new_torch.x = x
+                    new_torch.y = y
+                    self.game_map.items_on_ground.append(new_torch)
+                    self.message_log.add_message(f"A {new_torch.name} drops from the {target_tile.name}!", new_torch.color)
                 elif random.random() < 0.2:
                     new_food = meat.__class__(
                         name=meat.name,
@@ -2431,6 +2451,8 @@ class Game:
         camera_x_int = int(self.camera.x)
         camera_y_int = int(self.camera.y)
 
+        has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)          
+
         for y in range(camera_y_int, min(camera_y_int + self.camera.viewport_height + 1, self.game_map.height)):
             for x in range(camera_x_int, min(camera_x_int + self.camera.viewport_width + 1, self.game_map.width)):
 
@@ -2442,13 +2464,15 @@ class Game:
                 visibility_type = self.fov.get_visibility_type(x, y)
 
                 # Draw the tile based on visibility
-                tile = self.game_map.tiles[y][x]
-
+                tile = self.game_map.tiles[y][x]      
                 
                 # Draw the tile normally if explored or visible
                 render_color_tint = None  # Initialize render_color_tint
                 if visibility_type == 'player':
-                    render_color_tint = (250, 250, 250, 255)
+                    if has_torchlight:
+                        render_color_tint = (240, 240, 240, 255)  # Dimmer tint when torchlight active
+                    else:
+                        render_color_tint = (160, 160, 160, 255)  
                 elif visibility_type == 'torch':
                     render_color_tint = (180, 180, 180, 255)
                 elif visibility_type == 'darkvision':
@@ -2515,12 +2539,20 @@ class Game:
                 if (0 <= draw_x < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
                     0 <= draw_y < map_render_height):
 
+
+                    has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)
+
                     # Initialize entity_color_tint here
                     entity_color_tint = None
                     if visibility_type == 'player':
-                        entity_color_tint = None
+                        if has_torchlight:
+                            entity_color_tint = (240, 240, 240, 255)  # Dimmer tint when torchlight active
+                        else:
+                            entity_color_tint = (160, 160, 160, 255)  
+                    elif visibility_type == 'torch':
+                        entity_color_tint = (180, 180, 180, 255)
                     elif visibility_type == 'darkvision':
-                        entity_color_tint = (70, 70, 70, 255)
+                        entity_color_tint = (120, 120, 120, 255)
                     elif visibility_type == 'explored':
                         entity_color_tint = (60, 60, 60, 255)
                     elif visibility_type == 'unexplored':
@@ -2577,11 +2609,19 @@ class Game:
                 if (0 <= draw_x < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
                     0 <= draw_y < map_render_height):
                     
+
+                    has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)
+
                     item_color_tint = None
                     if visibility_type == 'player':
-                        item_color_tint = None
+                        if has_torchlight:
+                            item_color_tint = (240, 240, 240, 255)  # Dimmer tint when torchlight active
+                        else:
+                            item_color_tint = (160, 160, 160, 255)  
                     elif visibility_type == 'torch':
                         item_color_tint = (180, 180, 180, 255)
+                    elif visibility_type == 'darkvision':
+                        item_color_tint = (120, 120, 120, 255)
                     elif visibility_type == 'explored':
                         item_color_tint = (60, 60, 60, 255)
                     elif visibility_type == 'unexplored':

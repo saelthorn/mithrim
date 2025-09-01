@@ -9,6 +9,11 @@ UI to add/fix:
      - Recolor everything (especially the inventory)
 
 
+Map changes:
+     - Add rivers or something
+     - Make sure the dungeon exit(stairs down) is far from the dungeon entrance(stairs up) 
+     - Add locked doors
+
 
 To do:
     Prioritize - Make Mithrim Logo
@@ -17,6 +22,8 @@ To do:
      - Dead Bodies(?)
      - When Monster Dies it drops loot
      - Make bosses not spam telegraphed attacks
+     - Quick bar
+     - Add Investigate as AI state for Monsters
 
 
 To fix:

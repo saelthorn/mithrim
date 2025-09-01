@@ -78,7 +78,7 @@ def setup_tile_mapping():
         't': (4 * CELL_DIM, 3 * CELL_DIM),  # Table (Tavern)
         '=': (5 * CELL_DIM, 3 * CELL_DIM),  # Bar Counter
         'F': (6 * CELL_DIM, 3 * CELL_DIM),  # Fireplace
-        'i': (7 * CELL_DIM, 3 * CELL_DIM),  # Torch
+        'i': (7 * CELL_DIM, 3 * CELL_DIM),  # Torch Wall
 
         # Static Decorations (using distinct chars)
         'b': (2 * CELL_DIM, 5 * CELL_DIM), # Static Barrel (original graphic)
@@ -146,6 +146,7 @@ def setup_tile_mapping():
         # Item Characters
         'cf': (8 * CELL_DIM, 2 * CELL_DIM), # Campfire 
         'pn': (9 * CELL_DIM, 2 * CELL_DIM), # Wood Plank (Junk)
+        'th': (10 * CELL_DIM,2 * CELL_DIM), # Torch (Item)
         'tt': (7 * CELL_DIM, 2 * CELL_DIM), # Thieves' Tools
         '!': (0 * CELL_DIM, 13 * CELL_DIM), # Potions
 

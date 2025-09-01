@@ -68,18 +68,17 @@ class Merchant(NPC):
         default_items = [
             CampfireKit(),
             lesser_healing_potion,
-            green_apple,
+            meat,
             bread,
             fromage,
-            mushroom,
             torch,
         ]
         # Chance-based items with their spawn probabilities (fewer and simpler than dungeon merchant)
         chance_items_with_chance = [
-            (silver_dagger, 0.3),
-            (steel_long_sword, 0.2),
-            (half_plate_armor, 0.25),
-            (apprentices_staff, 0.25),
+            (silver_dagger, 0.5),
+            (steel_long_sword, 0.4),
+            (half_plate_armor, 0.45),
+            (apprentices_staff, 0.45),
             # Add more tavern-specific items and chances if desired
         ]
 
@@ -98,9 +97,7 @@ class Merchant(NPC):
                     **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
                 )
                 self.items_for_sale.append(new_item)
-
-
-       
+    
         # Add chance-based items
         for item_template, chance in chance_items_with_chance:
             if random.random() < chance:
@@ -134,19 +131,30 @@ class Merchant(NPC):
 
 
 
-
     def buy_item(self, player, item_name):
-        """Handle the logic for buying an item."""
         for item in self.items_for_sale:
-            if item.name.lower() == item_name.lower():  # Case insensitive comparison
-                if player.gold >= item.price:  # Assuming player has a gold attribute
+            if item.name.lower() == item_name.lower():
+                if player.gold >= item.price:
                     player.gold -= item.price
-                    player.inventory.add_item(item)  # Add the item to the player's inventory
-                    self.items_for_sale.remove(item)  # Remove the item from the merchant's inventory
-                    return f"You bought {item.name}!"
+    
+                    # Create a new instance of the item to add to player inventory
+                    new_item = item.__class__(
+                        name=item.name,
+                        char=item.char,
+                        color=item.color,
+                        description=item.description,
+                        **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                    )
+    
+                    if player.inventory.add_item(new_item):
+                        self.items_for_sale.remove(item)  # Remove the original from merchant
+                        return f"You bought {item.name}!"
+                    else:
+                        return "Your inventory is full!"
                 else:
                     return "Scram! you don't have enough gold!"
         return "We don't sell that kind of item here!"
+    
 
 
     def sell_item(self, player, item_name):

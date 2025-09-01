@@ -280,10 +280,10 @@ WEAPON_CATEGORIES = {
 
 torch = OffHand(
     name="Torch", 
-    char='t', 
+    char='th', 
     color=(255, 140, 0), 
     description="A burning torch that can be held in your off-hand. Provides extra light.", 
-    price=15
+    price=10
 )
 
 

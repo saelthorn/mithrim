@@ -792,14 +792,15 @@ class Fighter(Player):
         
         self.strength = 15
         self.dexterity = 13
-        self.constitution = 1400
+        self.constitution = 14
         self.intelligence = 8
         self.wisdom = 12
         self.charisma = 10
 
         self.saving_throw_proficiencies = {
             "STR": True, "CON": True,
-            "DEX": False, "INT": False, "WIS": False, "CHA": False,
+            "DEX": False, "INT": False, 
+            "WIS": False, "CHA": False,
         }
 
         self.primary_stat = 'strength'  # Set primary stat for Fighter        
@@ -851,7 +852,8 @@ class Rogue(Player):
 
         self.saving_throw_proficiencies = {
             "DEX": True, "INT": True,
-            "STR": False, "CON": False, "WIS": False, "CHA": False,
+            "STR": False, "CON": False, 
+            "WIS": False, "CHA": False,
         }
 
         self.primary_stat = 'dexterity'  # Set primary stat for Fighter 
@@ -899,14 +901,15 @@ class Wizard(Player):
 
         self.strength = 8
         self.dexterity = 12
-        self.constitution = 1300
+        self.constitution = 13
         self.intelligence = 15
         self.wisdom = 10
         self.charisma = 10
 
         self.saving_throw_proficiencies = {
             "INT": True, "WIS": True,
-            "STR": False, "DEX": False, "CON": False, "CHA": False,
+            "STR": False, "DEX": False, 
+            "CON": False, "CHA": False,
         }
 
         self.primary_stat = 'intelligence'  # Set primary stat for Fighter 

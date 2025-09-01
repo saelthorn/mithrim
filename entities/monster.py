@@ -150,7 +150,7 @@ class Monster:
             self.x, self.y = next_position
             return True  # Successfully patrolled to the next position
         return False  # Could not move
-            
+    
     def flee(self, player, game_map, game):
         """
         Attempts to move the monster directly away from the player.
@@ -886,8 +886,8 @@ class Mimic(Monster):
             self.revealed_char = 'M' 
         self.revealed_color = (255, 0, 0) 
         
-        self.hp = 58 # Mimic specific HP
-        self.max_hp = 58
+        self.hp = 48 # Mimic specific HP
+        self.max_hp = 48
         self.attack_bonus = 5
         self.armor_class = 12
         self.base_xp = 450

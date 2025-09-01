@@ -62,15 +62,15 @@ class DungeonMerchant(NPC):
 
         # Chance-based items with their spawn probabilities
         chance_items_with_chance = [
-            (full_plate_armor, 0.2),
-            (robes_of_protection, 0.25),
-            (adamantine_long_sword, 0.15),
-            (staff_of_magi, 0.15),
-            (duelists_rapier, 0.2),
-            (dwarven_battle_axe, 0.2),
-            (dragonsbane_warhammer, 0.15),
-            (flameheart_flail, 0.17),
-            (flameheart_short_sword, 0.17),
+            (full_plate_armor, 0.4),
+            (robes_of_protection, 0.45),
+            (adamantine_long_sword, 0.35),
+            (staff_of_magi, 0.35),
+            (duelists_rapier, 0.4),
+            (dwarven_battle_axe, 0.4),
+            (dragonsbane_warhammer, 0.35),
+            (flameheart_flail, 0.37),
+            (flameheart_short_sword, 0.37),
             # Add more items and chances as needed
         ]
 
@@ -91,7 +91,6 @@ class DungeonMerchant(NPC):
                 self.items_for_sale.append(new_item)
 
         # Add chance-based items based on their probabilities
-        import random
         for item_template, chance in chance_items_with_chance:
             if random.random() < chance:
                 new_item = item_template.__class__(
@@ -126,18 +125,30 @@ class DungeonMerchant(NPC):
 
 
 
-    def buy_item(self, player, item_name, game):
-        """Handle the logic for buying an item."""
+    def buy_item(self, player, item_name):
         for item in self.items_for_sale:
-            if item.name.lower() == item_name.lower():  # Case insensitive comparison
-                if player.gold >= item.price:  # Assuming player has a gold attribute
+            if item.name.lower() == item_name.lower():
+                if player.gold >= item.price:
                     player.gold -= item.price
-                    player.inventory.add_item(item)  # Add the item to the player's inventory
-                    self.items_for_sale.remove(item)  # Remove the item from the merchant's inventory
-                    return f"You bought {item.name}!"
+    
+                    # Create a new instance of the item to add to player inventory
+                    new_item = item.__class__(
+                        name=item.name,
+                        char=item.char,
+                        color=item.color,
+                        description=item.description,
+                        **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                    )
+    
+                    if player.inventory.add_item(new_item):
+                        self.items_for_sale.remove(item)  # Remove the original from merchant
+                        return f"You bought {item.name}!"
+                    else:
+                        return "Your inventory is full!"
                 else:
                     return "Scram! you don't have enough gold!"
         return "We don't sell that kind of item here!"
+    
 
 
     def sell_item(self, player, item_name):
