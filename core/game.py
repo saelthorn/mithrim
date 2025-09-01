@@ -793,43 +793,74 @@ class Game:
             self.message_log.add_message("Returning to tavern...", (100, 200, 255))
             self.generate_tavern()
 
-    
+
     def update_fov(self):
-        # Store previous explored tiles for minimap redraw check
+        base_radius = 4  # base vision radius
+        torch_bonus = 0
+        has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)
+        if has_torchlight:
+            torch_bonus = 4
+
+        LIGHT_PRIORITY = {
+            'player': 3,
+            'torch': 2,
+            'darkvision': 1
+        }
+
+        # Clear previous visibility sources but keep explored tiles
         previous_explored = set(self.fov.explored)
-        if self.game_state == GameState.TAVERN:
-            self.fov.visible_sources.clear() 
-            # Pass player.darkvision_radius to compute_fov
-            self.fov.compute_fov(self.player.x, self.player.y, radius=10, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
-        elif any(effect.name == "Torchlight" for effect in self.player.active_status_effects):
-            self.fov.visible_sources.clear() 
-            self.fov.compute_fov(self.player.x, self.player.y, radius=self.fov.radius+4, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)                                  
-        else:
-            # Clear only visible sources, keep explored for persistent map
-            self.fov.visible_sources.clear() 
-            # Pass player.darkvision_radius to compute_fov
-            self.fov.compute_fov(self.player.x, self.player.y, radius=4, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
+        self.fov.visible_sources.clear()
+
+        # Compute base FOV with 'player' light source and darkvision radius
+        self.fov.compute_fov(
+            self.player.x,
+            self.player.y,
+            radius=base_radius,
+            light_source_type='player',
+            player_darkvision_radius=max(self.player.darkvision_radius, base_radius)
+        )
+
+        # If torchlight active, compute extended FOV with 'torch' light source
+        if torch_bonus > 0:
+            torch_fov = FOV(self.game_map)
+            torch_fov.compute_fov(
+                self.player.x,
+                self.player.y,
+                radius=base_radius + torch_bonus,
+                light_source_type='torch'
+            )
+
+            # Merge torchlight FOV into main FOV with priority
+            for (x, y), source in torch_fov.visible_sources.items():
+                existing_source = self.fov.visible_sources.get((x, y))
+                if existing_source is None:
+                    self.fov.visible_sources[(x, y)] = source
+                    self.fov.explored.add((x, y))
+                else:
+                    # Replace only if torchlight has higher priority
+                    if LIGHT_PRIORITY[source] > LIGHT_PRIORITY.get(existing_source, 0):
+                        self.fov.visible_sources[(x, y)] = source
+                        self.fov.explored.add((x, y))
 
         # Check if new tiles were explored for minimap redraw
         if self.fov.explored != previous_explored:
             self.minimap_needs_redraw = True
 
-
+        # Existing monster activation logic...
         for entity in self.entities:
             if isinstance(entity, Monster):
                 visibility_type = self.fov.get_visibility_type(entity.x, entity.y)
                 if visibility_type in ['player', 'torch', 'darkvision']:
                     if not entity.is_active:
                         entity.is_active = True
-                        entity.sleep_cooldown = 5 # Wake up immediately
+                        entity.sleep_cooldown = 5
                         self.message_log.add_message(f"You spot a {entity.name}!", entity.color)
                 else:
-                    # If monster is not visible, put it to sleep after a short delay
                     if entity.is_active and entity.sleep_cooldown <= 12:
                         entity.is_active = False
-                        entity.sleep_cooldown = random.randint(5, 15) # Sleep for 5-15 turns
-                        self.message_log.add_message(f"The {entity.name} seems to have fallen asleep.", (100, 100, 100)) # Optional: for debugging  
-    
+                        entity.sleep_cooldown = random.randint(5, 15)
+                        self.message_log.add_message(f"The {entity.name} seems to have fallen asleep.", (100, 100, 100))
+
 
 
     def get_current_entity(self):
@@ -2416,11 +2447,11 @@ class Game:
                 if visibility_type == 'player':
                     render_color_tint = (250, 250, 250, 255)
                 elif visibility_type == 'torch':
-                    render_color_tint = (250, 250, 250, 255)
+                    render_color_tint = (180, 180, 180, 255)
                 elif visibility_type == 'darkvision':
                     render_color_tint = (120, 120, 120, 255)
                 elif visibility_type == 'explored':
-                    render_color_tint = (80 ,80, 80, 255)
+                    render_color_tint = (60, 60, 60, 255)
                 elif visibility_type == 'unexplored':
                     render_color_tint = (20, 20, 20, 255)
 
@@ -2486,11 +2517,13 @@ class Game:
                     if visibility_type == 'player':
                         entity_color_tint = None
                     elif visibility_type == 'torch':
-                        entity_color_tint = (128, 128, 128, 255)
+                        entity_color_tint = (180, 180, 180, 255)
                     elif visibility_type == 'darkvision':
-                        entity_color_tint = (90, 90, 90, 255)
+                        entity_color_tint = (120, 120, 120, 255)
                     elif visibility_type == 'explored':
                         entity_color_tint = (60, 60, 60, 255)
+                    elif visibility_type == 'unexplored':
+                        entity_color_tint = (20, 20, 20, 255)
 
                     footprint_size = getattr(entity, 'footprint_size', 1)
                     tile_size_override = config.TILE_SIZE * footprint_size if footprint_size > 1 else None
@@ -2547,11 +2580,11 @@ class Game:
                     if visibility_type == 'player':
                         item_color_tint = None
                     elif visibility_type == 'torch':
-                        item_color_tint = (128, 128, 128, 255)
-                    elif visibility_type == 'darkvision':
-                        item_color_tint = (90, 90, 90, 255)
+                        item_color_tint = (180, 180, 180, 255)
                     elif visibility_type == 'explored':
                         item_color_tint = (60, 60, 60, 255)
+                    elif visibility_type == 'unexplored':
+                        item_color_tint = (20, 20, 20, 255)
                     
                     # Always draw floor under items, as map rendering might have drawn a decorative tile
                     # --- MODIFIED: Pass float draw_x, draw_y to graphics.draw_tile ---
