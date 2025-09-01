@@ -24,7 +24,7 @@ class FOV:
             self._cast_ray(origin_x, origin_y, angle, radius, light_source_type, player_darkvision_radius)
 
 
-    def _cast_ray(self, start_x, start_y, angle, max_distance, light_source_type, player_darkvision_radius=0):
+    def _cast_ray(self, start_x, start_y, angle, max_distance, light_source_type, player_darkvision_radius=0, radius=4):
         """Cast a ray from start position at given angle"""
         rad = math.radians(angle)
         dx = math.cos(rad)
@@ -43,7 +43,7 @@ class FOV:
             if light_source_type == 'player':
                 # If this ray is from the player's light source
                 # If darkvision is active and we are beyond the normal sight range (8)
-                if player_darkvision_radius > 0 and i > 4: 
+                if player_darkvision_radius > 0 and i > radius: 
                     # This tile is visible due to darkvision, so it's dim
                     if current_source != 'player': # Don't overwrite full player light if it's already set
                         self.visible_sources[(x, y)] = 'darkvision' # 'darkvision' source type

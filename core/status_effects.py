@@ -129,3 +129,18 @@ class EvasionBuff(StatusEffect):
     def on_end(self, target, game_instance):
         super().on_end(target, game_instance)
         game_instance.message_log.add_message(f"{target.name}'s Evasion fades.", (150, 150, 150))
+
+
+class Torchlight(StatusEffect):
+    def __init__(self, duration=250):
+        super().__init__("Torchlight", duration)
+    
+    def apply_effect(self, target, game_instance):
+        # Only log when first applied
+        if self.turns_left == self.duration:
+            game_instance.message_log.add_message(f"{target.name} is surrounded by the warm glow of a torch!", (255, 165, 0))
+    
+    def on_end(self, target, game_instance):
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message(f"The torchlight flickers and goes out.", (255, 100, 0))
+        # Removal of Torch item from inventory will be handled in Phase 4       

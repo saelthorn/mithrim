@@ -1,7 +1,7 @@
 import random
 
 from core.game import GameState
-from items.items import lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, full_plate_armor, robes_of_protection, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, CampfireKit
+from items.items import torch, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, full_plate_armor, robes_of_protection, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, CampfireKit
 from entities.base_entity import NPC
 
 class DungeonHealer(NPC):
@@ -56,7 +56,8 @@ class DungeonMerchant(NPC):
             green_apple,
             bread,
             fromage,
-            mushroom
+            mushroom,
+            torch
         ]
 
         # Chance-based items with their spawn probabilities
@@ -148,6 +149,7 @@ class DungeonMerchant(NPC):
                 self.items_for_sale.append(item)  # Add the item back to the merchant's inventory
                 return f"You sold {item.name}!"
         return "Item not found in your inventory."
+
 
 class Bartender(NPC):
     def __init__(self, x, y):

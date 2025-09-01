@@ -35,7 +35,7 @@ class Human(Race):
         super().__init__(
             name="Human",
             description="Humans are versatile and adaptable, with no particular strengths or weaknesses.",
-            darkvision_radius=6,
+            darkvision_radius=5,
             damage_resistances=[],
             skill_proficiencies=["Any one skill"],
             weapon_proficiencies=["Simple weapons"],

@@ -2,8 +2,8 @@ import random
 from core. game import GameState
 from core.inventory import Inventory
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball
-from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning
-from items.items import Food, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
+from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight
+from items.items import torch, Food, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
 from core.floating_text import FloatingText
@@ -667,13 +667,25 @@ class Player: # This is our base class for playable characters
             
             if self.equipped_off_hand:
                 self.inventory.add_item(self.equipped_off_hand) 
-                game_instance.message_log.add_message(f"You unequip {self.equipped_off_hand.name}.", (150, 150, 150))
-            
+                game_instance.message_log.add_message(f"You unequip {self.equipped_off_hand.name}.", (150, 150, 150))  
+
+                
+                if self.equipped_off_hand == torch:
+                    self.add_status_effect("Torchlight", duration=0, game_instance=game_instance) 
+                    self.inventory.add_item       
+
             self.inventory.remove_item(item)
             self.equipped_off_hand = item
             
             game_instance.message_log.add_message(f"You equip {item.name} in your off-hand.", (0, 255, 0))
-            
+
+            if item.name.lower() == "torch":
+                self.add_status_effect("Torchlight", duration=150, game_instance=game_instance) 
+                game_instance.message_log.add_message(
+                    "The torch’s flame flickers to life, pushing back the dark.",
+                    (255, 200, 50)
+                )
+
             # Recalculate AC after equipping the shield
             self.armor_class = self._calculate_ac()  # Recalculate AC to include the shield's defense bonus
 
@@ -682,6 +694,7 @@ class Player: # This is our base class for playable characters
 
             return True
     
+
     def unequip_item(self, item, game_instance):
         """Unequips an item and recalculates the attack bonus."""
         from items.items import Weapon, Armor, OffHand # Ensure these are imported if not already
@@ -700,7 +713,7 @@ class Player: # This is our base class for playable characters
                 self.equipped_off_hand = None  # Clear the off-hand slot
                 # Recalculate attack bonus after unequipping the off-hand item
                 self.update_attack_power()  # Call the method to update the attack bonus
-                return True
+            return True
         # Add similar logic for other item types if needed
         return False
 
@@ -727,7 +740,8 @@ class Player: # This is our base class for playable characters
             new_effect = CunningActionDashBuff(duration)
         elif effect_name == "EvasionBuff":
             new_effect = EvasionBuff(duration)
-        
+        elif effect_name == "Torchlight":
+            new_effect = Torchlight(duration)
         if new_effect:
             for existing_effect in self.active_status_effects:
                 if type(existing_effect) is type(new_effect):
@@ -791,6 +805,8 @@ class Fighter(Player):
         self.primary_stat = 'strength'  # Set primary stat for Fighter        
         
         # Set starting equipment
+        self.inventory.add_item(iron_dagger)
+        self.inventory.add_item(torch)
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  

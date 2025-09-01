@@ -185,7 +185,7 @@ class CampfireKit(Item):
             game_instance.message_log.add_message("The Campfire Kit has no uses left.", (255, 0, 0))
             return False
 
-    
+            
 
 
 # --- Junk Items ---
@@ -277,6 +277,15 @@ WEAPON_CATEGORIES = {
     "mace": ["Steel Mace"],
     "flail": ["Dwarven Flail", "Flameheart Flail"],
 }
+
+torch = OffHand(
+    name="Torch", 
+    char='t', 
+    color=(255, 140, 0), 
+    description="A burning torch that can be held in your off-hand. Provides extra light.", 
+    price=15
+)
+
 
 iron_dagger = OffHand(
     name="Iron Dagger",

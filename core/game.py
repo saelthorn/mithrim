@@ -42,7 +42,7 @@ from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, Fire
 from core.message_log import MessageBox
 from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff
 from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, bread, mushroom, CampfireKit
-from items.items import lesser_healing_potion, greater_healing_potion, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail, round_shield, kite_shield, tower_shield
+from items.items import torch, lesser_healing_potion, greater_healing_potion, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail, round_shield, kite_shield, tower_shield
 from core.pathfinding import astar
 from world.tile import floor, MimicTile, TrapTile
 from core.floating_text import FloatingText 
@@ -800,7 +800,10 @@ class Game:
         if self.game_state == GameState.TAVERN:
             self.fov.visible_sources.clear() 
             # Pass player.darkvision_radius to compute_fov
-            self.fov.compute_fov(self.player.x, self.player.y, radius=4, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
+            self.fov.compute_fov(self.player.x, self.player.y, radius=10, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
+        elif any(effect.name == "Torchlight" for effect in self.player.active_status_effects):
+            self.fov.visible_sources.clear() 
+            self.fov.compute_fov(self.player.x, self.player.y, radius=self.fov.radius+4, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)                                  
         else:
             # Clear only visible sources, keep explored for persistent map
             self.fov.visible_sources.clear() 
@@ -818,14 +821,14 @@ class Game:
                 if visibility_type in ['player', 'torch', 'darkvision']:
                     if not entity.is_active:
                         entity.is_active = True
-                        entity.sleep_cooldown = 2 # Wake up immediately
+                        entity.sleep_cooldown = 5 # Wake up immediately
                         self.message_log.add_message(f"You spot a {entity.name}!", entity.color)
                 else:
                     # If monster is not visible, put it to sleep after a short delay
                     if entity.is_active and entity.sleep_cooldown <= 12:
                         entity.is_active = False
                         entity.sleep_cooldown = random.randint(5, 15) # Sleep for 5-15 turns
-                        self.message_log.add_message(f"The {entity.name} seems to have fallen asleep.", (100, 100, 100)) # Optional: for debugging            
+                        self.message_log.add_message(f"The {entity.name} seems to have fallen asleep.", (100, 100, 100)) # Optional: for debugging  
     
 
 
@@ -1975,7 +1978,6 @@ class Game:
     
             if is_critical_hit:
                 total_dice_rolled *= 2 # Double the number of dice rolled for critical hits
-                self.message_log.add_message(f"Critical Hit! Rolling {total_dice_rolled}d{die_type} for damage!", (255, 255, 0))
     
             for _ in range(total_dice_rolled):
                 damage_rolls.append(random.randint(1, die_type))
@@ -2412,9 +2414,9 @@ class Game:
                 # Draw the tile normally if explored or visible
                 render_color_tint = None  # Initialize render_color_tint
                 if visibility_type == 'player':
-                    render_color_tint = None
+                    render_color_tint = (250, 250, 250, 255)
                 elif visibility_type == 'torch':
-                    render_color_tint = (128, 128, 128, 255)
+                    render_color_tint = (250, 250, 250, 255)
                 elif visibility_type == 'darkvision':
                     render_color_tint = (120, 120, 120, 255)
                 elif visibility_type == 'explored':

@@ -2,7 +2,7 @@ import random
 import pygame
 
 from core.game import GameState
-from items.items import lesser_healing_potion, greater_healing_potion, apprentices_staff, half_plate_armor, meat, green_apple, fromage, bread, mushroom, silver_dagger, iron_short_sword, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes, CampfireKit, Food
+from items.items import torch, lesser_healing_potion, greater_healing_potion, apprentices_staff, half_plate_armor, meat, green_apple, fromage, bread, mushroom, silver_dagger, iron_short_sword, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes, CampfireKit, Food
 from entities.dungeon_npcs import DungeonHealer 
 from entities.base_entity import NPC
 
@@ -71,7 +71,8 @@ class Merchant(NPC):
             green_apple,
             bread,
             fromage,
-            mushroom
+            mushroom,
+            torch,
         ]
         # Chance-based items with their spawn probabilities (fewer and simpler than dungeon merchant)
         chance_items_with_chance = [
@@ -97,6 +98,8 @@ class Merchant(NPC):
                     **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
                 )
                 self.items_for_sale.append(new_item)
+
+
        
         # Add chance-based items
         for item_template, chance in chance_items_with_chance:
