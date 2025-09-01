@@ -27,9 +27,11 @@ from entities.player import Player, Fighter, Rogue, Wizard
 from entities.monster import (
     Monster, Mimic, GiantRat, Ooze, Goblin, GoblinArcher, Skeleton,
     SkeletonArcher, Orc, Centaur, CentaurArcher, Troll, Lizardfolk, 
-    LizardfolkArcher, GiantSpider, Beholder, LargeOoze, DragonWhelp,
+    LizardfolkArcher, GiantSpider, Beholder, LargeOoze, RedDragon,
     Owlbear, Demogorgon, Grick, GibberingMouther, MindFlayer, Minotaur,
-    Wererat, Wolf, Yochlol, Drider, BlueSlaad
+    Wererat, Wolf, Yochlol, Drider, RedSlaad, DeathSlaad, MyconidSprout,
+    MyconidAdult, Mezzoloth, Gauth, Arasta
+
 )
 
 from entities.base_entity import NPC
@@ -216,41 +218,41 @@ class Game:
 
     # Boss schedule: every 5th floor, ordered list
     BOSS_FLOORS = [
-        (1, 'Demogorgon'),
-        (5, 'GoblinKing'),
-        (10, 'GiantSpider'),
+        (1, 'Arasta'),
+        (5, 'Troll'),
+        (10, 'DeathSlaad'),
         (15, 'Beholder'),
         (20, 'RedDragon'),
         (25, 'Demogorgon'),
     ]
 
     MONSTER_SPAWN_TIERS = {
-        # Level range: [List of monster classes that can spawn]
+        # 🌱 Early dungeon fodder (CR 1/8 – CR 1/4)
+        (1, 1): [Goblin, Wolf, GiantRat, MyconidSprout],
+        (2, 2): [Goblin, GoblinArcher, GiantRat, Wererat, Wolf, MyconidSprout],
+        (2, 3): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf, MyconidAdult],
 
-        # Early dungeon fodder
-        (1, 1): [Goblin, Wolf, GiantRat],
-        (2, 2): [Goblin, GoblinArcher, GiantRat, Wererat, Wolf],
-        (2, 3): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf],
-
-        # Early-mid dangers
+        # ⚔️ Early-mid dangers (CR 1/2 – CR 2)
         (4, 5): [Skeleton, SkeletonArcher, Orc, Grick, Ooze],
-        (6, 7): [Lizardfolk, LizardfolkArcher, GiantSpider, Wererat],
+        (6, 7): [Lizardfolk, LizardfolkArcher, GiantSpider, Wererat, MyconidAdult],
 
-        # Mid-game threats
-        (8, 9): [Centaur, CentaurArcher, Troll, Owlbear],
-        (10, 11): [Troll, Orc, GiantSpider, LargeOoze, Minotaur],
+        # 🛡️ Mid-game threats (CR 3 – CR 6)
+        (8, 9): [Centaur, CentaurArcher, Troll, Owlbear, Minotaur],
+        (10, 11): [Troll, Orc, GiantSpider, LargeOoze, Minotaur, GibberingMouther],
 
-        # Late-mid bosses and horrors
-        (12, 13): [LargeOoze, DragonWhelp, GiantSpider, GibberingMouther],
-        (14, 14): [Drider],
+        # 👁️ Late-mid bosses and horrors (CR 7 – CR 10)
+        (12, 13): [LargeOoze, GiantSpider, GibberingMouther, Gauth],
+        (14, 14): [Drider, Mezzoloth],
 
-        # High level threats
-        (15, 16): [Yochlol, BlueSlaad, LargeOoze],
-        (17, 18): [Beholder, MindFlayer, LargeOoze],
+        # 🔥 High level threats (CR 11 – CR 15)
+        (15, 16): [Yochlol, RedSlaad, LargeOoze, RedDragon],
+        (17, 18): [Beholder, MindFlayer, LargeOoze, DeathSlaad],
 
-        # Endgame / campaign boss
-        (19, 99): [Demogorgon],
+        # 🕷️ Endgame / campaign bosses (CR 20+)
+        (19, 19): [Demogorgon],
+        (20, 99): [Arasta],
     }
+
 
 
 
@@ -566,8 +568,9 @@ class Game:
                         'GoblinKing': Goblin,  # TODO: replace with GoblinKing class when available
                         'GiantSpider': GiantSpider,
                         'Beholder': Beholder,
-                        'RedDragon': DragonWhelp,  # TODO: replace with Red Dragon class when available
+                        'RedDragon': RedDragon,  # TODO: replace with Red Dragon class when available
                         'Demogorgon': Demogorgon,
+                        'Arasta': Arasta
                     }
                     boss_cls = name_to_cls.get(boss_name, Demogorgon)
                     boss_entity = boss_cls(spawn_x, spawn_y)
@@ -2516,10 +2519,8 @@ class Game:
                     entity_color_tint = None
                     if visibility_type == 'player':
                         entity_color_tint = None
-                    elif visibility_type == 'torch':
-                        entity_color_tint = (180, 180, 180, 255)
                     elif visibility_type == 'darkvision':
-                        entity_color_tint = (120, 120, 120, 255)
+                        entity_color_tint = (70, 70, 70, 255)
                     elif visibility_type == 'explored':
                         entity_color_tint = (60, 60, 60, 255)
                     elif visibility_type == 'unexplored':

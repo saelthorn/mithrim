@@ -691,7 +691,7 @@ class Monster:
             self.pending_telegraph_tiles = []
             for tx, ty in tiles:
                 if player.x == tx and player.y == ty and player.alive:
-                    dmg = max(1, getattr(self, 'damage_modifier', 2) + random.randint(1, 6))
+                    dmg = max(1, getattr(self, 'damage_modifier', 2) + random.randint(1, 20))
                     player.take_damage(dmg, game, damage_type='fire')
                     game.floating_texts.append(FloatingText(tx, ty, f"-{dmg}", (255, 80, 80)))
             return
@@ -1365,33 +1365,44 @@ class LargeOoze(Monster):  # Gelatinous Cube
             "INT": False,
             "WIS": False,
             "CHA": False,
-        }        
+        }               
 
-class DragonWhelp(Monster):  # Wyrmling
+class RedDragon(Monster):  
     def __init__(self, x, y):
-        super().__init__(x, y, 'DRA', 'Dragon Whelp', (255, 0, 0))
-        self.hp = 32
-        self.max_hp = 32
+        super().__init__(x, y, 'RDR', 'Red Dragon', (255, 0, 0))
+        self.hp = 256
+        self.max_hp = 256
         self.attack_bonus = 4
-        self.armor_class = 17
-        self.base_xp = 700
+        self.armor_class = 19
+        self.base_xp = 18000
         self.monster_die_type = 10
-        self.damage_modifier = 2
-        self.detection_range = 5
-        self.num_damage_dice = 1
-        # self.breath_weapon = True
-        # self.breath_dc = 13
-        # self.breath_damage = "4d6 fire"
+        self.damage_modifier = 6
+        self.detection_range = 8
+        self.num_damage_dice = 2
         self.is_intelligent = True # Intelligent enough to flee
+
+
+        self.is_ranged = True
+        self.ranged_attack_bonus = 5  # Base ranged attack bonus
+        self.range = 6  # Max range for ranged attacks
+        self.ranged_die_type = 6  # Base die type for ranged attacks
+        self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
+        self.footprint_size = 3
+
+        self.can_burn = True
+        self.burn_dc = 17
+        self.burn_damage_per_turn = 6
+        self.burn_duration = 4
+        self.burn
 
         self.saving_throw_proficiencies = {
             "STR": False,
             "DEX": True,  # Proficient in Dexterity saves
-            "CON": False,
+            "CON": True,
             "INT": False,
             "WIS": False,
-            "CHA": False,
-        }        
+            "CHA": True,
+        } 
 
 class Owlbear(Monster):
     def __init__(self, x, y):
@@ -1621,28 +1632,209 @@ class Yochlol(Monster):
             "CHA": False,
         }        
 
-class BlueSlaad(Monster):
+class RedSlaad(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'BS', 'BlueSlaad', (112, 128, 144))
-        self.hp = 123
-        self.max_hp = 123
-        self.attack_bonus = 5
-        self.armor_class = 15
-        self.base_xp = 2900
-        self.monster_die_type = 8
-        self.damage_modifier = 5
+        super().__init__(x, y, 'RS', 'Red Slaad', (180, 30, 30))  # Deep red
+
+        self.hp = 93
+        self.max_hp = 93
+        self.attack_bonus = 6
+        self.armor_class = 14
+        self.base_xp = 1800
+        self.monster_die_type = 6   # Claw damage (1d6+4)
+        self.num_damage_dice = 2    # Claw: 2d6+4 each
+        self.damage_modifier = 4
         self.detection_range = 6
-        self.num_damage_dice = 2
-        self.is_intelligent = True # Intelligent enough to flee
+        self.is_intelligent = False  # Bestial cunning, not strategic
+
+        # Claw carries a disease (Chaos Phage / Egg Implant)
+        # self.disease = True
+        # self.disease_dc = 14
+        # self.disease_effect = "Implants egg → Spawns Blue Slaad on death"
+        
+        self.saving_throw_proficiencies = {
+            "STR": True,   # +4 base
+            "DEX": False,
+            "CON": True,   # +3 base
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+
+class DeathSlaad(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'DS', 'Death Slaad', (80, 0, 120))  # Black-purple skin
+
+        self.hp = 170
+        self.max_hp = 170
+        self.attack_bonus = 8
+        self.armor_class = 18
+        self.base_xp = 5900
+        self.monster_die_type = 8   # Claw/Bite with d8s
+        self.num_damage_dice = 2    # 2d8+5 per claw
+        self.damage_modifier = 5
+        self.detection_range = 8
+        self.is_intelligent = True  # Scheming and malicious
+
+        # Shapechanger trait
+        # self.shapechanger = True  # Can polymorph into humanoid
+
+        # Spellcasting (innate)
+        # self.spells = ["Fireball", "Fear", "Invisibility", "Detect Magic"]
+
+        # Claw carries Chaos Phage (disease)
+        # self.disease = True
+        # self.disease_dc = 15
+        # self.disease_effect = "Chaotic mutation → Transformation"
+
+        self.saving_throw_proficiencies = {
+            "STR": True,
+            "DEX": True,
+            "CON": True,
+            "INT": False,
+            "WIS": False,
+            "CHA": True,
+        }
+
+class MyconidSprout(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'MS', 'Myconid Sprout', (120, 200, 120))  # Pale green mushroomy look
+
+        self.hp = 7
+        self.max_hp = 7
+        self.attack_bonus = 2
+        self.armor_class = 10
+        self.base_xp = 50
+        self.monster_die_type = 4   # Fist attack (1d4)
+        self.num_damage_dice = 1
+        self.damage_modifier = 0
+        self.detection_range = 4
+        self.is_intelligent = False  # Instinctual, childlike
+
+        # Status Effect: Pacifying Spores
+        # self.can_pacify = True
+        # self.pacify_dc = 11
+        # self.pacify_duration = 1d4 rounds
+        # Effect: Target becomes stunned
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": False,
             "CON": False,
             "INT": False,
             "WIS": False,
             "CHA": False,
-        }        
+        }
+
+
+class MyconidAdult(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'MA', 'Myconid Adult', (80, 150, 80))  # Darker green/brown cap
+
+        self.hp = 22
+        self.max_hp = 22
+        self.attack_bonus = 3
+        self.armor_class = 12
+        self.base_xp = 100
+        self.monster_die_type = 6   # Fist attack (1d6+1)
+        self.num_damage_dice = 1
+        self.damage_modifier = 1
+        self.detection_range = 5
+        self.is_intelligent = True  # Can communicate telepathically (via spores)
+
+        # Status Effect: Pacifying Spores
+        # self.can_pacify = True
+        # self.pacify_dc = 12
+        # self.pacify_duration = 1d4 rounds
+        # Effect: Target becomes stunned
+
+        # Rapport Spores (telepathic network)
+        # self.can_share_thoughts = True
+        # Party-wide communication if close
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": False,
+            "CON": True,
+            "INT": False,
+            "WIS": True,
+            "CHA": False,
+        }
+
+class Mezzoloth(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'MZ', 'Mezzoloth', (120, 60, 0))  # Dark brown/orange carapace
+
+        self.hp = 75
+        self.max_hp = 75
+        self.attack_bonus = 6
+        self.armor_class = 18
+        self.base_xp = 1800
+        self.monster_die_type = 6   # Claw attacks
+        self.num_damage_dice = 2    # 2d6+3 per claw
+        self.damage_modifier = 3
+        self.detection_range = 8
+        self.is_intelligent = True  # Tactical mercenary
+
+        # Multiattack: two claw attacks per turn
+
+        # Status Effects / Abilities:
+        # self.can_poison_cloud = True
+        # self.poison_cloud_dc = 14
+        # self.poison_duration = 1 minute
+        # self.poison_damage = "4d10 poison"
+        # (Once per day — fills a 10 ft. radius with toxic gas)
+
+        # Teleport (Innate ability, recharge 4–6)
+        # self.can_teleport = True
+        # Range: 60 ft.
+
+        self.saving_throw_proficiencies = {
+            "STR": True,   # Good Strength saves
+            "DEX": False,
+            "CON": True,   # Fiend toughness
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+
+class Gauth(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'GU', 'Gauth', (200, 150, 50))  # Gold/orange orb, distinct from beholder
+
+        self.hp = 67
+        self.max_hp = 67
+        self.attack_bonus = 5
+        self.armor_class = 15
+        self.base_xp = 2300
+        self.monster_die_type = 8   # Bite attack (1d8+2)
+        self.num_damage_dice = 1
+        self.damage_modifier = 2
+        self.detection_range = 8
+        self.is_intelligent = True  # Scheming, paranoid
+
+        # Traits
+        # Eye Rays (roll d6 each turn, fire 2 rays at random targets):
+        # 1. Devour Magic Ray (suppresses magic item, DC 14)
+        # 2. Enervation Ray (4d8 necrotic, DC 14 half)
+        # 3. Paralyzing Ray (target paralyzed 1 min, DC 14 save)
+        # 4. Fear Ray (frightened for 1 min, DC 14 save)
+        # 5. Sleep Ray (unconscious 1 min, DC 14 save)
+        # 6. Telekinetic Ray (move creature 30 ft, DC 14 resist)
+
+        # Limited Anti-Magic Cone (like beholder, but only 150-degree arc)
+        # self.anti_magic_cone = True
+        # Range: 30 ft.
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,
+            "CON": True,
+            "INT": False,
+            "WIS": True,
+            "CHA": True,
+        }
+
 
 class Drider(Monster):
     def __init__(self, x, y):
@@ -1666,3 +1858,47 @@ class Drider(Monster):
             "WIS": False,
             "CHA": False,
         }        
+
+class Arasta(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'AR', 'Arasta', (40, 0, 40))  # Dark purple-black spider goddess
+
+        self.hp = 300
+        self.max_hp = 300
+        self.attack_bonus = 10
+        self.armor_class = 19
+        self.base_xp = 33000
+        self.monster_die_type = 12   # 2d12+6 bite or claw
+        self.num_damage_dice = 2
+        self.damage_modifier = 6
+        self.detection_range = 10
+        self.is_intelligent = True  # Scheming, divine hatred
+        self.footprint_size = 4
+
+        # Legendary Resistance (3/day) – auto succeed a failed saving throw
+        # self.legendary_resistances = 3
+
+        # Web of Hair (Recharge 5–6): restrains creatures in a 60 ft. cone
+        # self.web_dc = 18
+        # self.web_duration = 1 minute
+        # self.web_damage = "restrained + poison"
+
+        # Spider Swarm Spawn (lair action): summons 1d4 spider swarms each round
+
+        # Bite attack: 2d12+6 piercing + 4d8 poison (poison DC 18)
+        self.can_poison = True
+        self.poison_dc = 18
+        self.poison_duration = 4
+        self.poison_damage_per_turn = 8
+
+        # Mythic Trait (if reduced to 0 HP once, regain 200 HP and new abilities unlock)
+        # Example: Aura of Webs – terrain becomes difficult terrain, enemies slowed.
+
+        self.saving_throw_proficiencies = {
+            "STR": True,
+            "DEX": True,
+            "CON": True,
+            "INT": False,
+            "WIS": True,
+            "CHA": False,
+        }

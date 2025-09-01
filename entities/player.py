@@ -680,7 +680,7 @@ class Player: # This is our base class for playable characters
             game_instance.message_log.add_message(f"You equip {item.name} in your off-hand.", (0, 255, 0))
 
             if item.name.lower() == "torch":
-                self.add_status_effect("Torchlight", duration=150, game_instance=game_instance) 
+                self.add_status_effect("Torchlight", duration=250, game_instance=game_instance) 
                 game_instance.message_log.add_message(
                     "The torch’s flame flickers to life, pushing back the dark.",
                     (255, 200, 50)
@@ -860,6 +860,7 @@ class Rogue(Player):
         self.inventory.add_item(thieves_tools)
         self.inventory.add_item(bread)
         self.inventory.add_item(bread)
+        self.inventory.add_item(torch)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
 
@@ -911,6 +912,7 @@ class Wizard(Player):
         self.primary_stat = 'intelligence'  # Set primary stat for Fighter 
 
         # Set starting equipment
+        self.inventory.add_item(torch)
         self.inventory.add_item(bread)
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)

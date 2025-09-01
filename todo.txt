@@ -13,11 +13,10 @@ UI to add/fix:
 To do:
     Prioritize - Make Mithrim Logo
      - Add Companions
-     - Add Torches as an Items
      - Maybe Cunning Action Hide for Rogues
      - Dead Bodies(?)
      - When Monster Dies it drops loot
-
+     - Make bosses not spam telegraphed attacks
 
 
 To fix:

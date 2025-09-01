@@ -102,7 +102,7 @@ def setup_tile_mapping():
         'SK': (2 * CELL_DIM, 7 * CELL_DIM),  # Skeleton (Monster)
         'OR': (5 * CELL_DIM, 8 * CELL_DIM),  # Orc (Monster)
         'TR': (5 * CELL_DIM, 7 * CELL_DIM),  # Troll
-        'DRA': (7 * CELL_DIM, 7 * CELL_DIM),  # Dragon (Monster)
+        'RDR': (7 * CELL_DIM, 7 * CELL_DIM),  # Dragon (Monster)
         
         'OZ': (0 * CELL_DIM, 8 * CELL_DIM),  # Ooze (Monster)
         'GA': (1 * CELL_DIM, 8 * CELL_DIM),  # Goblin Archer
@@ -126,7 +126,14 @@ def setup_tile_mapping():
 
         'YL': (8 * CELL_DIM, 7 * CELL_DIM),  # Yochlol
         'DD': (8 * CELL_DIM, 8 * CELL_DIM),  # Drider
-        'BS': (8 * CELL_DIM, 9 * CELL_DIM),  # Blue Slaad
+        'DS': (8 * CELL_DIM, 9 * CELL_DIM),  # Death Slaad
+        'RS': (9 * CELL_DIM, 9 * CELL_DIM),  # Red Slaad
+        'MS': (9 * CELL_DIM, 7 * CELL_DIM),  # Myconid Sprout
+        'MA': (9 * CELL_DIM, 8 * CELL_DIM),  # Myconid Adult 
+        'MZ': (10 * CELL_DIM, 7 * CELL_DIM),  # Mezzoloth 
+        'GU': (10 * CELL_DIM, 8 * CELL_DIM),  # Gauth 
+        'AR': (10 * CELL_DIM, 9 * CELL_DIM),  # Arasta 
+
 
 
         # Tavern Entities and Misc.
