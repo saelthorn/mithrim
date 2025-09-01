@@ -711,7 +711,7 @@ class MageHand(Ability):
     
         # Check if the target is an item (specifically a potion)
         item_at_target = game_instance.get_interactable_item_at(target_x, target_y)
-        if item_at_target and isinstance(item_at_target, Potion and Food):
+        if item_at_target and isinstance(item_at_target, Potion or Food):
             # Instead of using mage_hand_actor, add the potion directly to the user's inventory
             if item_at_target.on_pickup(user, game_instance):  # Use the actual user as the picker
                 game_instance.message_log.add_message(f"The Mage Hand picks up the {item_at_target.name}!", (0, 255, 0))

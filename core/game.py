@@ -115,7 +115,7 @@ class Game:
     def __init__(self, screen):
         self.screen = screen
         
-        self.fps = 30
+        self.fps = 60
         self.fps_font = pygame.font.SysFont('consolas', 15)  # You can adjust the font size as needed
         self.clock = pygame.time.Clock()  # Initialize the clock for FPS tracking
 
@@ -973,22 +973,35 @@ class Game:
                 self.message_log.add_message(random.choice(ambient_msgs), (180, 180, 180))
 
 
-
-
     def cleanup_entities(self):
-        """Remove dead monsters and clean up their references."""
-        for entity in self.entities[:]:  # Copy list to safely modify
-            if not entity.alive:
-                if isinstance(entity, Monster):
-                    self.entities.remove(entity)
-                    self.message_log.add_message(f"{entity.name} has fallen.", (180, 0, 0))
-                elif isinstance(entity, Player):
-                    # Player death is handled separately
-                    if self.game_state != GameState.GAME_OVER:
-                        self.message_log.add_message("Your vision fades to black... you are no more.", (200, 0, 0))
-                        self.game_state = GameState.GAME_OVER
-                    # IMPORTANT: Don't remove the player object from self.entities
-                    return  # Stop cleanup early if player is dead
+        """Remove dead or expired entities/items from the game world."""
+
+        # Remove dead monsters/NPCs
+        self.entities = [e for e in self.entities if getattr(e, "alive", True)]
+
+        # Handle items (depends on your structure: game.items_on_ground or game.map.items_on_ground)
+        if hasattr(self, "items_on_ground"):
+            self.items_on_ground = [i for i in self.items_on_ground if getattr(i, "alive", True)]
+        elif hasattr(self, "map") and hasattr(self.map, "items_on_ground"):
+            self.map.items_on_ground = [i for i in self.map.items_on_ground if getattr(i, "alive", True)]
+
+        # Clean up any dead entities left in tiles
+        if hasattr(self, "map") and hasattr(self.map, "tiles"):
+            for row in self.map.tiles:
+                for tile in row:
+                    if hasattr(tile, "entity") and tile.entity is not None:
+                        if not getattr(tile.entity, "alive", True):
+                            tile.entity = None
+
+        # Clean up floating texts (remove expired ones)
+        if hasattr(self, "floating_texts"):
+            self.floating_texts = [t for t in self.floating_texts if not getattr(t, "expired", False)]
+
+        # Cap message log size (prevents memory bloat)
+        if hasattr(self, "message_log") and hasattr(self.message_log, "messages"):
+            MAX_LOG_MESSAGES = 50
+            if len(self.message_log.messages) > MAX_LOG_MESSAGES:
+                self.message_log.messages = self.message_log.messages[-MAX_LOG_MESSAGES:]
 
     
 

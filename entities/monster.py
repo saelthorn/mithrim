@@ -11,6 +11,7 @@ class AI_State(Enum):
     CHASING = 1
     FLEEING = 2
     DESPERATE_FIGHT = 3
+    INVESTIGATE = 4  # New state for investigation
 
 class Monster:
     def __init__(self, x, y, char, name, color):
@@ -28,12 +29,16 @@ class Monster:
         self.monster_die_type = 4  # Base die type for damage rolls, will be overridden in subclasses
         self.num_damage_dice = 1  # Number of damage dice to roll, will be overridden in subclasses
         self.initiative = 0
-        self.patrol_radius = 12
         self.blocks_movement = True
         self.active_status_effects = []
 
         self.is_active = False # New attribute: True if monster is awake/active
         self.sleep_cooldown = 0 # New attribute: Timer for how long to stay asleep        
+
+        self.patrol_radius = 12
+        self.investigate_turns_left = 4  # Turns left to investigate
+        self.investigate_search_radius = 3  # Radius around last known position to search
+        self.ai_state = AI_State.PATROLLING if hasattr(self, 'ai_state') else AI_State.CHASING  # Default state
 
         # Rendering/footprint attributes
         # footprint_size represents how many tiles on a side this entity occupies (1 = 1x1)
@@ -121,21 +126,58 @@ class Monster:
         """Check if the player is within detection range and line of sight."""
         distance_to_player = self.distance_to(player.x, player.y)
         is_visible_to_monster = game_instance.check_line_of_sight(self.x, self.y, player.x, player.y)
-        
+
         if distance_to_player <= self.detection_range and is_visible_to_monster:
             self.last_known_player_position = (player.x, player.y)
+            # If monster was investigating or patrolling, switch to chasing
+            if self.ai_state != AI_State.CHASING:
+                self.ai_state = AI_State.CHASING
+                game_instance.message_log.add_message(f"The {self.name} spots you and starts chasing!", self.color)
             return True  # Player currently detected
         else:
-            # If player is not currently visible, check if we still have a last known position
+            # Player not currently visible
             if self.last_known_player_position:
-                # If we lost sight, clear last known position and revert to patrolling
-                # This is where the monster "forgets" the player
-                if not game_instance.check_line_of_sight(self.x, self.y, self.last_known_player_position[0], self.last_known_player_position[1]):
+                # Check if monster can still see the last known player position
+                can_see_last_known = game_instance.check_line_of_sight(
+                    self.x, self.y,
+                    self.last_known_player_position[0], self.last_known_player_position[1]
+                )
+                if not can_see_last_known:
+                    # Monster truly lost track of player
                     self.last_known_player_position = None
-                    self.ai_state = AI_State.CHASING # Revert to default chasing if intelligent
-                    game_instance.message_log.add_message(f"The {self.name} loses track of you.", (150, 150, 150))
-                return False # Player not currently detected, but might still be aggroed to last_known_position
-            return False # Player not detected at all
+                    # Switch to patrol or investigate as appropriate
+                    if self.is_intelligent:
+                        # Start investigating if intelligent
+                        if self.ai_state != AI_State.INVESTIGATE:
+                            self.ai_state = AI_State.INVESTIGATE
+                            self.investigate_turns_left = 4  # or any suitable default
+                            game_instance.message_log.add_message(f"The {self.name} loses track of you and starts investigating.", (150, 150, 150))
+                    else:
+                        # Non-intelligent monsters revert to patrolling or idle
+                        pass
+                    return False
+                else:
+                    # Still can see last known position, so monster remains aggroed
+                    return False
+            return False  # Player not detected at all
+
+
+    def check_torchlight_in_range(self, game):
+        """
+        Checks if any torchlight tile is within detection range.
+        If so, and player is not visible, triggers investigate state.
+        """
+        for (x, y), source in game.fov.visible_sources.items():
+            if source == 'torch':
+                dist = self.distance_to(x, y)
+                if dist <= self.detection_range:
+                    # Player not visible to monster currently
+                    if game.fov.get_visibility_type(self.x, self.y) != 'player' and self.ai_state != AI_State.INVESTIGATE:
+                        self.last_known_player_position = (x, y)
+                        self.ai_state = AI_State.INVESTIGATE
+                        self.investigate_turns_left = 4  # Number of turns to investigate
+                        # game.message_log.add_message(f"The {self.name} notices a flickering light and starts investigating.", self.color)
+                        break
 
 
     def patrol(self, game_map, game):
@@ -749,141 +791,164 @@ class Monster:
         dist_to_player = self.distance_to(player.x, player.y)
         player_detected = self.detect_player(player, game)
 
-        if player_detected:
-            monster_hp_low = self.hp_percentage() < self.flee_hp_threshold
-            player_hp_high = game.get_player_hp_percentage() > self.player_safe_hp_threshold
-            player_hp_low = game.get_player_hp_percentage() < self.desperate_fight_hp_threshold
+        # Check torchlight stimulus to trigger investigate state
+        if not player_detected:
+            self.check_torchlight_in_range(game)
 
-            if self.is_intelligent:
-                if monster_hp_low and player_hp_high:
-                    self.ai_state = AI_State.FLEEING
-                elif monster_hp_low and player_hp_low:
-                    self.ai_state = AI_State.DESPERATE_FIGHT
-                else:
+        # Handle AI states for intelligent monsters
+        if self.is_intelligent:
+            if self.ai_state == AI_State.INVESTIGATE:
+                if player_detected:
+                    # Player found again, switch to chasing
                     self.ai_state = AI_State.CHASING
-                    
-                if self.ai_state == AI_State.FLEEING:
-                    if self.flee(player, game_map, game):
-                        return
-
-                if self.ai_state == AI_State.DESPERATE_FIGHT:
-                    game.message_log.add_message(f"The {self.name} is desperate and fights on!", (255, 100, 100))
-
-                    if self.is_ranged and dist_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
-                        self.ranged_attack(player, game)
-                        return
-                    elif self.is_adjacent_to(player):
-                        self.attack(player, game)
-                        return
-                    else:
-                        path = astar(
-                            game_map,
-                            (self.x, self.y),
-                            (player.x, player.y),
-                            entities=[e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement],
-                            moving_entity=self
-                        )
-                        if path and len(path) > 1:
-                            next_step = path[1]
-                            new_x, new_y = next_step
-
-                            if self.can_move_to(new_x, new_y, game_map, game):
-                                self.x = new_x
-                                self.y = new_y
+                    self.investigate_turns_left = 0
+                else:
+                    if self.investigate_turns_left > 0:
+                        self.investigate_turns_left -= 1
+                        # Move towards last known player position
+                        if self.last_known_player_position:
+                            target_x, target_y = self.last_known_player_position
+                            if (self.x, self.y) == (target_x, target_y):
+                                # At last known position, search nearby tiles randomly
+                                possible_search_tiles = []
+                                for dx in range(-self.investigate_search_radius, self.investigate_search_radius + 1):
+                                    for dy in range(-self.investigate_search_radius, self.investigate_search_radius + 1):
+                                        sx, sy = target_x + dx, target_y + dy
+                                        if 0 <= sx < game_map.width and 0 <= sy < game_map.height:
+                                            if self.can_occupy_position(sx, sy, game_map, game.entities, exclusions=[self]):
+                                                possible_search_tiles.append((sx, sy))
+                                if possible_search_tiles:
+                                    search_target = random.choice(possible_search_tiles)
+                                    self.move_towards(search_target[0], search_target[1], game_map, game)
+                                else:
+                                    # No valid search tiles, just wait
+                                    pass
                             else:
-                                game.message_log.add_message(f"The {self.name} is blocked and cannot reach {player.name}!", (100, 100, 100))
+                                # Move towards last known position
+                                self.move_towards(target_x, target_y, game_map, game)
                         else:
-                            game.message_log.add_message(f"The {self.name} cannot find a path to {player.name}!", (150, 150, 150))
-                        return
-
-                if self.ai_state == AI_State.CHASING:
-                    if self.is_ranged and dist_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
-                        self.ranged_attack(player, game)
-                        return
-
-                    if self.is_adjacent_to(player):
-                        self.attack(player, game)
-                        return
-
-                    target_pos = (player.x, player.y) if game.check_line_of_sight(self.x, self.y, player.x, player.y) else self.last_known_player_position
-
-                    if target_pos:
-                        path = astar(
-                            game_map,
-                            (self.x, self.y),
-                            target_pos,
-                            entities=[e for e in game.entities if e != self and e.alive and e.blocks_movement],
-                            moving_entity=self
-                        )
-                        if path and len(path) > 1:
-                            next_step = path[1]
-                            new_x, new_y = next_step
-
-                            if self.can_move_to(new_x, new_y, game_map, game):
-                                self.x = new_x
-                                self.y = new_y
-                            else:
-                                game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
-                        else:
-                            # Pathfinding failed: try greedy direct movement towards player
-                            dx = player.x - self.x
-                            dy = player.y - self.y
-
-                            step_x = 0
-                            step_y = 0
-
-                            if dx != 0:
-                                step_x = dx // abs(dx)
-                            if dy != 0:
-                                step_y = dy // abs(dy)
-
-                            candidates = []
-                            if step_x != 0 and step_y != 0:
-                                candidates.append((self.x + step_x, self.y + step_y))  # diagonal
-                            if step_x != 0:
-                                candidates.append((self.x + step_x, self.y))
-                            if step_y != 0:
-                                candidates.append((self.x, self.y + step_y))
-
-                            moved = False
-                            for nx, ny in candidates:
-                                if not (0 <= nx < game_map.width and 0 <= ny < game_map.height):
-                                    continue
-
-                                if self.can_move_to(nx, ny, game_map, game):
-                                    self.x = nx
-                                    self.y = ny
-                                    moved = True
-                                    break
-
-                            if not moved:
-                                game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
+                            # No last known position, fallback to patrol
+                            self.patrol(game_map, game)
                     else:
+                        # Investigation timed out, switch to patrol
                         self.patrol(game_map, game)
+                        self.last_known_player_position = None
+
+            if self.ai_state == AI_State.FLEEING:
+                if self.flee(player, game_map, game):
+                    return
+
+            if self.ai_state == AI_State.DESPERATE_FIGHT:
+                game.message_log.add_message(f"The {self.name} is desperate and fights on!", (255, 100, 100))
+
+                if self.is_ranged and dist_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
+                    self.ranged_attack(player, game)
+                    return
+                elif self.is_adjacent_to(player):
+                    self.attack(player, game)
+                    return
+                else:
+                    path = astar(
+                        game_map,
+                        (self.x, self.y),
+                        (player.x, player.y),
+                        entities=[e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement],
+                        moving_entity=self
+                    )
+                    if path and len(path) > 1:
+                        next_step = path[1]
+                        new_x, new_y = next_step
+
+                        if self.can_move_to(new_x, new_y, game_map, game):
+                            self.x = new_x
+                            self.y = new_y
+                        else:
+                            game.message_log.add_message(f"The {self.name} is blocked and cannot reach {player.name}!", (100, 100, 100))
+                    else:
+                        game.message_log.add_message(f"The {self.name} cannot find a path to {player.name}!", (150, 150, 150))
+                    return
+
+            if self.ai_state == AI_State.CHASING:
+                if self.is_ranged and dist_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
+                    self.ranged_attack(player, game)
+                    return
+
+                if self.is_adjacent_to(player):
+                    self.attack(player, game)
+                    return
+
+                target_pos = (player.x, player.y) if game.check_line_of_sight(self.x, self.y, player.x, player.y) else self.last_known_player_position
+
+                if target_pos:
+                    path = astar(
+                        game_map,
+                        (self.x, self.y),
+                        target_pos,
+                        entities=[e for e in game.entities if e != self and e.alive and e.blocks_movement],
+                        moving_entity=self
+                    )
+                    if path and len(path) > 1:
+                        next_step = path[1]
+                        new_x, new_y = next_step
+
+                        if self.can_move_to(new_x, new_y, game_map, game):
+                            self.x = new_x
+                            self.y = new_y
+                        else:
+                            game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
+                    else:
+                        # Pathfinding failed: try greedy direct movement towards player
+                        dx = player.x - self.x
+                        dy = player.y - self.y
+
+                        step_x = 0
+                        step_y = 0
+
+                        if dx != 0:
+                            step_x = dx // abs(dx)
+                        if dy != 0:
+                            step_y = dy // abs(dy)
+
+                        candidates = []
+                        if step_x != 0 and step_y != 0:
+                            candidates.append((self.x + step_x, self.y + step_y))  # diagonal
+                        if step_x != 0:
+                            candidates.append((self.x + step_x, self.y))
+                        if step_y != 0:
+                            candidates.append((self.x, self.y + step_y))
+
+                        moved = False
+                        for nx, ny in candidates:
+                            if not (0 <= nx < game_map.width and 0 <= ny < game_map.height):
+                                continue
+
+                            if self.can_move_to(nx, ny, game_map, game):
+                                self.x = nx
+                                self.y = ny
+                                moved = True
+                                break
+
+                        if not moved:
+                            game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
+                else:
+                    self.patrol(game_map, game)
+                return
+        else:
+            # Non-intelligent monsters chase player if detected, else patrol
+            if player_detected:
+                if self.is_ranged and dist_to_player <= self.range:
+                    self.ranged_attack(player, game)
+                    return
+                elif self.is_adjacent_to(player):
+                    self.attack(player, game)
+                    return
+                else:
+                    self.move_towards(player.x, player.y, game_map, game)
                     return
             else:
-                if not self.is_intelligent:
-                    # Chase player if detected, else patrol
-                    if player_detected:
-                        if self.is_ranged and dist_to_player <= self.range:
-                            self.ranged_attack(player, game)
-                            return
-                        elif self.is_adjacent_to(player):
-                            self.attack(player, game)
-                            return
-                        else:
-                            self.move_towards(player.x, player.y, game_map, game)
-                            return
-                    else:
-                        self.patrol(game_map, game)
-                        return
+                self.patrol(game_map, game)
+                return
 
-        # Player NOT detected
-        # If monster is within patrol radius, patrol
-        if dist_to_player <= self.patrol_radius:
-            self.patrol(game_map, game)
-            return
-    
 
 
     def can_occupy_position(self, target_x: int, target_y: int, game_map, entities, exclusions=None) -> bool:

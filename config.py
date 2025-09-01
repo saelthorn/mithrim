@@ -18,7 +18,7 @@ MIN_TILE_SIZE = 24
 
 
 # Initial FPS
-FPS = 60
+FPS = 144
 
 
 # --- Minimap Settings ---

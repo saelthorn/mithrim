@@ -22,6 +22,7 @@ class FloatingText:
         self.duration = duration
         self.frames_left = duration
         self.y_speed = y_speed # Negative for upward movement
+        self.expired = False
 
         # Determine font size dynamically based on TILE_SIZE if not specified
         if font_size is None:
@@ -45,6 +46,10 @@ class FloatingText:
 
         self.y += self.y_speed / config.FPS # Divide by FPS to make speed frame-rate independent
         self.frames_left -= 1
+        self.duration -= 1
+
+        if self.duration <= 0:
+            self.expired = True
 
         if self.frames_left <= 0:
             if self.last_draw_rect:
