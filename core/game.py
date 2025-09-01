@@ -861,16 +861,23 @@ class Game:
                 distance_to_player = entity.distance_to(self.player.x, self.player.y)
 
                 # Wake if visible OR within wake radius
-                if visibility_type in ['player', 'torch', 'darkvision'] or distance_to_player <= WAKE_RADIUS:
+                if visibility_type in ['player', 'torch', 'darkvision'] and distance_to_player <= WAKE_RADIUS:
                     if not entity.is_active:
                         entity.is_active = True
                         entity.sleep_cooldown = 0
                         self.message_log.add_message(f"You spot a {entity.name}!", entity.color)
-                else:
+                elif distance_to_player <= WAKE_RADIUS:
+                    entity.is_active = True
+                    entity.sleep_cooldown = 0
+                elif visibility_type in ['player', 'torch', 'darkvision'] and distance_to_player > WAKE_RADIUS:
                     if entity.is_active and entity.sleep_cooldown <= 10:
                         entity.is_active = False
                         entity.sleep_cooldown = random.randint(5, 15)
                         self.message_log.add_message(f"The {entity.name} seems to have fallen asleep.", (100, 100, 100))
+                else:
+                    if entity.is_active and entity.sleep_cooldown <= 10:
+                        entity.is_active = False
+                        entity.sleep_cooldown = random.randint(5, 15)
 
 
 
