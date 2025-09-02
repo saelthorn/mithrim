@@ -664,15 +664,15 @@ class Player: # This is our base class for playable characters
             if self.equipped_weapon and self.equipped_weapon.is_two_handed:
                 game_instance.message_log.add_message(f"You cannot equip {item.name} while wielding a two-handed weapon.", (255, 0, 0))
                 return False
-            
+
+
             if self.equipped_off_hand:
                 self.inventory.add_item(self.equipped_off_hand) 
                 game_instance.message_log.add_message(f"You unequip {self.equipped_off_hand.name}.", (150, 150, 150))  
 
-                
-                if self.equipped_off_hand == torch:
-                    self.add_status_effect("Torchlight", duration=0, game_instance=game_instance) 
-                    self.inventory.add_item       
+
+            if self.equipped_off_hand == torch:
+                self.add_status_effect("Torchlight", duration=0, game_instance=game_instance)
 
             self.inventory.remove_item(item)
             self.equipped_off_hand = item
@@ -680,7 +680,7 @@ class Player: # This is our base class for playable characters
             game_instance.message_log.add_message(f"You equip {item.name} in your off-hand.", (0, 255, 0))
 
             if item.name.lower() == "torch":
-                self.add_status_effect("Torchlight", duration=250, game_instance=game_instance) 
+                self.add_status_effect("Torchlight", duration=10, game_instance=game_instance) 
                 game_instance.message_log.add_message(
                     "The torch’s flame flickers to life, pushing back the dark.",
                     (255, 200, 50)
@@ -693,28 +693,42 @@ class Player: # This is our base class for playable characters
             self.update_attack_power()  # Call the method to update the attack bonus
 
             return True
-    
 
-    def unequip_item(self, item, game_instance):
-        """Unequips an item and recalculates the attack bonus."""
-        from items.items import Weapon, Armor, OffHand # Ensure these are imported if not already
+
+    def unequip_item(self, item, game_instance, remove_from_inventory=False):
+        from items.items import Weapon, Armor, OffHand
         if isinstance(item, Weapon):
             if self.equipped_weapon == item:
-                self.inventory.add_item(self.equipped_weapon)
-                game_instance.message_log.add_message(f"You unequip {self.equipped_weapon.name}.", (150, 150, 150))
+                if remove_from_inventory:
+                    # Remove from inventory permanently
+                    if self.inventory.remove_item(item):
+                        game_instance.message_log.add_message(f"{item.name} removed from inventory.", (150, 150, 150))
+                    else:
+                        game_instance.message_log.add_message(f"Failed to remove {item.name} from inventory.", (255, 0, 0))
+                else:
+                    self.inventory.add_item(item)
+                    game_instance.message_log.add_message(f"You unequip {item.name}.", (150, 150, 150))
                 self.equipped_weapon = None
-                self.weapon_proficiency_penalty = 0 # Reset penalty when weapon is unequipped
+                self.weapon_proficiency_penalty = 0
                 self.update_attack_power()
                 return True
+
         elif isinstance(item, OffHand):
             if self.equipped_off_hand == item:
-                self.inventory.add_item(self.equipped_off_hand)
-                game_instance.message_log.add_message(f"You unequip {self.equipped_off_hand.name}.", (150, 150, 150))
-                self.equipped_off_hand = None  # Clear the off-hand slot
-                # Recalculate attack bonus after unequipping the off-hand item
-                self.update_attack_power()  # Call the method to update the attack bonus
-            return True
-        # Add similar logic for other item types if needed
+                if remove_from_inventory:
+                    if self.inventory.remove_item(item):
+                        game_instance.message_log.add_message(f"{item.name} removed from inventory.", (150, 150, 150))
+                    else:
+                        # game_instance.message_log.add_message(f"Failed to remove {item.name} from inventory.", (255, 0, 0))
+                        pass
+                else:
+                    self.inventory.add_item(item)
+                    game_instance.message_log.add_message(f"You unequip {item.name}.", (150, 150, 150))
+                self.equipped_off_hand = None
+                self.update_attack_power()
+                return True
+
+        # Add similar logic for Armor if needed
         return False
 
 
@@ -845,7 +859,7 @@ class Rogue(Player):
 
         self.strength = 8
         self.dexterity = 15
-        self.constitution = 13
+        self.constitution = 1300
         self.intelligence = 12
         self.wisdom = 10
         self.charisma = 14

@@ -1,4 +1,5 @@
 import random
+from items.items import torch # Ensure torch item is imported here if not already
 
 
 class StatusEffect:
@@ -134,13 +135,25 @@ class EvasionBuff(StatusEffect):
 class Torchlight(StatusEffect):
     def __init__(self, duration=250):
         super().__init__("Torchlight", duration)
-    
+
     def apply_effect(self, target, game_instance):
         # Only log when first applied
         if self.turns_left == self.duration:
             game_instance.message_log.add_message(f"{target.name} is surrounded by the warm glow of a torch!", (255, 165, 0))
-    
+
+    # Torchlight status effect
     def on_end(self, target, game_instance):
         super().on_end(target, game_instance)
         game_instance.message_log.add_message(f"The torchlight flickers and goes out.", (255, 100, 0))
-        # Removal of Torch item from inventory will be handled in Phase 4       
+    
+        off_hand_item = target.equipped_off_hand
+        if off_hand_item and off_hand_item.name.lower() == "torch":
+            success = target.unequip_item(off_hand_item, game_instance, remove_from_inventory=True)
+            if success:
+                game_instance.message_log.add_message(f"{target.name} unequips and discards the burnt-out {off_hand_item.name}.", (150, 150, 150))
+            else:
+                game_instance.message_log.add_message(f"Failed to unequip and remove {off_hand_item.name}.", (255, 0, 0))
+        else:
+            game_instance.message_log.add_message(f"No torch equipped in off-hand to remove.", (150, 150, 150))
+    
+

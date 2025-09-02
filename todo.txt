@@ -16,14 +16,17 @@ Map changes:
 
 
 To do:
-    Prioritize - Make Mithrim Logo
-     - Add Companions
-     - Maybe Cunning Action Hide for Rogues
-     - Dead Bodies(?)
-     - When Monster Dies it drops loot
-     - Make bosses not spam telegraphed attacks
-     - Quick bar
-     - Add Investigate as AI state for Monsters
+     Prioritize - Make Mithrim Logo
+      - Maybe Cunning Action Hide for Rogues
+      - Dead Bodies or Bloods(?)
+      - When Monster Dies it drops loot
+      - Make bosses not spam telegraphed attacks
+      - Quick bar
+      - Add Investigate as AI state for Monsters
+      - Fix Memory Leak (somewhere)
+
+     
+     Not Prio - Add Companions 
 
 
 To fix:

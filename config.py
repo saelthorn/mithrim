@@ -9,7 +9,7 @@ UI_PANEL_WIDTH_RATIO = 0.19 # UI panel takes 16% of screen width
 
 
 # Message log height as a ratio of the total screen height
-MESSAGE_LOG_HEIGHT_RATIO = 0.30 # Increased to 30% for a taller box
+MESSAGE_LOG_HEIGHT_RATIO = 0.25 # Increased to 30% for a taller box
 
 
 # Set TILE_SIZE to match your tileset's individual tile size (e.g., 12x12)
@@ -18,7 +18,7 @@ MIN_TILE_SIZE = 24
 
 
 # Initial FPS
-FPS = 144
+FPS = 60
 
 
 # --- Minimap Settings ---

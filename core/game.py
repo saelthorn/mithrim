@@ -219,7 +219,6 @@ class Game:
 
     # Boss schedule: every 5th floor, ordered list
     BOSS_FLOORS = [
-        (1, 'Arasta'),
         (5, 'Troll'),
         (10, 'DeathSlaad'),
         (15, 'Beholder'),
@@ -853,7 +852,7 @@ class Game:
             self.minimap_needs_redraw = True
 
         # Existing monster activation logic...
-        WAKE_RADIUS = 12  # Tiles within which monsters wake up regardless of visibility
+        WAKE_RADIUS = 10  # Tiles within which monsters wake up regardless of visibility
 
         for entity in self.entities:
             if isinstance(entity, Monster):
@@ -869,8 +868,8 @@ class Game:
                 elif distance_to_player <= WAKE_RADIUS:
                     entity.is_active = True
                     entity.sleep_cooldown = 0
-                elif visibility_type in ['player', 'torch', 'darkvision'] and distance_to_player > WAKE_RADIUS:
-                    if entity.is_active and entity.sleep_cooldown <= 10:
+                elif visibility_type in ['player', 'torch', 'darkvision'] and distance_to_player >= WAKE_RADIUS:
+                    if entity.is_active:
                         entity.is_active = False
                         entity.sleep_cooldown = random.randint(5, 15)
                         self.message_log.add_message(f"The {entity.name} seems to have fallen asleep.", (100, 100, 100))
@@ -999,10 +998,38 @@ class Game:
 
         # Cap message log size (prevents memory bloat)
         if hasattr(self, "message_log") and hasattr(self.message_log, "messages"):
-            MAX_LOG_MESSAGES = 50
+            MAX_LOG_MESSAGES = 100
             if len(self.message_log.messages) > MAX_LOG_MESSAGES:
                 self.message_log.messages = self.message_log.messages[-MAX_LOG_MESSAGES:]
-
+    
+    def next_floor(self):
+        """Move the player to the next dungeon level and clean up old entities/items."""
+    
+        # Clean up old entities and items
+        self.entities.clear()
+        if hasattr(self, "items_on_ground"):
+            self.items_on_ground.clear()
+        if hasattr(self, "floating_texts"):
+            self.floating_texts.clear()
+    
+        # If items are stored in the map
+        if hasattr(self, "map") and hasattr(self.map, "items_on_ground"):
+            self.map.items_on_ground.clear()
+    
+        # Clean up old tiles/entities
+        if hasattr(self, "map") and hasattr(self.map, "tiles"):
+            for row in self.map.tiles:
+                for tile in row:
+                    if hasattr(tile, "entity"):
+                        tile.entity = None
+                    if hasattr(tile, "item"):
+                        tile.item = None
+    
+        # Now generate/load the new dungeon floor
+        self.map = self.generate_new_floor()  
+        self.depth += 1
+        self.message_log.add_message(f"You descend to floor {self.depth}...", (200, 200, 50))
+    
     
 
     def handle_events(self):

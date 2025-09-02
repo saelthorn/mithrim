@@ -40,7 +40,7 @@ def generate_dungeon(game_map, level_number, max_rooms=16, room_min_size=5, room
     stairs_positions = {}
     
     floor_decoration_tiles = [crate, barrel, bones, dungeon_grass, cob_web, rubble, mushroom, fresh_bones, dungeon_grass_two, dungeon_floor_two, dungeon_floor_three] 
-    floor_decoration_chance = 0.25  # Ensure this is defined
+    floor_decoration_chance = 0.2  # Ensure this is defined
     torch_light_sources = []
 
     # Trap Definitions and Chance
