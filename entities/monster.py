@@ -92,6 +92,8 @@ class Monster:
         # Telegraph fields: when set by a monster, game will render highlights
         self.pending_telegraph_tiles = []  # list[(x,y)] tiles the monster intends to hit next turn
         self.telegraph_color = (255, 0, 0, 100)  # translucent red
+        self.attack_cooldown = 0  # Cooldown for boss telegraphed attacks
+        self.telegraph_timer = 0  # Timer for when telegraphed attack resolves (3 turns)
 
             
 
@@ -287,19 +289,23 @@ class Monster:
         if target is None or not target.alive:
             return
 
-        # If monster is a boss (footprint_size > 1), telegraph an AoE instead of immediate hit
-        if getattr(self, 'footprint_size', 1) > 1: 
-            # Example: choose tiles around the player's current position (3x3) to telegraph
-            telegraphed = []
-            center_x, center_y = target.x, target.y
-            for dy in (-1, 0, 1): 
-                for dx in (-1, 0, 1):
-                    tx, ty = center_x + dx, center_y + dy
-                    if 0 <= tx < game.game_map.width and 0 <= ty < game.game_map.height:
-                        telegraphed.append((tx, ty))
-            self.pending_telegraph_tiles = telegraphed
-            game.message_log.add_message(f"The {self.name} prepares a devastating attack!", (255, 80, 80))
-            return  # Telegraph now; damage will apply at start of next turn cycle
+        # If monster is a boss (footprint_size > 1), check cooldown for telegraphed attack
+        if getattr(self, 'footprint_size', 1) > 1:
+            if self.attack_cooldown == 0:
+                # Example: choose tiles around the player's current position (3x3) to telegraph
+                telegraphed = []
+                center_x, center_y = target.x, target.y
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        tx, ty = center_x + dx, center_y + dy
+                        if 0 <= tx < game.game_map.width and 0 <= ty < game.game_map.height:
+                            telegraphed.append((tx, ty))
+                self.pending_telegraph_tiles = telegraphed
+                self.telegraph_timer = 3
+                self.attack_cooldown = 5
+                game.message_log.add_message(f"The {self.name} prepares a devastating attack!", (255, 80, 80))
+                return  # Telegraph now; damage will apply after 3 turns
+            # else: fall through to normal attack
     
         # Attack roll
         roll1 = random.randint(1, 20)
@@ -317,7 +323,7 @@ class Monster:
             game.message_log.add_message(f"The {self.name} rolls with Advantage!", (255, 200, 100))
         elif disadvantage:
             final_d20_roll = min(roll1, roll2)
-            roll_message_part = f"2d20 (Disadvantage): {roll1}, {2} -> {final_d20_roll}"
+            roll_message_part = f"2d20 (Disadvantage): {roll1}, {roll2} -> {final_d20_roll}"
             game.message_log.add_message(f"The {self.name} rolls with Disadvantage!", (150, 150, 255))
         attack_roll_total = final_d20_roll + attack_bonus
         
@@ -539,10 +545,10 @@ class Monster:
             new_effect = Poisoned(duration, source)
         # Add other status effects here if monsters can get them
         elif effect_name == "AcidBurned":
-            new_effect = AcidBurned(duration, source)  
+            new_effect = AcidBurned(duration, source)
         
         elif effect_name == "Burning":
-            new_effect == Burning(duration, source)      
+            new_effect = Burning(duration, source)
         
         
         if new_effect:
@@ -764,19 +770,23 @@ class Monster:
         if not self.alive:
             return
 
-        # Resolve telegraphed attacks first
-        if getattr(self, 'pending_telegraph_tiles', None):
-            tiles = list(self.pending_telegraph_tiles)
-            self.pending_telegraph_tiles = []
-            for tx, ty in tiles:
-                if player.x == tx and player.y == ty and player.alive:
-                    dmg = max(1, getattr(self, 'damage_modifier', 2) + random.randint(1, 20))
-                    player.take_damage(dmg, game, damage_type='fire')
-                    game.floating_texts.append(FloatingText(tx, ty, f"-{dmg}", (255, 80, 80)))
-                    self.pending_telegraph_tiles.clear( )
+        self.process_status_effects(game)
+        if not self.alive:
             return
 
-        self.process_status_effects(game)
+        # Decrement timers
+        if self.attack_cooldown > 0:
+            self.attack_cooldown -= 1
+        if self.telegraph_timer > 0:
+            self.telegraph_timer -= 1
+            if self.telegraph_timer == 0 and self.pending_telegraph_tiles:
+                # Resolve telegraphed attack
+                for tx, ty in self.pending_telegraph_tiles:
+                    if player.x == tx and player.y == ty and player.alive:
+                        dmg = max(1, getattr(self, 'damage_modifier', 2) + random.randint(1, 20))
+                        player.take_damage(dmg, game, damage_type='fire')
+                        game.floating_texts.append(FloatingText(tx, ty, f"-{dmg}", (255, 80, 80)))
+                self.pending_telegraph_tiles = []
         if not self.alive:
             return
 
@@ -1510,7 +1520,7 @@ class RedDragon(Monster):
 
         self.is_ranged = True
         self.ranged_attack_bonus = 5  # Base ranged attack bonus
-        self.range = 6  # Max range for ranged attacks
+        self.range = 4  # Max range for ranged attacks
         self.ranged_die_type = 6  # Base die type for ranged attacks
         self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
         self.footprint_size = 3
@@ -1519,7 +1529,6 @@ class RedDragon(Monster):
         self.burn_dc = 17
         self.burn_damage_per_turn = 6
         self.burn_duration = 4
-        self.burn
 
         self.saving_throw_proficiencies = {
             "STR": False,

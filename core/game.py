@@ -36,17 +36,14 @@ from entities.monster import (
 )
 
 from entities.base_entity import NPC
-from entities.player import Player
 from entities.tavern_npcs import create_tavern_npcs, NPC, Merchant
 from entities.dungeon_npcs import DungeonHealer, DungeonMerchant
-from entities.tavern_npcs import NPC
 from entities.races import Human, HillDwarf, DrowElf # NEW: Import DrowElf
 from entities.summons import MageHandEntity
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, MageHand
 from core.message_log import MessageBox
 from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff
-from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, bread, mushroom, CampfireKit
-from items.items import torch, lesser_healing_potion, greater_healing_potion, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail, round_shield, kite_shield, tower_shield
+from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, bread, mushroom, CampfireKit, torch, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail, round_shield, kite_shield, tower_shield
 from core.pathfinding import astar
 from world.tile import floor, MimicTile, TrapTile
 from core.floating_text import FloatingText 
@@ -220,6 +217,7 @@ class Game:
 
     # Boss schedule: every 5th floor, ordered list
     BOSS_FLOORS = [
+        (1, 'RedDragon'),
         (5, 'Troll'),
         (10, 'DeathSlaad'),
         (15, 'Beholder'),
@@ -1043,6 +1041,8 @@ class Game:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:
                         # Restart the game: reset player, generate tavern or level 1
+                        self.entities.clear()
+                        self.player = None  # Reset player to prevent immediate death detection
                         self._game_over_displayed = False # Reset flag for next death
                         self.game_state = GameState.CHARACTER_CREATION  # Or directly generate tavern/level 1
                         self.start_character_creation() # Re-initialize character creation process

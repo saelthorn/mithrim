@@ -17,7 +17,6 @@ Map changes:
 
 To do:
      Prioritize - Make Mithrim Logo
-      - Maybe Cunning Action Hide for Rogues
       - Dead Bodies or Bloods(?)
       - When Monster Dies it drops loot
       - Make bosses not spam telegraphed attacks
