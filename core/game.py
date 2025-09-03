@@ -1393,14 +1393,14 @@ class Game:
                                         self.message_log.add_message("Nothing to interact with here.", (150, 150, 150))
                             # --- MODIFIED END ---
 
-                    sorted_abilities = sorted(self.player.abilities.values(), key=lambda ab: ab.name)                    
+                    abilities_list = list(self.player.abilities.values())
 
 
                     # For abilities:
                     if pygame.K_1 <= event.key <= pygame.K_9:
                         ability_index = event.key - pygame.K_1
-                        if 0 <= ability_index < len(sorted_abilities):
-                            ability_to_use = sorted_abilities[ability_index]
+                        if 0 <= ability_index < len(abilities_list):
+                            ability_to_use = abilities_list[ability_index]
                             if self.game_state == GameState.DUNGEON:    
                                 if ability_to_use.use(self.player, self):
                                     if self.game_state != GameState.TARGETING:
@@ -3253,11 +3253,11 @@ class Game:
             self._draw_text(self.screen, font_info, "None", (150, 150, 150), panel_offset_x, current_y)
             current_y += font_info.get_linesize() + 5
         else:
-            sorted_abilities = sorted(self.player.abilities.values(), key=lambda ab: ab.name)
-            for i, ability in enumerate(sorted_abilities):
+            abilities_list = list(self.player.abilities.values())
+            for i, ability in enumerate(abilities_list):
                 cooldown_text = f" (CD: {ability.current_cooldown})" if ability.current_cooldown > 0 else ""
                 ability_color = (100, 255, 255) if ability.current_cooldown == 0 else (255, 150, 0)
-                
+
                 ability_display_text = f"{i+1}. {ability.name}{cooldown_text}"
                 current_y = draw_wrapped_and_update_y(self.screen, font_info, ability_display_text, ability_color, panel_offset_x, current_y)
                 current_y += 5

@@ -66,7 +66,7 @@ class Ability:
 class SpotTrapsAbility(Ability):
     def __init__(self):
         # Cooldown: e.g., 10 turns. Cost: 0 for now, could be stamina later.
-        super().__init__("Spot Traps", "Actively search for hidden traps in adjacent tiles.", cost=0, cooldown=3)
+        super().__init__("Spot Traps", "Actively search for hidden traps in a 5-tile radius.", cost=0, cooldown=3)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance): # Handles cooldown check
@@ -74,10 +74,11 @@ class SpotTrapsAbility(Ability):
         
         game_instance.message_log.add_message(f"{user.name} actively searches for traps...", (100, 255, 255))
         
-        # Check for traps in adjacent tiles
+        # Check for traps in a 5 tile radius
         adjacent_traps = []
-        for dx in [-1, 0, 1]:
-            for dy in [-1, 0, 1]:
+        radius = 4
+        for dx in range(-radius, radius + 1):
+            for dy in range(-radius, radius + 1):
                 if dx == 0 and dy == 0:
                     continue  # Skip self
                 check_x = user.x + dx
@@ -223,7 +224,7 @@ class Evasion(Ability):
 
 class FireBolt(Ability):
     def __init__(self):
-        super().__init__("Fire Bolt", "Hurl a searing bolt of fire at a foe.", cost=0, cooldown=1)
+        super().__init__("Fire Bolt", "Hurl a searing bolt of fire at a foe.", cost=0, cooldown=2)
         self.range = 6  # Example range in tiles
 
     def use(self, user, game_instance):
@@ -751,25 +752,25 @@ class MistyStep(Ability):
 
 class DetectMagic(Ability):
     def __init__(self):
-        super().__init__("Detect Magic", "Detects magical traps (specifically Fire Traps) within a certain range.", cost=0, cooldown=3)
+        super().__init__("Detect Magic", "Detects hidden traps within a 4-tile radius.", cost=0, cooldown=3)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):  # Handles cooldown check
             return False
-        
+
         game_instance.message_log.add_message(f"{user.name} casts Detect Magic...", (100, 255, 255))
-        
-        # Check for Fire Traps in adjacent tiles
+
+        # Check for hidden traps within 4-tile radius
         detected_traps = []
-        for dx in [-1, 0, 1]:
-            for dy in [-1, 0, 1]:
+        for dx in range(-3, 5):
+            for dy in range(-3, 5):
                 if dx == 0 and dy == 0:
                     continue  # Skip self
                 check_x = user.x + dx
                 check_y = user.y + dy
                 if 0 <= check_x < game_instance.game_map.width and 0 <= check_y < game_instance.game_map.height:
                     tile = game_instance.game_map.tiles[check_y][check_x]
-                    if isinstance(tile, TrapTile) and tile.trap_instance.name == "Fire Trap" and tile.trap_instance.is_hidden:
+                    if isinstance(tile, TrapTile) and tile.trap_instance.is_hidden:
                         detected_traps.append(tile)
 
         if detected_traps:
@@ -777,8 +778,8 @@ class DetectMagic(Ability):
                 trap_tile.trap_instance.reveal(game_instance, trap_tile.x, trap_tile.y)
                 game_instance.message_log.add_message(f"You detect a hidden {trap_tile.trap_instance.name}!", (0, 255, 255))
         else:
-            game_instance.message_log.add_message("No magical traps detected nearby.", (150, 150, 150))
-        
+            game_instance.message_log.add_message("No traps detected nearby.", (150, 150, 150))
+
         return True  # Indicate successful use and end turn
 
 
@@ -792,7 +793,7 @@ class MageHand(Ability):
             return False
 
         game_instance.message_log.add_message("Select a target to trigger a trap or pick up an item (Arrow Keys, Enter to confirm, Esc to cancel).", (255, 100, 0))
-        
+
         game_instance.game_state = GameState.TARGETING
         game_instance.ability_in_use = self
         game_instance.targeting_ability_range = self.range
@@ -806,16 +807,16 @@ class MageHand(Ability):
         Performs the Mage Hand effect on the selected target.
         """
         target_tile = game_instance.game_map.tiles[target_y][target_x]
-    
+
         # Create a temporary MageHandEntity instance to act as the 'player' for the trap trigger
         mage_hand_actor = MageHandEntity(user.x, user.y, user)  # Pass user as owner
-    
+
         # Check if the target is a TrapTile
         if isinstance(target_tile, TrapTile) and not target_tile.trap_instance.is_triggered:
             game_instance.message_log.add_message(f"The Mage Hand triggers the {target_tile.trap_instance.name}!", (255, 255, 0))
             target_tile.trap_instance.trigger(mage_hand_actor, game_instance, target_x, target_y)  # Pass the mage_hand_actor
             return True  # Action successful, end turn
-    
+
         # Check if the target is an item (specifically a potion)
         item_at_target = game_instance.get_interactable_item_at(target_x, target_y)
         if item_at_target and isinstance(item_at_target, Potion or Food):
@@ -828,9 +829,261 @@ class MageHand(Ability):
             else:
                 game_instance.message_log.add_message(f"The Mage Hand cannot pick up the {item_at_target.name}.", (255, 150, 0))
                 return False  # Failed to pick up the item
-    
+
         game_instance.message_log.add_message("Mage Hand cannot interact with that target.", (255, 150, 0))
         return False  # Invalid target, stay in targeting mode
+
+
+class RayOfFrost(Ability):
+    def __init__(self):
+        super().__init__("Ray of Frost", "Hurl a chilling ray of frost at a foe.", cost=0, cooldown=2)
+        self.range = 6  # Example range in tiles
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+
+        # Helper: footprint-aware visibility
+        def is_entity_visible(ent):
+            allowed = ['player', 'torch', 'darkvision']
+            size = getattr(ent, 'footprint_size', 1)
+            if size > 1:
+                for oy in range(size):
+                    for ox in range(size):
+                        if game_instance.fov.get_visibility_type(ent.x + ox, ent.y + oy) in allowed:
+                            return True
+                return False
+            return game_instance.fov.get_visibility_type(ent.x, ent.y) in allowed
+
+        # Helper: footprint-aware distance (min distance to any occupied tile)
+        def distance_to_entity(ent):
+            size = getattr(ent, 'footprint_size', 1)
+            if size > 1:
+                best = None
+                for oy in range(size):
+                    for ox in range(size):
+                        d = user.distance_to(ent.x + ox, ent.y + oy)
+                        if best is None or d < best:
+                            best = d
+                return best if best is not None else 9999
+            return user.distance_to(ent.x, ent.y)
+
+        # Find only monster targets within range (footprint-aware)
+        monster_targets = []
+        for entity in game_instance.entities:
+            if isinstance(entity, Monster) and entity.alive:
+                distance = distance_to_entity(entity)
+                if distance <= self.range:  # Check against ability range
+                    if is_entity_visible(entity):  # Footprint-aware FOV
+                        monster_targets.append(entity)
+        # If there are monster targets, auto-target the closest one
+        if monster_targets:
+            target = min(monster_targets, key=lambda m: user.distance_to(m.x, m.y))
+
+            # Set the game state to targeting mode
+            game_instance.game_state = GameState.TARGETING
+            game_instance.ability_in_use = self  # Store which ability is being used
+            game_instance.targeting_ability_range = self.range
+
+            # Initialize targeting cursor at the auto-selected monster's position
+            game_instance.targeting_cursor_x = target.x
+            game_instance.targeting_cursor_y = target.y
+
+            game_instance.message_log.add_message(f"{user.name} prepares Ray of Frost! Auto-targeting {target.name}.", (0, 255, 255))
+            game_instance.message_log.add_message("Use Arrow Keys to change target, Enter to confirm, Esc to cancel.", (0, 255, 255))
+            return True  # Indicate successful initiation of targeting
+
+        # If no monster targets are found, revert to manual targeting starting at player
+        else:
+            game_instance.message_log.add_message(f"{user.name} prepares Ray of Frost! No enemies in range. Select a target (Arrow Keys, Enter to confirm, Esc to cancel).", (0, 255, 255))
+            game_instance.game_state = GameState.TARGETING
+            game_instance.ability_in_use = self  # Store which ability is being used
+            game_instance.targeting_ability_range = self.range
+
+            # Initialize targeting cursor at player's position
+            game_instance.targeting_cursor_x = user.x
+            game_instance.targeting_cursor_y = user.y
+
+            return True  # Indicate successful initiation of targeting
+
+    def execute_on_target(self, user, game_instance, target_x, target_y):
+        """
+        Performs the Ray of Frost effect on the selected target.
+        """
+        target_monster = game_instance.get_target_at(target_x, target_y)
+        target_tile = game_instance.game_map.tiles[target_y][target_x]  # Get the tile object at target
+
+        # Check if the target is within the player's FOV (tile or any tile of monster footprint)
+        if not game_instance.fov.get_visibility_type(target_x, target_y) in ['player', 'torch', 'darkvision']:
+            game_instance.message_log.add_message(f"You cannot attack {target_x}, {target_y} because it is out of sight!", (255, 0, 0))
+            return False  # Do not consume a turn
+
+        if not game_instance.check_line_of_sight(user.x, user.y, target_x, target_y):
+            game_instance.message_log.add_message(f"A wall blocks your shot to {target_x}, {target_y}!", (255, 0, 0))
+            return False # Do not consume a turn
+
+        target_monster = game_instance.get_target_at(target_x, target_y)
+        target_tile = game_instance.game_map.tiles[target_y][target_x]  # Get the tile object at target
+
+
+        # Check if the target is a valid monster or destructible object
+        if not (target_monster or target_tile.destructible):
+            game_instance.message_log.add_message("Ray of Frost requires a monster target or a destructible object.", (255, 150, 0))
+            return False  # Invalid target, do not consume a turn
+
+        # Ray of Frost damage calculation (1d8 cold damage)
+        damage_roll = random.randint(1, 8)
+        if target_monster and isinstance(target_monster, Monster):
+            # Check if the target is specifically a Mimic
+            hit_messages = [
+                f"A chilling ray of frost streaks towards the {target_monster.name}!",
+                f"Frost erupts as your spell connects with the {target_monster.name}!",
+                f"The {target_monster.name} is engulfed in magical frost!",
+            ]
+            game_instance.message_log.add_message(random.choice(hit_messages), (0, 255, 255))
+
+            if isinstance(target_monster, Mimic):
+                damage_dealt = target_monster.take_damage(damage_roll, game_instance, damage_type='cold')
+            else:
+                damage_dealt = target_monster.take_damage(damage_roll, game_instance, damage_type='cold')  # Pass game_instance here
+
+            game_instance.message_log.add_message(f"A ray of frost strikes {target_monster.name} for {damage_dealt} cold damage!", (0, 255, 255))
+            game_instance.message_log.add_message(f"{target_monster.name} has {target_monster.hp}/{target_monster.max_hp} HP", (0, 255, 255))
+
+            # Add FloatingText for "HIT!" and damage dealt
+            hit_text = FloatingText(target_monster.x, target_monster.y, "HIT!", (0, 255, 255))
+            game_instance.floating_texts.append(hit_text)
+
+            damage_text = FloatingText(target_monster.x, target_monster.y - 0.5, str(damage_dealt), (0, 0, 255))  # <--- ADJUSTED Y
+            game_instance.floating_texts.append(damage_text)
+
+            if not target_monster.alive:
+                xp_gained = target_monster.die(game_instance)
+                user.gain_xp(xp_gained, game_instance)  # Use 'user' (player) here
+            return True  # Successfully used ability
+
+        elif target_tile.destructible:  # <--- NEW: Check if the tile is destructible
+            destructible_messages = [
+                f"Your Ray of Frost freezes the {target_tile.name}!",
+                f"A magical blizzard consumes the {target_tile.name}!",
+            ]
+            game_instance.message_log.add_message(random.choice(destructible_messages), (0, 255, 255))
+
+            # For simplicity, we'll assume Ray of Frost instantly destroys destructible tiles
+            # In a more complex system, destructible tiles might have HP.
+            game_instance.message_log.add_message(f"Your Ray of Frost smashes the {target_tile.name}!", (0, 255, 255))
+            game_instance.game_map.tiles[target_y][target_x] = floor  # Replace with floor tile
+            self.minimap_needs_redraw = True # Map changed, redraw minimap
+
+            # --- 10% chance to drop a healing potion ---
+            if target_tile.name in ["Crate", "Barrel"]: # Check if it was a crate or barrel
+                if random.random() < 0.70:
+                    new_junk = wood_plank.__class__(
+                        name=wood_plank.name,
+                        char=wood_plank.char,
+                        color=wood_plank.color,
+                        description=wood_plank.description
+                    )
+                    new_junk.x = target_x
+                    new_junk.y = target_y
+                    game_instance.game_map.items_on_ground.append(new_junk)
+                elif random.random() < 0.3:
+                    new_torch = torch.__class__(
+                        name=torch.name,
+                        char=torch.char,
+                        color=torch.color,
+                        description=torch.description,
+                        price=torch.price
+                    )
+                    new_torch.x = target_x
+                    new_torch.y = target_y
+                    game_instance.game_map.items_on_ground.append(new_torch)
+                    game_instance.message_log.add_message(f"A {new_torch.name} drops from the {target_tile.name}!", new_torch.color)
+                elif random.random() < 0.2:
+                    new_food = meat.__class__(
+                        name=meat.name,
+                        char=meat.char,
+                        color=meat.color,
+                        description=meat.description,
+                        healing_value=meat.healing_value,
+                        price=meat.price
+                    )
+                    new_food.x = target_x
+                    new_food.y = target_y
+                    game_instance.game_map.items_on_ground.append(new_food)
+                    game_instance.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
+                elif random.random() < 0.35:
+                    new_food = green_apple.__class__(
+                        name=green_apple.name,
+                        char=green_apple.char,
+                        color=green_apple.color,
+                        description=green_apple.description,
+                        healing_value=green_apple.healing_value,
+                        price=green_apple.price
+                    )
+                    new_food.x = target_x
+                    new_food.y = target_y
+                    game_instance.game_map.items_on_ground.append(new_food)
+                    game_instance.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
+                elif random.random() < 0.25:
+                    new_food = fromage.__class__(
+                        name=fromage.name,
+                        char=fromage.char,
+                        color=fromage.color,
+                        description=fromage.description,
+                        healing_value=fromage.healing_value,
+                        price=fromage.price
+                    )
+                    new_food.x = target_x
+                    new_food.y = target_y
+                    game_instance.game_map.items_on_ground.append(new_food)
+                    game_instance.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
+                elif random.random() < 0.3:
+                    new_food = bread.__class__(
+                        name=bread.name,
+                        char=bread.char,
+                        color=bread.color,
+                        description=bread.description,
+                        healing_value=bread.healing_value,
+                        price=bread.price
+                    )
+                    new_food.x = target_x
+                    new_food.y = target_y
+                    game_instance.game_map.items_on_ground.append(new_food)
+                    game_instance.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
+                elif random.random() < 0.4:
+                    new_food = mushroom.__class__(
+                        name=mushroom.name,
+                        char=mushroom.char,
+                        color=mushroom.color,
+                        description=mushroom.description,
+                        healing_value=mushroom.healing_value,
+                        price=mushroom.price
+                    )
+                    new_food.x = target_x
+                    new_food.y = target_y
+                    game_instance.game_map.items_on_ground.append(new_food)
+                    game_instance.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
+
+
+            # --- MISSING FLOATING TEXT CREATION HERE FOR DESTRUCTIBLE ---
+            game_instance.floating_texts.append(FloatingText(target_x, target_y, "SMASH!", (0, 255, 255)))
+            print(f"DEBUG: RayOfFrost added SMASH! FloatingText for {target_tile.name} at ({target_x},{target_y}). List size: {len(game_instance.floating_texts)}")  # <--- ADD THIS DEBUG
+
+            # If it was a MimicTile, ensure the Mimic entity is also handled
+            if isinstance(target_tile, MimicTile):
+                mimic_entity = target_tile.mimic_entity
+                if mimic_entity.disguised:
+                    mimic_entity.reveal(game_instance)  # Reveal the mimic
+                else:
+                    game_instance.message_log.add_message(f"The {mimic_entity.name} is already revealed and takes no further damage from smashing its disguise.", (150, 150, 150))
+            return True  # Successfully used ability
+        else:
+            game_instance.message_log.add_message("Ray of Frost requires a monster target or a destructible object.", (255, 150, 0))
+            # --- MISSING FLOATING TEXT FOR MISS/INVALID TARGET ---
+            game_instance.floating_texts.append(FloatingText(target_x, target_y, "INVALID!", (255, 0, 0)))
+            print(f"DEBUG: RayOfFrost added INVALID! FloatingText for ({target_x},{target_y}). List size: {len(game_instance.floating_texts)}")  # <--- ADD THIS DEBUG
+            return False  # Invalid target, stay in targeting mode
 
 
 

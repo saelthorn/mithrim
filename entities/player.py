@@ -1,7 +1,7 @@
 import random
 from core. game import GameState
 from core.inventory import Inventory
-from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball
+from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost
 from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight
 from items.items import torch, Food, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
@@ -984,7 +984,8 @@ class Wizard(Player):
         # Wizard abilities (e.g., Spellcasting - will be complex)
         # self.abilities["spellcasting"] = Spellcasting()
         self.abilities["fire_bolt"] = FireBolt()
+        self.abilities["ray_of_frost"] = RayOfFrost()
         self.abilities["misty_step"] = MistyStep()
-        self.abilities["detect_magic"] = DetectMagic()
         self.abilities["mage_hand"] = MageHand()
         self.abilities["fireball"] = Fireball()
+        self.abilities["detect_magic"] = DetectMagic()
