@@ -22,11 +22,15 @@ To do:
       - When Monster Dies it drops loot
       - Make bosses not spam telegraphed attacks
       - Quick bar
-      - Add Investigate as AI state for Monsters
-      - Fix Memory Leak (somewhere)
+      - Make the Investigate state simple
+      - Limit attack/sec to 2 attacks(?)
 
      
      Not Prio - Add Companions 
 
 
 To fix:
+      - Juggling of torch to reset cooldown
+
+
+

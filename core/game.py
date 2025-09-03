@@ -1,8 +1,9 @@
-# MultipleFiles/game.py
 import pygame
 import random
 import config
-import math # Import math for distance calculations
+import math 
+import tracemalloc      # Lifesaver
+
 
 class GameState:
     TAVERN = "tavern"
@@ -466,7 +467,7 @@ class Game:
         self._previous_game_state = GameState.DUNGEON
         self.current_level = level_number
         self.max_level_reached = max(self.max_level_reached, level_number)
-        
+
         self.game_map = GameMap(70, 40)
         self.fov = FOV(self.game_map)
         
@@ -1876,7 +1877,7 @@ class Game:
             
             # --- NEW: 10% chance to drop a Lesser Healing Potion ---
             if target_tile.name in ["Crate", "Barrel"]: # Check if it was a crate or barrel 
-                if random.random() < 0.70:
+                if random.random() < 0.75:
                     new_junk = wood_plank.__class__(
                         name=wood_plank.name,
                         char=wood_plank.char,
@@ -2175,7 +2176,6 @@ class Game:
 
         self.message_log.add_message(msg, color)
 
-
     def update(self, dt):
         self.clock.tick(60)  # Limit to 60 FPS
         self.fps = self.clock.get_fps()  # Get the current FPS
@@ -2317,6 +2317,7 @@ class Game:
             self.death_screen_subtext_alpha = 0  # Alpha for subtext
             self.death_screen_animation_phase = 0  # 0=text fade-in, 1=bg fade-in, 2=subtext fade-in, 3=done
 
+
         self.game_state = GameState.GAME_OVER
 
 
@@ -2337,10 +2338,11 @@ class Game:
 
     def add_dirty_rect(self, x, y, width, height):
         """Adds a rectangle to the list of dirty rects, converting world to screen coords."""
-        # This needs to be carefully managed. For now, let's assume it's in pixel coordinates
-        # relative to the internal_surface.
-        # The actual screen blit will handle scaling.
-        self.dirty_rects.append(pygame.Rect(x, y, width, height))
+        screen_x_float, screen_y_float = self.camera.world_to_screen(x, y)
+        draw_x = int(screen_x_float * config.TILE_SIZE)
+        draw_y = int(screen_y_float * config.TILE_SIZE)
+        rect = pygame.Rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)
+        self.dirty_rects.append(rect)
 
 
     def render(self):
@@ -2458,14 +2460,16 @@ class Game:
         fps_surface = self.fps_font.render(fps_text, True, (255, 255, 255))  # White color
         self.screen.blit(fps_surface, (10, 10))  # Position at (10, 10) pixels from top-left
 
+        
+        pygame.display.update(self.dirty_rects)
+
         # --- Final Display Update ---
         # Use flip for full screen update, or update a combined rect for game area + UI panel
         # For simplicity and to eliminate flickering, let's try flip first.
         pygame.display.flip()
 
-        # Remove the old dirty_rects logic as it's no longer needed with flip()
-        # self.dirty_rects = [] # This line can be removed or commented out
-        # ... (remove all subsequent dirty_rects related code in render) ...
+        self.dirty_rects.clear()
+
 
     def render_game_over_screen(self):
         # Render background overlay with fade-in alpha AFTER "YOU DIED" text

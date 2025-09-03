@@ -668,11 +668,8 @@ class Player: # This is our base class for playable characters
 
             if self.equipped_off_hand:
                 self.inventory.add_item(self.equipped_off_hand) 
-                game_instance.message_log.add_message(f"You unequip {self.equipped_off_hand.name}.", (150, 150, 150))  
+                game_instance.message_log.add_message(f"You unequip {self.equipped_off_hand.name}.", (150, 150, 150))
 
-
-            if self.equipped_off_hand == torch:
-                self.add_status_effect("Torchlight", duration=0, game_instance=game_instance)
 
             self.inventory.remove_item(item)
             self.equipped_off_hand = item
@@ -680,7 +677,7 @@ class Player: # This is our base class for playable characters
             game_instance.message_log.add_message(f"You equip {item.name} in your off-hand.", (0, 255, 0))
 
             if item.name.lower() == "torch":
-                self.add_status_effect("Torchlight", duration=10, game_instance=game_instance) 
+                self.add_status_effect("Torchlight", duration=250, game_instance=game_instance) 
                 game_instance.message_log.add_message(
                     "The torch’s flame flickers to life, pushing back the dark.",
                     (255, 200, 50)

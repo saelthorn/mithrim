@@ -773,6 +773,7 @@ class Monster:
                     dmg = max(1, getattr(self, 'damage_modifier', 2) + random.randint(1, 20))
                     player.take_damage(dmg, game, damage_type='fire')
                     game.floating_texts.append(FloatingText(tx, ty, f"-{dmg}", (255, 80, 80)))
+                    self.pending_telegraph_tiles.clear( )
             return
 
         self.process_status_effects(game)
