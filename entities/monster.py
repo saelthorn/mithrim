@@ -519,7 +519,7 @@ class Monster:
             # Set last_known_player_position to player's current location
             self.last_known_player_position = (game_instance.player.x, game_instance.player.y)
             # Force AI state to chasing if it's an intelligent monster and not already fleeing/desperate
-            if self.is_intelligent and self.ai_state not in [AI_State.FLEEING, AI_State.DESPERATE_FIGHT]:
+            if self.ai_state not in [AI_State.FLEEING, AI_State.DESPERATE_FIGHT]:
                 self.ai_state = AI_State.CHASING
                 game_instance.message_log.add_message(f"The {self.name} is enraged and focuses on you!", (255, 100, 0))
         if self.hp <= 0:

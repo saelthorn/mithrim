@@ -95,7 +95,7 @@ class Player: # This is our base class for playable characters
         self.turns_since_last_hunger_decrease = 0 
 
         self.attack_power = 0  # Base attack power
-        self.attack_bonus = 0      
+        self.attack_bonus = 0  
 
         self.armor_class = 0  
         

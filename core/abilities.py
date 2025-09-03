@@ -373,7 +373,7 @@ class FireBolt(Ability):
                     )
                     new_junk.x = target_x
                     new_junk.y = target_y
-                    self.game_map.items_on_ground.append(new_junk)
+                    game_instance.game_map.items_on_ground.append(new_junk)
                 elif random.random() < 0.3:
                     new_torch = torch.__class__(
                         name=torch.name,
@@ -384,8 +384,8 @@ class FireBolt(Ability):
                     )
                     new_torch.x = target_x
                     new_torch.y = target_y
-                    self.game_map.items_on_ground.append(new_torch)
-                    self.message_log.add_message(f"A {new_torch.name} drops from the {target_tile.name}!", new_torch.color)
+                    game_instance.game_map.items_on_ground.append(new_torch)
+                    game_instance.message_log.add_message(f"A {new_torch.name} drops from the {target_tile.name}!", new_torch.color)
                 elif random.random() < 0.2:
                     new_food = meat.__class__(
                         name=meat.name,
@@ -397,8 +397,8 @@ class FireBolt(Ability):
                     )
                     new_food.x = target_x
                     new_food.y = target_y
-                    self.game_map.items_on_ground.append(new_food)
-                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
+                    game_instance.game_map.items_on_ground.append(new_food)
+                    game_instance.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
                 elif random.random() < 0.35:
                     new_food = green_apple.__class__(
                         name=green_apple.name,
@@ -410,8 +410,8 @@ class FireBolt(Ability):
                     )
                     new_food.x = target_x
                     new_food.y = target_y
-                    self.game_map.items_on_ground.append(new_food)
-                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
+                    game_instance.game_map.items_on_ground.append(new_food)
+                    game_instance.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
                 elif random.random() < 0.25:
                     new_food = fromage.__class__(
                         name=fromage.name,
@@ -423,8 +423,8 @@ class FireBolt(Ability):
                     )
                     new_food.x = target_x
                     new_food.y = target_y
-                    self.game_map.items_on_ground.append(new_food)
-                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
+                    game_instance.game_map.items_on_ground.append(new_food)
+                    game_instance.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
                 elif random.random() < 0.3:
                     new_food = bread.__class__(
                         name=bread.name,
@@ -436,8 +436,8 @@ class FireBolt(Ability):
                     )
                     new_food.x = target_x
                     new_food.y = target_y
-                    self.game_map.items_on_ground.append(new_food)
-                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
+                    game_instance.game_map.items_on_ground.append(new_food)
+                    game_instance.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
                 elif random.random() < 0.4:
                     new_food = mushroom.__class__(
                         name=mushroom.name,
@@ -449,8 +449,8 @@ class FireBolt(Ability):
                     )
                     new_food.x = target_x
                     new_food.y = target_y
-                    self.game_map.items_on_ground.append(new_food)
-                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)                 
+                    game_instance.game_map.items_on_ground.append(new_food)
+                    game_instance.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)                 
 
 
             # --- MISSING FLOATING TEXT CREATION HERE FOR DESTRUCTIBLE ---
@@ -618,7 +618,7 @@ class Fireball(Ability):
                                 )
                                 new_junk.x = x
                                 new_junk.y = y
-                                self.game_map.items_on_ground.append(new_junk)
+                                game_instance.game_map.items_on_ground.append(new_junk)
                             elif random.random() < 0.3:
                                 new_torch = torch.__class__(
                                     name=torch.name,
@@ -629,8 +629,8 @@ class Fireball(Ability):
                                 )
                                 new_torch.x = x
                                 new_torch.y = y
-                                self.game_map.items_on_ground.append(new_torch)
-                                self.message_log.add_message(f"A {new_torch.name} drops from the {target_tile.name}!", new_torch.color)
+                                game_instance.game_map.items_on_ground.append(new_torch)
+                                game_instance.message_log.add_message(f"A {new_torch.name} drops from the {target_tile.name}!", new_torch.color)
                             elif random.random() < 0.2:
                                 new_food = meat.__class__(
                                     name=meat.name,
@@ -642,8 +642,8 @@ class Fireball(Ability):
                                 )
                                 new_food.x = x
                                 new_food.y = y
-                                self.game_map.items_on_ground.append(new_food)
-                                self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
+                                game_instance.game_map.items_on_ground.append(new_food)
+                                game_instance.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
                             elif random.random() < 0.35:
                                 new_food = green_apple.__class__(
                                     name=green_apple.name,
@@ -655,8 +655,8 @@ class Fireball(Ability):
                                 )
                                 new_food.x = x
                                 new_food.y = y
-                                self.game_map.items_on_ground.append(new_food)
-                                self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
+                                game_instance.game_map.items_on_ground.append(new_food)
+                                game_instance.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
                             elif random.random() < 0.25:
                                 new_food = fromage.__class__(
                                     name=fromage.name,
@@ -668,8 +668,8 @@ class Fireball(Ability):
                                 )
                                 new_food.x = x
                                 new_food.y = y
-                                self.game_map.items_on_ground.append(new_food)
-                                self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
+                                game_instance.game_map.items_on_ground.append(new_food)
+                                game_instance.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
                             elif random.random() < 0.3:
                                 new_food = bread.__class__(
                                     name=bread.name,
@@ -681,8 +681,8 @@ class Fireball(Ability):
                                 )
                                 new_food.x = x
                                 new_food.y = y
-                                self.game_map.items_on_ground.append(new_food)
-                                self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
+                                game_instance.game_map.items_on_ground.append(new_food)
+                                game_instance.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
                             elif random.random() < 0.4:
                                 new_food = mushroom.__class__(
                                     name=mushroom.name,
@@ -694,8 +694,8 @@ class Fireball(Ability):
                                 )
                                 new_food.x = x
                                 new_food.y = y
-                                self.game_map.items_on_ground.append(new_food)
-                                self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
+                                game_instance.game_map.items_on_ground.append(new_food)
+                                game_instance.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
 
         return True  # Successfully used ability
 
