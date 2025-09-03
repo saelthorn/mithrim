@@ -999,7 +999,7 @@ class Game:
 
         # Cap message log size (prevents memory bloat)
         if hasattr(self, "message_log") and hasattr(self.message_log, "messages"):
-            MAX_LOG_MESSAGES = 100
+            MAX_LOG_MESSAGES = 50
             if len(self.message_log.messages) > MAX_LOG_MESSAGES:
                 self.message_log.messages = self.message_log.messages[-MAX_LOG_MESSAGES:]
     

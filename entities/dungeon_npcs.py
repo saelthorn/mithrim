@@ -36,50 +36,45 @@ class DungeonMerchant(NPC):
             "If you have something to sell, I'm all ears!",
             "Careful out there… but first, care to buy a potion or two?"
         ]
-        super().__init__(x, y, 'rc', 'Merchant', (255, 215, 0), dialogue)  # Yellow color for the Merchant
-
+        super().__init__(x, y, 'rc', 'Tavern Merchant', (255, 215, 100), dialogue)  # Different char/color for tavern merchant
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
             "CHA": False,
-        }    
-
+        }
         # Default items always sold
         default_items = [
-            CampfireKit(),  # Already an instance
+            CampfireKit(),
             lesser_healing_potion,
             greater_healing_potion,
             meat,
-            green_apple,
             bread,
             fromage,
-            mushroom,
-            torch
+            torch,
         ]
-
-        # Chance-based items with their spawn probabilities
+        # Chance-based items with their spawn probabilities (fewer and simpler than dungeon merchant)
         chance_items_with_chance = [
-            (full_plate_armor, 0.4),
+            (duelists_rapier, 0.5),
+            (staff_of_magi, 0.4),
+            (full_plate_armor, 0.45),
+            (adamantine_long_sword, 0.45),
+            (flameheart_flail, 0.45),
+            (flameheart_short_sword, 0.4),
             (robes_of_protection, 0.45),
-            (adamantine_long_sword, 0.35),
-            (staff_of_magi, 0.35),
-            (duelists_rapier, 0.4),
             (dwarven_battle_axe, 0.4),
-            (dragonsbane_warhammer, 0.35),
-            (flameheart_flail, 0.37),
-            (flameheart_short_sword, 0.37),
-            # Add more items and chances as needed
+            (dragonsbane_warhammer, 0.4),
+            # Add more tavern-specific items and chances if desired
         ]
 
         self.items_for_sale = []
-
-        # Add default items (create new instances for non-instance items)
+       
+        # Add default items
         for item in default_items:
             if isinstance(item, CampfireKit):
-                self.items_for_sale.append(item)  # Already an instance
+                self.items_for_sale.append(item)
             else:
                 new_item = item.__class__(
                     name=item.name,
@@ -89,8 +84,8 @@ class DungeonMerchant(NPC):
                     **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
                 )
                 self.items_for_sale.append(new_item)
-
-        # Add chance-based items based on their probabilities
+    
+        # Add chance-based items
         for item_template, chance in chance_items_with_chance:
             if random.random() < chance:
                 new_item = item_template.__class__(
@@ -101,8 +96,6 @@ class DungeonMerchant(NPC):
                     **{k: v for k, v in item_template.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
                 )
                 self.items_for_sale.append(new_item)
-
-
 
     def offer_trade(self, player, game):
         """Handle the trading logic with the player."""

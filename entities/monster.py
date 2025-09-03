@@ -175,8 +175,8 @@ class Monster:
                     if game.fov.get_visibility_type(self.x, self.y) != 'player' and self.ai_state != AI_State.INVESTIGATE:
                         self.last_known_player_position = (x, y)
                         self.ai_state = AI_State.INVESTIGATE
-                        self.investigate_turns_left = 4  # Number of turns to investigate
-                        # game.message_log.add_message(f"The {self.name} notices a flickering light and starts investigating.", self.color)
+                        self.investigate_turns_left = 10  # Number of turns to investigate
+                        game.message_log.add_message(f"The {self.name} notices a flickering light and starts investigating.", self.color)
                         break
 
 
@@ -780,11 +780,13 @@ class Monster:
         if not self.alive:
             return
 
+        # If monster is not active and has a sleep cooldown, just tick it down and return
         if not self.is_active:
             if self.sleep_cooldown > 0:
                 self.sleep_cooldown -= 1
             return
 
+        # If sleep cooldown reached 0, activate the monster
         if self.sleep_cooldown == 0 and not self.is_active:
             self.is_active = True
             game.message_log.add_message(f"The {self.name} stirs awake!", self.color)
@@ -793,7 +795,7 @@ class Monster:
         player_detected = self.detect_player(player, game)
 
         # Check torchlight stimulus to trigger investigate state
-        if not player_detected:
+        if not player_detected and self.is_intelligent: # Only intelligent monsters investigate light
             self.check_torchlight_in_range(game)
 
         # Handle AI states for intelligent monsters
@@ -802,38 +804,34 @@ class Monster:
                 if player_detected:
                     # Player found again, switch to chasing
                     self.ai_state = AI_State.CHASING
-                    self.investigate_turns_left = 0
+                    self.investigate_turns_left = 0 # Reset timer
+                    game.message_log.add_message(f"The {self.name} re-acquires your scent and resumes chasing!", self.color)
+                    # Fall through to CHASING logic for this turn
                 else:
                     if self.investigate_turns_left > 0:
                         self.investigate_turns_left -= 1
-                        # Move towards last known player position
                         if self.last_known_player_position:
                             target_x, target_y = self.last_known_player_position
                             if (self.x, self.y) == (target_x, target_y):
-                                # At last known position, search nearby tiles randomly
-                                possible_search_tiles = []
-                                for dx in range(-self.investigate_search_radius, self.investigate_search_radius + 1):
-                                    for dy in range(-self.investigate_search_radius, self.investigate_search_radius + 1):
-                                        sx, sy = target_x + dx, target_y + dy
-                                        if 0 <= sx < game_map.width and 0 <= sy < game_map.height:
-                                            if self.can_occupy_position(sx, sy, game_map, game.entities, exclusions=[self]):
-                                                possible_search_tiles.append((sx, sy))
-                                if possible_search_tiles:
-                                    search_target = random.choice(possible_search_tiles)
-                                    self.move_towards(search_target[0], search_target[1], game_map, game)
-                                else:
-                                    # No valid search tiles, just wait
-                                    pass
+                                # Reached last known position, but player not detected.
+                                # Continue ticking down investigate_turns_left.
+                                # If it's the last turn, message that it gives up.
+                                if self.investigate_turns_left == 0:
+                                    game.message_log.add_message(f"The {self.name} finds nothing and gives up investigating.", (150, 150, 150))
+                                    self.patrol(game_map, game)
+                                    self.last_known_player_position = None # Clear last known position
+                                # Else, just wait at the last known position for the timer to run out
                             else:
                                 # Move towards last known position
                                 self.move_towards(target_x, target_y, game_map, game)
                         else:
-                            # No last known position, fallback to patrol
+                            # No last known position, fallback to patrol (shouldn't happen if INVESTIGATE is set correctly)
                             self.patrol(game_map, game)
                     else:
                         # Investigation timed out, switch to patrol
                         self.patrol(game_map, game)
                         self.last_known_player_position = None
+                return # End turn after investigation logic
 
             if self.ai_state == AI_State.FLEEING:
                 if self.flee(player, game_map, game):

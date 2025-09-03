@@ -2,7 +2,7 @@ import random
 import pygame
 
 from core.game import GameState
-from items.items import torch, lesser_healing_potion, greater_healing_potion, apprentices_staff, half_plate_armor, meat, green_apple, fromage, bread, mushroom, silver_dagger, iron_short_sword, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes, CampfireKit, Food
+from items.items import torch, lesser_healing_potion, kite_shield, greater_healing_potion, apprentices_staff, half_plate_armor, meat, green_apple, fromage, bread, mushroom, silver_dagger, iron_short_sword, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes, CampfireKit, Food
 from entities.dungeon_npcs import DungeonHealer 
 from entities.base_entity import NPC
 
@@ -54,6 +54,7 @@ class Merchant(NPC):
             (steel_long_sword, 0.4),
             (half_plate_armor, 0.45),
             (apprentices_staff, 0.45),
+            (kite_shield, 0.4)
             # Add more tavern-specific items and chances if desired
         ]
 

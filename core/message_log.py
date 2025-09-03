@@ -9,12 +9,14 @@ class MessageBox:
         self.current_input = ""  # Store current input text
         self.input_height = 30  # Height reserved for input
         self.show_input_area = False  # Flag to control input area visibility
+
         if font is None:
             self.font = pygame.font.Font(None, 16)
         else:
             self.font = pygame.font.Font(font, 16)
         self.line_height = self.font.get_linesize()
         self.max_lines = (height // self.line_height) - 1  # Leave room for input
+        self.max_lines = height // self.line_height  # Number of lines visible
 
     def add_message(self, text, color=None):
         """Add a new message to the log"""
@@ -40,21 +42,26 @@ class MessageBox:
             self.messages.append((line, color))
             
         # When a new message is added, automatically scroll to the bottom
-        self.scroll_offset = max(0, len(self.messages) - self.max_lines)
+        self.scroll_offset = 0
+        self.clamp_scroll_offset()
+
+    def truncate_messages(self, max_messages):
+        if len(self.messages) > max_messages:
+            self.messages = self.messages[-max_messages:]
+            self.scroll_offset = 0
+            self.clamp_scroll_offset()
 
     def clear_last_input(self):
         """Clear the current input text."""
         self.current_input = ""
 
     def scroll_up(self):
-        """Scrolls the message log up by one line."""
-        if self.scroll_offset > 0:
-            self.scroll_offset -= 1
-
+        self.scroll_offset += 1
+        self.clamp_scroll_offset()
+    
     def scroll_down(self):
-        """Scrolls the message log down by one line."""
-        if self.scroll_offset < len(self.messages) - self.max_lines:
-            self.scroll_offset += 1
+        self.scroll_offset -= 1
+        self.clamp_scroll_offset()
 
     def render(self, surface):
         """Render the message log to the given surface"""
@@ -68,14 +75,17 @@ class MessageBox:
                          1)
         
         # Render messages
-        y_offset = 5  # Padding from top
-        # Only render messages within the current scroll view
-        visible_messages = self.messages[self.scroll_offset : self.scroll_offset + self.max_lines]
+        start_index = max(0, len(self.messages) - self.max_lines - self.scroll_offset)
+        end_index = start_index + self.max_lines
         
-        for msg, color in visible_messages:
-            text_surface = self.font.render(msg, True, color)
-            surface.blit(text_surface, (self.rect.x + 5, self.rect.y + y_offset))
-            y_offset += self.line_height
+        visible_messages = self.messages[start_index:end_index]
+        
+        y = self.rect.y
+        for text, color in visible_messages:
+            # Render text at (self.rect.x, y)
+            text_surface = self.font.render(text, True, color)
+            surface.blit(text_surface, (self.rect.x, y))
+            y += self.line_height
         
         # Draw the input area only if the flag is set
         if self.show_input_area:
@@ -84,5 +94,10 @@ class MessageBox:
             pygame.draw.rect(surface, (30, 30, 30), (self.rect.x, self.rect.y + self.rect.height - self.input_height, self.rect.width, self.input_height))  # Draw input area background
             surface.blit(input_surface, (self.rect.x + 5, input_y_position))  # Draw input text
 
-
+    def clamp_scroll_offset(self):
+        max_offset = max(0, len(self.messages) - self.max_lines)
+        if self.scroll_offset < 0:
+            self.scroll_offset = 0
+        elif self.scroll_offset > max_offset:
+            self.scroll_offset = max_offset
 
