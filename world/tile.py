@@ -19,7 +19,10 @@ dungeon_pillar = Tile(blocked=True, char='dp', color=(230, 230, 230), block_sigh
 pressure_plate = Tile(blocked=False, char='_', color=(200, 180, 50), name="Pressure Plate")
 
 # Dungeon Decorations
+dungeon_floor_two = Tile(blocked=False, char='.2', color=(200, 180, 50), name="Dungeon Floor Two")
+dungeon_floor_three = Tile(blocked=False, char='.3', color=(200, 180, 50), name="Dungeon Floor Three")
 dungeon_grass = Tile(blocked=False, char='`', color=(0, 160, 20), name="Dungeon Grass")
+dungeon_grass_two = Tile(blocked=False, char='`2', color=(0, 160, 20), name="Dungeon Grass Two")
 rubble = Tile(blocked=False, char='%', color=(150, 150, 150), name="Rubble")
 cob_web = Tile(blocked=True, char='~', color=(200, 200, 200), block_sight=False, destructible=True, name="Cobweb")   
 mushroom = Tile(blocked=False, char='*', color=(255, 0, 255), name="Mushroom")

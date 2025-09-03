@@ -24,3 +24,11 @@ class Inventory:
     def get_equipped_items(self):
         """Returns a tuple of equipped weapon, armor, and off-hand item."""
         return self.equipped_weapon, self.equipped_armor, self.equipped_off_hand
+
+
+    def reset_selected_index(self):
+        """Reset the selected inventory index to a valid position."""
+        if self.items:
+            self.selected_inventory_index = min(self.selected_inventory_index, len(self.items) - 1)
+        else:
+            self.selected_inventory_index = 0  # Reset to 0 if no items

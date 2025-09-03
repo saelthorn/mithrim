@@ -24,7 +24,7 @@ def main():
         running = game.handle_events()
         game.update(dt)
         game.render()
-    pygame.quit()
+    pygame.quit() 
 
 if __name__ == "__main__":
     main()

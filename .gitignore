@@ -27,7 +27,7 @@ share/python-wheels/
 MANIFEST
 
 # Virtual environments
-.txt
+todo.txt
 .env
 .venv
 env/

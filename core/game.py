@@ -1,7 +1,8 @@
-# MultipleFiles/game.py
 import pygame
 import random
 import config
+import math 
+import tracemalloc      # Lifesaver
 
 
 class GameState:
@@ -14,6 +15,7 @@ class GameState:
     CHARACTER_CREATION = "character_creation"
     CLASS_SELECTION = "class_selection"
     TRADE = "trade"
+    GAME_OVER = "game_over" # NEW: Add GAME_OVER state
 
 
 from core.fov import FOV
@@ -26,12 +28,15 @@ from entities.player import Player, Fighter, Rogue, Wizard
 from entities.monster import (
     Monster, Mimic, GiantRat, Ooze, Goblin, GoblinArcher, Skeleton,
     SkeletonArcher, Orc, Centaur, CentaurArcher, Troll, Lizardfolk, 
-    LizardfolkArcher, GiantSpider, Beholder, LargeOoze, DragonWhelp,
+    LizardfolkArcher, GiantSpider, Beholder, LargeOoze, RedDragon,
     Owlbear, Demogorgon, Grick, GibberingMouther, MindFlayer, Minotaur,
-    Wererat, Wolf, Yochlol, Drider, BlueSlaad
+    Wererat, Wolf, Yochlol, Drider, RedSlaad, DeathSlaad, MyconidSprout,
+    MyconidAdult, Mezzoloth, Gauth, Arasta
+
 )
 
 from entities.base_entity import NPC
+from entities.player import Player
 from entities.tavern_npcs import create_tavern_npcs, NPC, Merchant
 from entities.dungeon_npcs import DungeonHealer, DungeonMerchant
 from entities.tavern_npcs import NPC
@@ -40,8 +45,8 @@ from entities.summons import MageHandEntity
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, MageHand
 from core.message_log import MessageBox
 from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff
-from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, CampfireKit
-from items.items import lesser_healing_potion, greater_healing_potion, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail, round_shield, kite_shield, tower_shield
+from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, bread, mushroom, CampfireKit
+from items.items import torch, lesser_healing_potion, greater_healing_potion, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail, round_shield, kite_shield, tower_shield
 from core.pathfinding import astar
 from world.tile import floor, MimicTile, TrapTile
 from core.floating_text import FloatingText 
@@ -111,8 +116,8 @@ class Game:
     def __init__(self, screen):
         self.screen = screen
         
-        self.fps = 30
-        self.fps_font = pygame.font.SysFont('consolas', 20)  # You can adjust the font size as needed
+        self.fps = 60
+        self.fps_font = pygame.font.SysFont('consolas', 15)  # You can adjust the font size as needed
         self.clock = pygame.time.Clock()  # Initialize the clock for FPS tracking
 
 
@@ -149,7 +154,7 @@ class Game:
         self.targeting_cursor_x = 0
         self.targeting_cursor_y = 0
             
-        self.message_log.add_message("Welcome to the dungeon!", (100, 255, 100))
+        self.message_log.add_message("Welcome to the dungeon!", (100, 255, 255))
         
         self.floating_texts = []  # Initialize floating texts list
 
@@ -157,6 +162,10 @@ class Game:
         self.player = None 
         
         self.selected_inventory_item = None
+        self.selected_inventory_index = 0  # Initialize the selected inventory index        
+
+        # Tile highlights for telegraphed attacks or effects: list of (x, y, (r,g,b,a))
+        self.tile_highlights = []
 
         # Character creation specific variables
         # UPDATED: Add DrowElf to available races
@@ -194,38 +203,57 @@ class Game:
         self.minimap_rect = None
         self.minimap_needs_redraw = True # Flag to redraw minimap only when needed
 
+        self.dirty_rects = [] # New list to store dirty rectangles
+
         self.menu_open = None
 
         self._recalculate_minimap_dimensions()
 
+        # NEW: Flag to track if game over message has been displayed
+        self._game_over_displayed = False
+
+        self.death_screen_alpha = 0  # Alpha for "YOU DIED" text
+        self.death_screen_bg_alpha = 0  # Alpha for background overlay
+        self.death_screen_subtext_alpha = 0  # Alpha for subtext
+        self.death_screen_animation_phase = 0  # 0=text fade-in, 1=bg fade-in, 2=subtext fade-in, 3=done
+        self.death_screen_animation_speed = 2  # Alpha increment per frame (adjust for speed)
+
+    # Boss schedule: every 5th floor, ordered list
+    BOSS_FLOORS = [
+        (5, 'Troll'),
+        (10, 'DeathSlaad'),
+        (15, 'Beholder'),
+        (20, 'RedDragon'),
+        (25, 'Demogorgon'),
+    ]
+
     MONSTER_SPAWN_TIERS = {
-        # Level range: [List of monster classes that can spawn]
+        # 🌱 Early dungeon fodder (CR 1/8 – CR 1/4)
+        (1, 1): [Goblin, Wolf, GiantRat, MyconidSprout],
+        (2, 2): [Goblin, GoblinArcher, GiantRat, Wererat, Wolf, MyconidSprout],
+        (2, 3): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf, MyconidAdult],
 
-        # Early dungeon fodder
-        (1, 1): [Goblin, GiantRat, Wolf],
-        (2, 2): [Goblin, GoblinArcher, GiantRat, Wererat, Wolf],
-        (2, 3): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf],
+        # ⚔️ Early-mid dangers (CR 1/2 – CR 2)
+        (4, 5): [Skeleton, SkeletonArcher, Orc, Grick, Ooze],
+        (6, 7): [Lizardfolk, LizardfolkArcher, GiantSpider, Wererat, MyconidAdult],
 
-        # Early-mid dangers
-        (4, 5): [Skeleton, SkeletonArcher, Orc, LargeOoze, Grick],
-        (6, 7): [Lizardfolk, LizardfolkArcher, GiantSpider, Wererat],
+        # 🛡️ Mid-game threats (CR 3 – CR 6)
+        (8, 9): [Centaur, CentaurArcher, Troll, Owlbear, Minotaur],
+        (10, 11): [Troll, Orc, GiantSpider, LargeOoze, Minotaur, GibberingMouther],
 
-        # Mid-game threats
-        (8, 9): [Centaur, CentaurArcher, Troll, Owlbear],
-        (10, 11): [Troll, Orc, GiantSpider, LargeOoze, Minotaur],
+        # 👁️ Late-mid bosses and horrors (CR 7 – CR 10)
+        (12, 13): [LargeOoze, GiantSpider, GibberingMouther, Gauth],
+        (14, 14): [Drider, Mezzoloth],
 
-        # Late-mid bosses and horrors
-        (12, 13): [LargeOoze, DragonWhelp, GiantSpider, GibberingMouther],
-        (14, 14): [Drider],
+        # 🔥 High level threats (CR 11 – CR 15)
+        (15, 16): [Yochlol, RedSlaad, LargeOoze, RedDragon],
+        (17, 18): [Beholder, MindFlayer, LargeOoze, DeathSlaad],
 
-
-        # High level threats
-        (15, 16): [Yochlol, BlueSlaad, LargeOoze],
-        (17, 18): [Beholder, MindFlayer, LargeOoze],
-
-        # Endgame / campaign boss
-        (16, 99): [Demogorgon],
+        # 🕷️ Endgame / campaign bosses (CR 20+)
+        (19, 19): [Demogorgon],
+        (20, 99): [Arasta],
     }
+
 
 
 
@@ -271,7 +299,7 @@ class Game:
         self.player.race = chosen_race
         self.player.race.apply_traits(self.player, self) 
         
-        # REMOVED: self.player.has_darkvision = self.player.race.has_darkvision (handled by apply_traits)
+        # REMOVED: self.player.darkvision_radius = self.player.race.darkvision_radius (handled by apply_traits)
         self.player.damage_resistances.extend(self.player.race.damage_resistances)
         self.player.skill_proficiencies.extend(self.player.race.skill_proficiencies)
         self.player.weapon_proficiencies.extend(self.player.race.weapon_proficiencies)
@@ -439,7 +467,7 @@ class Game:
         self._previous_game_state = GameState.DUNGEON
         self.current_level = level_number
         self.max_level_reached = max(self.max_level_reached, level_number)
-        
+
         self.game_map = GameMap(70, 40)
         self.fov = FOV(self.game_map)
         
@@ -470,6 +498,89 @@ class Game:
         
         monsters_per_level = min(5 + level_number, len(rooms) - 1)
         monster_rooms = rooms[1:monsters_per_level + 2]
+
+        # Boss floors: every 5th floor via schedule
+        is_boss_floor = any(level_number == f for (f, _) in self.BOSS_FLOORS)
+        boss_entity = None
+        boss_room = None
+        if rooms and is_boss_floor:
+            # Choose the largest room by area, prefer not to use the player's start room
+            candidate_rooms = rooms[1:] if len(rooms) > 1 else rooms
+            if candidate_rooms:
+                boss_room = max(
+                    candidate_rooms,
+                    key=lambda r: max(0, (r.x2 - r.x1 - 1)) * max(0, (r.y2 - r.y1 - 1))
+                )
+                # Find a spawn point inside the boss room that is walkable and not on stairs
+                preferred_spots = []
+                center_x, center_y = boss_room.center()
+                # Require a 1-tile margin from room walls to avoid spawning overlapping walls visually
+                margin = 2  # ensures a 2x2 footprint plus 1 tile buffer from walls
+                min_x = boss_room.x1 + margin
+                max_x = boss_room.x2 - margin  # exclusive upper bound in range()
+                min_y = boss_room.y1 + margin
+                max_y = boss_room.y2 - margin
+
+                # Prefer center if it satisfies margin
+                if min_x <= center_x < max_x and min_y <= center_y < max_y:
+                    preferred_spots.append((center_x, center_y))
+
+                # Add fallback points strictly inside the margin box
+                for y_coord in range(min_y, max_y):
+                    for x_coord in range(min_x, max_x):
+                        preferred_spots.append((x_coord, y_coord))
+
+                spawn_x, spawn_y = None, None
+                for sx, sy in preferred_spots:
+                    # Require 2x2 walkable area for boss spawn AND ensure all 4 tiles are floor-like (not walls/doors)
+                    size_ok = True
+                    for ox in (0, 1):
+                        for oy in (0, 1):
+                            tx, ty = sx + ox, sy + oy
+                            if not (0 <= tx < self.game_map.width and 0 <= ty < self.game_map.height):
+                                size_ok = False
+                                break
+                            if not self.game_map.is_walkable(tx, ty):
+                                size_ok = False
+                                break
+                            # Avoid stairs positions
+                            if ('down' in self.stairs_positions and (tx, ty) == self.stairs_positions.get('down')):
+                                size_ok = False
+                                break
+                            if ('up' in self.stairs_positions and (tx, ty) == self.stairs_positions.get('up')):
+                                size_ok = False
+                                break
+                            # Ensure tile type is floor-ish (avoid walls/doors overlap). Use tile char check.
+                            tile_char = self.game_map.tiles[ty][tx].char if hasattr(self.game_map.tiles[ty][tx], 'char') else None
+                            if tile_char in ['#', '+']:
+                                size_ok = False
+                                break
+                        if not size_ok:
+                            break
+                    if size_ok:
+                        spawn_x, spawn_y = sx, sy
+                        break
+
+                if spawn_x is not None:
+                    # Pick boss by schedule
+                    boss_name = next((name for (f, name) in self.BOSS_FLOORS if f == level_number), None)
+                    # Map names to classes (fallback to Demogorgon if missing)
+                    name_to_cls = {
+                        'GoblinKing': Goblin,  # TODO: replace with GoblinKing class when available
+                        'GiantSpider': GiantSpider,
+                        'Beholder': Beholder,
+                        'RedDragon': RedDragon,  # TODO: replace with Red Dragon class when available
+                        'Demogorgon': Demogorgon,
+                        'Arasta': Arasta
+                    }
+                    boss_cls = name_to_cls.get(boss_name, Demogorgon)
+                    boss_entity = boss_cls(spawn_x, spawn_y)
+                    # Mark as boss for rendering/logic hooks
+                    setattr(boss_entity, 'is_boss', True)
+                    setattr(boss_entity, 'footprint_size', boss_entity.footprint_size)
+                    self.entities.append(boss_entity)
+                    # Don't spawn regular monsters in the boss room
+                    monster_rooms = [r for r in monster_rooms if r is not boss_room]
 
         # Determine which monsters can spawn on this level based on MONSTER_SPAWN_TIERS
         possible_monsters = []
@@ -505,7 +616,6 @@ class Game:
                 # For now, their __init__ values are static.
 
                 self.entities.append(monster)
-                self.message_log.add_message(f"A {monster.name} appears!", (255, 150, 0))
 
         if len(rooms) > 2 and random.random() < 0.6: # Healer spawnrate
             shuffled_healer_rooms = list(rooms[1:-1])
@@ -531,8 +641,6 @@ class Game:
                     healer_x, healer_y = random.choice(possible_spawn_points)
                     dungeon_healer = DungeonHealer(healer_x, healer_y)
                     self.entities.append(dungeon_healer)
-                    self.message_log.add_message(f"You sense a benevolent presence nearby...", (0, 255, 255))
-                    self.message_log.add_message(f"A {dungeon_healer.name} is at ({healer_x}, {healer_y})", (0, 255, 255))
                     healer_spawned = True
                     break
             
@@ -563,8 +671,6 @@ class Game:
                     merchat_x, merchant_y = random.choice(possible_spawn_points)
                     dungeon_merchant = DungeonMerchant(merchat_x, merchant_y)
                     self.entities.append(dungeon_merchant)
-                    self.message_log.add_message(f"You sense a benevolent presence nearby...", (0, 255, 255))
-                    self.message_log.add_message(f"A {dungeon_merchant.name} is at ({merchat_x}, {merchant_y})", (0, 255, 255))
                     merchant_spawned = True
                     break
             
@@ -619,7 +725,6 @@ class Game:
                     item_to_add.x = item_x
                     item_to_add.y = item_y
                     self.game_map.items_on_ground.append(item_to_add)
-                    self.message_log.add_message(f"You spot a {item_to_add.name} on the ground.", item_to_add.color)
 
         self.turn_order = [e for e in self.entities if not (isinstance(e, Mimic) and e.disguised)]
         for entity in self.turn_order:
@@ -633,6 +738,12 @@ class Game:
         if hasattr(self, 'stairs_positions'):
             self.message_log.add_message(f"Stairs down at {self.stairs_positions.get('down')}", (150, 150, 255))
         self.minimap_needs_redraw = True # New map, redraw minimap
+
+    def get_player_hp_percentage(self):
+        """Returns the player's current HP as a percentage."""
+        if self.player.max_hp == 0:
+            return 0.0
+        return self.player.hp / self.player.max_hp
 
 
     def check_tavern_door_interaction(self):
@@ -686,24 +797,89 @@ class Game:
             self.message_log.add_message("Returning to tavern...", (100, 200, 255))
             self.generate_tavern()
 
-    
+
     def update_fov(self):
-        # Store previous explored tiles for minimap redraw check
+        base_radius = 4  # base vision radius
+        torch_bonus = 0
+        has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)    
+        
+        if has_torchlight:
+            torch_bonus = 2
+
+        LIGHT_PRIORITY = {
+            'player': 3,
+            'torch': 2,
+            'darkvision': 1
+        }
+
+        # Clear previous visibility sources but keep explored tiles
         previous_explored = set(self.fov.explored)
-        if self.game_state == GameState.TAVERN:
-            self.fov.visible_sources.clear() 
-            # Pass player.darkvision_radius to compute_fov
-            self.fov.compute_fov(self.player.x, self.player.y, radius=4, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
-        else:
-            # Clear only visible sources, keep explored for persistent map
-            self.fov.visible_sources.clear() 
-            # Pass player.darkvision_radius to compute_fov
-            self.fov.compute_fov(self.player.x, self.player.y, radius=4, light_source_type='player', player_darkvision_radius=self.player.darkvision_radius)
+        self.fov.visible_sources.clear()
+
+        # Compute base FOV with 'player' light source and darkvision radius
+        self.fov.compute_fov(
+            self.player.x,
+            self.player.y,
+            radius=base_radius,
+            light_source_type='player',
+            player_darkvision_radius=max(self.player.darkvision_radius, base_radius)
+        )
+
+        # If torchlight active, compute extended FOV with 'torch' light source
+        if torch_bonus > 0:
+            torch_fov = FOV(self.game_map)          
+
+            torch_fov.compute_fov(
+                self.player.x,
+                self.player.y,
+                radius=base_radius + torch_bonus,
+                light_source_type='torch'
+            )
+
+            # Merge torchlight FOV into main FOV with priority
+            for (x, y), source in torch_fov.visible_sources.items():
+                existing_source = self.fov.visible_sources.get((x, y))
+                if existing_source is None:
+                    self.fov.visible_sources[(x, y)] = source
+                    self.fov.explored.add((x, y))
+                else:
+                    # Replace only if torchlight has higher priority
+                    if LIGHT_PRIORITY[source] > LIGHT_PRIORITY.get(existing_source, 0):
+                        self.fov.visible_sources[(x, y)] = source
+                        self.fov.explored.add((x, y))
 
         # Check if new tiles were explored for minimap redraw
         if self.fov.explored != previous_explored:
             self.minimap_needs_redraw = True
-    
+
+        # Existing monster activation logic...
+        WAKE_RADIUS = 10  # Tiles within which monsters wake up regardless of visibility
+
+        for entity in self.entities:
+            if isinstance(entity, Monster):
+                visibility_type = self.fov.get_visibility_type(entity.x, entity.y)
+                distance_to_player = entity.distance_to(self.player.x, self.player.y)
+
+                # Wake if visible OR within wake radius
+                if visibility_type in ['player', 'torch', 'darkvision'] and distance_to_player <= WAKE_RADIUS:
+                    if not entity.is_active:
+                        entity.is_active = True
+                        entity.sleep_cooldown = 0
+                        self.message_log.add_message(f"You spot a {entity.name}!", entity.color)
+                elif distance_to_player <= WAKE_RADIUS:
+                    entity.is_active = True
+                    entity.sleep_cooldown = 0
+                elif visibility_type in ['player', 'torch', 'darkvision'] and distance_to_player >= WAKE_RADIUS:
+                    if entity.is_active:
+                        entity.is_active = False
+                        entity.sleep_cooldown = random.randint(5, 15)
+                        self.message_log.add_message(f"The {entity.name} seems to have fallen asleep.", (100, 100, 100))
+                else:
+                    if entity.is_active and entity.sleep_cooldown <= 10:
+                        entity.is_active = False
+                        entity.sleep_cooldown = random.randint(5, 15)
+
+
 
 
     def get_current_entity(self):
@@ -715,13 +891,22 @@ class Game:
 
     def next_turn(self):
         if self.game_state == GameState.TAVERN:
-            if random.random() < 0.25:
+            if random.random() < 0.1:
                 ambient_msgs = [
-                    "The torch flickers, casting long shadows...",
-                    "Distant drips echo through the stone halls..."
+                    "The fire crackles in the hearth, filling the tavern with warmth...",
+                    "Laughter erupts from a table of rowdy adventurers...",
+                    "The bard plucks a lazy tune on a worn lute...",
+                    "Mugs clink together as patrons cheer a victorious tale...",
+                    "The innkeeper wipes down the counter with a knowing smile...",
+                    "The smell of roasted meat drifts from the kitchen...",
+                    "A pair of dice clatter across a wooden table, followed by groans...",
+                    "Someone hums a forgotten ballad in the corner...",
+                    "The tavern cat weaves between the legs of travelers, tail high...",
+                    "A weary adventurer sighs, staring long into his ale..."
                 ]
-                self.message_log.add_message(random.choice(ambient_msgs), (150, 150, 150))
+                self.message_log.add_message(random.choice(ambient_msgs), (200, 180, 140))
             return
+
 
         # Get the entity whose turn it *just was* or *is currently* before advancing the index
         current_acting_entity = self.get_current_entity()
@@ -729,12 +914,28 @@ class Game:
         # Process status effects for the entity that just completed its turn (or was about to)
         if current_acting_entity:
             current_acting_entity.process_status_effects(self)
-
+            if current_acting_entity == self.player:
+                self.player.update_hunger(self)  # Decrease hunger each turn
+                if self.player.hunger < self.player.hunger_threshold:
+                    hunger_msgs = [
+                        f"{self.player.name}'s stomach growls hungrily...",
+                        f"{self.player.name} feels their strength waning from hunger.",
+                        f"A hollow ache gnaws at {self.player.name}'s insides...",
+                        f"Hunger claws at {self.player.name}, demanding to be fed.",
+                        f"{self.player.name} feels faint — food is needed soon."
+                    ]
+                    self.message_log.add_message(random.choice(hunger_msgs), (255, 100, 0))
+                
+                if not self.player.alive:  # Check if the player has died from hunger
+                    self.handle_game_over()
+                    return  # End the turn if the player is dead
+                                  
+       
         self.cleanup_entities()
 
         # If after cleanup, there are no entities left (e.g., all monsters died)
         if not self.turn_order:
-            if self.player.alive:
+            if self.player and self.player.alive:
                 self.turn_order = [self.player]  # Ensure player is in turn order
                 self.current_turn_index = 0
                 self.player_has_acted = False  # Reset for player's next turn
@@ -751,58 +952,106 @@ class Game:
         if current == self.player:
             self.update_fov()
             self.player_has_acted = False  # This is correctly reset for player's turn
-            if random.random() < 0.25:
+            if random.random() < 0.1:
                 ambient_msgs = [
                     "The dungeon emits an eerie glow...",
-                    "Something shuffles in the darkness..."
+                    "Something shuffles in the darkness...",
+                    "You hear distant dripping water echo through the halls...",
+                    "A cold draft snakes across the floor, chilling your bones...",
+                    "The walls seem to breathe for a moment, then fall silent...",
+                    "Far off, chains rattle against stone...",
+                    "A whisper brushes your ear, though no one is near...",
+                    "Dust stirs as if unseen footsteps pass by...",
+                    "A faint growl rumbles from somewhere deeper...",
+                    "Your torch sputters, shadows twisting unnaturally...",
+                    "The air tastes of iron and old blood...",
+                    "You catch the fleeting scent of rot and damp earth...",
+                    "The silence grows so heavy, it feels like pressure on your chest...",
+                    "Something skitters just beyond the edge of your vision...",
+                    "The stone beneath your feet groans as if alive..."
                 ]
                 self.message_log.add_message(random.choice(ambient_msgs), (180, 180, 180))
-        # If it's a monster's turn, it will be handled by the update loop in Game.update()
 
 
     def cleanup_entities(self):
-        # Store the entity whose turn it *was* or *is about to be*
-        entity_whose_turn_it_was = None
-        if self.turn_order and 0 <= self.current_turn_index < len(self.turn_order):
-            entity_whose_turn_it_was = self.turn_order[self.current_turn_index]
-        
-        # Filter out dead entities from the main entities list
-        self.entities = [e for e in self.entities if e.alive]
-        
-        # Rebuild the turn_order list with only alive entities
-        new_turn_order = []
-        for entity in self.turn_order:
-            if entity.alive:
-                new_turn_order.append(entity)
-        self.turn_order = new_turn_order
-        
-        # If the player is the only one left, ensure they are in turn_order
-        if not self.turn_order and self.player.alive:
-            self.turn_order = [self.player]
-            self.current_turn_index = 0
-            return  # Nothing else to do if only player remains
+        """Remove dead or expired entities/items from the game world."""
+
+        # Remove dead monsters/NPCs
+        self.entities = [e for e in self.entities if getattr(e, "alive", True)]
+
+        # Handle items (depends on your structure: game.items_on_ground or game.map.items_on_ground)
+        if hasattr(self, "items_on_ground"):
+            self.items_on_ground = [i for i in self.items_on_ground if getattr(i, "alive", True)]
+        elif hasattr(self, "map") and hasattr(self.map, "items_on_ground"):
+            self.map.items_on_ground = [i for i in self.map.items_on_ground if getattr(i, "alive", True)]
+
+        # Clean up any dead entities left in tiles
+        if hasattr(self, "map") and hasattr(self.map, "tiles"):
+            for row in self.map.tiles:
+                for tile in row:
+                    if hasattr(tile, "entity") and tile.entity is not None:
+                        if not getattr(tile.entity, "alive", True):
+                            tile.entity = None
+
+        # Clean up floating texts (remove expired ones)
+        if hasattr(self, "floating_texts"):
+            self.floating_texts = [t for t in self.floating_texts if not getattr(t, "expired", False)]
+
+        # Cap message log size (prevents memory bloat)
+        if hasattr(self, "message_log") and hasattr(self.message_log, "messages"):
+            MAX_LOG_MESSAGES = 100
+            if len(self.message_log.messages) > MAX_LOG_MESSAGES:
+                self.message_log.messages = self.message_log.messages[-MAX_LOG_MESSAGES:]
     
-        # Adjust current_turn_index based on who was supposed to act
-        if entity_whose_turn_it_was and entity_whose_turn_it_was in self.turn_order:
-            # If the entity whose turn it was is still alive, maintain its position
-            self.current_turn_index = self.turn_order.index(entity_whose_turn_it_was)
-        else:
-            # If the entity whose turn it was died or was removed,
-            # move the index back one to compensate for the next_turn increment,
-            # or wrap around if it was the last entity.
-            # This ensures the *next* entity in the sequence gets its turn.
-            self.current_turn_index = (self.current_turn_index - 1 + len(self.turn_order)) % len(self.turn_order) if self.turn_order else 0
+    def next_floor(self):
+        """Move the player to the next dungeon level and clean up old entities/items."""
     
-        # Ensure index is within bounds after cleanup
-        if self.current_turn_index >= len(self.turn_order):
-            self.current_turn_index = 0  # Reset if somehow out of bounds (e.g., all entities died except player)
+        # Clean up old entities and items
+        self.entities.clear()
+        if hasattr(self, "items_on_ground"):
+            self.items_on_ground.clear()
+        if hasattr(self, "floating_texts"):
+            self.floating_texts.clear()
+    
+        # If items are stored in the map
+        if hasattr(self, "map") and hasattr(self.map, "items_on_ground"):
+            self.map.items_on_ground.clear()
+    
+        # Clean up old tiles/entities
+        if hasattr(self, "map") and hasattr(self.map, "tiles"):
+            for row in self.map.tiles:
+                for tile in row:
+                    if hasattr(tile, "entity"):
+                        tile.entity = None
+                    if hasattr(tile, "item"):
+                        tile.item = None
+    
+        # Now generate/load the new dungeon floor
+        self.map = self.generate_new_floor()  
+        self.depth += 1
+        self.message_log.add_message(f"You descend to floor {self.depth}...", (200, 200, 50))
+    
     
 
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
-            
+
+            # NEW: Handle input specifically for GAME_OVER state
+            if self.game_state == GameState.GAME_OVER:
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_r:
+                        # Restart the game: reset player, generate tavern or level 1
+                        self._game_over_displayed = False # Reset flag for next death
+                        self.game_state = GameState.CHARACTER_CREATION  # Or directly generate tavern/level 1
+                        self.start_character_creation() # Re-initialize character creation process
+                        return True # Consume event
+                    elif event.key == pygame.K_q:
+                        # Quit the game
+                        return False # Signal to quit
+                continue  # Skip other event processing when game over
+
             if event.type == pygame.VIDEORESIZE:
                 self.screen = pygame.display.set_mode(event.size, pygame.RESIZABLE)
                 self._recalculate_dimensions()
@@ -819,8 +1068,6 @@ class Game:
                         return True # Consume event
 
             if event.type == pygame.KEYDOWN:
-                print(f"  DEBUG KEYDOWN event: {pygame.key.name(event.key)} (value: {event.key})")
-                print(f"Current Game State: {self.game_state}")  # Debugging statement
 
                 # --- Trade Interaction ---
                 if self.game_state == GameState.TRADE:
@@ -898,7 +1145,6 @@ class Game:
                     
 
                     # --- Always accessible menus ---
-
                     if event.key == pygame.K_c:
                         if self.game_state == GameState.TARGETING:
                             self.message_log.add_message("Targeting cancelled (Character Menu opened).", (150, 150, 150))
@@ -916,10 +1162,28 @@ class Game:
                         return True # Consume event, don't process other game states  
 
 
+                    # --- Inventory Navigation ---
+                    if self.game_state == GameState.INVENTORY:
+                        if event.key in (pygame.K_UP, pygame.K_w):  # Up arrow or W key
+                            if self.player.inventory.items:  # Check if there are items in inventory
+                                self.selected_inventory_index = (self.selected_inventory_index - 1) % len(self.player.inventory.items)
+                        elif event.key in (pygame.K_DOWN, pygame.K_s):  # Down arrow or S key
+                            if self.player.inventory.items:  # Check if there are items in inventory
+                                self.selected_inventory_index = (self.selected_inventory_index + 1) % len(self.player.inventory.items)
+                        elif event.key == pygame.K_RETURN:  # Enter key to select item
+                            if self.player.inventory.items:
+                                # Ensure the index is within bounds
+                                if 0 <= self.selected_inventory_index < len(self.player.inventory.items):
+                                    self.selected_inventory_item = self.player.inventory.items[self.selected_inventory_index]
+                                    self.game_state = GameState.INVENTORY_MENU
+                                    self.message_log.add_message(f"Selected: {self.selected_inventory_item.name}", self.selected_inventory_item.color)
+                                else:
+                                    self.message_log.add_message("Invalid item selection.", (255, 0, 0))  # Log an error message
+                        return True  # Consume event
+
                 # --- Trade Interaction --- 
                 if self.game_state in GameState.DUNGEON:
-                    if event.key == pygame.K_f:  # Check if 'F' is pressed
-                        # Check for adjacent Dungeon Merchant
+                    if event.key == pygame.K_f:  
                         merchant = self.check_dungeon_npc_interaction()  # Check for adjacent NPC
                         if isinstance(merchant, DungeonMerchant):
                             merchant.offer_trade(self.player, self)  # Call the trade method for the Merchant
@@ -936,14 +1200,14 @@ class Game:
                             return True  # Consume event
 
 
-                # --- NEW: Handle Character Creation Input ---
+                # --- Handle Character Creation Input ---
                 if self.game_state == GameState.CHARACTER_CREATION:
                    if self.game_state == GameState.CHARACTER_CREATION:
-                       if event.key == pygame.K_UP:
+                       if event.key in (pygame.K_UP, pygame.K_w):
                            self.selected_race_index = (self.selected_race_index - 1) % len(self.available_races)
                            self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
                            self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
-                       elif event.key == pygame.K_DOWN:
+                       elif event.key in (pygame.K_DOWN, pygame.K_s):
                            self.selected_race_index = (self.selected_race_index + 1) % len(self.available_races)
                            self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
                            self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
@@ -953,12 +1217,12 @@ class Game:
 
                 if self.game_state == GameState.CLASS_SELECTION:
                     print(f"DEBUG: In CLASS_SELECTION state. Selected Class Index: {self.selected_class_index}")
-                    if event.key == pygame.K_UP:
+                    if event.key in (pygame.K_UP, pygame.K_w):
                         print("DEBUG: K_UP pressed in CLASS_SELECTION")
                         self.selected_class_index = (self.selected_class_index - 1) % len(self.available_classes)
                         self.message_log.add_message(f"Current Class: {self.available_classes[self.selected_class_index].__name__}", (255, 255, 255))
                         self.message_log.add_message("A brief description of the class will go here.", (150, 150, 150))
-                    elif event.key == pygame.K_DOWN:
+                    elif event.key in (pygame.K_DOWN, pygame.K_s):
                         print("DEBUG: K_DOWN pressed in CLASS_SELECTION")
                         self.selected_class_index = (self.selected_class_index + 1) % len(self.available_classes)
                         self.message_log.add_message(f"Current Class: {self.available_classes[self.selected_class_index].__name__}", (255, 255, 255))
@@ -971,8 +1235,6 @@ class Game:
 
               
                 # --- Handle input based on game state ---
-                # These blocks should only be entered if the game_state is specifically that menu
-                # or if it's the main game (DUNGEON/TAVERN)
                 if self.game_state == GameState.INVENTORY:
                     self.handle_inventory_input(event.key)
                     return True
@@ -1041,9 +1303,15 @@ class Game:
                             # Check if the next tile is walkable and not blocked by an entity
                             is_blocked_by_entity = False
                             for entity in self.entities:
-                                if entity != self.player and entity.x == check_x and entity.y == check_y and entity.alive and entity.blocks_movement:
-                                    is_blocked_by_entity = True
-                                    break
+                                if entity != self.player and entity.alive and entity.blocks_movement:
+                                    if hasattr(entity, 'occupies_tile'):
+                                        if entity.occupies_tile(check_x, check_y):
+                                            is_blocked_by_entity = True
+                                            break
+                                    else:
+                                        if entity.x == check_x and entity.y == check_y:
+                                            is_blocked_by_entity = True
+                                            break
 
                             if not self.game_map.is_walkable(check_x, check_y) or is_blocked_by_entity:
                                 # Obstacle found, stop one tile before it if possible
@@ -1075,6 +1343,12 @@ class Game:
                         self.player.current_action_state = None
                         continue # Consume the event and proceed to next turn if action_taken is True                                
                 
+                current_entity = self.get_current_entity()
+                if current_entity == self.player and not self.player_has_acted:
+                    if event.key in (pygame.K_a, pygame.K_LEFT):
+                        self.player.set_facing_direction(True)  # Look left
+                    elif event.key in (pygame.K_d, pygame.K_RIGHT):
+                        self.player.set_facing_direction(False)   # Look right  
 
                 # --- Normal Turn Handling (if no special action state is active) ---
                 if self.player.current_action_state is None:
@@ -1087,6 +1361,7 @@ class Game:
                     elif event.key in (pygame.K_RIGHT, pygame.K_d):
                         dx = 1
                     
+                  
 
                     if dx != 0 or dy != 0:
                         action_taken = self.handle_player_action(dx, dy)
@@ -1104,7 +1379,7 @@ class Game:
                                         target.reveal(self)
                                         action_taken = True
                                     elif isinstance(target, Monster): # If it's a monster, attack it
-                                        self.handle_player_attack(target)
+                                        self.handle_player_attack(target, self)
                                         action_taken = True
                                     else:
                                         self.message_log.add_message(f"You can't interact with {target.name} that way.", (150, 150, 150))
@@ -1213,7 +1488,12 @@ class Game:
                 result = self.merchant.sell_item(self.player, item_name)
                 self.message_log.add_message(result, (255, 255, 255))
             else:
-                self.message_log.add_message("Invalid command. Use 'buy <item>' or 'sell <item>'.", (255, 0, 0))
+                add_ambient_merchant_message = [
+                    "The merchant squints at you: 'I only deal in proper trades. Say *buy <item>* or *sell <item>*.'",
+                    "The trader frowns: 'That makes no sense to me, friend. Try *buy <item>* or *sell <item>* if you mean business.'",
+                    "The merchant raises a brow: 'I’ll not play games. Speak plain: *buy <item>* or *sell <item>*.'",
+                ]
+                self.message_log.add_message(random.choice(add_ambient_merchant_message), (150, 150, 150))
             
             # Return to the previous game state after trading
             self.game_state = self._previous_game_state  # Revert to the previous state
@@ -1418,8 +1698,12 @@ class Game:
 
     def get_target_at(self, x, y):
         for entity in self.entities:
-            if entity.x == x and entity.y == y and entity != self.player and entity.alive:
-                return entity
+            if entity != self.player and entity.alive:
+                if hasattr(entity, 'occupies_tile'):
+                    if entity.occupies_tile(x, y):
+                        return entity
+                elif entity.x == x and entity.y == y:
+                    return entity
         return None
 
     def get_adjacent_target(self):
@@ -1478,6 +1762,18 @@ class Game:
 
             # --- Step 4: Handle movement to an empty, walkable tile or TRAP ---
             if self.game_map.is_walkable(new_x, new_y):
+                # Prevent moving into any tile occupied by a blocking entity (supports multi-tile)
+                for entity in self.entities:
+                    if entity is self.player or not getattr(entity, 'alive', True) or not getattr(entity, 'blocks_movement', False):
+                        continue
+                    if hasattr(entity, 'occupies_tile'):
+                        if entity.occupies_tile(new_x, new_y):
+                            self.message_log.add_message(f"You can't move onto {entity.name}.", (255, 150, 0))
+                            return False
+                    else:
+                        if getattr(entity, 'x', None) == new_x and getattr(entity, 'y', None) == new_y:
+                            self.message_log.add_message(f"You can't move onto {entity.name}.", (255, 150, 0))
+                            return False
                 # --- NEW: Trap Check BEFORE Movement ---
                 target_tile_obj = self.game_map.tiles[new_y][new_x]
                 if isinstance(target_tile_obj, TrapTile) and target_tile_obj.trap_instance.is_hidden:
@@ -1511,14 +1807,23 @@ class Game:
                     # Check if the monster is still adjacent to the player's *new* position
                     is_still_adjacent_to_monster = (abs(self.player.x - monster.x) <= 1 and abs(self.player.y - monster.y) <= 1)
                     
-                    # If the monster was adjacent AND is no longer adjacent after the move,
-                    # it gets an opportunity attack.
-                    if not is_still_adjacent_to_monster:
-                        self.message_log.add_message(f"The {monster.name} makes an Opportunity Attack!", (255, 100, 0))
-                        monster.attack(self.player, self) # Monster attacks the player
+                    if self.player.alive and not is_still_adjacent_to_monster:
+                        oa_msgs = [
+                            f"The {monster.name} lashes out as you flee!",
+                            f"{monster.name}'s reflexes are quick — an opportunity strike!",
+                            f"A sudden slash from the {monster.name} catches you off guard!",
+                            f"As you turn away, the {monster.name} seizes its chance to attack!",
+                            f"The {monster.name} strikes swiftly at your exposed flank!"
+                        ]
+                        self.message_log.add_message(random.choice(oa_msgs), (255, 100, 0))
+                        
+                        monster.attack(self.player, self)  # Monster attacks the player
+                        
                         # Important: If the player dies from an OA, the game state should reflect that.
                         if not self.player.alive:
-                            return True # Player died, action taken, end turn.
+                            self.handle_game_over()
+                            return  # Player died, action taken, end turn.
+                    
                 
                 self.update_fov()
                 self.minimap_needs_redraw = True # Player moved, minimap needs redraw
@@ -1571,37 +1876,8 @@ class Game:
             self.minimap_needs_redraw = True # Map changed, redraw minimap
             
             # --- NEW: 10% chance to drop a Lesser Healing Potion ---
-            if target_tile.name in ["Crate", "Barrel"]: # Check if it was a crate or barrel
-                if random.random() < 0.1:
-                    # Create a new instance of the potion
-                    new_potion = lesser_healing_potion.__class__(
-                        name=lesser_healing_potion.name,
-                        char=lesser_healing_potion.char,
-                        color=lesser_healing_potion.color,
-                        description=lesser_healing_potion.description,
-                        effect_type=lesser_healing_potion.effect_type,
-                        effect_value=lesser_healing_potion.effect_value,
-                        price=lesser_healing_potion.price
-                    )
-                    new_potion.x = x
-                    new_potion.y = y
-                    self.game_map.items_on_ground.append(new_potion)
-                    self.message_log.add_message(f"A {new_potion.name} drops from the {target_tile.name}!", new_potion.color)
-                elif random.random() < 0.05:
-                    new_potion = greater_healing_potion.__class__(
-                        name=greater_healing_potion.name,
-                        char=greater_healing_potion.char,
-                        color=greater_healing_potion.color,
-                        description=greater_healing_potion.description,
-                        effect_type=greater_healing_potion.effect_type,
-                        effect_value=greater_healing_potion.effect_value,
-                        price=greater_healing_potion.price
-                    )
-                    new_potion.x = x
-                    new_potion.y = y
-                    self.game_map.items_on_ground.append(new_potion)
-                    self.message_log.add_message(f"A {new_potion.name} drops from the {target_tile.name}!", new_potion.color)  
-                elif random.random() < 0.70:
+            if target_tile.name in ["Crate", "Barrel"]: # Check if it was a crate or barrel 
+                if random.random() < 0.75:
                     new_junk = wood_plank.__class__(
                         name=wood_plank.name,
                         char=wood_plank.char,
@@ -1611,7 +1887,83 @@ class Game:
                     new_junk.x = x
                     new_junk.y = y
                     self.game_map.items_on_ground.append(new_junk)
-                    self.message_log.add_message(f"A {new_junk.name} drops from the {target_tile.name}!", new_junk.color)
+                elif random.random() < 0.3:
+                    new_torch = torch.__class__(
+                        name=torch.name,
+                        char=torch.char,
+                        color=torch.color,
+                        description=torch.description,
+                        price=torch.price
+                    )
+                    new_torch.x = x
+                    new_torch.y = y
+                    self.game_map.items_on_ground.append(new_torch)
+                    self.message_log.add_message(f"A {new_torch.name} drops from the {target_tile.name}!", new_torch.color)
+                elif random.random() < 0.2:
+                    new_food = meat.__class__(
+                        name=meat.name,
+                        char=meat.char,
+                        color=meat.color,
+                        description=meat.description,
+                        healing_value=meat.healing_value,
+                        price=meat.price
+                    )
+                    new_food.x = x
+                    new_food.y = y
+                    self.game_map.items_on_ground.append(new_food)
+                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
+                elif random.random() < 0.35:
+                    new_food = green_apple.__class__(
+                        name=green_apple.name,
+                        char=green_apple.char,
+                        color=green_apple.color,
+                        description=green_apple.description,
+                        healing_value=green_apple.healing_value,
+                        price=green_apple.price
+                    )
+                    new_food.x = x
+                    new_food.y = y
+                    self.game_map.items_on_ground.append(new_food)
+                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
+                elif random.random() < 0.25:
+                    new_food = fromage.__class__(
+                        name=fromage.name,
+                        char=fromage.char,
+                        color=fromage.color,
+                        description=fromage.description,
+                        healing_value=fromage.healing_value,
+                        price=fromage.price
+                    )
+                    new_food.x = x
+                    new_food.y = y
+                    self.game_map.items_on_ground.append(new_food)
+                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
+                elif random.random() < 0.3:
+                    new_food = bread.__class__(
+                        name=bread.name,
+                        char=bread.char,
+                        color=bread.color,
+                        description=bread.description,
+                        healing_value=bread.healing_value,
+                        price=bread.price
+                    )
+                    new_food.x = x
+                    new_food.y = y
+                    self.game_map.items_on_ground.append(new_food)
+                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
+                elif random.random() < 0.4:
+                    new_food = mushroom.__class__(
+                        name=mushroom.name,
+                        char=mushroom.char,
+                        color=mushroom.color,
+                        description=mushroom.description,
+                        healing_value=mushroom.healing_value,
+                        price=mushroom.price
+                    )
+                    new_food.x = x
+                    new_food.y = y
+                    self.game_map.items_on_ground.append(new_food)
+                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
             # --- END NEW DROP LOGIC ---
 
             return True
@@ -1625,8 +1977,23 @@ class Game:
         if not target.alive:
             return
         
-        # Check if the target is in the player's FOV
-        if not self.fov.get_visibility_type(target.x, target.y) in ['player', 'torch', 'darkvision']:
+        # Check if ANY tile of the target is in the player's FOV (supports multi-tile entities)
+        visible_ok = False
+        allowed_vis = ['player', 'torch', 'darkvision']
+        footprint_size = getattr(target, 'footprint_size', 1)
+        if footprint_size > 1:
+            for oy in range(footprint_size):
+                for ox in range(footprint_size):
+                    tx, ty = target.x + ox, target.y + oy
+                    if self.fov.get_visibility_type(tx, ty) in allowed_vis:
+                        visible_ok = True
+                        break
+                if visible_ok:
+                    break
+        else:
+            visible_ok = self.fov.get_visibility_type(target.x, target.y) in allowed_vis
+
+        if not visible_ok:
             self.message_log.add_message(f"You cannot attack {target.name} because it is out of sight!", (255, 0, 0))
             return
     
@@ -1713,7 +2080,6 @@ class Game:
     
             if is_critical_hit:
                 total_dice_rolled *= 2 # Double the number of dice rolled for critical hits
-                self.message_log.add_message(f"Critical Hit! Rolling {total_dice_rolled}d{die_type} for damage!", (255, 255, 0))
     
             for _ in range(total_dice_rolled):
                 damage_rolls.append(random.randint(1, die_type))
@@ -1739,7 +2105,7 @@ class Game:
                 (255, 200, 100)
             )
     
-            damage_dealt = target.take_damage(damage_total, self, damage_type='physical') 
+            damage_dealt = target.take_damage(damage_total, game_instance, damage_type='physical') 
     
             self.message_log.add_message(
                 f"You hit the {target.name} for {damage_dealt} damage!",
@@ -1774,49 +2140,121 @@ class Game:
             self.floating_texts.append(miss_text)
     
 
-
     def add_ambient_combat_message(self):
-        messages = [
+        common_msgs = [
             "The smell of blood fills the air...",
             "Silence returns to the dungeon...",
-            "Your weapon drips with monster blood..."
+            "Your weapon drips with monster blood...",
+            "A death cry echoes, then fades into silence...",
+            "The ground is slick with gore and ichor...",
+            "Your heartbeat pounds in your ears, then slows...",
+            "The dungeon grows eerily quiet, as if holding its breath...",
+            "A faint metallic tang of blood lingers on your tongue...",
+            "Your boots leave red stains across the stone floor...",
+            "The corpse twitches once before lying still...",
+            "Shadows seem to crowd closer after the violence...",
+            "A rat scurries out, drawn to the fresh kill...",
+            "The clash of steel still rings faintly in your mind...",
+            "You wipe the blade clean, though the stain remains..."
         ]
-        self.message_log.add_message(random.choice(messages), (170, 170, 170))
+
+        rare_msgs = [
+            "Somewhere deeper, a guttural roar answers the bloodshed...",
+            "The clash of battle carries far — something stirs in the dark...",
+            "Your victory echoes like a beacon — but not all ears are friendly...",
+            "A distant screech pierces the silence, hungry and aware...",
+            "The dungeon shifts uneasily, as if the stone itself resents your triumph..."
+        ]
+
+        # 90% chance for common aftermath, 10% chance for rare narrative escalation
+        if random.random() < 0.1:
+            msg = random.choice(rare_msgs)
+            color = (200, 100, 100)  # darker red for danger
+        else:
+            msg = random.choice(common_msgs)
+            color = (170, 170, 170)  # neutral gray
+
+        self.message_log.add_message(msg, color)
 
     def update(self, dt):
-        # self.clock.tick(60)  # Limit to 60 FPS
-        # self.fps = self.clock.get_fps()  # Get the current FPS
+        self.clock.tick(60)  # Limit to 60 FPS
+        self.fps = self.clock.get_fps()  # Get the current FPS
 
-        initial_floating_texts_count = len(self.floating_texts) # <--- ADD THIS
-        self.floating_texts = [text for text in self.floating_texts if text.update()]        
-        if len(self.floating_texts) != initial_floating_texts_count: # <--- ADD THIS
-            print(f"DEBUG: FloatingTexts updated. Removed {initial_floating_texts_count - len(self.floating_texts)} expired texts. New list size: {len(self.floating_texts)}") # <--- ADD THIS
+        self.floating_texts = [text for text in self.floating_texts if text.update()]
 
+        # NEW: If player is dead and game is not yet in GAME_OVER state, handle game over
+        if self.player and not self.player.alive and self.game_state != GameState.GAME_OVER:
+            self.handle_game_over()
+            return # Stop further updates if game over is triggered
 
-        # NEW: Only update camera and process turns if player exists and game is in an active state
-        if self.player and (self.game_state == GameState.DUNGEON or self.game_state == GameState.TAVERN or self.game_state == GameState.TARGETING): # Include TARGETING
-            # If in targeting mode for Mage Hand, camera should follow the cursor
-            if self.game_state == GameState.TARGETING and self.ability_in_use and isinstance(self.ability_in_use, MageHand):
-                self.camera.update(self.targeting_cursor_x, self.targeting_cursor_y, self.game_map.width, self.game_map.height)
+        # NEW: If game is already in GAME_OVER state, simply return
+        if self.game_state == GameState.GAME_OVER:
+            if self.death_screen_animation_phase == 0:
+                self.death_screen_alpha += self.death_screen_animation_speed
+                if self.death_screen_alpha >= 255:
+                    self.death_screen_alpha = 255
+                    self.death_screen_animation_phase = 1
+            elif self.death_screen_animation_phase == 1:
+                self.death_screen_bg_alpha += self.death_screen_animation_speed
+                if self.death_screen_bg_alpha >= 120:  # Max alpha for background overlay
+                    self.death_screen_bg_alpha = 120
+                    self.death_screen_animation_phase = 2
+            elif self.death_screen_animation_phase == 2:
+                self.death_screen_subtext_alpha += self.death_screen_animation_speed
+                if self.death_screen_subtext_alpha >= 255:
+                    self.death_screen_subtext_alpha = 255
+                    self.death_screen_animation_phase = 3
+            return
+
+        # --- NEW: Only process turns for active monsters ---
+        current = self.get_current_entity()
+        if current and current != self.player and current.alive:
+            if isinstance(current, Monster) and not current.is_active:
+                # Skip this monster's turn if it's not active
+                self.next_turn()
             else:
-                self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height)
+                current.take_turn(self.player, self.game_map, self)
+                self.next_turn()
         
 
         if not self.player: # If player hasn't been created yet (e.g., in character creation)
             return # Do nothing else in update
-        if not self.player.alive:
-            if not hasattr(self, '_game_over_displayed'):
-                death_messages = [
-                    "Your journey ends here, adventurer. The dungeon claims another soul.",
-                    "The light fades from your eyes. Darkness embraces you.",
-                    "You fought bravely, but the dungeon proved too strong. Rest now.",
-                    "The dungeon's embrace is cold and final. You have fallen."
-                ]
-                chosen_death_message = random.choice(death_messages)
-                self.message_log.add_message(chosen_death_message, (255, 0, 0))
-                self._game_over_displayed = True
-            return
         
+
+        # --- NEW: Batch Monster Turn Processing ---
+        if self.game_state == GameState.DUNGEON and self.player.alive:
+            # Loop to process turns until it's the player's turn or no more entities
+            while True:
+                self.cleanup_entities() # Always clean up before getting current entity
+                if not self.turn_order: # If no entities left (e.g., all monsters died)
+                    break # Exit turn processing loop
+                current_entity = self.get_current_entity()
+                if current_entity == self.player:
+                    # It's the player's turn.
+                    if not self.player_has_acted:
+                        # Player's turn, waiting for input. Break the loop.
+                        break
+                    else:
+                        # Player has acted, advance turn to next entity.
+                        self.player_has_acted = False # Reset for player's next turn
+                        self.next_turn() # This will call cleanup_entities again and advance index
+                        # After next_turn, it might be a monster's turn or player's again.
+                        # Continue the while loop to process the next entity.
+                        continue # Go back to the start of the while loop
+                elif isinstance(current_entity, Monster) and current_entity.alive:
+                    # Process monster's turn
+                    if current_entity.is_active: # Only process if monster is active
+                        current_entity.take_turn(self.player, self.game_map, self)
+                    # Monster has acted (or skipped if inactive), advance turn.
+                    self.next_turn() # This will call cleanup_entities again and advance index
+                    # Continue the while loop to process the next entity.
+                    continue # Go back to the start of the while loop
+                else:
+                    # If current_entity is not player, not a monster, or dead (should be caught by cleanup),
+                    # just advance turn. This is a safeguard.
+                    self.next_turn()
+                    continue # Go back to the start of the while loop
+
         self.floating_texts = [text for text in self.floating_texts if text.update()]        
         
         # This condition was already here, but now it's after the player check
@@ -1840,11 +2278,49 @@ class Game:
             # Player's turn, waiting for input. Do nothing here.
             pass
         elif current and current != self.player and current.alive: # <--- THIS IS THE MONSTER'S TURN
-            current.take_turn(self.player, self.game_map, self)
+            # Only allow entities within 10 tiles (Chebyshev distance) to act
+            dist_x = abs(current.x - self.player.x)
+            dist_y = abs(current.y - self.player.y)
+            if max(dist_x, dist_y) <= 10:
+                current.take_turn(self.player, self.game_map, self)
+            # Even if it skipped acting, advance the turn to avoid stalling
             self.next_turn()
         else:
             pass # No active entity or entity is dead.
-        
+
+
+        # NEW: Only update camera and process turns if player exists and game is in an active state
+        if self.player and (self.game_state == GameState.DUNGEON or self.game_state == GameState.TAVERN or self.game_state == GameState.TARGETING): # Include TARGETING
+            # If in targeting mode for Mage Hand, camera should follow the cursor
+            if self.game_state == GameState.TARGETING and self.ability_in_use and isinstance(self.ability_in_use, MageHand):
+                self.camera.update(self.targeting_cursor_x, self.targeting_cursor_y, self.game_map.width, self.game_map.height)
+            else:
+                self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height)        
+
+
+    def handle_game_over(self):
+        if not self._game_over_displayed:
+            death_messages = [
+                "Your journey ends here, adventurer. The dungeon claims another soul.",
+                "The light fades from your eyes. Darkness embraces you.",
+                "You fought bravely, but the dungeon proved too strong. Rest now.",
+                "The dungeon's embrace is cold and final. You have fallen."
+            ]
+            chosen_death_message = random.choice(death_messages)
+            self.message_log.add_message(chosen_death_message, (255, 0, 0))
+            self._game_over_displayed = True
+            self.player.die()
+
+            # Reset animation variables for death screen
+            self.death_screen_alpha = 0  # Alpha for "YOU DIED" text
+            self.death_screen_bg_alpha = 0  # Alpha for background overlay
+            self.death_screen_subtext_alpha = 0  # Alpha for subtext
+            self.death_screen_animation_phase = 0  # 0=text fade-in, 1=bg fade-in, 2=subtext fade-in, 3=done
+
+
+        self.game_state = GameState.GAME_OVER
+
+
 
     def handle_window_resize(self):
         old_scale = self.scale
@@ -1859,54 +2335,63 @@ class Game:
 
         self._recalculate_minimap_dimensions()            
 
+
+    def add_dirty_rect(self, x, y, width, height):
+        """Adds a rectangle to the list of dirty rects, converting world to screen coords."""
+        screen_x_float, screen_y_float = self.camera.world_to_screen(x, y)
+        draw_x = int(screen_x_float * config.TILE_SIZE)
+        draw_y = int(screen_y_float * config.TILE_SIZE)
+        rect = pygame.Rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)
+        self.dirty_rects.append(rect)
+
+
     def render(self):
         """Main render method - draws everything"""
-        self.screen.fill((0, 0, 0))
-        self.internal_surface.fill((0, 0, 0))
+        # Clear the entire screen at the start of each frame
+        self.screen.fill((0, 0, 0, 0))
 
-        self.inventory_ui_surface.fill((0,0,0,0))
-        if self.game_state == GameState.CHARACTER_CREATION: # NEW: Character Creation Render
+        # --- Render the main game area (dungeon/tavern) to internal_surface ---
+        self.internal_surface.fill((0, 0, 0, 0)) # Clear internal surface
+
+        # Render map, items, entities, highlights, floating texts to internal_surface
+        if self.game_state == GameState.CHARACTER_CREATION:
             self.render_character_creation_screen()
-            self.screen.blit(self.inventory_ui_surface, (0, 0)) # Use inventory_ui_surface for overlay
+            # For character creation, we draw directly to screen, so no internal_surface blit here
+            # The screen.fill((0,0,0)) at the top handles clearing.
         elif self.game_state == GameState.CLASS_SELECTION:
             self.render_class_selection_screen()
-            self.screen.blit(self.inventory_ui_surface, (0, 0))
+            # Same as character creation
         elif self.game_state == GameState.INVENTORY:
             self.render_inventory_screen()
-            self.screen.blit(self.inventory_ui_surface, (0, 0))
+            # Inventory also draws to inventory_ui_surface, which is then blitted to screen
+            self.screen.blit(self.inventory_ui_surface, (0, 0)) # Blit inventory UI directly
         elif self.game_state == GameState.INVENTORY_MENU:
             self.render_inventory_screen()
             self.screen.blit(self.inventory_ui_surface, (0, 0))
-            self.render_inventory_menu_popup()
+            self.render_inventory_menu_popup() # Popup draws directly to screen
         elif self.game_state == GameState.CHARACTER_MENU:
             self.render_character_menu()
             self.screen.blit(self.inventory_ui_surface, (0, 0))
-        else: # This block handles DUNGEON and TAVERN, and now TARGETING
-            # --- NEW: Camera Update Logic for Targeting State ---
+        else: # This block handles DUNGEON, TAVERN, and TARGETING (and will be drawn under GAME_OVER)
+            # --- Camera Update Logic ---
             if self.game_state == GameState.TARGETING:
-                # In targeting mode, camera follows the targeting cursor
                 self.camera.update(self.targeting_cursor_x, self.targeting_cursor_y, self.game_map.width, self.game_map.height)
             else:
-                # Otherwise, camera follows the player (normal dungeon/tavern view)
                 self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height)
-            # --- END NEW CAMERA LOGIC ---
 
             self.render_map_with_fov()
             self.render_items_on_ground()
+            self.render_tile_highlights()
             self.render_entities()
 
-            # <--- THIS IS THE CRITICAL LOOP ---
-            for text_obj in self.floating_texts: # <--- ADD THIS LOOP
-                text_obj.draw(self.internal_surface, self.camera) # Draw on internal surface
-
+            for text_obj in self.floating_texts:
+                text_obj.draw(self.internal_surface, self.camera)
 
             if self.game_state == GameState.TARGETING:
                 screen_x, screen_y = self.camera.world_to_screen(
                     self.targeting_cursor_x,
                     self.targeting_cursor_y
                 )
-
-                # Check if we're targeting a monster or destructible
                 target_type = None
                 target_entity = self.get_target_at(self.targeting_cursor_x, self.targeting_cursor_y)
                 if isinstance(target_entity, Monster):
@@ -1914,20 +2399,15 @@ class Game:
                 elif (tile := self.game_map.tiles[self.targeting_cursor_y][self.targeting_cursor_x]) and tile.destructible:
                     target_type = "destructible"
 
-                # Set cursor color based on target type
                 cursor_color = (
-                    (255, 100, 100) if target_type == "monster" else  # Red for monsters
-                    (255, 200, 100) if target_type == "destructible" else  # Yellow for objects
-                    (100, 100, 255)  # Blue for empty tiles
+                    (255, 100, 100) if target_type == "monster" else
+                    (255, 200, 100) if target_type == "destructible" else
+                    (100, 100, 255)
                 )
 
-                # --- START MODIFICATION FOR MAGE HAND GRAPHIC ---
                 if isinstance(self.ability_in_use, MageHand):
-                    # Draw the Mage Hand graphic at the cursor position
-                    # You might want a specific color for the Mage Hand graphic
                     graphics.draw_tile(self.internal_surface, screen_x * config.TILE_SIZE, screen_y * config.TILE_SIZE, 'mh', color_tint=(150, 200, 255))
                 else:
-                    # Draw cursor rect (more visible than just an outline) for other abilities
                     cursor_width = 3
                     pygame.draw.rect(
                         self.internal_surface,
@@ -1938,15 +2418,13 @@ class Game:
                          config.TILE_SIZE),
                         cursor_width
                     )
-                # --- END MODIFICATION FOR MAGE HAND GRAPHIC ---
 
+            # Scale and blit the internal game area surface to the main screen
             available_width = config.GAME_AREA_WIDTH
             available_height = config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT
 
-            internal_surface_aspect_ratio = config.INTERNAL_GAME_AREA_PIXEL_WIDTH / config.INTERNAL_GAME_AREA_PIXEL_HEIGHT
             scale_to_fit_width = available_width / config.INTERNAL_GAME_AREA_PIXEL_WIDTH
             scale_to_fit_height = available_height / config.INTERNAL_GAME_AREA_PIXEL_HEIGHT
-
             actual_display_scale = min(scale_to_fit_width, scale_to_fit_height)
 
             scaled_width = int(config.INTERNAL_GAME_AREA_PIXEL_WIDTH * actual_display_scale)
@@ -1956,31 +2434,75 @@ class Game:
             offset_y = (available_height - scaled_height) // 2
 
             target_rect = pygame.Rect(offset_x, offset_y, scaled_width, scaled_height)
-
             scaled_game_area = pygame.transform.scale(self.internal_surface, target_rect.size)
             self.screen.blit(scaled_game_area, target_rect.topleft)
 
-        # Only draw UI if player exists (after character creation)
-        if self.player:
-            self.draw_ui()
+
+        # --- Always draw UI, Minimap, and Message Log directly to the screen ---
+        # This ensures they are always fully redrawn and prevents flickering.
+        if self.player: # Only draw UI if player exists (after character creation)
+            self.draw_ui() # This method now draws directly to self.screen
             # Draw minimap if in dungeon or tavern state
             if self.game_state in [GameState.DUNGEON, GameState.TAVERN]:
-                self.draw_minimap()
-        self.message_log.render(self.screen)
+                self.draw_minimap() # This method now draws directly to self.screen
 
-        # Draw FPS in the top left corner
-        # fps_text = f"FPS: {int(self.fps)}"  # Convert FPS to an integer for display
-        # fps_surface = self.fps_font.render(fps_text, True, (255, 255, 255))  # White color for FPS text
-        # self.screen.blit(fps_surface, (10, 10))  # Position it at (10, 10)        
+        # Message log is also drawn directly to screen
+        if self.game_state not in [GameState.CHARACTER_CREATION, GameState.CLASS_SELECTION]:
+            self.message_log.render(self.screen)
 
+        # NEW: Render game over screen if in GAME_OVER state
+        if self.game_state == GameState.GAME_OVER:
+            self.render_game_over_screen()
+            pygame.display.flip() # Ensure the screen updates
+            return # Exit render function early to prevent further drawing
+
+        fps_text = f"FPS: {int(self.fps)}"
+        fps_surface = self.fps_font.render(fps_text, True, (255, 255, 255))  # White color
+        self.screen.blit(fps_surface, (10, 10))  # Position at (10, 10) pixels from top-left
+
+        
+        pygame.display.update(self.dirty_rects)
+
+        # --- Final Display Update ---
+        # Use flip for full screen update, or update a combined rect for game area + UI panel
+        # For simplicity and to eliminate flickering, let's try flip first.
         pygame.display.flip()
 
+        self.dirty_rects.clear()
 
-    def render_map_with_fov(self):
-        map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT
 
+    def render_game_over_screen(self):
+        # Render background overlay with fade-in alpha AFTER "YOU DIED" text
+        if self.death_screen_animation_phase >= 1:
+            overlay_surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+            overlay_surface.fill((0, 0, 0, self.death_screen_bg_alpha))
+            self.screen.blit(overlay_surface, (0, 0))
+
+        # Render "YOU DIED" text with fade-in alpha
+        font = pygame.font.SysFont('consolas', 72, bold=True)
+        text_surface = font.render("YOU DIED", True, (255, 0, 0))
+        text_surface.set_alpha(self.death_screen_alpha)
+        text_rect = text_surface.get_rect(center=(self.screen.get_width() // 2, self.screen.get_height() // 2))
+        self.screen.blit(text_surface, text_rect)
+
+        # Render subtext with fade-in alpha after background is visible
+        if self.death_screen_animation_phase >= 2:
+            font_small = pygame.font.SysFont('consolas', 24)
+            subtext = font_small.render("Press R to Restart or Q to Quit", True, (255, 255, 255))
+            subtext.set_alpha(self.death_screen_subtext_alpha)
+            subtext_rect = subtext.get_rect(center=(self.screen.get_width() // 2, self.screen.get_height() // 2 + 60))
+            self.screen.blit(subtext, subtext_rect)
+            
+
+    def render_map_with_fov(self, full_redraw=False):
+        if not hasattr(self, 'game_map') or self.game_map is None:
+            # No map to render yet, just return
+            return
+        
         camera_x_int = int(self.camera.x)
         camera_y_int = int(self.camera.y)
+
+        has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)          
 
         for y in range(camera_y_int, min(camera_y_int + self.camera.viewport_height + 1, self.game_map.height)):
             for x in range(camera_x_int, min(camera_x_int + self.camera.viewport_width + 1, self.game_map.width)):
@@ -1993,19 +2515,21 @@ class Game:
                 visibility_type = self.fov.get_visibility_type(x, y)
 
                 # Draw the tile based on visibility
-                tile = self.game_map.tiles[y][x]
-
+                tile = self.game_map.tiles[y][x]      
                 
                 # Draw the tile normally if explored or visible
                 render_color_tint = None  # Initialize render_color_tint
                 if visibility_type == 'player':
-                    render_color_tint = None
+                    if has_torchlight:
+                        render_color_tint = (240, 240, 240, 255)  # Dimmer tint when torchlight active
+                    else:
+                        render_color_tint = (160, 160, 160, 255)  
                 elif visibility_type == 'torch':
-                    render_color_tint = (128, 128, 128, 255)
+                    render_color_tint = (180, 180, 180, 255)
                 elif visibility_type == 'darkvision':
                     render_color_tint = (120, 120, 120, 255)
                 elif visibility_type == 'explored':
-                    render_color_tint = (80 ,80, 80, 255)
+                    render_color_tint = (60, 60, 60, 255)
                 elif visibility_type == 'unexplored':
                     render_color_tint = (20, 20, 20, 255)
 
@@ -2016,47 +2540,105 @@ class Game:
                     display_char = tile.get_display_char()
                     display_color = tile.get_display_color()
                     # Draw the base tile (floor, wall, or trap's hidden/revealed char)
-                    graphics.draw_tile(self.internal_surface, draw_x, draw_y, display_char, color_tint=render_color_tint)                        
+                    graphics.draw_tile(self.internal_surface, draw_x, draw_y, display_char, color_tint=render_color_tint) 
+
+                if full_redraw: # Only add to dirty rects if it's a full redraw or a specific tile changed
+                    self.add_dirty_rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)   
+
+                tile_rect = pygame.Rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)
+                self.dirty_rects.append(tile_rect)                                                            
 
 
+    def render_tile_highlights(self):
+        # Draw per-entity telegraphs every frame to avoid stale global state
+        for entity in self.entities:
+            tiles = getattr(entity, 'pending_telegraph_tiles', None)          
+            if not tiles:
+                continue
+            color = getattr(entity, 'telegraph_color', (255, 0, 0, 100))
+            for hx, hy in tiles:
+                if not (0 <= hx < self.game_map.width and 0 <= hy < self.game_map.height):
+                    continue
+                vis = self.fov.get_visibility_type(hx, hy)
+                if vis not in ['player', 'torch', 'darkvision', 'explored']:
+                    continue
+                sx, sy = self.camera.world_to_screen(hx, hy)
+                px = sx * config.TILE_SIZE
+                py = sy * config.TILE_SIZE
+                r, g, b, a = color
+                overlay = pygame.Surface((config.TILE_SIZE, config.TILE_SIZE), pygame.SRCALPHA)
+                overlay.fill((r, g, b, a))
+                self.internal_surface.blit(overlay, (px, py))
 
-    def render_entities(self):
+
+    def render_entities(self, full_redraw=False):
+        if not hasattr(self, 'game_map') or self.game_map is None:
+            return        
         map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT 
         for entity in self.entities:
             if isinstance(entity, Mimic) and entity.disguised:
                 continue 
             visibility_type = self.fov.get_visibility_type(entity.x, entity.y)
-            # The is_in_viewport check is still useful for broad culling
+
             if entity.alive and self.camera.is_in_viewport(entity.x, entity.y) and \
                (visibility_type == 'player' or visibility_type == 'torch' or visibility_type == 'explored' or visibility_type == 'darkvision'):
 
-                # --- MODIFIED: Get float screen coordinates ---
                 screen_x_float, screen_y_float = self.camera.world_to_screen(entity.x, entity.y)
-                # --- MODIFIED: Calculate pixel draw positions using floats ---
                 draw_x = screen_x_float * config.TILE_SIZE
                 draw_y = screen_y_float * config.TILE_SIZE
-                # The pixel bounds check is still good
+
                 if (0 <= draw_x < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
                     0 <= draw_y < map_render_height):
 
+
+                    has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)
+
+                    # Initialize entity_color_tint here
                     entity_color_tint = None
                     if visibility_type == 'player':
-                        entity_color_tint = None
+                        if has_torchlight:
+                            entity_color_tint = (240, 240, 240, 255)  # Dimmer tint when torchlight active
+                        else:
+                            entity_color_tint = (160, 160, 160, 255)  
                     elif visibility_type == 'torch':
-                        entity_color_tint = (128, 128, 128, 255)
+                        entity_color_tint = (180, 180, 180, 255)
                     elif visibility_type == 'darkvision':
-                        entity_color_tint = (90, 90, 90, 255)
+                        entity_color_tint = (120, 120, 120, 255)
                     elif visibility_type == 'explored':
                         entity_color_tint = (60, 60, 60, 255)
-                    # Always draw floor under entities, as map rendering might have drawn a decorative tile
-                    # --- MODIFIED: Pass float draw_x, draw_y to graphics.draw_tile ---
-                    # graphics.draw_tile(self.internal_surface, draw_x, draw_y, floor.char, color_tint=entity_color_tint)
-                    graphics.draw_tile(self.internal_surface, draw_x, draw_y, entity.char, color_tint=entity_color_tint)
+                    elif visibility_type == 'unexplored':
+                        entity_color_tint = (20, 20, 20, 255)
+
+                    footprint_size = getattr(entity, 'footprint_size', 1)
+                    tile_size_override = config.TILE_SIZE * footprint_size if footprint_size > 1 else None
+
+                    # Determine flip_x only for player
+                    flip_x = False
+                    if entity == self.player:
+                        flip_x = not self.player.facing_right  # Flip if facing left
+
+                    graphics.draw_tile(
+                        self.internal_surface,
+                        draw_x,
+                        draw_y,
+                        entity.char,
+                        color_tint=entity_color_tint,
+                        tile_size=tile_size_override,
+                        flip_x=flip_x
+                    )
+
+                    self.add_dirty_rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)
+                else:
+                    pass
+            else:
+                pass
 
 
 
-    def render_items_on_ground(self):
+    def render_items_on_ground(self, full_redraw=False):
         """Render items lying on the dungeon floor."""
+        if not hasattr(self, 'game_map') or self.game_map is None:
+            return             
         map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT 
         
         for item in self.game_map.items_on_ground:
@@ -2078,15 +2660,23 @@ class Game:
                 if (0 <= draw_x < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
                     0 <= draw_y < map_render_height):
                     
+
+                    has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)
+
                     item_color_tint = None
                     if visibility_type == 'player':
-                        item_color_tint = None
+                        if has_torchlight:
+                            item_color_tint = (240, 240, 240, 255)  # Dimmer tint when torchlight active
+                        else:
+                            item_color_tint = (160, 160, 160, 255)  
                     elif visibility_type == 'torch':
-                        item_color_tint = (128, 128, 128, 255)
+                        item_color_tint = (180, 180, 180, 255)
                     elif visibility_type == 'darkvision':
-                        item_color_tint = (90, 90, 90, 255)
+                        item_color_tint = (120, 120, 120, 255)
                     elif visibility_type == 'explored':
                         item_color_tint = (60, 60, 60, 255)
+                    elif visibility_type == 'unexplored':
+                        item_color_tint = (20, 20, 20, 255)
                     
                     # Always draw floor under items, as map rendering might have drawn a decorative tile
                     # --- MODIFIED: Pass float draw_x, draw_y to graphics.draw_tile ---
@@ -2094,93 +2684,257 @@ class Game:
                     graphics.draw_tile(self.internal_surface, draw_x, draw_y, item.char, color_tint=item_color_tint)
 
 
+                    self.add_dirty_rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)                    
+
+   
     def render_character_creation_screen(self):
-        target_surface = self.inventory_ui_surface # Use this surface for drawing
-        target_surface.fill((0,0,0,0)) # Clear it
-        
+        # Use the main screen surface for drawing
+        target_surface = self.screen  # Change to self.screen to cover the entire window
+        target_surface.fill((0, 0, 0, 200))  # Fill with a semi-transparent black to create a modal effect
+
         # Draw a background box for the menu
-        menu_width = int(target_surface.get_width() * 0.7)
+        menu_width = int(target_surface.get_width() * 0.9)  # Make it wider to accommodate two columns
         menu_height = int(target_surface.get_height() * 0.8)
         menu_x = (target_surface.get_width() - menu_width) // 2
         menu_y = (target_surface.get_height() - menu_height) // 2
         menu_rect = pygame.Rect(menu_x, menu_y, menu_width, menu_height)
         pygame.draw.rect(target_surface, (30, 30, 30), menu_rect)
         pygame.draw.rect(target_surface, (100, 100, 100), menu_rect, 2)
-        
+
         title_text = "CHOOSE YOUR RACE"
         title_surface = self.inventory_font_header.render(title_text, True, (255, 215, 0))
         title_rect = title_surface.get_rect(center=(menu_rect.centerx, menu_y + self.inventory_font_header.get_linesize() // 2 + 10))
         target_surface.blit(title_surface, title_rect)
-        
-        current_y = title_rect.bottom + 30
-        item_start_x = menu_x + 40
+
+        # Define column positions
+        left_column_x = menu_x + 20
+        right_column_x = menu_x + menu_width // 2 + 20  # Start right column after half width + padding
+        column_width = menu_width // 2 - 40  # Adjust for padding on both sides
+
+        current_y_left = title_rect.bottom + 30
         line_spacing = self.inventory_font_info.get_linesize() + 8
-        
+
+        # Left Column: Race Choices
+        self._draw_text(target_surface, self.inventory_font_section, "Races:", (255, 255, 0), left_column_x, current_y_left)
+        current_y_left += self.inventory_font_section.get_linesize() + 10
+
         for i, race in enumerate(self.available_races):
-            race_text = f"{i+1}. {race.name}"
+            race_text = f"{i + 1}. {race.name}"
             color = (255, 255, 0) if i == self.selected_race_index else (200, 200, 200)
-            race_surface = self.inventory_font_section.render(race_text, True, color)
-            target_surface.blit(race_surface, (item_start_x, current_y))
-            current_y += line_spacing
-        
-            if i == self.selected_race_index:
-                wrapped_desc = self._wrap_text(race.description, self.inventory_font_small, menu_width - 80)
-        
-                for line in wrapped_desc:
-                    desc_surface = self.inventory_font_small.render(line, True, (150, 150, 150))
-                    target_surface.blit(desc_surface, (item_start_x + 20, current_y))
-                    current_y += self.inventory_font_small.get_linesize() + 2
-        
-                current_y += 10 # Extra space after description
-        
+            self._draw_text(target_surface, self.inventory_font_section, race_text, color, left_column_x, current_y_left)
+            current_y_left += line_spacing
+
+        # Right Column: Race Information
+        current_y_right = title_rect.bottom + 30
+        selected_race = self.available_races[self.selected_race_index]
+
+        self._draw_text(target_surface, self.inventory_font_section, f"{selected_race.name} Details:", (255, 215, 0), right_column_x, current_y_right)
+        current_y_right += self.inventory_font_section.get_linesize() + 10
+
+        # Description
+        current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, selected_race.description, (150, 150, 150), right_column_x, current_y_right, column_width)
+        current_y_right += 10
+
+        # Traits
+        self._draw_text(target_surface, self.inventory_font_info, "Traits:", (200, 200, 255), right_column_x, current_y_right)
+        current_y_right += self.inventory_font_info.get_linesize() + 5
+
+        if selected_race.darkvision_radius > 0:
+            self._draw_text(target_surface, self.inventory_font_small, f"- Darkvision: {selected_race.darkvision_radius} tiles.", (255, 255, 255), right_column_x + 10, current_y_right)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        if selected_race.damage_resistances:
+            self._draw_text(target_surface, self.inventory_font_small, f"- Damage Resistances: {', '.join(selected_race.damage_resistances)}", (255, 255, 255), right_column_x + 10, current_y_right)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        if selected_race.skill_proficiencies:
+            # Use the wrapped text method for skill proficiencies
+            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Skill Proficiencies: {', '.join(selected_race.skill_proficiencies)}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        if selected_race.weapon_proficiencies:
+            # Use the wrapped text method for weapon proficiencies
+            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Weapon Proficiencies: {', '.join(selected_race.weapon_proficiencies)}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        if selected_race.armor_proficiencies:
+            self._draw_text(target_surface, self.inventory_font_small, f"- Armor Proficiencies: {', '.join(selected_race.armor_proficiencies)}", (255, 255, 255), right_column_x + 10, current_y_right)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        # Instructions (at the bottom, centered)
         instructions_y = menu_rect.bottom - (self.inventory_font_small.get_linesize() * 2) - 20
-        self._draw_text(target_surface, self.inventory_font_small, "Use UP/DOWN arrows to select.", (150, 150, 150), item_start_x, instructions_y)
-        self._draw_text(target_surface, self.inventory_font_small, "Press ENTER to confirm.", (150, 150, 150), item_start_x, instructions_y + self.inventory_font_small.get_linesize() + 5)    
+        self._draw_text(target_surface, self.inventory_font_small, "Use UP/DOWN arrows to select.", (150, 150, 150), menu_rect.centerx - self.inventory_font_small.size("Use UP/DOWN arrows to select.")[0] // 2, instructions_y)
+        self._draw_text(target_surface, self.inventory_font_small, "Press ENTER to confirm.", (150, 150, 150), menu_rect.centerx - self.inventory_font_small.size("Press ENTER to confirm.")[0] // 2, instructions_y + self.inventory_font_small.get_linesize() + 5)
+
+    def _draw_wrapped_and_update_y_menu(self, surface, font, text, color, x, y_start, max_width):
+        """Wraps text and draws it on the surface, updating the y position."""
+        words = text.split(' ')
+        lines = []
+        current_line = []
+
+        for word in words:
+            test_line = ' '.join(current_line + [word])
+            if font.size(test_line)[0] <= max_width:  # Check if the line fits within the max width
+                current_line.append(word)
+            else:
+                if current_line:  # If there's a current line, add it to lines
+                    lines.append(' '.join(current_line))
+                current_line = [word]  # Start a new line with the current word
+
+        if current_line:  # Add the last line if it exists
+            lines.append(' '.join(current_line))
+
+        # Draw each line and update the y position
+        y_offset = y_start
+        for line in lines:
+            self._draw_text(surface, font, line, color, x, y_offset)
+            y_offset += font.get_linesize() + 2  # Add some spacing between lines
+
+        return y_offset  # Return the new y position
+
 
     def render_class_selection_screen(self):
-        target_surface = self.inventory_ui_surface
-        target_surface.fill((0,0,0,0))
-        
-        menu_width = int(target_surface.get_width() * 0.7)
+        # Use the main screen surface for drawing
+        target_surface = self.screen  # Change to self.screen to cover the entire window
+        target_surface.fill((0, 0, 0, 200))  # Fill with a semi-transparent black to create a modal effect
+
+        # Draw a background box for the menu
+        menu_width = int(target_surface.get_width() * 0.9)  # Make it wider
         menu_height = int(target_surface.get_height() * 0.8)
         menu_x = (target_surface.get_width() - menu_width) // 2
         menu_y = (target_surface.get_height() - menu_height) // 2
         menu_rect = pygame.Rect(menu_x, menu_y, menu_width, menu_height)
         pygame.draw.rect(target_surface, (30, 30, 30), menu_rect)
         pygame.draw.rect(target_surface, (100, 100, 100), menu_rect, 2)
-        
+
         title_text = "CHOOSE YOUR CLASS"
         title_surface = self.inventory_font_header.render(title_text, True, (255, 215, 0))
         title_rect = title_surface.get_rect(center=(menu_rect.centerx, menu_y + self.inventory_font_header.get_linesize() // 2 + 10))
         target_surface.blit(title_surface, title_rect)
-        
-        current_y = title_rect.bottom + 30
-        item_start_x = menu_x + 40
+
+        # Define column positions
+        left_column_x = menu_x + 20
+        right_column_x = menu_x + menu_width // 2 + 20
+        column_width = menu_width // 2 - 40
+
+        current_y_left = title_rect.bottom + 30
         line_spacing = self.inventory_font_info.get_linesize() + 8
-        
+
+        # Left Column: Class Choices
+        self._draw_text(target_surface, self.inventory_font_section, "Classes:", (255, 255, 0), left_column_x, current_y_left)
+        current_y_left += self.inventory_font_section.get_linesize() + 10
+
         for i, class_constructor in enumerate(self.available_classes):
-            class_name = class_constructor.__name__ # Get the class name string
-            class_text = f"{i+1}. {class_name}"
+            class_name = class_constructor.__name__  # Get the class name string
+            class_text = f"{i + 1}. {class_name}"
             color = (255, 255, 0) if i == self.selected_class_index else (200, 200, 200)
-            class_surface = self.inventory_font_section.render(class_text, True, color)
-            target_surface.blit(class_surface, (item_start_x, current_y))
-            current_y += line_spacing
-            
-            if i == self.selected_class_index:
-                # You can add more detailed class descriptions here if you want to define them
-                # For now, a generic one:
-                class_description = "A brief description of this class's playstyle and abilities."
-                wrapped_desc = self._wrap_text(class_description, self.inventory_font_small, menu_width - 80)
-                for line in wrapped_desc:
-                    desc_surface = self.inventory_font_small.render(line, True, (150, 150, 150))
-                    target_surface.blit(desc_surface, (item_start_x + 20, current_y))
-                    current_y += self.inventory_font_small.get_linesize() + 2
-                current_y += 10 # Extra space after description
-        
+            self._draw_text(target_surface, self.inventory_font_section, class_text, color, left_column_x, current_y_left)
+            current_y_left += line_spacing
+
+        # Right Column: Class Information
+        current_y_right = title_rect.bottom + 30
+        selected_class_constructor = self.available_classes[self.selected_class_index]
+        selected_class_name = selected_class_constructor.__name__
+
+        self._draw_text(target_surface, self.inventory_font_section, f"{selected_class_name} Details:", (255, 215, 0), right_column_x, current_y_right)
+        current_y_right += self.inventory_font_section.get_linesize() + 10
+
+        # Get class-specific description and traits
+        class_info = self._get_class_details(selected_class_constructor)
+
+        # Description
+        current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, class_info["description"], (150, 150, 150), right_column_x, current_y_right, column_width)
+        current_y_right += 10
+
+        # Key Features
+        self._draw_text(target_surface, self.inventory_font_info, "Key Features:", (200, 200, 255), right_column_x, current_y_right)
+        current_y_right += self.inventory_font_info.get_linesize() + 5
+
+        # Hit Die
+        current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Hit Die: {class_info['hit_die']}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
+        current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        # Primary Ability
+        current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Primary Ability: {class_info['primary_ability']}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
+        current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        # Saving Throw Proficiencies
+        if class_info['saving_throws']:
+            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Saving Throws: {', '.join(class_info['saving_throws'])}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        # Armor Proficiencies
+        if class_info['armor_proficiencies']:
+            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Armor Proficiencies: {', '.join(class_info['armor_proficiencies'])}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        # Weapon Proficiencies
+        if class_info['weapon_proficiencies']:
+            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Weapon Proficiencies: {', '.join(class_info['weapon_proficiencies'])}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        # Starting Equipment
+        if class_info['starting_equipment']:
+            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Starting Equipment: {', '.join(class_info['starting_equipment'])}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
+            current_y_right += self.inventory_font_small.get_linesize() + 2
+
+        # Instructions (at the bottom, centered)
         instructions_y = menu_rect.bottom - (self.inventory_font_small.get_linesize() * 2) - 20
-        self._draw_text(target_surface, self.inventory_font_small, "Use UP/DOWN arrows to select.", (150, 150, 150), item_start_x, instructions_y)
-        self._draw_text(target_surface, self.inventory_font_small, "Press ENTER to confirm.", (150, 150, 150), item_start_x, instructions_y + self.inventory_font_small.get_linesize() + 5)
-   
+        self._draw_text(target_surface, self.inventory_font_small, "Use UP/DOWN arrows to select.", (150, 150, 150), menu_rect.centerx - self.inventory_font_small.size("Use UP/DOWN arrows to select.")[0] // 2, instructions_y)
+        self._draw_text(target_surface, self.inventory_font_small, "Press ENTER to confirm.", (150, 150, 150), menu_rect.centerx - self.inventory_font_small.size("Press ENTER to confirm.")[0] // 2, instructions_y + self.inventory_font_small.get_linesize() + 5)
+
+
+    def _get_class_details(self, class_constructor):
+        """
+        Returns a dictionary of details for a given class constructor.
+        You will need to expand this with actual data for each class.
+        """
+        # Create a dummy instance to access class attributes
+        dummy_instance = class_constructor(0, 0, '@', 'Dummy', (255, 255, 255))
+
+        # Get the class name from the constructor
+        selected_class_name = dummy_instance.class_name  # Assuming class_name is set in the class constructor
+
+        details = {
+            "Fighter": {
+                "description": "A master of martial combat, skilled with a variety of weapons and armor. Fighters are versatile warriors who can specialize in offense or defense.",
+                "hit_die": "1d10",
+                "primary_ability": "Strength or Dexterity",
+                "saving_throws": ["Strength", "Constitution"],
+                "armor_proficiencies": ["Light", "Medium", "Heavy", "Shields"],
+                "weapon_proficiencies": ["Simple", "Martial"],
+                "starting_equipment": ["Chain mail", "A martial weapon and a shield", "A light crossbow and 20 bolts", "An explorer's pack"]
+            },
+            "Rogue": {
+                "description": "A master of stealth, cunning, and trickery. Rogues excel at striking from the shadows and disarming traps.",
+                "hit_die": "1d8",
+                "primary_ability": "Dexterity",
+                "saving_throws": ["Dexterity", "Intelligence"],
+                "armor_proficiencies": ["Light"],
+                "weapon_proficiencies": ["Simple", "Hand crossbows", "Longswords", "Rapiers", "Shortswords"],
+                "starting_equipment": ["A rapier", "A shortbow and quiver of 20 arrows", "A burglar's pack", "Leather armor", "Two daggers", "Thieves' tools"]
+            },
+            "Wizard": {
+                "description": "A scholarly magic-user capable of manipulating the fabric of reality. Wizards wield powerful spells learned from ancient tomes.",
+                "hit_die": "1d6",
+                "primary_ability": "Intelligence",
+                "saving_throws": ["Intelligence", "Wisdom"],
+                "armor_proficiencies": ["None"],
+                "weapon_proficiencies": ["Daggers", "Darts", "Slings", "Quarterstaffs", "Light crossbows"],
+                "starting_equipment": ["A quarterstaff", "A component pouch", "A scholar's pack", "A spellbook"]
+            }
+        }
+        # Return specific details for the class, or a generic message if not found
+        return details.get(selected_class_name, {
+            "description": "No detailed description available for this class.",
+            "hit_die": "N/A",
+            "primary_ability": "N/A",
+            "saving_throws": [],
+            "armor_proficiencies": [],
+            "weapon_proficiencies": [],
+            "starting_equipment": []
+        })
+    
 
     def render_inventory_screen(self):
         """Renders the inventory screen with a two-column layout."""
@@ -2188,8 +2942,8 @@ class Game:
         target_surface.fill((0, 0, 0, 0))  # Clear the surface
 
         # Define column widths
-        left_column_width = target_surface.get_width() * 0.7  # 70% for inventory
-        right_column_width = target_surface.get_width() * 0.3  # 30% for character info
+        left_column_width = target_surface.get_width() * 0.65  # 70% for inventory
+        right_column_width = target_surface.get_width() * 0.32  # 30% for character info
 
         # Draw left column for inventory items
         left_column_rect = pygame.Rect(10, 10, left_column_width, target_surface.get_height() - 20)
@@ -2204,8 +2958,14 @@ class Game:
         # Draw inventory items in the left column
         current_y = 20
         for i, item in enumerate(self.player.inventory.items):
-            item_color = (255, 255, 0) if item == self.selected_inventory_item else (255, 255, 255)
-            self._draw_text(target_surface, self.font_info, f"{i + 1}. {item.name}", item_color, 20, current_y)
+            # Highlight the selected item
+            if i == self.selected_inventory_index:
+                item_color = (255, 255, 0)  # Yellow for selected item
+                item_text = f"> {item.name} <"  # Add arrows to indicate selection
+            else:
+                item_color = (255, 255, 255)  # Default color for unselected items
+                item_text = item.name  # Normal item name
+            self._draw_text(target_surface, self.font_info, item_text, item_color, 20, current_y)
             current_y += self.font_info.get_linesize() + 5
 
         # Draw character graphic in the right column
@@ -2219,16 +2979,22 @@ class Game:
         armor_name = equipped_armor.name if equipped_armor else "None"
         off_hand_name = equipped_off_hand.name if equipped_off_hand else "None"
 
-        # Draw equipped weapon icon
-        self._draw_text(target_surface, self.font_info, f"Equipped Weapon: {weapon_name}", (255, 255, 255), left_column_width + 30, 100)
-        # Draw equipped armor icon
-        self._draw_text(target_surface, self.font_info, f"Equipped Armor: {armor_name}", (255, 255, 255), left_column_width + 30, 120)
-        # Draw equipped off-hand icon
-        self._draw_text(target_surface, self.font_info, f"Equipped Off-Hand: {off_hand_name}", (255, 255, 255), left_column_width + 30, 140)
 
-        # Instructions for user
-        self._draw_text(target_surface, self.font_small, "Press 1-9/0 to select an item.", (150, 150, 150), 20, current_y)
-        self._draw_text(target_surface, self.font_small, "Press 'I' to close inventory.", (150, 150, 150), 20, current_y + 20)
+        self._draw_text(target_surface, self.font_info, f"Name: {self.player.name}", (255, 255, 255), left_column_width + 30, 100)
+        self._draw_text(target_surface, self.font_info, f"Gold: {self.player.gold}", (255, 255, 255), left_column_width + 30, 120)
+        self._draw_text(target_surface, self.font_info, f"AC: {self.player.armor_class}", (255, 255, 255), left_column_width + 30, 160)
+        self._draw_text(target_surface, self.font_info, f"Proficiency Bonus: +{self.player.proficiency_bonus}", (255, 255, 255), left_column_width + 30, 180)
+        self._draw_text(target_surface, self.font_info, f"Attack Power: +{self.player.attack_power}", (255, 255, 255), left_column_width + 30, 200)
+        self._draw_text(target_surface, self.font_info, f"Attack Bonus: +{self.player.attack_bonus}", (255, 255, 255), left_column_width + 30, 220)
+
+
+        # Draw equipped weapon icon
+        self._draw_text(target_surface, self.font_info, f"Equipped Weapon: {weapon_name}", (255, 255, 255), left_column_width + 30, 260)
+        # Draw equipped armor icon
+        self._draw_text(target_surface, self.font_info, f"Equipped Armor: {armor_name}", (255, 255, 255), left_column_width + 30, 280)
+        # Draw equipped off-hand icon
+        self._draw_text(target_surface, self.font_info, f"Equipped Off-Hand: {off_hand_name}", (255, 255, 255), left_column_width + 30, 300)
+            
 
 
 
@@ -2454,9 +3220,7 @@ class Game:
         draw_centered_header(self.screen, font_header, "PLAYER", (255, 215, 0), current_y)
         current_y += font_header.get_linesize() + 10
         self._draw_text(self.screen, font_info, f"Name: {self.player.name}", (255, 255, 255), panel_offset_x, current_y)
-        current_y += font_info.get_linesize() + 5
-        self._draw_text(self.screen, font_info, f"Class: {self.player.class_name}", (255, 255, 255), panel_offset_x, current_y)
-        current_y += font_info.get_linesize() + 5    
+        current_y += font_info.get_linesize() + 5   
         self._draw_text(self.screen, font_info, f"Level: {self.player.level}", (255, 255, 255), panel_offset_x, current_y)
         current_y += font_info.get_linesize() + 5
         self._draw_text(self.screen, font_info, f"XP: {self.player.current_xp}/{self.player.xp_to_next_level}", (255, 255, 255), panel_offset_x, current_y)
@@ -2472,18 +3236,16 @@ class Game:
         hp_color = (255, 0, 0) if self.player.hp < self.player.max_hp // 3 else (255, 255, 0) if self.player.hp < self.player.max_hp * 2 // 3 else (0, 255, 0)
         self._draw_text(self.screen, font_info, f"HP: {self.player.hp}/{self.player.max_hp}", hp_color, panel_offset_x, current_y)
         current_y += font_info.get_linesize() + 5
-        
-        bar_width = config.UI_PANEL_WIDTH - 40
-        bar_height = 10
-        hp_bar_rect = pygame.Rect(panel_offset_x, current_y, bar_width, bar_height)
-        pygame.draw.rect(self.screen, (50, 0, 0), hp_bar_rect)
-        pygame.draw.rect(self.screen, (20, 20, 20), hp_bar_rect, 1)
-        fill_width = int(bar_width * (self.player.hp / self.player.max_hp))
-        pygame.draw.rect(self.screen, hp_color, (panel_offset_x, current_y, fill_width, bar_height))
-        current_y += bar_height + 15
+
+        hunger_color = (0, 255, 0) if self.player.hunger > 50 else (255, 255, 0) if self.player.hunger > 20 else (255, 0, 0)
+        self._draw_text(self.screen, self.font_info, f"Hunger: {self.player.hunger}/100", hunger_color, panel_offset_x, current_y)
+        current_y += self.font_info.get_linesize() + 5 
+        current_y += 15                      
+
+
         pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
         current_y += 15
-
+        
         draw_centered_header(self.screen, font_header, "ABILITIES", (255, 215, 0), current_y)
         current_y += font_header.get_linesize() + 10
         
@@ -2500,6 +3262,7 @@ class Game:
                 current_y = draw_wrapped_and_update_y(self.screen, font_info, ability_display_text, ability_color, panel_offset_x, current_y)
                 current_y += 5
         current_y += 10
+        
         pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
         current_y += 15
         
@@ -2639,70 +3402,43 @@ class Game:
 
 
     def draw_minimap(self):
-        """Draws the mini-map on its dedicated surface."""
-        if self.minimap_needs_redraw:
-            self.minimap_surface.fill((0, 0, 0, 0))  # Clear with transparency
+        # Always redraw minimap surface fully every frame
 
-            # Calculate scaling factors for the minimap
-            scale_x = self.minimap_surface.get_width() / self.game_map.width
-            scale_y = self.minimap_surface.get_height() / self.game_map.height
+        # Fill with solid black background (opaque)
+        self.minimap_surface.fill((0, 0, 0, 0))
 
-            # Use the smaller scale to ensure the entire map fits, maintaining aspect ratio
-            minimap_tile_scale = min(scale_x, scale_y)
+        scale_x = self.minimap_surface.get_width() / self.game_map.width
+        scale_y = self.minimap_surface.get_height() / self.game_map.height
+        minimap_tile_scale = min(scale_x, scale_y)
+        actual_minimap_tile_size = max(1, int(config.MINIMAP_TILE_SIZE * minimap_tile_scale))
 
-            # Calculate the actual tile size on the minimap
-            actual_minimap_tile_size = max(1, int(config.MINIMAP_TILE_SIZE * minimap_tile_scale))
+        offset_x = (self.minimap_surface.get_width() - self.game_map.width * actual_minimap_tile_size) // 2
+        offset_y = (self.minimap_surface.get_height() - self.game_map.height * actual_minimap_tile_size) // 2
 
-            # Calculate offsets to center the map within the minimap surface
-            offset_x = (self.minimap_surface.get_width() - self.game_map.width * actual_minimap_tile_size) // 2
-            offset_y = (self.minimap_surface.get_height() - self.game_map.height * actual_minimap_tile_size) // 2
+        for y in range(self.game_map.height):
+            for x in range(self.game_map.width):
+                if (x, y) in self.fov.explored:
+                    tile = self.game_map.tiles[y][x]
+                    color = tile.color if self.fov.get_visibility_type(x, y) in ['player', 'torch', 'darkvision'] else tile.dark_color
+                    pygame.draw.rect(
+                        self.minimap_surface,
+                        color,
+                        (offset_x + x * actual_minimap_tile_size,
+                         offset_y + y * actual_minimap_tile_size,
+                         actual_minimap_tile_size,
+                         actual_minimap_tile_size)
+                    )
 
-            for y in range(self.game_map.height):
-                for x in range(self.game_map.width):
-                    if (x, y) in self.fov.explored:
-                        tile = self.game_map.tiles[y][x]
-                        color = (0, 0, 0)  # Default to black for unexplored
-
-                        if self.game_state == GameState.TAVERN:
-                            # In tavern, all explored tiles are fully visible
-                            color = tile.color
-                        elif self.game_state == GameState.DUNGEON:
-                            # In dungeon, explored tiles are dim, visible tiles are bright
-                            if self.fov.get_visibility_type(x, y) in ['player', 'torch', 'darkvision']:
-                                color = tile.color  # Visible tiles
-                            else:
-                                color = tile.dark_color  # Explored but not currently visible
-
-                        # Draw the tile on the minimap surface
-                        pygame.draw.rect(
-                            self.minimap_surface,
-                            color,
-                            (offset_x + x * actual_minimap_tile_size,
-                             offset_y + y * actual_minimap_tile_size,
-                             actual_minimap_tile_size,
-                             actual_minimap_tile_size)
-                        )
-
-            self.minimap_needs_redraw = False  # Minimap is now up to date
-
-        # Draw player on top of the minimap (always visible if player exists)
         if self.player:
-            scale_x = self.minimap_surface.get_width() / self.game_map.width
-            scale_y = self.minimap_surface.get_height() / self.game_map.height
-            minimap_tile_scale = min(scale_x, scale_y)
-            actual_minimap_tile_size = max(1, int(config.MINIMAP_TILE_SIZE * minimap_tile_scale))
-            offset_x = (self.minimap_surface.get_width() - self.game_map.width * actual_minimap_tile_size) // 2
-            offset_y = (self.minimap_surface.get_height() - self.game_map.height * actual_minimap_tile_size) // 2
-
             player_minimap_x = offset_x + self.player.x * actual_minimap_tile_size
             player_minimap_y = offset_y + self.player.y * actual_minimap_tile_size
 
-            # Draw player as a small white square
             pygame.draw.rect(
                 self.minimap_surface,
-                (255, 255, 255),  # White color for player
+                (255, 255, 255),
                 (player_minimap_x, player_minimap_y, actual_minimap_tile_size, actual_minimap_tile_size)
             )
 
-        # Blit the minimap surface onto the main screen
+        # Blit minimap surface directly to screen every frame
         self.screen.blit(self.minimap_surface, self.minimap_rect.topleft)
+

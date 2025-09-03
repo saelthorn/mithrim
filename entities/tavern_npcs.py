@@ -2,35 +2,10 @@ import random
 import pygame
 
 from core.game import GameState
-from items.items import lesser_healing_potion, greater_healing_potion, silver_dagger, iron_short_sword, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes, CampfireKit
-from entities.dungeon_npcs import DungeonHealer # <--- NEW IMPORT
+from items.items import torch, lesser_healing_potion, greater_healing_potion, apprentices_staff, half_plate_armor, meat, green_apple, fromage, bread, mushroom, silver_dagger, iron_short_sword, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes, CampfireKit, Food
+from entities.dungeon_npcs import DungeonHealer 
 from entities.base_entity import NPC
 
-class NPC:
-    def __init__(self, x, y, char, name, color, dialogue=None):
-        self.x = x
-        self.y = y
-        self.char = char
-        self.name = name
-        self.color = color
-        self.dialogue = dialogue or []
-        self.alive = True
-        self.blocks_movement = True
-        self.initiative = 0
-
-    def roll_initiative(self):
-        self.initiative = random.randint(1, 20)
-
-    def get_dialogue(self):
-        """Return random dialogue line"""
-        if self.dialogue:
-            return random.choice(self.dialogue)
-        return f"{self.name} nods at you."
-
-    def take_turn(self, player, game_map, game):
-        """NPCs generally don't take active turns in the same way as monsters.
-        This method is a placeholder to prevent AttributeError."""
-        pass # Do nothing for most NPCs
 
 class Bartender(NPC):
     def __init__(self, x, y):
@@ -42,31 +17,73 @@ class Bartender(NPC):
             "Need a drink before you face the depths?",
         ]
         super().__init__(x, y, 'A', 'Bartender', (255, 215, 0), dialogue)
+        
+
+
 
 class Merchant(NPC):
     def __init__(self, x, y):
         dialogue = [
-            "Welcome to my shop! What would you like to buy?",
-            "I have the finest goods in the land!",
-            "Feel free to browse my wares.",
-            "If you have something to sell, I'm all ears!",
-            "Careful out there… but first, care to buy a potion or two?"
+            "Welcome to my tavern shop! Looking for something special?",
+            "I have some fine goods and tasty treats.",
+            "Feel free to browse my selection.",
+            "If you want to sell something, just let me know.",
+            "Careful out there, adventurer!"
         ]
-        super().__init__(x, y, 'rc', 'Merchant', (255, 215, 0), dialogue)  # Yellow color for the Merchant
-
-
-        # Define items for sale
-        self.items_for_sale = [
-            lesser_healing_potion,  # Assuming these are defined as instances of Potion
-            greater_healing_potion,
-            silver_dagger,
-            iron_short_sword,
-            steel_battle_axe,
-            oak_staff,
-            padded_armor,
-            chainmail_armor, 
-            CampfireKit()           
+        super().__init__(x, y, 'rc', 'Tavern Merchant', (255, 215, 100), dialogue)  # Different char/color for tavern merchant
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+        # Default items always sold
+        default_items = [
+            CampfireKit(),
+            lesser_healing_potion,
+            meat,
+            bread,
+            fromage,
+            torch,
         ]
+        # Chance-based items with their spawn probabilities (fewer and simpler than dungeon merchant)
+        chance_items_with_chance = [
+            (silver_dagger, 0.5),
+            (steel_long_sword, 0.4),
+            (half_plate_armor, 0.45),
+            (apprentices_staff, 0.45),
+            # Add more tavern-specific items and chances if desired
+        ]
+
+        self.items_for_sale = []
+       
+        # Add default items
+        for item in default_items:
+            if isinstance(item, CampfireKit):
+                self.items_for_sale.append(item)
+            else:
+                new_item = item.__class__(
+                    name=item.name,
+                    char=item.char,
+                    color=item.color,
+                    description=item.description,
+                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                )
+                self.items_for_sale.append(new_item)
+    
+        # Add chance-based items
+        for item_template, chance in chance_items_with_chance:
+            if random.random() < chance:
+                new_item = item_template.__class__(
+                    name=item_template.name,
+                    char=item_template.char,
+                    color=item_template.color,
+                    description=item_template.description,
+                    **{k: v for k, v in item_template.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                )
+                self.items_for_sale.append(new_item)
 
     def offer_trade(self, player, game):
         """Handle the trading logic with the player."""
@@ -89,19 +106,30 @@ class Merchant(NPC):
 
 
 
-
     def buy_item(self, player, item_name):
-        """Handle the logic for buying an item."""
         for item in self.items_for_sale:
-            if item.name.lower() == item_name.lower():  # Case insensitive comparison
-                if player.gold >= item.price:  # Assuming player has a gold attribute
+            if item.name.lower() == item_name.lower():
+                if player.gold >= item.price:
                     player.gold -= item.price
-                    player.inventory.add_item(item)  # Add the item to the player's inventory
-                    self.items_for_sale.remove(item)  # Remove the item from the merchant's inventory
-                    return f"You bought {item.name}!"
+    
+                    # Create a new instance of the item to add to player inventory
+                    new_item = item.__class__(
+                        name=item.name,
+                        char=item.char,
+                        color=item.color,
+                        description=item.description,
+                        **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                    )
+    
+                    if player.inventory.add_item(new_item):
+                        self.items_for_sale.remove(item)  # Remove the original from merchant
+                        return f"You bought {item.name}!"
+                    else:
+                        return "Your inventory is full!"
                 else:
                     return "Scram! you don't have enough gold!"
         return "We don't sell that kind of item here!"
+    
 
 
     def sell_item(self, player, item_name):

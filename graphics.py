@@ -67,6 +67,9 @@ def setup_tile_mapping():
         'fb': (5 * CELL_DIM, 4 * CELL_DIM), # Fresh Bones
         '`': (6 * CELL_DIM, 4 * CELL_DIM),  # Dungeon Grass
         'dp': (7 * CELL_DIM, 4 * CELL_DIM), # Dungeon Pillar
+        '.2': (8 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Two
+        '.3': (9 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Three
+        '`2': (10 * CELL_DIM, 4 * CELL_DIM), # Dungeon Grass Two
         
         # IMPORTANT: Ensure 'C' is your *closed* chest graphic
         'C': (4 * CELL_DIM, 5 * CELL_DIM),  # Chest (Closed)
@@ -75,7 +78,7 @@ def setup_tile_mapping():
         't': (4 * CELL_DIM, 3 * CELL_DIM),  # Table (Tavern)
         '=': (5 * CELL_DIM, 3 * CELL_DIM),  # Bar Counter
         'F': (6 * CELL_DIM, 3 * CELL_DIM),  # Fireplace
-        'i': (7 * CELL_DIM, 3 * CELL_DIM),  # Torch
+        'i': (7 * CELL_DIM, 3 * CELL_DIM),  # Torch Wall
 
         # Static Decorations (using distinct chars)
         'b': (2 * CELL_DIM, 5 * CELL_DIM), # Static Barrel (original graphic)
@@ -99,7 +102,7 @@ def setup_tile_mapping():
         'SK': (2 * CELL_DIM, 7 * CELL_DIM),  # Skeleton (Monster)
         'OR': (5 * CELL_DIM, 8 * CELL_DIM),  # Orc (Monster)
         'TR': (5 * CELL_DIM, 7 * CELL_DIM),  # Troll
-        'DRA': (7 * CELL_DIM, 7 * CELL_DIM),  # Dragon (Monster)
+        'RDR': (7 * CELL_DIM, 7 * CELL_DIM),  # Dragon (Monster)
         
         'OZ': (0 * CELL_DIM, 8 * CELL_DIM),  # Ooze (Monster)
         'GA': (1 * CELL_DIM, 8 * CELL_DIM),  # Goblin Archer
@@ -123,7 +126,14 @@ def setup_tile_mapping():
 
         'YL': (8 * CELL_DIM, 7 * CELL_DIM),  # Yochlol
         'DD': (8 * CELL_DIM, 8 * CELL_DIM),  # Drider
-        'BS': (8 * CELL_DIM, 9 * CELL_DIM),  # Blue Slaad
+        'DS': (8 * CELL_DIM, 9 * CELL_DIM),  # Death Slaad
+        'RS': (9 * CELL_DIM, 9 * CELL_DIM),  # Red Slaad
+        'MS': (9 * CELL_DIM, 7 * CELL_DIM),  # Myconid Sprout
+        'MA': (9 * CELL_DIM, 8 * CELL_DIM),  # Myconid Adult 
+        'MZ': (10 * CELL_DIM, 7 * CELL_DIM),  # Mezzoloth 
+        'GU': (10 * CELL_DIM, 8 * CELL_DIM),  # Gauth 
+        'AR': (10 * CELL_DIM, 9 * CELL_DIM),  # Arasta 
+
 
 
         # Tavern Entities and Misc.
@@ -136,9 +146,16 @@ def setup_tile_mapping():
         # Item Characters
         'cf': (8 * CELL_DIM, 2 * CELL_DIM), # Campfire 
         'pn': (9 * CELL_DIM, 2 * CELL_DIM), # Wood Plank (Junk)
+        'th': (10 * CELL_DIM,2 * CELL_DIM), # Torch (Item)
         'tt': (7 * CELL_DIM, 2 * CELL_DIM), # Thieves' Tools
         '!': (0 * CELL_DIM, 13 * CELL_DIM), # Potions
 
+        # Food Characters
+        'met': (11 * CELL_DIM, 1 * CELL_DIM), # Meat
+        'gra': (12 * CELL_DIM, 1 * CELL_DIM), # Green Apple
+        'frg': (13 * CELL_DIM, 1 * CELL_DIM), # Fromage
+        'brd': (14 * CELL_DIM, 1 * CELL_DIM), # Bread
+        'msm': (15 * CELL_DIM, 1 * CELL_DIM), # Mushroom
 
         # Armors and Robes
         'pda': (1 * CELL_DIM, 13 * CELL_DIM),  # Leather Armor
@@ -232,8 +249,17 @@ def get_tile_surface(char):
         return subsurface
 
 
-def draw_tile(screen_surface, draw_x, draw_y, char, color_tint=None):
-    tile_surface = get_tile_surface(char)
+def draw_tile(screen_surface, draw_x, draw_y, char, color_tint=None, tile_size=None, flip_x=False):
+    # Support optional override size for special entities (e.g., bosses)
+    if tile_size is None or tile_size == config.TILE_SIZE:
+        tile_surface = get_tile_surface(char)
+    else:
+        # Extract base tile then rescale to requested size
+        base_surface = get_tile_surface(char)
+        tile_surface = pygame.transform.scale(base_surface, (tile_size, tile_size))
+
+    if flip_x:
+        tile_surface = pygame.transform.flip(tile_surface, True, False)
 
     if color_tint:
         tinted_surface = tile_surface.copy()

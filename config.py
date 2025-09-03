@@ -5,11 +5,11 @@ BASE_SCREEN_HEIGHT = 700
 
 
 # UI panel width as a ratio of the total screen width
-UI_PANEL_WIDTH_RATIO = 0.16 # UI panel takes 16% of screen width
+UI_PANEL_WIDTH_RATIO = 0.19 # UI panel takes 16% of screen width
 
 
 # Message log height as a ratio of the total screen height
-MESSAGE_LOG_HEIGHT_RATIO = 0.30 # Increased to 30% for a taller box
+MESSAGE_LOG_HEIGHT_RATIO = 0.25 # Increased to 30% for a taller box
 
 
 # Set TILE_SIZE to match your tileset's individual tile size (e.g., 12x12)
@@ -25,7 +25,7 @@ FPS = 60
 MINIMAP_WIDTH_RATIO = 0.2  # 15% of screen width
 MINIMAP_HEIGHT_RATIO = 0.2  # 15% of screen height
 MINIMAP_MARGIN_TOP_RATIO = 0.01  # 2% of screen height (NEW)
-MINIMAP_MARGIN_RIGHT_RATIO = 0.15  # 2% of screen width (NEW)
+MINIMAP_MARGIN_RIGHT_RATIO = 0.18  # 2% of screen width (NEW)
 MINIMAP_TILE_SIZE = 1       # Size of each tile on the minimap in pixels
 MINIMAP_ALPHA = 180         # Transparency of the minimap surface (0-255)
 
@@ -48,8 +48,8 @@ INTERNAL_GAME_AREA_PIXEL_HEIGHT = INTERNAL_GAME_AREA_HEIGHT_TILES * TILE_SIZE
 
 
 # --- Minimum number of tiles to display (for dynamic scaling) ---
-MIN_GAME_AREA_TILES_WIDTH = 24  # Ensure at least 20 tiles wide are always shown
-MIN_GAME_AREA_TILES_HEIGHT = 12 # Ensure at least 18 tiles high are always shown
+MIN_GAME_AREA_TILES_WIDTH = 26  # Ensure at least 20 tiles wide are always shown
+MIN_GAME_AREA_TILES_HEIGHT = 14 # Ensure at least 18 tiles high are always shown
 
 
 # --- Target effective tile scale for dynamic scaling ---

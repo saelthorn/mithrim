@@ -7,7 +7,7 @@ from entities.monster import Monster, Mimic
 from entities.summons import MageHandEntity
 from entities.base_entity import NPC
 from core.floating_text import FloatingText
-from items.items import Potion, lesser_healing_potion, greater_healing_potion # NEW: Import for potion drop
+from items.items import Potion, Food, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, torch, wood_plank # NEW: Import for potion drop
 
 
 class Ability:
@@ -169,7 +169,7 @@ class SecondWind(Ability):
         if not super().use(user, game_instance):
             return False
         
-        heal_amount = user.level * 2 + 5 # Example: Heals based on level
+        heal_amount = user.level * 2 + 8 # Example: Heals based on level
         amount_healed = user.heal(heal_amount)
         game_instance.message_log.add_message(f"{user.name} regains {amount_healed} HP!", (0, 255, 0))
         return True # Indicate successful use
@@ -223,21 +223,45 @@ class Evasion(Ability):
 
 class FireBolt(Ability):
     def __init__(self):
-        super().__init__("Fire Bolt", "Hurl a searing bolt of fire at a foe.", cost=0, cooldown=2)
+        super().__init__("Fire Bolt", "Hurl a searing bolt of fire at a foe.", cost=0, cooldown=1)
         self.range = 6  # Example range in tiles
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
             return False
 
-        # Find only monster targets within range
+        # Helper: footprint-aware visibility
+        def is_entity_visible(ent):
+            allowed = ['player', 'torch', 'darkvision']
+            size = getattr(ent, 'footprint_size', 1)
+            if size > 1:
+                for oy in range(size):
+                    for ox in range(size):
+                        if game_instance.fov.get_visibility_type(ent.x + ox, ent.y + oy) in allowed:
+                            return True
+                return False
+            return game_instance.fov.get_visibility_type(ent.x, ent.y) in allowed
+
+        # Helper: footprint-aware distance (min distance to any occupied tile)
+        def distance_to_entity(ent):
+            size = getattr(ent, 'footprint_size', 1)
+            if size > 1:
+                best = None
+                for oy in range(size):
+                    for ox in range(size):
+                        d = user.distance_to(ent.x + ox, ent.y + oy)
+                        if best is None or d < best:
+                            best = d
+                return best if best is not None else 9999
+            return user.distance_to(ent.x, ent.y)
+
+        # Find only monster targets within range (footprint-aware)
         monster_targets = []
         for entity in game_instance.entities:
             if isinstance(entity, Monster) and entity.alive:
-                distance = user.distance_to(entity.x, entity.y)
+                distance = distance_to_entity(entity)
                 if distance <= self.range:  # Check against ability range
-                    # Check if the target is within the player's FOV
-                    if game_instance.fov.get_visibility_type(entity.x, entity.y) in ['player', 'torch', 'darkvision']:
+                    if is_entity_visible(entity):  # Footprint-aware FOV
                         monster_targets.append(entity)
         # If there are monster targets, auto-target the closest one
         if monster_targets:
@@ -276,7 +300,7 @@ class FireBolt(Ability):
         target_monster = game_instance.get_target_at(target_x, target_y)
         target_tile = game_instance.game_map.tiles[target_y][target_x]  # Get the tile object at target
 
-        # Check if the target is within the player's FOV
+        # Check if the target is within the player's FOV (tile or any tile of monster footprint)
         if not game_instance.fov.get_visibility_type(target_x, target_y) in ['player', 'torch', 'darkvision']:
             game_instance.message_log.add_message(f"You cannot attack {target_x}, {target_y} because it is out of sight!", (255, 0, 0))
             return False  # Do not consume a turn
@@ -338,38 +362,95 @@ class FireBolt(Ability):
             game_instance.game_map.tiles[target_y][target_x] = floor  # Replace with floor tile
             self.minimap_needs_redraw = True # Map changed, redraw minimap
             
-            # --- 10% chance to drop a healing potion ---
-            if target_tile.name in ["Crate", "Barrel"]: # Check if it was a crate or barrel                
-                if random.random() < 0.1:  # 10% chance
-                    # Create a new instance of the potion to avoid modifying the global one
-                    potion_to_drop = lesser_healing_potion.__class__(
-                        name=lesser_healing_potion.name,
-                        char=lesser_healing_potion.char,
-                        color=lesser_healing_potion.color,
-                        description=lesser_healing_potion.description,
-                        effect_type=lesser_healing_potion.effect_type,
-                        effect_value=lesser_healing_potion.effect_value,
-                        price=lesser_healing_potion.price
+            # --- 10% chance to drop a healing potion ---            
+            if target_tile.name in ["Crate", "Barrel"]: # Check if it was a crate or barrel 
+                if random.random() < 0.70:
+                    new_junk = wood_plank.__class__(
+                        name=wood_plank.name,
+                        char=wood_plank.char,
+                        color=wood_plank.color,
+                        description=wood_plank.description
                     )
-                    potion_to_drop.x = target_x
-                    potion_to_drop.y = target_y
-                    game_instance.game_map.items_on_ground.append(potion_to_drop)
-                    game_instance.message_log.add_message(f"A {potion_to_drop.name} drops from the {target_tile.name}!", potion_to_drop.color)
-                elif random.random() < 0.05:  # 5% chance
-                    # Create a new instance of the potion to avoid modifying the global one
-                    potion_to_drop = greater_healing_potion.__class__(
-                        name=greater_healing_potion.name,
-                        char=greater_healing_potion.char,
-                        color=greater_healing_potion.color,
-                        description=greater_healing_potion.description,
-                        effect_type=greater_healing_potion.effect_type,
-                        effect_value=greater_healing_potion.effect_value,
-                        price=greater_healing_potion.price
+                    new_junk.x = target_x
+                    new_junk.y = target_y
+                    self.game_map.items_on_ground.append(new_junk)
+                elif random.random() < 0.3:
+                    new_torch = torch.__class__(
+                        name=torch.name,
+                        char=torch.char,
+                        color=torch.color,
+                        description=torch.description,
+                        price=torch.price
                     )
-                    potion_to_drop.x = target_x
-                    potion_to_drop.y = target_y
-                    game_instance.game_map.items_on_ground.append(potion_to_drop)
-                    game_instance.message_log.add_message(f"A {potion_to_drop.name} drops from the {target_tile.name}!", potion_to_drop.color)                
+                    new_torch.x = target_x
+                    new_torch.y = target_y
+                    self.game_map.items_on_ground.append(new_torch)
+                    self.message_log.add_message(f"A {new_torch.name} drops from the {target_tile.name}!", new_torch.color)
+                elif random.random() < 0.2:
+                    new_food = meat.__class__(
+                        name=meat.name,
+                        char=meat.char,
+                        color=meat.color,
+                        description=meat.description,
+                        healing_value=meat.healing_value,
+                        price=meat.price
+                    )
+                    new_food.x = target_x
+                    new_food.y = target_y
+                    self.game_map.items_on_ground.append(new_food)
+                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
+                elif random.random() < 0.35:
+                    new_food = green_apple.__class__(
+                        name=green_apple.name,
+                        char=green_apple.char,
+                        color=green_apple.color,
+                        description=green_apple.description,
+                        healing_value=green_apple.healing_value,
+                        price=green_apple.price
+                    )
+                    new_food.x = target_x
+                    new_food.y = target_y
+                    self.game_map.items_on_ground.append(new_food)
+                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
+                elif random.random() < 0.25:
+                    new_food = fromage.__class__(
+                        name=fromage.name,
+                        char=fromage.char,
+                        color=fromage.color,
+                        description=fromage.description,
+                        healing_value=fromage.healing_value,
+                        price=fromage.price
+                    )
+                    new_food.x = target_x
+                    new_food.y = target_y
+                    self.game_map.items_on_ground.append(new_food)
+                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
+                elif random.random() < 0.3:
+                    new_food = bread.__class__(
+                        name=bread.name,
+                        char=bread.char,
+                        color=bread.color,
+                        description=bread.description,
+                        healing_value=bread.healing_value,
+                        price=bread.price
+                    )
+                    new_food.x = target_x
+                    new_food.y = target_y
+                    self.game_map.items_on_ground.append(new_food)
+                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
+                elif random.random() < 0.4:
+                    new_food = mushroom.__class__(
+                        name=mushroom.name,
+                        char=mushroom.char,
+                        color=mushroom.color,
+                        description=mushroom.description,
+                        healing_value=mushroom.healing_value,
+                        price=mushroom.price
+                    )
+                    new_food.x = target_x
+                    new_food.y = target_y
+                    self.game_map.items_on_ground.append(new_food)
+                    self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)                 
 
 
             # --- MISSING FLOATING TEXT CREATION HERE FOR DESTRUCTIBLE ---
@@ -393,8 +474,8 @@ class FireBolt(Ability):
 
 class Fireball(Ability):
     def __init__(self):
-        super().__init__("Fireball", "A bright streak flashes and explodes in a fiery blast.", cost=0, cooldown=150)
-        self.radius = 3  # Radius of the fireball effect
+        super().__init__("Fireball", "A bright streak flashes and explodes in a fiery blast.", cost=0, cooldown=100)
+        self.radius = 4  # Radius of the fireball effect
         self.range = 8
         self.damage_dice = 8  # Number of damage dice
 
@@ -494,15 +575,127 @@ class Fireball(Ability):
         for x in range(target_x - self.radius, target_x + self.radius + 1):
             for y in range(target_y - self.radius, target_y + self.radius + 1):
                 if self.is_within_radius(x, y, target_x, target_y, self.radius):
+                    # Ensure coordinates are within map bounds
+                    if not (0 <= x < game_instance.game_map.width and 0 <= y < game_instance.game_map.height):
+                        continue
+
                     target_tile = game_instance.game_map.tiles[y][x]
+
+                    # --- NEW MIMIC REVEAL LOGIC ---
+                    if isinstance(target_tile, MimicTile):
+                        mimic_entity = target_tile.mimic_entity
+                        if mimic_entity.disguised:
+                            game_instance.message_log.add_message(f"The Fireball strikes the disguised {mimic_entity.name}!", (255, 165, 0))
+                            # Mimics take damage from the fireball, which will trigger their reveal
+                            # We pass the full damage of the fireball to the mimic
+                            mimic_entity.take_damage(total_damage, game_instance, damage_type='fire')
+                            # If the mimic is still disguised after taking damage (meaning it didn't die from the hit)
+                            if mimic_entity.disguised: # Check again if it's still disguised
+                                mimic_entity.reveal(game_instance) # Force reveal if it didn't die
+                            # No need to replace the tile with floor here, as the mimic's reveal handles it.
+                            game_instance.floating_texts.append(FloatingText(x, y, "REVEAL!", (255, 255, 0)))
+                            game_instance.minimap_needs_redraw = True
+                            continue # Move to the next tile in the radius
+
+                    # --- EXISTING DESTRUCTIBLE TILE LOGIC (only if not a MimicTile) ---
                     if target_tile.destructible:
                         game_instance.message_log.add_message(f"The {target_tile.name} is destroyed by the Fireball!", (255, 0, 0))
                         game_instance.game_map.tiles[y][x] = floor  # Replace with floor tile
                         game_instance.minimap_needs_redraw = True  # Mark minimap for redraw
 
                         # Create floating text for the destruction of the tile
-                        destruction_text = FloatingText(x, y - 0.5, f"EXPROSION!", (255, 0, 0))  # Adjust Y for visibility
+                        destruction_text = FloatingText(x, y - 0.5, f"SMASH!", (255, 0, 0))  # Adjust Y for visibility
                         game_instance.floating_texts.append(destruction_text)  # Add to floating texts
+
+                        # --- Existing potion drop logic for crates/barrels ---
+                        if target_tile.name in ["Crate", "Barrel"]: # Check if it was a crate or barrel 
+                            if random.random() < 0.70:
+                                new_junk = wood_plank.__class__(
+                                    name=wood_plank.name,
+                                    char=wood_plank.char,
+                                    color=wood_plank.color,
+                                    description=wood_plank.description
+                                )
+                                new_junk.x = x
+                                new_junk.y = y
+                                self.game_map.items_on_ground.append(new_junk)
+                            elif random.random() < 0.3:
+                                new_torch = torch.__class__(
+                                    name=torch.name,
+                                    char=torch.char,
+                                    color=torch.color,
+                                    description=torch.description,
+                                    price=torch.price
+                                )
+                                new_torch.x = x
+                                new_torch.y = y
+                                self.game_map.items_on_ground.append(new_torch)
+                                self.message_log.add_message(f"A {new_torch.name} drops from the {target_tile.name}!", new_torch.color)
+                            elif random.random() < 0.2:
+                                new_food = meat.__class__(
+                                    name=meat.name,
+                                    char=meat.char,
+                                    color=meat.color,
+                                    description=meat.description,
+                                    healing_value=meat.healing_value,
+                                    price=meat.price
+                                )
+                                new_food.x = x
+                                new_food.y = y
+                                self.game_map.items_on_ground.append(new_food)
+                                self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
+                            elif random.random() < 0.35:
+                                new_food = green_apple.__class__(
+                                    name=green_apple.name,
+                                    char=green_apple.char,
+                                    color=green_apple.color,
+                                    description=green_apple.description,
+                                    healing_value=green_apple.healing_value,
+                                    price=green_apple.price
+                                )
+                                new_food.x = x
+                                new_food.y = y
+                                self.game_map.items_on_ground.append(new_food)
+                                self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
+                            elif random.random() < 0.25:
+                                new_food = fromage.__class__(
+                                    name=fromage.name,
+                                    char=fromage.char,
+                                    color=fromage.color,
+                                    description=fromage.description,
+                                    healing_value=fromage.healing_value,
+                                    price=fromage.price
+                                )
+                                new_food.x = x
+                                new_food.y = y
+                                self.game_map.items_on_ground.append(new_food)
+                                self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
+                            elif random.random() < 0.3:
+                                new_food = bread.__class__(
+                                    name=bread.name,
+                                    char=bread.char,
+                                    color=bread.color,
+                                    description=bread.description,
+                                    healing_value=bread.healing_value,
+                                    price=bread.price
+                                )
+                                new_food.x = x
+                                new_food.y = y
+                                self.game_map.items_on_ground.append(new_food)
+                                self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
+                            elif random.random() < 0.4:
+                                new_food = mushroom.__class__(
+                                    name=mushroom.name,
+                                    char=mushroom.char,
+                                    color=mushroom.color,
+                                    description=mushroom.description,
+                                    healing_value=mushroom.healing_value,
+                                    price=mushroom.price
+                                )
+                                new_food.x = x
+                                new_food.y = y
+                                self.game_map.items_on_ground.append(new_food)
+                                self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
 
         return True  # Successfully used ability
 
@@ -598,7 +791,6 @@ class MageHand(Ability):
         if not super().use(user, game_instance):
             return False
 
-        game_instance.message_log.add_message(f"{user.name} casts Mage Hand!", (100, 255, 255))
         game_instance.message_log.add_message("Select a target to trigger a trap or pick up an item (Arrow Keys, Enter to confirm, Esc to cancel).", (255, 100, 0))
         
         game_instance.game_state = GameState.TARGETING
@@ -626,7 +818,7 @@ class MageHand(Ability):
     
         # Check if the target is an item (specifically a potion)
         item_at_target = game_instance.get_interactable_item_at(target_x, target_y)
-        if item_at_target and isinstance(item_at_target, Potion):
+        if item_at_target and isinstance(item_at_target, Potion or Food):
             # Instead of using mage_hand_actor, add the potion directly to the user's inventory
             if item_at_target.on_pickup(user, game_instance):  # Use the actual user as the picker
                 game_instance.message_log.add_message(f"The Mage Hand picks up the {item_at_target.name}!", (0, 255, 0))

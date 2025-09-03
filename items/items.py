@@ -63,6 +63,17 @@ class Potion(Item):
         game_instance.message_log.add_message(f"The {self.name} is consumed.", (150, 150, 150))
 
 
+class Food(Item):
+    def __init__(self, name, char, color, description, healing_value, price=0):
+        super().__init__(name, char, color, description, price)
+        self.healing_value = healing_value # Amount of hunger restored
+
+    def use(self, user, game_instance):
+        """This method will be called by Player.use_item, but the actual hunger logic is in Player.eat_food."""
+        return True # Indicate that it's a usable item type        
+
+
+
 class Weapon(Item):
     """An item that can be equipped for combat."""
     def __init__(self, name, char, color, description, damage_dice, damage_modifier, price, attack_bonus=0, is_two_handed=False, category=None):
@@ -174,7 +185,7 @@ class CampfireKit(Item):
             game_instance.message_log.add_message("The Campfire Kit has no uses left.", (255, 0, 0))
             return False
 
-    
+            
 
 
 # --- Junk Items ---
@@ -207,6 +218,51 @@ greater_healing_potion = Potion(
     price = 20
 )
 
+meat = Food(
+    name="Meat",
+    description="A meat from unknown origin, chewy but full of taste.",
+    healing_value=40,
+    price=15,
+    char="met",
+    color=(255, 0, 0)
+)
+
+green_apple = Food(
+    name="Green Apple",
+    description="A fruit that has sweet and tarty taste.",
+    healing_value=15,
+    price=5,
+    char="gra",
+    color=(0, 255, 0)
+)
+
+fromage = Food(
+    name="Fromage",
+    description="Ce type de fromage est un peu salé et a une saveur umami.",
+    healing_value=30,
+    price=12,
+    char="frg",
+    color=(255, 255, 0)
+)
+
+bread = Food(
+    name="Bread",
+    description="Food that is often brought when crawling dungeons.",
+    healing_value=25,
+    price=8,
+    char="brd",
+    color=(200, 200, 100)
+)
+
+mushroom = Food(
+    name="Mushroom",
+    description="Food that is often found in dungeon, has a distinct earthy flavour.",
+    healing_value=10,
+    price=0,
+    char="msm",
+    color=(220, 220, 220)
+)
+
 
 WEAPON_CATEGORIES = {
     "dagger": ["Iron Dagger", "Silver Dagger"],
@@ -222,15 +278,24 @@ WEAPON_CATEGORIES = {
     "flail": ["Dwarven Flail", "Flameheart Flail"],
 }
 
+torch = OffHand(
+    name="Torch", 
+    char='th', 
+    color=(255, 140, 0), 
+    description="A burning torch that can be held in your off-hand. Provides extra light.", 
+    price=10
+)
+
+
 iron_dagger = OffHand(
     name="Iron Dagger",
     char="dgr", # Using same char as other weapons for now
     color=(180, 180, 180),
     description="A small, light blade.",
     damage_dice="1d4",
-    damage_modifier=0,
-    attack_bonus=0,
-    price = 10,
+    damage_modifier=1,
+    attack_bonus=1,
+    price = 15,
     category="dagger"
 )
 
@@ -240,7 +305,7 @@ silver_dagger = OffHand(
     color=(180, 180, 180),
     description="A silver blade.",
     damage_dice="1d4",
-    damage_modifier=1,
+    damage_modifier=2,
     attack_bonus=3,
     price = 20,
     category="dagger"
@@ -646,7 +711,7 @@ def generate_random_loot(level_number):
         lesser_healing_potion, greater_healing_potion, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor,
         robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, 
         apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail,
-        round_shield, kite_shield, tower_shield,
+        round_shield, kite_shield, tower_shield, torch
     ]
 
     # Add 1-3 random items

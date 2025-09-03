@@ -32,8 +32,15 @@ class Race:
 
 class Human(Race):
     def __init__(self):
-        super().__init__("Human", "A versatile and adaptable people, gaining +1 to all ability scores.",
-                         darkvision_radius=6)
+        super().__init__(
+            name="Human",
+            description="Humans are versatile and adaptable, with no particular strengths or weaknesses.",
+            darkvision_radius=5,
+            damage_resistances=[],
+            skill_proficiencies=["Any one skill"],
+            weapon_proficiencies=["Simple weapons"],
+            armor_proficiencies=["Light armor"]
+            )
 
     def apply_traits(self, player_instance, game_instance):
         super().apply_traits(player_instance, game_instance) # Call base method for logging
@@ -54,9 +61,15 @@ class Human(Race):
 class HillDwarf(Race):
     def __init__(self):
         # NEW: Add weapon_proficiencies for HillDwarf
-        super().__init__("Hill Dwarf", "Stout and hardy, with a keen intuition. +2 CON, +1 WIS, and +1 HP per level. Has Darkvision and Poison Resistance. Proficient with axes and hammers.",
-                         darkvision_radius=8, damage_resistances=['poison'],
-                         weapon_proficiencies=["battleaxe", "handaxe", "light hammer", "warhammer"]) # Example proficiencies
+        super().__init__(
+            name="Hill Dwarf",
+            description="Hill Dwarves are known for their resilience and toughness.",
+            darkvision_radius=8,
+            damage_resistances=["Poison"],
+            skill_proficiencies=["History", "Stonecunning"],
+            weapon_proficiencies=["Battleaxes", "Handaxes", "Warhammers"],
+            armor_proficiencies=["Light armor", "Medium armor"]
+            ) # Example proficiencies
 
     def apply_traits(self, player_instance, game_instance):
         super().apply_traits(player_instance, game_instance)
@@ -90,14 +103,15 @@ class HillDwarf(Race):
 class DrowElf(Race):
     def __init__(self):
         super().__init__(
-            "Drow Elf",
-            "A dark-skinned elf with keen senses and a natural affinity for magic, often dwelling in the Underdark. Gains +2 Dexterity, +1 Charisma, and Superior Darkvision.",
-            darkvision_radius=10, # Superior Darkvision (e.g., 12 tiles)
-            damage_resistances=[], 
-            skill_proficiencies=[], 
-            weapon_proficiencies=["rapier", "shortsword", "hand crossbow"], 
-            armor_proficiencies=["light"] 
-        )
+            name="Drow Elf",
+            description="Drow Elves are known for their agility and magical affinity.",
+            darkvision_radius=12,
+            damage_resistances=["Magic"],
+            skill_proficiencies=["Stealth", "Perception"],
+            weapon_proficiencies=["Rapiers", "Hand crossbows"],
+            armor_proficiencies=["Light armor"]
+            )
+    
     def apply_traits(self, player_instance, game_instance):
         super().apply_traits(player_instance, game_instance) # Call base method for logging and applying darkvision_radius
         player_instance.dexterity += 2

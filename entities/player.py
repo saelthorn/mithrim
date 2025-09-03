@@ -1,8 +1,9 @@
 import random
+from core. game import GameState
 from core.inventory import Inventory
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball
-from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning
-from items.items import iron_long_sword, chainmail_armor, iron_short_sword, steel_long_sword, steel_battle_axe, padded_armor, half_plate_armor, iron_dagger, silver_dagger, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
+from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight
+from items.items import torch, Food, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
 from core.floating_text import FloatingText
@@ -27,6 +28,7 @@ class Player: # This is our base class for playable characters
         self.color = color
         self.alive = True
         self.blocks_movement = True
+        self.facing_right = False  # Default facing left
         self.initiative = 0
         self.gold = 50
 
@@ -70,6 +72,9 @@ class Player: # This is our base class for playable characters
         # --- Derived Stats ---
         self.proficiency_bonus = 2 # Starts at +2 for level 1
         
+        # --- Weapon Proficiency Penalty ---
+        self.weapon_proficiency_penalty = 0 
+
         # --- Initialize equipped items BEFORE calculating AC/HP ---
         self.equipped_weapon = None
         self.equipped_off_hand = None
@@ -78,15 +83,20 @@ class Player: # This is our base class for playable characters
         self.starting_equipment = None 
         
         # Recalculate max HP and AC based on base stats and equipped gear
-        self.max_hp = 0 # Will be set by subclass
-        self.hp = 0     # Will be set by subclass
-        
+        self.max_hp = 0 
+        self.hp = 0     
+
+        self.hunger = 100  # Max hunger value
+        self.hunger_decrease_rate = 1  # Hunger decreases by 1 per turn
+        self.hunger_threshold = 20  # Threshold for negative effects
+        self.turns_since_last_hunger_decrease = 0 
+
         self.attack_power = 0  # Base attack power
         self.attack_bonus = 0      
 
-        self.armor_class = 0  # Will be set by subclass
+        self.armor_class = 0  
         
-        self.inventory = Inventory(capacity=10)
+        self.inventory = Inventory(capacity=20)
         self.inventory.owner = self # Ensure inventory owner is set
         
 
@@ -101,27 +111,100 @@ class Player: # This is our base class for playable characters
 
         self.current_action_state = None  
 
+    def update_hunger(self, game_instance):
+        """Decrease hunger every 2 turns."""
+        self.turns_since_last_hunger_decrease += 1
+        if self.turns_since_last_hunger_decrease >= 4:  
+            if self.hunger > 0:
+                self.hunger -= self.hunger_decrease_rate
+            self.turns_since_last_hunger_decrease = 0  # Reset the counter
+            # Check if hunger has reached 0
+            if self.hunger <= 0:
+                self.hunger = 0
+                hunger_death_msgs = [
+                    f"{self.name} collapses, starved beyond saving...",
+                    f"{self.name}'s body gives out, hunger claiming the last breath...",
+                    f"Weak and withered, {self.name} falls to the ground — no strength left to rise...",
+                    f"With hollow eyes and an empty stomach, {self.name} succumbs to hunger...",
+                    f"The dungeon claims another victim, as {self.name} dies in silence...",
+                    f"{self.name}'s life flickers out, consumed by starvation..."
+                ]
+                game_instance.message_log.add_message(random.choice(hunger_death_msgs), (255, 0, 0))
+                self.die(game_instance)  # Call the die method and pass game_instance
+
+    def set_facing_direction(self, facing_right: bool):
+        """Set player's facing direction."""
+        self.facing_right = facing_right
+   
+    def eat_food(self, food_item, game_instance):
+        """Consume food to restore hunger."""
+        if not isinstance(food_item, Food):
+            not_food_msgs = [
+                "You can't eat that!",
+                "That’s no meal, friend...",
+                "Biting into that would be a poor idea...",
+                "Your stomach recoils — that's not food!"
+            ]
+            game_instance.message_log.add_message(random.choice(not_food_msgs), (255, 100, 100))
+            return False
+    
+        if self.hunger >= 100:
+            not_hungry_msgs = [
+                "You're not hungry right now.",
+                "Your belly is already full.",
+                "No room for another bite.",
+                "You pat your stomach — satisfied enough for now."
+            ]
+            game_instance.message_log.add_message(random.choice(not_hungry_msgs), (150, 150, 150))
+            return False
+    
+        self.hunger = min(self.hunger + food_item.healing_value, 100)  # Restore hunger, max 100
+    
+        eat_msgs = [
+            f"{self.name} eats the {food_item.name} and feels more satiated!",
+            f"{self.name} devours the {food_item.name}, easing the pangs of hunger...",
+            f"{self.name} chews the {food_item.name}, strength returning bit by bit...",
+            f"The taste of {food_item.name} fills {self.name}'s mouth, banishing the emptiness...",
+            f"With a grateful bite, {self.name} finishes the {food_item.name} and feels renewed."
+        ]
+        game_instance.message_log.add_message(random.choice(eat_msgs), (0, 255, 0))
+    
+        self.inventory.remove_item(food_item)  # Remove food after consumption
+        return True
+    
+
     def get_ability_modifier(self, score):
         return (score - 10) // 2
-
+    
     def update_attack_power(self):
         """Recalculate the attack power based on the primary stat and equipped items."""
-        if self.primary_stat:
-            self.attack_power = self.get_ability_modifier(getattr(self, self.primary_stat))  # Base attack power from primary stat
-            if self.equipped_weapon:
-                self.attack_power += self.equipped_weapon.damage_modifier  # Add weapon's damage modifier
-                self.attack_bonus += self.equipped_weapon.attack_bonus
-                print(f"Weapon Attack Power: {self.equipped_weapon.damage_modifier}")  # Debugging output
-                print(f"Weapon Attack Bonus: {self.equipped_weapon.attack_bonus}")  # Debugging output
-            if self.equipped_off_hand:
-                self.attack_bonus = self.get_ability_modifier(getattr(self, self.primary_stat)) + self.equipped_off_hand.attack_bonus  # Add off-hand weapon's attack bonus
-                self.attack_power += self.equipped_off_hand.damage_modifier 
-                print(f"Offhand Attack Power: {self.equipped_weapon.damage_modifier}")  # Debugging output
-                print(f"Offhand Attack Bonus: {self.equipped_weapon.attack_bonus}")  # Debugging output
-        else:
-            self.attack_power = 0  # Default to 0 if no primary stat is set
+        # Base attack power from primary stat
+        base_attack_power = self.get_ability_modifier(self.dexterity)
+    
+        # Initialize attack power and attack bonus
+        self.attack_power = base_attack_power
+        self.attack_bonus = base_attack_power + self.proficiency_bonus  # Base attack bonus
+    
+        # Check if a main weapon is equipped
+        if self.equipped_weapon:
+            self.attack_power += self.equipped_weapon.damage_modifier  # Add weapon's damage modifier
+            self.attack_bonus += self.equipped_weapon.attack_bonus  # Add weapon's attack bonus
+
+            self.attack_bonus += self.weapon_proficiency_penalty
+            self.attack_power += self.weapon_proficiency_penalty
+    
+        # Check if an off-hand weapon is equipped
+        if self.equipped_off_hand:
+            # Off-hand weapons typically do not get the proficiency bonus
+            self.attack_power += self.equipped_off_hand.damage_modifier  # Add off-hand weapon's damage modifier
+            self.attack_bonus += self.equipped_off_hand.attack_bonus  # Add off-hand weapon's attack bonus
+            
+            self.attack_bonus += self.weapon_proficiency_penalty
+            self.attack_power += self.weapon_proficiency_penalty
+    
         print(f"Updated Attack Power: {self.attack_power}")  # Debugging output
         print(f"Updated Attack Bonus: {self.attack_bonus}")  # Debugging output
+    
 
 
     def get_saving_throw_bonus(self, ability_name):
@@ -139,6 +222,7 @@ class Player: # This is our base class for playable characters
         d20_roll = random.randint(1, 20)
         save_bonus = self.get_saving_throw_bonus(ability_name)
         save_total = d20_roll + save_bonus
+        print(f"DEBUG: {self.name} {ability_name} Save: Roll={d20_roll}, Bonus={save_bonus}, Total={save_total}, DC={dc}") # ADD THIS
 
         game_instance.message_log.add_message(
             f"You make a {ability_name} saving throw: {d20_roll} + {save_bonus} = {save_total} (DC {dc})",
@@ -226,6 +310,7 @@ class Player: # This is our base class for playable characters
 
         if self.hp <= 0:
             self.alive = False
+            self.die()
         return damage_taken
 
     def heal(self, amount):
@@ -262,24 +347,9 @@ class Player: # This is our base class for playable characters
         self.max_hp = self._calculate_max_hp()
         self.hp = self.max_hp # Heal to full on level up
         
-        # --- NEW: Re-evaluate proficiency penalty on level up ---
-        proficiency_penalty = 0
-        if self.equipped_weapon:
-            standardized_weapon_name = self.equipped_weapon.name.lower().replace(" ", "")
-            if standardized_weapon_name not in self.weapon_proficiencies:
-                proficiency_penalty = -4 # Same penalty as in equip_item
-        
-        self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus # Base attack bonus
-        if self.equipped_weapon: # Add weapon's bonus if equipped
-            self.attack_bonus += self.equipped_weapon.attack_bonus + proficiency_penalty # Apply penalty here
-        
-        # Recalculate attack_power based on primary attack stat and equipped weapon
-        # This needs to be dynamic based on class's primary attack stat
-        # For now, let's assume Dexterity is the primary attack stat for simplicity in base class
-        # Subclasses will override this if needed.
-        self.attack_power = self.get_ability_modifier(self.dexterity)
-        if self.equipped_weapon:
-            self.attack_power += self.equipped_weapon.damage_modifier
+
+        # --- Recalculate attack power and attack bonus after leveling up ---
+        self.update_attack_power()  # Ensure attack power and bonus are updated
         
         self.armor_class = self._calculate_ac() # Recalculate AC
 
@@ -307,13 +377,28 @@ class Player: # This is our base class for playable characters
 
         target = None
         for entity in entities:
-            if entity.x == new_x and entity.y == new_y and entity != self and entity.alive:
-                target = entity
-                break
+            if entity != self and entity.alive:
+                if hasattr(entity, 'occupies_tile'):
+                    is_on_target = entity.occupies_tile(new_x, new_y)
+                else:
+                    is_on_target = (entity.x == new_x and entity.y == new_y)
+                if is_on_target:
+                    target = entity
+                    break
 
         if target:
             return True
         elif game_map.is_walkable(new_x, new_y):
+            # Do not move into any blocking entity's occupied tile (supports multi-tile)
+            for entity in entities:
+                if entity is self or not getattr(entity, 'alive', True) or not getattr(entity, 'blocks_movement', False):
+                    continue
+                if hasattr(entity, 'occupies_tile'):
+                    if entity.occupies_tile(new_x, new_y):
+                        return False
+                else:
+                    if getattr(entity, 'x', None) == new_x and getattr(entity, 'y', None) == new_y:
+                        return False
             self.x = new_x
             self.y = new_y
             return True
@@ -330,8 +415,17 @@ class Player: # This is our base class for playable characters
             if entity != self and entity.alive:
                 distance = self.distance_to(entity.x, entity.y)
                 if distance < 10:  # If any enemy is within 10 tiles
-                    game_instance.message_log.add_message("You cannot rest; enemies are too close!", (255, 0, 0))
+                    rest_block_msgs = [
+                        "You cannot rest; enemies are too close!",
+                        "Your instincts scream danger — this is no place to rest!",
+                        "Shadows shift nearby... you cannot lower your guard now.",
+                        "The scrape of claws echoes too near — rest must wait.",
+                        "You tighten your grip on your weapon. Rest will have to wait.",
+                        "The dungeon stirs with hostile presence... too risky to sleep."
+                    ]
+                    game_instance.message_log.add_message(random.choice(rest_block_msgs), (255, 0, 0))
                     return False
+
 
         # Check if the Campfire Kit is on the ground
         campfire_kit = next((item for item in game_instance.game_map.items_on_ground if isinstance(item, CampfireKit)), None)
@@ -341,21 +435,42 @@ class Player: # This is our base class for playable characters
             # Fully recover HP and remove status effects
             self.hp = self.max_hp
             self.active_status_effects.clear()  # Remove all status effects
-            game_instance.message_log.add_message(f"{self.name} rests by the campfire and recovers fully!", (0, 255, 0))
-
+            campfire_msgs = [
+                f"{self.name} rests by the campfire, the flames chasing away the dungeon's chill...",
+                f"The warmth of the campfire eases {self.name}'s wounds and weary spirit...",
+                f"{self.name} finds brief peace by the fire, recovering strength and clarity...",
+                f"As the fire crackles, {self.name}'s body mends and their mind steadies...",
+                f"The campfire glows softly, restoring {self.name} to full vigor..."
+            ]
+            game_instance.message_log.add_message(random.choice(campfire_msgs), (0, 255, 0))
+        
             # Reset ability cooldowns
             for ability in self.abilities.values():
                 ability.current_cooldown = 0  # Reset cooldown for each ability
-
+        
             # Increase ambush chance (e.g., from 20% to 50%)
-            if random.random() < 0.1:  # 20% chance for ambush
-                game_instance.message_log.add_message("You hear rustling nearby... an ambush!", (255, 0, 0))
+            if random.random() < 0.1:  # 10% chance for ambush
+                ambush_msgs = [
+                    "The fire flickers... shadows shift — an ambush!",
+                    "Rustling breaks the quiet — danger approaches!",
+                    "The dungeon is never safe... creatures lunge from the dark!",
+                    "Eyes glint beyond the firelight — you've been found!",
+                    "Your moment of respite shatters as enemies close in!"
+                ]
+                game_instance.message_log.add_message(random.choice(ambush_msgs), (255, 0, 0))
                 self.trigger_ambush(game_instance)
-
                 return True  # Resting was interrupted by ambush
         else:
-            game_instance.message_log.add_message("You need to be adjacent to a campfire to rest.", (255, 0, 0))
+            need_fire_msgs = [
+                "You must be near a campfire to safely rest.",
+                "The dungeon’s chill forbids rest without firelight.",
+                "A campfire’s warmth is needed before you can settle down.",
+                "You can’t rest here — too dark, too cold, too dangerous.",
+                "Without a campfire, rest slips beyond reach..."
+            ]
+            game_instance.message_log.add_message(random.choice(need_fire_msgs), (255, 0, 0))
             return False  # Cannot rest if not adjacent to a campfire
+        
 
         return True  # Indicate successful resting
 
@@ -397,25 +512,81 @@ class Player: # This is our base class for playable characters
         # Update the turn order to include the new enemies
         game_instance.turn_order.extend(spawned_enemies)  # Add all spawned enemies to the turn order
         game_instance.turn_order = sorted(game_instance.turn_order, key=lambda e: e.initiative, reverse=True)  # Sort by initiative
-    
+
+
+    def die(self, game_instance=None):
+        """
+        Handles the player's death.
+        Sets alive to False and logs a death message.
+        """
+        self.alive = False
+        if game_instance:
+            game_instance.message_log.add_message(f"{self.name} has fallen!", (255, 0, 0))
+        print(f"{self.name} has died.") # For console debugging 
+
 
     def is_adjacent_to(self, other):
-        """Check if next to another entity (cardinal directions + diagonals)"""
+        """Check adjacency (including diagonals). Supports multi-tile entities."""
+        # If other has a footprint, compute min Chebyshev distance to its occupied rectangle
+        footprint_size = getattr(other, 'footprint_size', 1)
+        if footprint_size > 1:
+            left = other.x
+            right = other.x + footprint_size - 1
+            top = other.y
+            bottom = other.y + footprint_size - 1
+
+            # Compute minimal dx, dy to the rectangle
+            if self.x < left:
+                dx = left - self.x
+            elif self.x > right:
+                dx = self.x - right
+            else:
+                dx = 0
+
+            if self.y < top:
+                dy = top - self.y
+            elif self.y > bottom:
+                dy = self.y - bottom
+            else:
+                dy = 0
+
+            # Adjacent if Chebyshev distance == 1 (touching any edge/corner) and not overlapping
+            return max(dx, dy) == 1
+
+        # Single-tile fallback
         dx = abs(self.x - other.x)
         dy = abs(self.y - other.y)
         return dx <= 1 and dy <= 1 and (dx != 0 or dy != 0)
 
     def use_item(self, item, game_instance):
-        from items.items import Potion
+        from items.items import Potion, Food # Ensure Food is imported here too
         if isinstance(item, Potion):
-            item.use(self, game_instance)
-            return True
+            return item.use(self, game_instance) # Potion's use method handles removal
+        elif isinstance(item, Food): # NEW: Check for Food type
+            return self.eat_food(item, game_instance) # Call the new eat_food method
+        
         game_instance.message_log.add_message(f"You can't use {item.name} this way.", (255, 100, 100))
         return False
 
     def equip_item(self, item, game_instance):
         from items.items import Weapon, Armor, OffHand
+        
         if isinstance(item, Weapon):
+            # Check if the weapon is two-handed
+            if item.is_two_handed:  # Assuming you have an attribute to check if it's two-handed
+                # Automatically unequip the off-hand item
+                if self.equipped_off_hand:
+                    self.inventory.add_item(self.equipped_off_hand) 
+                    game_instance.message_log.add_message(f"You unequip {self.equipped_off_hand.name}.", (150, 150, 150))
+                    self.equipped_off_hand = None  # Clear the off-hand slot
+
+                    # Recalculate AC after equipping the shield
+                    self.armor_class = self._calculate_ac()  # Recalculate AC to include the shield's defense bonus
+
+                    # Recalculate attack bonus after equipping the off-hand weapon
+                    self.update_attack_power()  # Call the method to update the attack bonus                    
+
+            # If the player is equipping a weapon, check for existing equipped weapon
             if self.equipped_weapon:
                 self.inventory.add_item(self.equipped_weapon) 
                 game_instance.message_log.add_message(f"You unequip {self.equipped_weapon.name}.", (150, 150, 150))
@@ -423,31 +594,31 @@ class Player: # This is our base class for playable characters
             self.inventory.remove_item(item)
             self.equipped_weapon = item
             
-            # Check for weapon proficiency based on categories
-            proficiency_penalty = 0
-            standardized_weapon_name = item.name.lower().replace(" ", "")  # Standardize the name
+
+            standardized_weapon_name = item.name.lower().replace(" ", "")
             
+            self.weapon_proficiency_penalty = 0 # Reset to 0 before checking
+
             # Check if the player is proficient with the weapon category
             weapon_category = None
             for category, weapons in WEAPON_CATEGORIES.items():
-                if standardized_weapon_name in [w.lower().replace(" ", "") for w in weapons]:  # Standardize weapon names in the category
+                if standardized_weapon_name in [w.lower().replace(" ", "") for w in weapons]:
                     weapon_category = category
                     break
                 
             # Check proficiency
             if weapon_category is None:
-                proficiency_penalty = -4  # No category found
-                game_instance.message_log.add_message(f"You are not proficient with {item.name}. Attack rolls with it will be penalized by {proficiency_penalty}.", (255, 100, 100))
+                self.weapon_proficiency_penalty = -8  # No category found, apply penalty
+                game_instance.message_log.add_message(f"You are not proficient with {item.name}. Attack rolls with it will be penalized by {self.weapon_proficiency_penalty}.", (255, 100, 100))
             else:
-                # Check if the category is in the player's proficiencies
                 if weapon_category not in self.weapon_proficiencies and weapon_category not in self.class_weapon_proficiencies:
-                    proficiency_penalty = -4  # Example penalty for non-proficiency
-                    game_instance.message_log.add_message(f"You are not proficient with {item.name}. Attack rolls with it will be penalized by {proficiency_penalty}.", (255, 100, 100))
+                    self.weapon_proficiency_penalty = -8  # No category found, apply penalty
+                    game_instance.message_log.add_message(f"You are not proficient with {item.name}. Attack rolls with it will be penalized by {self.weapon_proficiency_penalty}.", (255, 100, 100))
                 else:
                     game_instance.message_log.add_message(f"You are proficient with {item.name}.", (100, 255, 100))
-            
+
             # Recalculate attack bonus after equipping the weapon
-            self.update_attack_power()  # Call the method to update the attack bonus
+            self.update_attack_power()  
             
             game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
             return True
@@ -467,7 +638,7 @@ class Player: # This is our base class for playable characters
             # Check if the player is proficient with the armor category
             armor_category = None
             for category, armors in ARMOR_CATEGORIES.items():
-                if standardized_armor_name in [a.lower().replace(" ", "") for a in armors]:  # Standardize armor names in the category
+                if standardized_armor_name in [a.lower().replace(" ", "") for a in armors]:
                     armor_category = category
                     break
                 
@@ -476,7 +647,6 @@ class Player: # This is our base class for playable characters
                 proficiency_penalty = -4  # No category found
                 game_instance.message_log.add_message(f"You are not proficient with {item.name}. Armor rolls will be penalized by {proficiency_penalty}.", (255, 100, 100))
             else:
-                # Check if the category is in the player's proficiencies
                 if armor_category not in self.armor_proficiencies and armor_category not in self.class_armor_proficiencies:
                     proficiency_penalty = -4  # Example penalty for non-proficiency
                     game_instance.message_log.add_message(f"You are not proficient with {item.name}. Armor rolls will be penalized by {proficiency_penalty}.", (255, 100, 100))
@@ -484,22 +654,34 @@ class Player: # This is our base class for playable characters
                     game_instance.message_log.add_message(f"You are proficient with {item.name}.", (100, 255, 100))
 
 
-            self.armor_class = self._calculate_ac()  # Recalculate AC to include the shield's defense bonus
+            self.armor_class = self._calculate_ac() + proficiency_penalty  # Apply penalty to AC
 
             game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
-
             return True
 
         elif isinstance(item, OffHand):  # Handle off-hand items
+            # Check if a two-handed weapon is already equipped
+            if self.equipped_weapon and self.equipped_weapon.is_two_handed:
+                game_instance.message_log.add_message(f"You cannot equip {item.name} while wielding a two-handed weapon.", (255, 0, 0))
+                return False
+
+
             if self.equipped_off_hand:
                 self.inventory.add_item(self.equipped_off_hand) 
                 game_instance.message_log.add_message(f"You unequip {self.equipped_off_hand.name}.", (150, 150, 150))
-            
+
+
             self.inventory.remove_item(item)
             self.equipped_off_hand = item
             
             game_instance.message_log.add_message(f"You equip {item.name} in your off-hand.", (0, 255, 0))
-            
+
+            if item.name.lower() == "torch":
+                self.add_status_effect("Torchlight", duration=250, game_instance=game_instance) 
+                game_instance.message_log.add_message(
+                    "The torch’s flame flickers to life, pushing back the dark.",
+                    (255, 200, 50)
+                )
 
             # Recalculate AC after equipping the shield
             self.armor_class = self._calculate_ac()  # Recalculate AC to include the shield's defense bonus
@@ -508,20 +690,42 @@ class Player: # This is our base class for playable characters
             self.update_attack_power()  # Call the method to update the attack bonus
 
             return True
-    
-    def unequip_item(self, item, game_instance):
-        """Unequips an item and recalculates the attack bonus."""
-        if isinstance(item, OffHand):
-            if self.equipped_off_hand == item:
-                self.inventory.add_item(self.equipped_off_hand)
-                game_instance.message_log.add_message(f"You unequip {self.equipped_off_hand.name}.", (150, 150, 150))
-                self.equipped_off_hand = None  # Clear the off-hand slot
 
-                # Recalculate attack bonus after unequipping the off-hand item
-                self.update_attack_power()  # Call the method to update the attack bonus
 
+    def unequip_item(self, item, game_instance, remove_from_inventory=False):
+        from items.items import Weapon, Armor, OffHand
+        if isinstance(item, Weapon):
+            if self.equipped_weapon == item:
+                if remove_from_inventory:
+                    # Remove from inventory permanently
+                    if self.inventory.remove_item(item):
+                        game_instance.message_log.add_message(f"{item.name} removed from inventory.", (150, 150, 150))
+                    else:
+                        game_instance.message_log.add_message(f"Failed to remove {item.name} from inventory.", (255, 0, 0))
+                else:
+                    self.inventory.add_item(item)
+                    game_instance.message_log.add_message(f"You unequip {item.name}.", (150, 150, 150))
+                self.equipped_weapon = None
+                self.weapon_proficiency_penalty = 0
+                self.update_attack_power()
                 return True
-        # Add similar logic for other item types if needed
+
+        elif isinstance(item, OffHand):
+            if self.equipped_off_hand == item:
+                if remove_from_inventory:
+                    if self.inventory.remove_item(item):
+                        game_instance.message_log.add_message(f"{item.name} removed from inventory.", (150, 150, 150))
+                    else:
+                        # game_instance.message_log.add_message(f"Failed to remove {item.name} from inventory.", (255, 0, 0))
+                        pass
+                else:
+                    self.inventory.add_item(item)
+                    game_instance.message_log.add_message(f"You unequip {item.name}.", (150, 150, 150))
+                self.equipped_off_hand = None
+                self.update_attack_power()
+                return True
+
+        # Add similar logic for Armor if needed
         return False
 
 
@@ -547,6 +751,8 @@ class Player: # This is our base class for playable characters
             new_effect = CunningActionDashBuff(duration)
         elif effect_name == "EvasionBuff":
             new_effect = EvasionBuff(duration)
+        elif effect_name == "Torchlight":
+            new_effect = Torchlight(duration)
         if new_effect:
             for existing_effect in self.active_status_effects:
                 if type(existing_effect) is type(new_effect):
@@ -554,6 +760,8 @@ class Player: # This is our base class for playable characters
                     game_instance.message_log.add_message(f"{self.name}'s {new_effect.name} effect is refreshed.", (200, 200, 255))
                     return
             self.active_status_effects.append(new_effect)
+            game_instance.message_log.add_message(f"{self.name} is now {new_effect.name.lower()}!", (255, 100, 0))
+            print(f"DEBUG: {effect_name} successfully added to {self.name}.") # ADD THIS            
         else:
             game_instance.message_log.add_message(f"Warning: Attempted to add unknown status effect: {effect_name}", (255, 0, 0))
             print(f"Warning: Attempted to add unknown status effect: {effect_name}")
@@ -602,14 +810,18 @@ class Fighter(Player):
 
         self.saving_throw_proficiencies = {
             "STR": True, "CON": True,
-            "DEX": False, "INT": False, "WIS": False, "CHA": False,
+            "DEX": False, "INT": False, 
+            "WIS": False, "CHA": False,
         }
 
         self.primary_stat = 'strength'  # Set primary stat for Fighter        
         
         # Set starting equipment
+        self.inventory.add_item(iron_dagger)
+        self.inventory.add_item(torch)
+        self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
-        self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
+        self.inventory.add_item(CampfireKit())  
 
         self.equipped_weapon = iron_short_sword
         self.equipped_off_hand = round_shield
@@ -621,7 +833,7 @@ class Fighter(Player):
         self.armor_class = self._calculate_ac()
 
         # Class-specific weapon and armor proficiencies
-        self.class_weapon_proficiencies = ["battleaxe", "handaxe", "light hammer", "warhammer", "hammer", "shortsword", "longsword"]
+        self.class_weapon_proficiencies = ["battleaxe", "handaxe", "light hammer", "warhammer", "hammer", "shortsword", "longsword", "dagger", "mace", "flail", "rapier"]
         self.class_armor_proficiencies = ["light", "medium", "heavy", "shield"]  # Fighters can wear all types of armor
 
         self.weapon_proficiencies = self.class_weapon_proficiencies.copy()
@@ -629,10 +841,7 @@ class Fighter(Player):
        
         # Fighter's primary attack stat is Strength
         self.attack_power = self.get_ability_modifier(self.strength) + self.equipped_weapon.damage_modifier
-        self.attack_bonus = self.get_ability_modifier(self.strength) + self.proficiency_bonus + self.equipped_weapon.attack_bonus
-
-        print(f"Attack Power after loading class: {self.attack_power}")  # Debugging output
-        print(f"Attack Bonus after loading class: {self.attack_bonus}")  # Debugging output        
+        self.attack_bonus = self.get_ability_modifier(self.strength) + self.proficiency_bonus + self.equipped_weapon.attack_bonus     
 
         # Fighter abilities
         self.abilities["second_wind"] = SecondWind()
@@ -647,20 +856,24 @@ class Rogue(Player):
 
         self.strength = 8
         self.dexterity = 15
-        self.constitution = 13
+        self.constitution = 1300
         self.intelligence = 12
         self.wisdom = 10
         self.charisma = 14
 
         self.saving_throw_proficiencies = {
             "DEX": True, "INT": True,
-            "STR": False, "CON": False, "WIS": False, "CHA": False,
+            "STR": False, "CON": False, 
+            "WIS": False, "CHA": False,
         }
 
         self.primary_stat = 'dexterity'  # Set primary stat for Fighter 
 
         # Set starting equipment
         self.inventory.add_item(thieves_tools)
+        self.inventory.add_item(bread)
+        self.inventory.add_item(bread)
+        self.inventory.add_item(torch)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
 
@@ -706,17 +919,20 @@ class Wizard(Player):
 
         self.saving_throw_proficiencies = {
             "INT": True, "WIS": True,
-            "STR": False, "DEX": False, "CON": False, "CHA": False,
+            "STR": False, "DEX": False, 
+            "CON": False, "CHA": False,
         }
 
         self.primary_stat = 'intelligence'  # Set primary stat for Fighter 
 
         # Set starting equipment
+        self.inventory.add_item(torch)
+        self.inventory.add_item(bread)
+        self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
-        self.inventory.add_item(greater_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
 
-        self.equipped_weapon = iron_dagger
+        self.equipped_weapon = oak_staff
         self.equipped_off_hand = glass_orb
         self.equipped_armor = robes
         
@@ -727,7 +943,7 @@ class Wizard(Player):
         self.armor_class = self._calculate_ac()
 
         # Class-specific weapon and armor proficiencies
-        self.class_weapon_proficiencies = ["dagger", "quarterstaff"]  # Wizards typically use these
+        self.class_weapon_proficiencies = ["dagger", "quarterstaff", "orb"]  # Wizards typically use these
         self.class_armor_proficiencies = ["light"]  # Wizards can wear light armor
         
         self.weapon_proficiencies = self.class_weapon_proficiencies.copy()

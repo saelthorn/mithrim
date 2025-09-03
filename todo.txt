@@ -1,5 +1,3 @@
-youre a senior game developer helping me make a classic turnbased roguelike rpg heavily based on dnd 5e
-
 If there is more than one way in and out, it's a maze.
 If there's only one way in and out, it's a labyrinth.
 If there's only one way in and no way out, it's a tomb. Yours.
@@ -7,14 +5,32 @@ If there's only one way in and no way out, it's a tomb. Yours.
 
 
 
-Prioritize - UI Rework pt.2
- - When Monster is Attacked it Chases The Player
- - Add Locked Chests
- - Make Mithrim Logo
- - Add More Traps and Status Effects
- - Add Companions
- - Add Torches as an Items
- - Add Boss Rooms
+UI to add/fix:
+     - Recolor everything (especially the inventory)
+
+
+Map changes:
+     - Add rivers or something
+     - Make sure the dungeon exit(stairs down) is far from the dungeon entrance(stairs up) 
+     - Add locked doors
+
+
+To do:
+     Prioritize - Make Mithrim Logo
+      - Maybe Cunning Action Hide for Rogues
+      - Dead Bodies or Bloods(?)
+      - When Monster Dies it drops loot
+      - Make bosses not spam telegraphed attacks
+      - Quick bar
+      - Make the Investigate state simple
+      - Limit attack/sec to 2 attacks(?)
+
+     
+     Not Prio - Add Companions 
+
+
+To fix:
+      - Juggling of torch to reset cooldown
 
 
 
