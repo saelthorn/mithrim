@@ -36,6 +36,9 @@ class Item:
         
     def on_drop(self, dropper, game_instance):
         """Called when the item is dropped."""
+        if self.name.lower() == "torch":
+            self.remaining_torchlight_duration = 0        
+
         game_instance.message_log.add_message(f"You drop the {self.name}.", self.color)
         dropper.inventory.remove_item(self)
         # Place on map at dropper's position
@@ -93,13 +96,14 @@ class Armor(Item):
         self.category = category
 
 class OffHand(Item):
-    def __init__(self, name, char, color, description, price, defense_bonus=0, attack_bonus=0, damage_dice=None, damage_modifier=0, category=None):
+    def __init__(self, name, char, color, description, price, defense_bonus=0, attack_bonus=0, damage_dice=None, damage_modifier=0, category=None, remaining_duration=250):
         super().__init__(name, char, color, description, price)
         self.defense_bonus = defense_bonus  # Bonus to armor class if it's a shield
         self.attack_bonus = attack_bonus  # Bonus to attack rolls if it's a weapon
         self.damage_dice = damage_dice  # Damage dice for one-handed weapons (e.g., "1d6")
         self.damage_modifier = damage_modifier  # Additional damage modifier
         self.category = category
+        self.remaining_duration = remaining_duration
 
     def use(self, user, game_instance):
         """Define how the item is used, if applicable."""
@@ -283,7 +287,8 @@ torch = OffHand(
     char='th', 
     color=(255, 140, 0), 
     description="A burning torch that can be held in your off-hand. Provides extra light.", 
-    price=10
+    price=10,
+    remaining_duration=250
 )
 
 

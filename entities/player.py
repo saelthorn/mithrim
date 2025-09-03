@@ -82,6 +82,9 @@ class Player: # This is our base class for playable characters
 
         self.starting_equipment = None 
         
+
+        self.remaining_torchlight_duration = 0
+
         # Recalculate max HP and AC based on base stats and equipped gear
         self.max_hp = 0 
         self.hp = 0     
@@ -569,8 +572,6 @@ class Player: # This is our base class for playable characters
         return False
 
     def equip_item(self, item, game_instance):
-        from items.items import Weapon, Armor, OffHand
-        
         if isinstance(item, Weapon):
             # Check if the weapon is two-handed
             if item.is_two_handed:  # Assuming you have an attribute to check if it's two-handed
@@ -665,39 +666,47 @@ class Player: # This is our base class for playable characters
                 game_instance.message_log.add_message(f"You cannot equip {item.name} while wielding a two-handed weapon.", (255, 0, 0))
                 return False
 
-
             if self.equipped_off_hand:
-                self.inventory.add_item(self.equipped_off_hand) 
+                # If current off-hand is a torch, save remaining Torchlight duration back to torch item and remove effect
+                if self.equipped_off_hand.name.lower() == "torch":
+                    torchlight_effect = None
+                    for effect in self.active_status_effects:
+                        if effect.name == "Torchlight":
+                            torchlight_effect = effect
+                            break
+                    if torchlight_effect:
+                        self.equipped_off_hand.remaining_duration = torchlight_effect.turns_left
+                        self.active_status_effects.remove(torchlight_effect)
+                        game_instance.message_log.add_message(f"{self.name}'s torchlight fades but the glow lingers in the torch.", (255, 165, 0))
+
+                # Add old off-hand item back to inventory
+                self.inventory.add_item(self.equipped_off_hand)
                 game_instance.message_log.add_message(f"You unequip {self.equipped_off_hand.name}.", (150, 150, 150))
 
-
+            # Remove new item from inventory and equip it
             self.inventory.remove_item(item)
             self.equipped_off_hand = item
-            
             game_instance.message_log.add_message(f"You equip {item.name} in your off-hand.", (0, 255, 0))
 
+            # If new item is a torch, apply Torchlight effect with torch's stored duration
             if item.name.lower() == "torch":
-                self.add_status_effect("Torchlight", duration=250, game_instance=game_instance) 
-                game_instance.message_log.add_message(
-                    "The torch’s flame flickers to life, pushing back the dark.",
-                    (255, 200, 50)
-                )
+                duration = getattr(item, 'remaining_duration', 250)
+                self.add_status_effect("Torchlight", duration=duration, game_instance=game_instance)
+                game_instance.message_log.add_message(f"{self.name} equips a torch with {duration} turns remaining.", (255, 165, 0))
 
             # Recalculate AC after equipping the shield
-            self.armor_class = self._calculate_ac()  # Recalculate AC to include the shield's defense bonus
+            self.armor_class = self._calculate_ac()
 
             # Recalculate attack bonus after equipping the off-hand weapon
-            self.update_attack_power()  # Call the method to update the attack bonus
+            self.update_attack_power()
 
             return True
 
-
+        
     def unequip_item(self, item, game_instance, remove_from_inventory=False):
-        from items.items import Weapon, Armor, OffHand
         if isinstance(item, Weapon):
             if self.equipped_weapon == item:
                 if remove_from_inventory:
-                    # Remove from inventory permanently
                     if self.inventory.remove_item(item):
                         game_instance.message_log.add_message(f"{item.name} removed from inventory.", (150, 150, 150))
                     else:
@@ -709,25 +718,29 @@ class Player: # This is our base class for playable characters
                 self.weapon_proficiency_penalty = 0
                 self.update_attack_power()
                 return True
-
+    
         elif isinstance(item, OffHand):
             if self.equipped_off_hand == item:
                 if remove_from_inventory:
                     if self.inventory.remove_item(item):
                         game_instance.message_log.add_message(f"{item.name} removed from inventory.", (150, 150, 150))
-                    else:
-                        # game_instance.message_log.add_message(f"Failed to remove {item.name} from inventory.", (255, 0, 0))
-                        pass
                 else:
                     self.inventory.add_item(item)
                     game_instance.message_log.add_message(f"You unequip {item.name}.", (150, 150, 150))
+                # If unequipping a torch, save remaining duration and remove Torchlight effect
+                if item.name.lower() == "torch":
+                    torchlight_effect = None
+                    for effect in self.active_status_effects:
+                        if effect.name == "Torchlight":
+                            torchlight_effect = effect
+                            break
+                    if torchlight_effect:
+                        item.remaining_duration = torchlight_effect.turns_left
+                        self.active_status_effects.remove(torchlight_effect)
+                        game_instance.message_log.add_message(f"{self.name}'s torchlight fades but the glow lingers in the torch.", (255, 165, 0))
                 self.equipped_off_hand = None
                 self.update_attack_power()
                 return True
-
-        # Add similar logic for Armor if needed
-        return False
-
 
 
 
@@ -788,6 +801,19 @@ class Player: # This is our base class for playable characters
         for ability_name, ability_obj in self.abilities.items():
             ability_obj.tick_cooldown()
 
+        # Sync torch duration with equipped torch item
+        if self.equipped_off_hand and self.equipped_off_hand.name.lower() == "torch":
+            torchlight_effect = None
+            for effect in self.active_status_effects:
+                if effect.name == "Torchlight":
+                    torchlight_effect = effect
+                    break
+            if torchlight_effect:
+                self.equipped_off_hand.remaining_duration = torchlight_effect.turns_left
+            else:
+                # Torchlight expired, set torch duration to 0
+                self.equipped_off_hand.remaining_duration = 0            
+    
     def distance_to(self, other_x, other_y):
         """Calculate the Chebyshev distance to another point."""
         dx = abs(self.x - other_x)
