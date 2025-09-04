@@ -46,6 +46,7 @@ from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionB
 from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, bread, mushroom, CampfireKit, torch, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail, round_shield, kite_shield, tower_shield
 from core.pathfinding import astar
 from world.tile import floor, MimicTile, TrapTile
+from world.bloodstain import Bloodstain
 from core.floating_text import FloatingText 
 import graphics
 
@@ -128,6 +129,7 @@ class Game:
         self.entities = []  # Initialize the entities list here
         self.turn_order = []  # Initialize the turn order list
         self.current_turn_index = 0
+        self.bloodstains = []
         
         self._recalculate_dimensions() 
         self._init_fonts()
@@ -908,6 +910,13 @@ class Game:
 
         # Get the entity whose turn it *just was* or *is currently* before advancing the index
         current_acting_entity = self.get_current_entity()
+
+        for bloodstain in list(self.bloodstains): # Iterate over a copy to allow modification
+            bloodstain.tick_down()
+            if bloodstain.expired:
+                self.bloodstains.remove(bloodstain)
+                # You might want to mark the minimap as needing redraw here if bloodstains are shown on it
+                self.minimap_needs_redraw = True # Assuming bloodstains affect minimap
 
         # Process status effects for the entity that just completed its turn (or was about to)
         if current_acting_entity:
@@ -2383,6 +2392,7 @@ class Game:
             self.render_items_on_ground()
             self.render_tile_highlights()
             self.render_entities()
+            self.render_bloodstains()
 
             for text_obj in self.floating_texts:
                 text_obj.draw(self.internal_surface, self.camera)
@@ -2634,6 +2644,43 @@ class Game:
                 pass
 
 
+    def render_bloodstains(self):
+        """Renders bloodstains on the map."""
+        if not hasattr(self, 'game_map') or self.game_map is None:
+            return
+        map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT
+        for bloodstain in self.bloodstains:
+            # Only render if within camera viewport
+            if self.camera.is_in_viewport(bloodstain.x, bloodstain.y):
+                screen_x_float, screen_y_float = self.camera.world_to_screen(bloodstain.x, bloodstain.y)
+                draw_x = screen_x_float * config.TILE_SIZE
+                draw_y = screen_y_float * config.TILE_SIZE
+                if (0 <= draw_x < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
+                    0 <= draw_y < map_render_height):
+                    # Bloodstains should appear dimmer in explored areas
+                    visibility_type = self.fov.get_visibility_type(bloodstain.x, bloodstain.y)
+                    color_tint = None
+                    if visibility_type == 'player':
+                        color_tint = (255, 0, 0, 150) # Slightly transparent red
+                    elif visibility_type == 'torch':
+                        color_tint = (200, 0, 0, 120)
+                    elif visibility_type == 'darkvision':
+                        color_tint = (150, 0, 0, 100)
+                    elif visibility_type == 'explored':
+                        color_tint = (100, 0, 0, 80) # Very dim in explored areas
+                    else: # Unexplored, don't draw
+                        continue
+                    # Draw a semi-transparent red square or a specific bloodstain character
+                    # You can use a custom character like '.' or ',' for bloodstains
+                    # Or draw a semi-transparent rectangle over the tile
+                    graphics.draw_tile(
+                        self.internal_surface,
+                        draw_x,
+                        draw_y,
+                        bloodstain.char, # Use the bloodstain's character
+                        color_tint=color_tint
+                    )
+                    self.add_dirty_rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)
 
     def render_items_on_ground(self, full_redraw=False):
         """Render items lying on the dungeon floor."""
@@ -2740,11 +2787,11 @@ class Game:
         current_y_right += self.inventory_font_info.get_linesize() + 5
 
         if selected_race.darkvision_radius > 0:
-            self._draw_text(target_surface, self.inventory_font_small, f"- Darkvision: {selected_race.darkvision_radius} tiles.", (255, 255, 255), right_column_x + 10, current_y_right)
+            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Darkvision: {selected_race.darkvision_radius} tiles.", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
             current_y_right += self.inventory_font_small.get_linesize() + 2
 
         if selected_race.damage_resistances:
-            self._draw_text(target_surface, self.inventory_font_small, f"- Damage Resistances: {', '.join(selected_race.damage_resistances)}", (255, 255, 255), right_column_x + 10, current_y_right)
+            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Damage Resistances: {', '.join(selected_race.damage_resistances)}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
             current_y_right += self.inventory_font_small.get_linesize() + 2
 
         if selected_race.skill_proficiencies:
@@ -3428,6 +3475,16 @@ class Game:
                          actual_minimap_tile_size,
                          actual_minimap_tile_size)
                     )
+
+        for bloodstain in self.bloodstains:
+            if (bloodstain.x, bloodstain.y) in self.fov.explored: # Only show on minimap if explored
+                bloodstain_minimap_x = offset_x + bloodstain.x * actual_minimap_tile_size
+                bloodstain_minimap_y = offset_y + bloodstain.y * actual_minimap_tile_size
+                pygame.draw.rect(
+                    self.minimap_surface,
+                    (100, 0, 0), # Dark red for minimap bloodstains
+                    (bloodstain_minimap_x, bloodstain_minimap_y, actual_minimap_tile_size, actual_minimap_tile_size)
+                )
 
         if self.player:
             player_minimap_x = offset_x + self.player.x * actual_minimap_tile_size

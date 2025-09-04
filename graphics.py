@@ -51,6 +51,7 @@ def setup_tile_mapping():
 
 
         # Map Tiles
+        'bl': (11 * CELL_DIM, 2 * CELL_DIM),# Bloodstain
         '{': (0 * CELL_DIM, 6 * CELL_DIM),  # Tavern Crate
         '}': (2 * CELL_DIM, 6 * CELL_DIM),  # Tavern Barrel
         ',': (0 * CELL_DIM, 16 * CELL_DIM), # Tavern Floor
