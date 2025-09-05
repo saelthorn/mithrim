@@ -215,11 +215,13 @@ class Game:
         self.death_screen_bg_alpha = 0  # Alpha for background overlay
         self.death_screen_subtext_alpha = 0  # Alpha for subtext
         self.death_screen_animation_phase = 0  # 0=text fade-in, 1=bg fade-in, 2=subtext fade-in, 3=done
-        self.death_screen_animation_speed = 2  # Alpha increment per frame (adjust for speed)
+        self.death_screen_animation_speed = 5  # Alpha increment per frame (adjust for speed)
         self.fade_out_alpha = 0 # NEW: Alpha for the full screen fade-out
-        self.fade_out_speed = 5 # NEW: Speed of the fade-out
-        self.fade_in_alpha = 0
-        self.fade_in_speed = 5
+        self.fade_out_speed = 15 # NEW: Speed of the fade-out
+        self.fade_in_alpha = 255
+        self.fade_in_speed = 15
+
+        self.ignore_next_input = False  # Flag to ignore input after restart
 
     # Boss schedule: every 5th floor, ordered list
     BOSS_FLOORS = [
@@ -280,6 +282,10 @@ class Game:
         # Display a generic description for now, or add descriptions to classes if you want
         self.message_log.add_message("A brief description of the class will go here.", (150, 150, 150))
 
+        pygame.event.clear()
+        self.ignore_next_input = True  # Ignore next keydown event
+
+
     def finalize_character_creation(self):
         chosen_race = self.available_races[self.selected_race_index]
         chosen_class_constructor = self.available_classes[self.selected_class_index]
@@ -319,6 +325,7 @@ class Game:
         self.message_log.add_message(f"You have chosen to be a {chosen_race.name} {self.player.class_name} named {self.player.name}!", (0, 255, 0))
         
         # Transition to tavern
+        pygame.event.clear()  
         self.generate_tavern()
 
         # Calculate the ideal snapped position
@@ -1025,6 +1032,14 @@ class Game:
             if event.type == pygame.QUIT:
                 return False
 
+            if self.ignore_next_input:
+                # Ignore all keydown events once, then reset flag
+                if event.type == pygame.KEYDOWN:
+                    self.ignore_next_input = False
+                    return True  # Consume this event and ignore it
+                else:
+                    continue  # Ignore other events until keydown resets flag
+
             # NEW: Handle input specifically for GAME_OVER state
             if self.game_state == GameState.GAME_OVER:
                 if event.type == pygame.KEYDOWN:
@@ -1034,6 +1049,9 @@ class Game:
                             self.death_screen_animation_phase = 4 # NEW: Start fade-out phase
                             self.fade_out_alpha = 0 # Start fade-out from transparent
                             self.message_log.add_message("Initiating restart sequence...", (100, 200, 255))
+
+                            pygame.event.clear()
+                            self.ignore_next_input = True  # Set flag to ignore next input
                         return True
                     elif event.key == pygame.K_q:
                         # Quit the game
@@ -1190,18 +1208,19 @@ class Game:
 
                 # --- Handle Character Creation Input ---
                 if self.game_state == GameState.CHARACTER_CREATION:
-                   if self.game_state == GameState.CHARACTER_CREATION:
-                       if event.key in (pygame.K_UP, pygame.K_w):
-                           self.selected_race_index = (self.selected_race_index - 1) % len(self.available_races)
-                           self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
-                           self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
-                       elif event.key in (pygame.K_DOWN, pygame.K_s):
-                           self.selected_race_index = (self.selected_race_index + 1) % len(self.available_races)
-                           self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
-                           self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
-                       elif event.key == pygame.K_RETURN:
-                           self.finalize_race_selection() 
-                       return True  # Consume event so no other input is processed
+                    print(f"DEBUG: In CHARACTER_CREATION state. Selected Race Index: {self.selected_class_index}")
+                    if event.key in (pygame.K_UP, pygame.K_w):
+                        self.selected_race_index = (self.selected_race_index - 1) % len(self.available_races)
+                        self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
+                        self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
+                    elif event.key in (pygame.K_DOWN, pygame.K_s):
+                        self.selected_race_index = (self.selected_race_index + 1) % len(self.available_races)
+                        self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
+                        self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
+                    elif event.key == pygame.K_RETURN:
+                        print("DEBUG: K_RETURN pressed in CHARACTER_CREATION")
+                        self.finalize_race_selection() 
+                        return True
 
                 if self.game_state == GameState.CLASS_SELECTION:
                     print(f"DEBUG: In CLASS_SELECTION state. Selected Class Index: {self.selected_class_index}")
@@ -1218,7 +1237,8 @@ class Game:
                     elif event.key == pygame.K_RETURN:
                         print("DEBUG: K_RETURN pressed in CLASS_SELECTION")
                         self.finalize_character_creation()
-                    return True
+                        return True
+                    
 
 
               
@@ -2181,6 +2201,11 @@ class Game:
                 self.fade_in_alpha -= self.fade_in_speed
                 if self.fade_in_alpha < 0:
                     self.fade_in_alpha = 0
+        if self.game_state == GameState.CLASS_SELECTION:
+            if self.fade_in_alpha > 0:
+                self.fade_in_alpha -= self.fade_in_speed
+                if self.fade_in_alpha < 0:
+                    self.fade_in_alpha = 0                                    
 
         # NEW: If game is already in GAME_OVER state, simply return
         if self.game_state == GameState.GAME_OVER:
@@ -2373,11 +2398,12 @@ class Game:
                 fade_surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
                 fade_surface.fill((0, 0, 0, self.fade_in_alpha))
                 self.screen.blit(fade_surface, (0, 0))
-            pygame.display.flip()
-            return            
         elif self.game_state == GameState.CLASS_SELECTION:
-            self.render_class_selection_screen()
-            # Same as character creation
+            self.render_class_selection_screen() 
+            if self.fade_in_alpha > 0:
+                fade_surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+                fade_surface.fill((0, 0, 0, self.fade_in_alpha))
+                self.screen.blit(fade_surface, (0, 0))                                 
         elif self.game_state == GameState.INVENTORY:
             self.render_inventory_screen()
             # Inventory also draws to inventory_ui_surface, which is then blitted to screen

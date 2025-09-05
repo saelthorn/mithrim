@@ -24,9 +24,12 @@ class Race:
 
         player_instance.darkvision_radius = self.darkvision_radius
 
-        # Overwrite class proficiencies with race proficiencies
-        player_instance.weapon_proficiencies = self.weapon_proficiencies
-        player_instance.armor_proficiencies = self.armor_proficiencies        
+        for wp in self.weapon_proficiencies:
+            if wp not in player_instance.weapon_proficiencies:
+                player_instance.weapon_proficiencies.append(wp)
+        for ap in self.armor_proficiencies:
+            if ap not in player_instance.armor_proficiencies:
+                player_instance.armor_proficiencies.append(ap)      
 
 
 

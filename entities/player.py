@@ -262,17 +262,12 @@ class Player: # This is our base class for playable characters
     def _calculate_ac(self):
         """Calculate the player's armor class based on equipped armor and off-hand items."""
         base_ac = 10 + self.get_ability_modifier(self.dexterity)  # Base AC calculation
-        print(f"Base AC: {base_ac}")  # Debugging output
 
         if self.equipped_armor:
             base_ac += self.equipped_armor.ac_bonus  # Add armor bonus
-            print(f"Armor Bonus: {self.equipped_armor.ac_bonus}")  # Debugging output
-
         if self.equipped_off_hand:  # Check if an off-hand item is equipped
             base_ac += self.equipped_off_hand.defense_bonus  # Add off-hand defense bonus if it's a shield
-            print(f"Off-Hand Defense Bonus: {self.equipped_off_hand.defense_bonus}")  # Debugging output
 
-        print(f"Total AC: {base_ac}")  # Debugging output
         return base_ac
 
 
