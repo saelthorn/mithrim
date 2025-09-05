@@ -216,6 +216,10 @@ class Game:
         self.death_screen_subtext_alpha = 0  # Alpha for subtext
         self.death_screen_animation_phase = 0  # 0=text fade-in, 1=bg fade-in, 2=subtext fade-in, 3=done
         self.death_screen_animation_speed = 2  # Alpha increment per frame (adjust for speed)
+        self.fade_out_alpha = 0 # NEW: Alpha for the full screen fade-out
+        self.fade_out_speed = 5 # NEW: Speed of the fade-out
+        self.fade_in_alpha = 0
+        self.fade_in_speed = 5
 
     # Boss schedule: every 5th floor, ordered list
     BOSS_FLOORS = [
@@ -1026,12 +1030,11 @@ class Game:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:
                         # Restart the game: reset player, generate tavern or level 1
-                        self.entities.clear()
-                        self.player = None  # Reset player to prevent immediate death detection
-                        self._game_over_displayed = False # Reset flag for next death
-                        self.game_state = GameState.CHARACTER_CREATION  # Or directly generate tavern/level 1
-                        self.start_character_creation() # Re-initialize character creation process
-                        return True # Consume event
+                        if self.death_screen_animation_phase == 3: # Only if initial animation is done
+                            self.death_screen_animation_phase = 4 # NEW: Start fade-out phase
+                            self.fade_out_alpha = 0 # Start fade-out from transparent
+                            self.message_log.add_message("Initiating restart sequence...", (100, 200, 255))
+                        return True
                     elif event.key == pygame.K_q:
                         # Quit the game
                         return False # Signal to quit
@@ -2172,6 +2175,13 @@ class Game:
             self.handle_game_over()
             return # Stop further updates if game over is triggered
 
+
+        if self.game_state == GameState.CHARACTER_CREATION:
+            if self.fade_in_alpha > 0:
+                self.fade_in_alpha -= self.fade_in_speed
+                if self.fade_in_alpha < 0:
+                    self.fade_in_alpha = 0
+
         # NEW: If game is already in GAME_OVER state, simply return
         if self.game_state == GameState.GAME_OVER:
             if self.death_screen_animation_phase == 0:
@@ -2189,6 +2199,24 @@ class Game:
                 if self.death_screen_subtext_alpha >= 255:
                     self.death_screen_subtext_alpha = 255
                     self.death_screen_animation_phase = 3
+            elif self.death_screen_animation_phase == 4: # Fade-out initiated by 'R' press
+                self.fade_out_alpha += self.fade_out_speed
+                if self.fade_out_alpha >= 255:
+                    self.fade_out_alpha = 255
+                    # Fade-out complete, now transition to character creation
+                    self.entities.clear()
+                    self.player = None
+                    self._game_over_displayed = False
+                    self.death_screen_animation_phase = 0 # Reset for next death
+                    self.death_screen_alpha = 0 # Reset for next death
+                    self.death_screen_bg_alpha = 0 # Reset for next death
+                    self.death_screen_subtext_alpha = 0 # Reset for next death
+                    
+                    self.game_state = GameState.CHARACTER_CREATION
+                    self.start_character_creation()
+                    
+                    self.fade_in_alpha = 255
+                    self.message_log.add_message("Welcome, new adventurer!", (0, 255, 0))                    
             return
 
         # --- NEW: Only process turns for active monsters ---
@@ -2341,8 +2369,12 @@ class Game:
         # Render map, items, entities, highlights, floating texts to internal_surface
         if self.game_state == GameState.CHARACTER_CREATION:
             self.render_character_creation_screen()
-            # For character creation, we draw directly to screen, so no internal_surface blit here
-            # The screen.fill((0,0,0)) at the top handles clearing.
+            if self.fade_in_alpha > 0:
+                fade_surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+                fade_surface.fill((0, 0, 0, self.fade_in_alpha))
+                self.screen.blit(fade_surface, (0, 0))
+            pygame.display.flip()
+            return            
         elif self.game_state == GameState.CLASS_SELECTION:
             self.render_class_selection_screen()
             # Same as character creation
@@ -2435,6 +2467,13 @@ class Game:
         # Message log is also drawn directly to screen
         if self.game_state not in [GameState.CHARACTER_CREATION, GameState.CLASS_SELECTION]:
             self.message_log.render(self.screen)
+
+        if self.game_state == GameState.GAME_OVER and self.death_screen_animation_phase == 4:
+            fade_surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+            fade_surface.fill((0, 0, 0, self.fade_out_alpha)) # Black overlay, increasing alpha
+            self.screen.blit(fade_surface, (0, 0))
+            pygame.display.flip() # Ensure this is drawn over everything
+            return # Exit render function early during fade-out to prevent drawing underlying game
 
         # NEW: Render game over screen if in GAME_OVER state
         if self.game_state == GameState.GAME_OVER:
