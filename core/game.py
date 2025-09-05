@@ -734,6 +734,11 @@ class Game:
         self.current_turn_index = 0
         self.update_fov()
         
+        self.bloodstains.clear()
+        self.floating_texts.clear()
+        if hasattr(self, "game_map") and hasattr(self.game_map, "items_on_ground"):
+            self.game_map.items_on_ground.clear()   
+
         self.message_log.add_message(f"=== ENTERED DUNGEON LEVEL {level_number} ===", (0, 255, 255))        
         if hasattr(self, 'stairs_positions'):
             self.message_log.add_message(f"Stairs down at {self.stairs_positions.get('down')}", (150, 150, 255))
@@ -785,6 +790,22 @@ class Game:
         return None
 
     def handle_level_transition(self, direction):
+        # Clear entities, items, bloodstains, floating texts, and map tile references before level change
+        self.entities.clear()
+        if hasattr(self, "game_map") and hasattr(self.game_map, "items_on_ground"):
+            self.game_map.items_on_ground.clear()
+        if hasattr(self, "floating_texts"):
+            self.floating_texts.clear()
+        if hasattr(self, "bloodstains"):
+            self.bloodstains.clear()
+        if hasattr(self, "game_map") and hasattr(self.game_map, "tiles"):
+            for row in self.game_map.tiles:
+                for tile in row:
+                    if hasattr(tile, "entity"):
+                        tile.entity = None
+                    if hasattr(tile, "item"):
+                        tile.item = None
+
         if direction == 'down':
             new_level = self.current_level + 1
             self.message_log.add_message(f"Going down to level {new_level}...", (100, 200, 255))
@@ -907,16 +928,8 @@ class Game:
                 self.message_log.add_message(random.choice(ambient_msgs), (200, 180, 140))
             return
 
-
         # Get the entity whose turn it *just was* or *is currently* before advancing the index
         current_acting_entity = self.get_current_entity()
-
-        for bloodstain in list(self.bloodstains): # Iterate over a copy to allow modification
-            bloodstain.tick_down()
-            if bloodstain.expired:
-                self.bloodstains.remove(bloodstain)
-                # You might want to mark the minimap as needing redraw here if bloodstains are shown on it
-                self.minimap_needs_redraw = True # Assuming bloodstains affect minimap
 
         # Process status effects for the entity that just completed its turn (or was about to)
         if current_acting_entity:
@@ -1009,34 +1022,6 @@ class Game:
             MAX_LOG_MESSAGES = 50
             if len(self.message_log.messages) > MAX_LOG_MESSAGES:
                 self.message_log.messages = self.message_log.messages[-MAX_LOG_MESSAGES:]
-    
-    def next_floor(self):
-        """Move the player to the next dungeon level and clean up old entities/items."""
-    
-        # Clean up old entities and items
-        self.entities.clear()
-        if hasattr(self, "items_on_ground"):
-            self.items_on_ground.clear()
-        if hasattr(self, "floating_texts"):
-            self.floating_texts.clear()
-    
-        # If items are stored in the map
-        if hasattr(self, "map") and hasattr(self.map, "items_on_ground"):
-            self.map.items_on_ground.clear()
-    
-        # Clean up old tiles/entities
-        if hasattr(self, "map") and hasattr(self.map, "tiles"):
-            for row in self.map.tiles:
-                for tile in row:
-                    if hasattr(tile, "entity"):
-                        tile.entity = None
-                    if hasattr(tile, "item"):
-                        tile.item = None
-    
-        # Now generate/load the new dungeon floor
-        self.map = self.generate_new_floor()  
-        self.depth += 1
-        self.message_log.add_message(f"You descend to floor {self.depth}...", (200, 200, 50))
     
     
 
@@ -2391,8 +2376,8 @@ class Game:
             self.render_map_with_fov()
             self.render_items_on_ground()
             self.render_tile_highlights()
-            self.render_entities()
             self.render_bloodstains()
+            self.render_entities()
 
             for text_obj in self.floating_texts:
                 text_obj.draw(self.internal_surface, self.camera)

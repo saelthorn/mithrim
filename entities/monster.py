@@ -3,6 +3,7 @@ from core.pathfinding import astar
 from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff
 from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, bread, mushroom, CampfireKit
 from world.tile import floor
+from world.bloodstain import Bloodstain
 from core.floating_text import FloatingText 
 
 from enum import Enum
@@ -534,9 +535,12 @@ class Monster:
             
         return damage_taken
 
-    def die(self, game_instance):
+    def die(self, game_instance): # Ensure this method accepts game_instance
         """Handle death and return XP value"""
-        return self.base_xp  # Return the XP gained
+        # NEW: Create a bloodstain at the entity's position
+        bloodstain = Bloodstain(self.x, self.y, game_instance)
+        game_instance.bloodstains.append(bloodstain)
+        return self.base_xp
 
     def add_status_effect(self, effect_name, duration, game_instance, source=None):
         """Adds a status effect to the monster."""
