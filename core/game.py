@@ -587,7 +587,7 @@ class Game:
         for level_range, monster_list in self.MONSTER_SPAWN_TIERS.items():
             if level_range[0] <= level_number <= level_range[1]:
                 possible_monsters.extend(monster_list)
-        
+
         # Fallback: If no specific monsters are defined for a level, use a default
         if not possible_monsters:
             possible_monsters = [GiantRat] # Default to GiantRat if no tier matches
@@ -596,25 +596,16 @@ class Game:
             x, y = room.center()
             if (0 <= x < self.game_map.width and 0 <= y < self.game_map.height and
                 self.game_map.is_walkable(x, y)):
-
                 # Randomly choose a monster class from the possible_monsters list
                 chosen_monster_class = random.choice(possible_monsters)
-                
+
                 # Mimic is handled separately as a special case in dungeon_generator.py
                 if chosen_monster_class == Mimic:
                     continue 
 
                 monster = chosen_monster_class(x, y)
-
                 # --- Monster Stat Scaling (Optional, implement later) ---
                 # You can add logic here to scale monster HP, attack, etc. based on level_number
-                # For example:
-                # monster.hp = monster.base_hp + (level_number * 2)
-                # monster.max_hp = monster.hp
-                # monster.attack_power = monster.base_attack_power + (level_number // 2)
-                # This would require adding 'base_hp', 'base_attack_power' attributes to your monster classes.
-                # For now, their __init__ values are static.
-
                 self.entities.append(monster)
 
         if len(rooms) > 2 and random.random() < 0.6: # Healer spawnrate

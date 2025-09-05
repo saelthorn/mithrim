@@ -171,7 +171,7 @@ def generate_dungeon(game_map, level_number, max_rooms=16, room_min_size=5, room
 
                     # --- Floor Decorations ---                    
                     if random.random() < floor_decoration_chance:
-                        if random.random() < 0.01: # 1% chance for a decoration to be a Mimic
+                        if level_number > 3 and random.random() < 0.02: # 1% chance for a decoration to be a Mimic
                             mimic_type_tile_obj = random.choice([crate, barrel])
                             mimic_entity_disguise_char = 'K' if mimic_type_tile_obj == crate else 'B'
                             mimic_tile_initial_display_char = 'k' if mimic_type_tile_obj == crate else 'b'
@@ -220,7 +220,7 @@ def generate_dungeon(game_map, level_number, max_rooms=16, room_min_size=5, room
                 game_map.items_on_ground.append(new_chest)
                 # Ensure the tile under the chest is a floor tile, not a decoration.
                 game_map.tiles[chest_spawn_y][chest_spawn_x] = floor # <--- ADD THIS LINE
-    
+
     return rooms, stairs_positions, torch_light_sources
 
 
