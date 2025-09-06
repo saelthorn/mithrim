@@ -1093,7 +1093,6 @@ class Game:
                             if event.unicode:  # Check if the event has a unicode character
                                 self.message_log.current_input += event.unicode  # Append the character to the current input
 
-
                 else:
                     if event.key == pygame.K_SLASH:  # Enter key to submit input
                         if self.message_log.show_input_area:  # Check if input area is visible
@@ -1205,6 +1204,21 @@ class Game:
                                 self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
                             return True  # Consume event
 
+                # --- Quick Bar Key Presses ---
+                if self.game_state not in [GameState.CHARACTER_CREATION, GameState.CLASS_SELECTION, GameState.GAME_OVER, GameState.TRADE]:
+                    if event.key == pygame.K_q:
+                        if self.player.use_quick_bar_item('q', self):
+                            action_taken = True
+                        else:
+                            # If use_quick_bar_item returns False, it means it couldn't be used,
+                            # but it doesn't necessarily mean the player's turn is consumed.
+                            # The message is already logged by use_quick_bar_item.
+                            pass
+                    elif event.key == pygame.K_f:
+                        if self.player.use_quick_bar_item('f', self):
+                            action_taken = True
+                        else:
+                            pass
 
                 # --- Handle Character Creation Input ---
                 if self.game_state == GameState.CHARACTER_CREATION:
@@ -1697,6 +1711,18 @@ class Game:
         elif key == pygame.K_ESCAPE or key == pygame.K_c:
             self.message_log.add_message("Action cancelled.", (150, 150, 150))
             action_taken_in_menu = False
+        elif key == pygame.K_q: # New key for quick bar slot 'q'
+            if self.player.equip_to_quick_bar(self.selected_inventory_item, 'q', self):
+                action_taken_in_menu = True
+            else:
+                self.message_log.add_message(f"Cannot equip {self.selected_inventory_item.name} to Quick Bar (Q).", (255, 100, 100))
+        elif key == pygame.K_f: # New key for quick bar slot 'e'
+            if self.player.equip_to_quick_bar(self.selected_inventory_item, 'f', self):
+                action_taken_in_menu = True
+            else:
+                self.message_log.add_message(f"Cannot equip {self.selected_inventory_item.name} to Quick Bar (F).", (255, 100, 100))
+
+
 
         self.selected_inventory_item = None
         self.game_state = GameState.INVENTORY
@@ -3109,7 +3135,8 @@ class Game:
             ("U: Use", pygame.K_u),  # Ensure the Campfire Kit has a use option
             ("E: Equip", pygame.K_e),
             ("D: Drop", pygame.K_d),
-            ("C: Cancel", pygame.K_c)
+            ("C: Cancel", pygame.K_c),
+            ("Q/F: Add to Quickbar", pygame.K_q or pygame.K_f)
         ]
 
         current_y = item_name_rect.bottom + 15
@@ -3287,7 +3314,7 @@ class Game:
         font_section = self.font_section
         font_info = self.font_info
         font_small = self.font_small
-                
+
         def draw_wrapped_and_update_y(surface, font, text, color, x, y_start):
             wrapped_lines = self._wrap_text(text, font, available_text_width)
             y_offset = y_start
@@ -3330,6 +3357,23 @@ class Game:
         current_y += self.font_info.get_linesize() + 5 
         current_y += 15                      
 
+        # Add a section for Quick Bar
+        pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
+        current_y += 15
+        draw_centered_header(self.screen, font_header, "QUICK BAR", (240, 240, 240), current_y)
+        current_y += font_header.get_linesize() + 10
+        # Display 'Q' slot
+        q_item = self.player.quick_bar.get('q')
+        q_text = f"Q: {q_item.name}" if q_item else "Q: Empty"
+        q_color = q_item.color if q_item else (150, 150, 150)
+        current_y = draw_wrapped_and_update_y(self.screen, font_info, q_text, q_color, panel_offset_x, current_y)
+        current_y += 5
+        # Display 'F' slot
+        f_item = self.player.quick_bar.get('f')
+        f_text = f"F: {f_item.name}" if f_item else "F: Empty"
+        f_color = f_item.color if f_item else (150, 150, 150)
+        current_y = draw_wrapped_and_update_y(self.screen, font_info, f_text, f_color, panel_offset_x, current_y)
+        current_y += 10
 
         pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
         current_y += 15

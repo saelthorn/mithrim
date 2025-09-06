@@ -17,10 +17,7 @@ Map changes:
 
 To do:
      Prioritize - Make Mithrim Logo
-      - Dead Bodies or Bloods(?)
       - When Monster Dies it drops loot
-      - Make bosses not spam telegraphed attacks
-      - Quick bar
 
      
      Not Prio - Add Companions 

@@ -3,7 +3,7 @@ from core. game import GameState
 from core.inventory import Inventory
 from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost
 from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight
-from items.items import torch, Food, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
+from items.items import torch, Food, Potion, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
 from core.floating_text import FloatingText
@@ -102,6 +102,11 @@ class Player: # This is our base class for playable characters
         self.inventory = Inventory(capacity=20)
         self.inventory.owner = self # Ensure inventory owner is set
         
+        self.quick_bar = {
+            'q': None,  # Slot for 'q' key
+            'f': None   # Slot for 'f' key
+        }
+
 
         # --- Abilities (Base abilities, subclasses will add/override) ---
         self.abilities = {} # <--- Initialized as empty dictionary
@@ -134,6 +139,92 @@ class Player: # This is our base class for playable characters
                 ]
                 game_instance.message_log.add_message(random.choice(hunger_death_msgs), (255, 0, 0))
                 self.die(game_instance)  # Call the die method and pass game_instance
+
+    def equip_to_quick_bar(self, item, slot_key, game_instance):
+        # Ensure item is in inventory before trying to equip it
+        if item not in self.inventory.items:
+            game_instance.message_log.add_message(f"{item.name} is not in your inventory.", (255, 100, 100))
+            return False
+
+        # Prevent adding the same item to multiple quick bar slots
+        for slot, quick_item in self.quick_bar.items():
+            if quick_item is item:
+                game_instance.message_log.add_message(f"{item.name} is already in a quick bar slot.", (255, 100, 100))
+                return False
+
+        # If an item is already in the slot, move it back to inventory
+        prev_item = self.quick_bar.get(slot_key)
+        if prev_item:
+            self.inventory.add_item(prev_item)
+            game_instance.message_log.add_message(f"{prev_item.name} returned to inventory.", (150, 150, 150))
+
+        # Move the new item from inventory to the quick bar
+        self.inventory.remove_item(item)
+        self.quick_bar[slot_key] = item
+        game_instance.message_log.add_message(f"Equipped {item.name} to Quick Bar slot '{slot_key}'.", (0, 255, 0))
+        
+        return True
+
+    def get_all_owned_items(self):
+        """Returns a set of all items owned by the player across all containers."""
+        owned_items = set(self.inventory.items)
+        if self.equipped_weapon:
+            owned_items.add(self.equipped_weapon)
+        if self.equipped_armor:
+            owned_items.add(self.equipped_armor)
+        if self.equipped_off_hand:
+            owned_items.add(self.equipped_off_hand)
+        for item in self.quick_bar.values():
+            if item:
+                owned_items.add(item)
+        return owned_items
+
+    def use_quick_bar_item(self, slot_key, game_instance):
+        item = self.quick_bar.get(slot_key)
+        if item:
+            # Try to use the item (consume or activate)
+            if self.use_item(item, game_instance):
+                # If item was consumed (Potion or Food), clear the slot
+                if isinstance(item, (Potion, Food)):
+                    self.quick_bar[slot_key] = None
+                    game_instance.message_log.add_message(f"{item.name} consumed from Quick Bar slot '{slot_key}'.", (100, 255, 100))
+                return True
+            # If not consumable, try to equip it (Weapon, Armor, OffHand)
+            elif isinstance(item, (Weapon, Armor, OffHand)):
+                # Determine what is currently equipped of this type
+                currently_equipped = None
+                if isinstance(item, Weapon):
+                    currently_equipped = self.equipped_weapon
+                elif isinstance(item, Armor):
+                    currently_equipped = self.equipped_armor
+                elif isinstance(item, OffHand):
+                    currently_equipped = self.equipped_off_hand
+
+                if self.equip_item(item, game_instance):
+                    # Swap the previously equipped item (if any) into the quick bar slot
+                    if currently_equipped:
+                        self.quick_bar[slot_key] = currently_equipped
+                        game_instance.message_log.add_message(
+                            f"{item.name} equipped from Quick Bar slot '{slot_key}'. {currently_equipped.name} swapped in.",
+                            (100, 255, 100)
+                        )
+                    else:
+                        self.quick_bar[slot_key] = None
+                        game_instance.message_log.add_message(
+                            f"{item.name} equipped from Quick Bar slot '{slot_key}'.",
+                            (100, 255, 100)
+                        )
+                    return True
+                else:
+                    # equip_item handles error messages
+                    return False
+            else:
+                # Message already handled by use_item or equip_item
+                return False
+        else:
+            game_instance.message_log.add_message(f"Quick Bar slot '{slot_key}' is empty.", (150, 150, 150))
+            return False
+    
 
     def set_facing_direction(self, facing_right: bool):
         """Set player's facing direction."""

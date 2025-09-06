@@ -64,6 +64,7 @@ class Potion(Item):
         
         user.inventory.remove_item(self) # Remove after use
         game_instance.message_log.add_message(f"The {self.name} is consumed.", (150, 150, 150))
+        return True
 
 
 class Food(Item):
@@ -168,7 +169,7 @@ class CampfireKit(Item):
         """Use the campfire kit to drop it at the player's position and emit light."""
         if self.uses_left > 0:
             
-            if game_instance.game_state in [GameState.INVENTORY, GameState.INVENTORY_MENU]:
+            if game_instance.game_state in [GameState.INVENTORY, GameState.INVENTORY_MENU, GameState.DUNGEON]:
                 game_instance.message_log.add_message("Closing inventory to drop the campfire kit.", (150, 150, 150))
                 game_instance.selected_inventory_item = None  # Reset selected item
 
