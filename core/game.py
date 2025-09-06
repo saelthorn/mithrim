@@ -265,7 +265,7 @@ class Game:
 
     def start_character_creation(self):
         self.game_state = GameState.CHARACTER_CREATION
-        self.message_log.add_message("--- CHARACTER CREATION ---", (255, 215, 0))
+        self.message_log.add_message("--- CHARACTER CREATION ---", (240, 240, 240))
         self.message_log.add_message("Choose your Race (Arrow Keys to navigate, Enter to select):", (200, 200, 255))
         self.message_log.add_message(f"Current Race: {self.available_races[self.selected_race_index].name}", (255, 255, 255))
         self.message_log.add_message(self.available_races[self.selected_race_index].description, (150, 150, 150))
@@ -276,7 +276,7 @@ class Game:
         
         # Transition to class selection
         self.game_state = GameState.CLASS_SELECTION
-        self.message_log.add_message("--- CLASS SELECTION ---", (255, 215, 0))
+        self.message_log.add_message("--- CLASS SELECTION ---", (240, 240, 240))
         self.message_log.add_message("Choose your Class (Arrow Keys to navigate, Enter to select):", (200, 200, 255))
         self.message_log.add_message(f"Current Class: {self.available_classes[self.selected_class_index].__name__}", (255, 255, 255))
         # Display a generic description for now, or add descriptions to classes if you want
@@ -468,7 +468,7 @@ class Game:
         self.current_turn_index = 0
         self.update_fov()
         
-        self.message_log.add_message("=== WELCOME TO THE PRANCING PONY TAVERN ===", (255, 215, 0))
+        self.message_log.add_message("=== WELCOME TO THE PRANCING PONY TAVERN ===", (240, 240, 240))
         self.message_log.add_message("Walk to the door (+) and press any movement key to enter the dungeon!", (150, 150, 255))
         self.minimap_needs_redraw = True # New map, redraw minimap
     
@@ -2790,7 +2790,7 @@ class Game:
         pygame.draw.rect(target_surface, (100, 100, 100), menu_rect, 2)
 
         title_text = "CHOOSE YOUR RACE"
-        title_surface = self.inventory_font_header.render(title_text, True, (255, 215, 0))
+        title_surface = self.inventory_font_header.render(title_text, True, (240, 240, 240))
         title_rect = title_surface.get_rect(center=(menu_rect.centerx, menu_y + self.inventory_font_header.get_linesize() // 2 + 10))
         target_surface.blit(title_surface, title_rect)
 
@@ -2816,7 +2816,7 @@ class Game:
         current_y_right = title_rect.bottom + 30
         selected_race = self.available_races[self.selected_race_index]
 
-        self._draw_text(target_surface, self.inventory_font_section, f"{selected_race.name} Details:", (255, 215, 0), right_column_x, current_y_right)
+        self._draw_text(target_surface, self.inventory_font_section, f"{selected_race.name} Details:", (240, 240, 240), right_column_x, current_y_right)
         current_y_right += self.inventory_font_section.get_linesize() + 10
 
         # Description
@@ -2896,7 +2896,7 @@ class Game:
         pygame.draw.rect(target_surface, (100, 100, 100), menu_rect, 2)
 
         title_text = "CHOOSE YOUR CLASS"
-        title_surface = self.inventory_font_header.render(title_text, True, (255, 215, 0))
+        title_surface = self.inventory_font_header.render(title_text, True, (240, 240, 240))
         title_rect = title_surface.get_rect(center=(menu_rect.centerx, menu_y + self.inventory_font_header.get_linesize() // 2 + 10))
         target_surface.blit(title_surface, title_rect)
 
@@ -2924,7 +2924,7 @@ class Game:
         selected_class_constructor = self.available_classes[self.selected_class_index]
         selected_class_name = selected_class_constructor.__name__
 
-        self._draw_text(target_surface, self.inventory_font_section, f"{selected_class_name} Details:", (255, 215, 0), right_column_x, current_y_right)
+        self._draw_text(target_surface, self.inventory_font_section, f"{selected_class_name} Details:", (240, 240, 240), right_column_x, current_y_right)
         current_y_right += self.inventory_font_section.get_linesize() + 10
 
         # Get class-specific description and traits
@@ -3051,14 +3051,14 @@ class Game:
                 item_color = (255, 255, 0)  # Yellow for selected item
                 item_text = f"> {item.name} <"  # Add arrows to indicate selection
             else:
-                item_color = (255, 255, 255)  # Default color for unselected items
+                item_color = item.color  # Default color for unselected items
                 item_text = item.name  # Normal item name
             self._draw_text(target_surface, self.font_info, item_text, item_color, 20, current_y)
             current_y += self.font_info.get_linesize() + 5
 
         # Draw character graphic in the right column
         character_graphic = self.player.char  # Assuming this is the character's graphic representation
-        character_surface = self.font_header.render(character_graphic, True, (255, 215, 0))  # Render character graphic
+        character_surface = self.font_header.render(character_graphic, True, (240, 240, 240))  # Render character graphic
         target_surface.blit(character_surface, (left_column_width + 30, 20))  # Position it in the right column
 
         # Display equipped items as graphics
@@ -3069,7 +3069,7 @@ class Game:
 
 
         self._draw_text(target_surface, self.font_info, f"Name: {self.player.name}", (255, 255, 255), left_column_width + 30, 100)
-        self._draw_text(target_surface, self.font_info, f"Gold: {self.player.gold}", (255, 255, 255), left_column_width + 30, 120)
+        self._draw_text(target_surface, self.font_info, f"Gold: {self.player.gold}", (255, 215, 0), left_column_width + 30, 120)
         self._draw_text(target_surface, self.font_info, f"AC: {self.player.armor_class}", (255, 255, 255), left_column_width + 30, 160)
         self._draw_text(target_surface, self.font_info, f"Proficiency Bonus: +{self.player.proficiency_bonus}", (255, 255, 255), left_column_width + 30, 180)
         self._draw_text(target_surface, self.font_info, f"Attack Power: +{self.player.attack_power}", (255, 255, 255), left_column_width + 30, 200)
@@ -3143,7 +3143,7 @@ class Game:
         pygame.draw.rect(target_surface, (100, 100, 100), char_menu_rect, 2)
 
         title_text = "CHARACTER SHEET"
-        title_surface = self.inventory_font_header.render(title_text, True, (255, 215, 0))
+        title_surface = self.inventory_font_header.render(title_text, True, (240, 240, 240))
         title_rect = title_surface.get_rect(center=(char_menu_rect.centerx, char_menu_y + self.inventory_font_header.get_linesize() // 2 + 10))
         target_surface.blit(title_surface, title_rect)
 
@@ -3168,11 +3168,11 @@ class Game:
                 y_offset += font.get_linesize() + 2
             return y_offset
 
-        self._draw_text(target_surface, self.inventory_font_section, "BASIC INFO", (255, 215, 0), left_column_x, current_y_left)
+        self._draw_text(target_surface, self.inventory_font_section, "BASIC INFO", (240, 240, 240), left_column_x, current_y_left)
         current_y_left += self.inventory_font_section.get_linesize() + 5
         self._draw_text(target_surface, self.inventory_font_info, f"Name: {self.player.name}", (255, 255, 255), left_column_x, current_y_left)
         current_y_left += self.inventory_font_info.get_linesize() + 5
-        self._draw_text(target_surface, self.inventory_font_info, f"Gold: {self.player.gold}", (255, 255, 255), left_column_x, current_y_left)
+        self._draw_text(target_surface, self.inventory_font_info, f"Gold: {self.player.gold}", (255, 215, 0), left_column_x, current_y_left)
         current_y_left += self.inventory_font_info.get_linesize() + 5        
         self._draw_text(target_surface, self.inventory_font_info, f"Level: {self.player.level}", (255, 255, 255), left_column_x, current_y_left)
         current_y_left += self.inventory_font_info.get_linesize() + 5
@@ -3184,7 +3184,7 @@ class Game:
         self._draw_text(target_surface, self.inventory_font_info, f"HP: {self.player.hp}/{self.player.max_hp}", hp_color, left_column_x, current_y_left)
         current_y_left += self.inventory_font_info.get_linesize() + 15
 
-        self._draw_text(target_surface, self.inventory_font_section, "ATTRIBUTES & SAVES", (255, 215, 0), left_column_x, current_y_left)
+        self._draw_text(target_surface, self.inventory_font_section, "ATTRIBUTES & SAVES", (240, 240, 240), left_column_x, current_y_left)
         current_y_left += self.inventory_font_section.get_linesize() + 5
 
         attributes_data = [
@@ -3208,7 +3208,7 @@ class Game:
             current_y_left += self.inventory_font_info.get_linesize() + 5
         current_y_left += 15
 
-        self._draw_text(target_surface, self.inventory_font_section, "COMBAT STATS", (255, 215, 0), right_column_x, current_y_right)
+        self._draw_text(target_surface, self.inventory_font_section, "COMBAT STATS", (240, 240, 240), right_column_x, current_y_right)
         current_y_right += self.inventory_font_section.get_linesize() + 5
         self._draw_text(target_surface, self.inventory_font_info, f"AC: {self.player.armor_class}", (255, 255, 255), right_column_x, current_y_right)
         current_y_right += self.inventory_font_info.get_linesize() + 5
@@ -3219,7 +3219,7 @@ class Game:
         self._draw_text(target_surface, self.inventory_font_info, f"Attack Bonus: +{self.player.attack_bonus}", (255, 255, 255), right_column_x, current_y_right)
         current_y_right += self.inventory_font_info.get_linesize() + 15
 
-        self._draw_text(target_surface, self.inventory_font_section, "EQUIPMENT", (255, 215, 0), right_column_x, current_y_right)
+        self._draw_text(target_surface, self.inventory_font_section, "EQUIPMENT", (240, 240, 240), right_column_x, current_y_right)
         current_y_right += self.inventory_font_section.get_linesize() + 5
         
         equipped_weapon_name = self.player.equipped_weapon.name if self.player.equipped_weapon else "None"
@@ -3231,7 +3231,7 @@ class Game:
         current_y_right = draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_info, f"Armor: {equipped_armor_name}", (255, 255, 255), right_column_x, current_y_right, column_width)
         current_y_right += 15
 
-        self._draw_text(target_surface, self.inventory_font_section, "STATUS EFFECTS", (255, 215, 0), right_column_x, current_y_right)
+        self._draw_text(target_surface, self.inventory_font_section, "STATUS EFFECTS", (240, 240, 240), right_column_x, current_y_right)
         current_y_right += self.inventory_font_section.get_linesize() + 5
         if not self.player.active_status_effects:
             self._draw_text(target_surface, self.inventory_font_info, "None", (150, 150, 150), right_column_x, current_y_right)
@@ -3305,7 +3305,7 @@ class Game:
         separator_color = (70, 70, 70)
         separator_thickness = 2
 
-        draw_centered_header(self.screen, font_header, "PLAYER", (255, 215, 0), current_y)
+        draw_centered_header(self.screen, font_header, "PLAYER", (240, 240, 240), current_y)
         current_y += font_header.get_linesize() + 10
         self._draw_text(self.screen, font_info, f"Name: {self.player.name}", (255, 255, 255), panel_offset_x, current_y)
         current_y += font_info.get_linesize() + 5   
@@ -3318,7 +3318,7 @@ class Game:
         pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
         current_y += 15
 
-        draw_centered_header(self.screen, font_header, "VITALS", (255, 215, 0), current_y)
+        draw_centered_header(self.screen, font_header, "VITALS", (240, 240, 240), current_y)
         current_y += font_header.get_linesize() + 10
         
         hp_color = (255, 0, 0) if self.player.hp < self.player.max_hp // 3 else (255, 255, 0) if self.player.hp < self.player.max_hp * 2 // 3 else (0, 255, 0)
@@ -3334,7 +3334,7 @@ class Game:
         pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
         current_y += 15
         
-        draw_centered_header(self.screen, font_header, "ABILITIES", (255, 215, 0), current_y)
+        draw_centered_header(self.screen, font_header, "ABILITIES", (240, 240, 240), current_y)
         current_y += font_header.get_linesize() + 10
         
         if not self.player.abilities:
@@ -3355,7 +3355,7 @@ class Game:
         current_y += 15
         
         ''''
-        draw_centered_header(self.screen, self.font_header, "ATTRIBUTES & SAVES", (255, 215, 0), current_y)
+        draw_centered_header(self.screen, self.font_header, "ATTRIBUTES & SAVES", (240, 240, 240), current_y)
         current_y += self.font_header.get_linesize() + 10
 
         def format_ability_and_save(name, score, modifier, save_bonus, save_proficient):
@@ -3389,7 +3389,7 @@ class Game:
         current_y += 15
         '''
         
-        draw_centered_header(self.screen, font_header, "INVENTORY", (255, 215, 0), current_y)
+        draw_centered_header(self.screen, font_header, "INVENTORY", (240, 240, 240), current_y)
         current_y += self.font_header.get_linesize() + 10
         inventory_count = len(self.player.inventory.items)
         inventory_capacity = self.player.inventory.capacity
@@ -3405,7 +3405,7 @@ class Game:
         pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
         current_y += 15
         
-        draw_centered_header(self.screen, font_header, "EFFECTS", (255, 215, 0), current_y)
+        draw_centered_header(self.screen, font_header, "EFFECTS", (240, 240, 240), current_y)
         current_y += font_header.get_linesize() + 10
         if not self.player.active_status_effects:
             self._draw_text(self.screen, font_info, "None", (150, 150, 150), panel_offset_x, current_y)
@@ -3418,7 +3418,7 @@ class Game:
         pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
         current_y += 15
         
-        draw_centered_header(self.screen, font_header, "STATUS", (255, 215, 0), current_y)
+        draw_centered_header(self.screen, font_header, "STATUS", (240, 240, 240), current_y)
         current_y += font_header.get_linesize() + 10
         if self.game_state == GameState.TAVERN:
             current_y = draw_wrapped_and_update_y(self.screen, font_info, "Location: The Prancing Pony Tavern", (150, 200, 255), panel_offset_x, current_y)

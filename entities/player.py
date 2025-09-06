@@ -865,8 +865,8 @@ class Fighter(Player):
         self.attack_bonus = self.get_ability_modifier(self.strength) + self.proficiency_bonus + self.equipped_weapon.attack_bonus     
 
         # Fighter abilities
-        self.abilities["second_wind"] = SecondWind()
         self.abilities["power_attack"] = PowerAttack() 
+        self.abilities["second_wind"] = SecondWind()
 
 
 class Rogue(Player):
@@ -877,7 +877,7 @@ class Rogue(Player):
 
         self.strength = 8
         self.dexterity = 15
-        self.constitution = 1300
+        self.constitution = 13
         self.intelligence = 12
         self.wisdom = 10
         self.charisma = 14
@@ -891,10 +891,10 @@ class Rogue(Player):
         self.primary_stat = 'dexterity'  # Set primary stat for Fighter 
 
         # Set starting equipment
+        self.inventory.add_item(torch)
         self.inventory.add_item(thieves_tools)
         self.inventory.add_item(bread)
         self.inventory.add_item(bread)
-        self.inventory.add_item(torch)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
 
