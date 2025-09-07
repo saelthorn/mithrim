@@ -165,19 +165,6 @@ class Player: # This is our base class for playable characters
         
         return True
 
-    def get_all_owned_items(self):
-        """Returns a set of all items owned by the player across all containers."""
-        owned_items = set(self.inventory.items)
-        if self.equipped_weapon:
-            owned_items.add(self.equipped_weapon)
-        if self.equipped_armor:
-            owned_items.add(self.equipped_armor)
-        if self.equipped_off_hand:
-            owned_items.add(self.equipped_off_hand)
-        for item in self.quick_bar.values():
-            if item:
-                owned_items.add(item)
-        return owned_items
 
     def use_quick_bar_item(self, slot_key, game_instance):
         item = self.quick_bar.get(slot_key)
@@ -200,7 +187,7 @@ class Player: # This is our base class for playable characters
                 elif isinstance(item, OffHand):
                     currently_equipped = self.equipped_off_hand
 
-                if self.equip_item(item, game_instance):
+                if self.equip_item(item, game_instance, from_quick_bar=True):
                     # Swap the previously equipped item (if any) into the quick bar slot
                     if currently_equipped:
                         self.quick_bar[slot_key] = currently_equipped
@@ -657,7 +644,7 @@ class Player: # This is our base class for playable characters
         game_instance.message_log.add_message(f"You can't use {item.name} this way.", (255, 100, 100))
         return False
 
-    def equip_item(self, item, game_instance):
+    def equip_item(self, item, game_instance, from_quick_bar=False):
         if isinstance(item, Weapon):
             # Check if the weapon is two-handed
             if item.is_two_handed:  # Assuming you have an attribute to check if it's two-handed
@@ -675,10 +662,12 @@ class Player: # This is our base class for playable characters
 
             # If the player is equipping a weapon, check for existing equipped weapon
             if self.equipped_weapon:
-                self.inventory.add_item(self.equipped_weapon) 
+                if not from_quick_bar:
+                    self.inventory.add_item(self.equipped_weapon) 
                 game_instance.message_log.add_message(f"You unequip {self.equipped_weapon.name}.", (150, 150, 150))
             
-            self.inventory.remove_item(item)
+            if not from_quick_bar:
+                self.inventory.remove_item(item)
             self.equipped_weapon = item
             
 
@@ -712,10 +701,12 @@ class Player: # This is our base class for playable characters
 
         elif isinstance(item, Armor):
             if self.equipped_armor:
-                self.inventory.add_item(self.equipped_armor) 
+                if not from_quick_bar:
+                    self.inventory.add_item(self.equipped_armor) 
                 game_instance.message_log.add_message(f"You unequip {self.equipped_armor.name}.", (150, 150, 150))
 
-            self.inventory.remove_item(item)
+            if not from_quick_bar:
+                self.inventory.remove_item(item)
             self.equipped_armor = item
 
             # Check for armor proficiency based on categories
@@ -766,11 +757,13 @@ class Player: # This is our base class for playable characters
                         game_instance.message_log.add_message(f"{self.name}'s torchlight fades but the glow lingers in the torch.", (255, 165, 0))
 
                 # Add old off-hand item back to inventory
-                self.inventory.add_item(self.equipped_off_hand)
+                if not from_quick_bar:
+                    self.inventory.add_item(self.equipped_off_hand)
                 game_instance.message_log.add_message(f"You unequip {self.equipped_off_hand.name}.", (150, 150, 150))
 
             # Remove new item from inventory and equip it
-            self.inventory.remove_item(item)
+            if not from_quick_bar:
+                self.inventory.remove_item(item)
             self.equipped_off_hand = item
             game_instance.message_log.add_message(f"You equip {item.name} in your off-hand.", (0, 255, 0))
 
@@ -788,7 +781,6 @@ class Player: # This is our base class for playable characters
 
             return True
 
-        
     def unequip_item(self, item, game_instance, remove_from_inventory=False):
         if isinstance(item, Weapon):
             if self.equipped_weapon == item:
@@ -883,7 +875,6 @@ class Player: # This is our base class for playable characters
 
             if isinstance(effect, CunningActionDashBuff):
                 self.dash_active = False       
-        
         for ability_name, ability_obj in self.abilities.items():
             ability_obj.tick_cooldown()
 

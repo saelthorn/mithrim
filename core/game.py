@@ -125,6 +125,7 @@ class Game:
         self.message_log = None
 
         self.merchant = None  # Initialize merchant attribute        
+        self.dungeon_merchant = None # Create a persistent instance
         
         self.entities = []  # Initialize the entities list here
         self.turn_order = []  # Initialize the turn order list
@@ -1509,6 +1510,14 @@ class Game:
                 item_name = input_text[5:]  # Get the item name after "sell "
                 result = self.merchant.sell_item(self.player, item_name)
                 self.message_log.add_message(result, (255, 255, 255))
+            elif input_text.startswith("buy "):
+                item_name = input_text[4:]  # Get the item name after "buy "
+                result = self.dungeon_merchant.buy_item(self.player, item_name)
+                self.message_log.add_message(result, (255, 255, 255))
+            elif input_text.startswith("sell "):
+                item_name = input_text[5:]  # Get the item name after "sell "
+                result = self.dungeon_merchant.sell_item(self.player, item_name)
+                self.message_log.add_message(result, (255, 255, 255))                
             else:
                 add_ambient_merchant_message = [
                     "The merchant squints at you: 'I only deal in proper trades. Say *buy <item>* or *sell <item>*.'",
@@ -3432,7 +3441,7 @@ class Game:
         pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
         current_y += 15
         '''
-        
+        '''        
         draw_centered_header(self.screen, font_header, "INVENTORY", (240, 240, 240), current_y)
         current_y += self.font_header.get_linesize() + 10
         inventory_count = len(self.player.inventory.items)
@@ -3448,7 +3457,8 @@ class Game:
         current_y += 10
         pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
         current_y += 15
-        
+        '''
+
         draw_centered_header(self.screen, font_header, "EFFECTS", (240, 240, 240), current_y)
         current_y += font_header.get_linesize() + 10
         if not self.player.active_status_effects:
@@ -3484,11 +3494,10 @@ class Game:
                 controls_list.append("Move onto door (+) to enter dungeon")
             npc = self.check_npc_interaction()
             if npc:
-                controls_list.append(f"SPACE: Talk to {npc.name}")
+                controls_list.append(f"F: Talk to {npc.name}")
             controls_list.extend([
                 "Arrow keys/hjkl: Move",
-                "SPACE: Talk to NPCs",
-                "+ = Door to dungeon",
+                "F: Talk to NPCs",
                 "I: Open Inventory",
                 "C: Open Character Sheet"
             ])

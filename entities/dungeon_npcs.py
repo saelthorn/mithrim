@@ -36,7 +36,7 @@ class DungeonMerchant(NPC):
             "If you have something to sell, I'm all ears!",
             "Careful out there… but first, care to buy a potion or two?"
         ]
-        super().__init__(x, y, 'rc', 'Tavern Merchant', (255, 215, 100), dialogue)  # Different char/color for tavern merchant
+        super().__init__(x, y, 'rc', 'Dungeon Merchant', (255, 215, 100), dialogue)  # Different char/color for tavern merchant
         self.saving_throw_proficiencies = {
             "STR": False,
             "DEX": True,
@@ -74,8 +74,9 @@ class DungeonMerchant(NPC):
         # Add default items
         for item in default_items:
             if isinstance(item, CampfireKit):
-                self.items_for_sale.append(item)
+                self.items_for_sale.append(CampfireKit()) # Create a new instance directly
             else:
+                # Create a new instance for other items
                 new_item = item.__class__(
                     name=item.name,
                     char=item.char,
