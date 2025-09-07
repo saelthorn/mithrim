@@ -906,7 +906,7 @@ class Fighter(Player):
         
         self.strength = 15
         self.dexterity = 13
-        self.constitution = 1400
+        self.constitution = 14
         self.intelligence = 8
         self.wisdom = 12
         self.charisma = 10
@@ -921,7 +921,6 @@ class Fighter(Player):
         
         # Set starting equipment
         self.inventory.add_item(iron_dagger)
-        self.inventory.add_item(torch)
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  
@@ -959,7 +958,7 @@ class Rogue(Player):
 
         self.strength = 8
         self.dexterity = 15
-        self.constitution = 1300
+        self.constitution = 13
         self.intelligence = 12
         self.wisdom = 10
         self.charisma = 14
@@ -973,7 +972,6 @@ class Rogue(Player):
         self.primary_stat = 'dexterity'  # Set primary stat for Fighter 
 
         # Set starting equipment
-        self.inventory.add_item(torch)
         self.inventory.add_item(thieves_tools)
         self.inventory.add_item(bread)
         self.inventory.add_item(bread)
@@ -1029,7 +1027,6 @@ class Wizard(Player):
         self.primary_stat = 'intelligence'  # Set primary stat for Fighter 
 
         # Set starting equipment
-        self.inventory.add_item(torch)
         self.inventory.add_item(bread)
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
