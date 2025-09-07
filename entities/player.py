@@ -769,7 +769,7 @@ class Player: # This is our base class for playable characters
 
             # If new item is a torch, apply Torchlight effect with torch's stored duration
             if item.name.lower() == "torch":
-                duration = getattr(item, 'remaining_duration', 250)
+                duration = getattr(item, 'remaining_duration', 2500)
                 self.add_status_effect("Torchlight", duration=duration, game_instance=game_instance)
                 game_instance.message_log.add_message(f"{self.name} equips a torch with {duration} turns remaining.", (255, 165, 0))
 
@@ -906,7 +906,7 @@ class Fighter(Player):
         
         self.strength = 15
         self.dexterity = 13
-        self.constitution = 14
+        self.constitution = 1400
         self.intelligence = 8
         self.wisdom = 12
         self.charisma = 10
@@ -959,7 +959,7 @@ class Rogue(Player):
 
         self.strength = 8
         self.dexterity = 15
-        self.constitution = 13
+        self.constitution = 1300
         self.intelligence = 12
         self.wisdom = 10
         self.charisma = 14

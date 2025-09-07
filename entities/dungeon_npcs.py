@@ -87,14 +87,14 @@ class DungeonMerchant(NPC):
                 self.items_for_sale.append(new_item)
     
         # Add chance-based items
-        for item_template, chance in chance_items_with_chance:
+        for item, chance in chance_items_with_chance:
             if random.random() < chance:
-                new_item = item_template.__class__(
-                    name=item_template.name,
-                    char=item_template.char,
-                    color=item_template.color,
-                    description=item_template.description,
-                    **{k: v for k, v in item_template.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                new_item = item.__class__(
+                    name=item.name,
+                    char=item.char,
+                    color=item.color,
+                    description=item.description,
+                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
                 )
                 self.items_for_sale.append(new_item)
 
@@ -125,19 +125,13 @@ class DungeonMerchant(NPC):
                 if player.gold >= item.price:
                     player.gold -= item.price
     
-                    # Create a new instance of the item to add to player inventory
-                    new_item = item.__class__(
-                        name=item.name,
-                        char=item.char,
-                        color=item.color,
-                        description=item.description,
-                        **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
-                    )
-    
-                    if player.inventory.add_item(new_item):
-                        self.items_for_sale.remove(item)  # Remove the original from merchant
+                    # Give the actual item instance to the player
+                    if player.inventory.add_item(item):
+                        self.items_for_sale.remove(item)  # Remove the item from merchant
                         return f"You bought {item.name}!"
                     else:
+                        # If adding failed, refund the player
+                        player.gold += item.price
                         return "Your inventory is full!"
                 else:
                     return "Scram! you don't have enough gold!"

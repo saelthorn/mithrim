@@ -620,7 +620,7 @@ class Game:
                 # You can add logic here to scale monster HP, attack, etc. based on level_number
                 self.entities.append(monster)
 
-        if len(rooms) > 2 and random.random() < 0.6: # Healer spawnrate
+        if len(rooms) > 2 and random.random() < 0.2: # Healer spawnrate
             shuffled_healer_rooms = list(rooms[1:-1])
             random.shuffle(shuffled_healer_rooms)
             healer_spawned = False
@@ -650,7 +650,7 @@ class Game:
             if not healer_spawned:
                 self.message_log.add_message("DEBUG: Dungeon Healer could not find a suitable spawn spot.", (100, 100, 100))
 
-        elif len(rooms) > 2 and random.random() < 0.6: # Merchant spawnrate
+        elif len(rooms) > 2 and random.random() < 0.9: # Merchant spawnrate
             shuffled_merchant_rooms = list(rooms[1:-1])
             random.shuffle(shuffled_merchant_rooms)
             merchant_spawned = False
@@ -671,9 +671,9 @@ class Game:
                                 possible_spawn_points.append((x_coord, y_coord))
                 
                 if possible_spawn_points:
-                    merchat_x, merchant_y = random.choice(possible_spawn_points)
-                    dungeon_merchant = DungeonMerchant(merchat_x, merchant_y)
-                    self.entities.append(dungeon_merchant)
+                    merchant_x, merchant_y = random.choice(possible_spawn_points)
+                    self.dungeon_merchant = DungeonMerchant(merchant_x, merchant_y) # Assign to game instance
+                    self.entities.append(self.dungeon_merchant)
                     merchant_spawned = True
                     break
             
@@ -779,6 +779,8 @@ class Game:
                     if (abs(self.player.x - entity.x) <= 1 and
                         abs(self.player.y - entity.y) <= 1 and
                         (abs(self.player.x - entity.x) + abs(self.player.y - entity.y)) == 1):
+                        if isinstance(entity, DungeonMerchant):
+                            self.dungeon_merchant = entity # Set the current merchant
                         return entity  # Return the NPC if adjacent
         return None  # No NPC found
 
@@ -1500,43 +1502,42 @@ class Game:
 
     def handle_text_input(self, input_text):
         """Handles text input from the player."""
-        input_text = input_text.lower()  # Convert input to lowercase
+        input_text = input_text.lower()
+
         if self.game_state == GameState.TRADE:
-            if input_text.startswith("buy "):
-                item_name = input_text[4:]  # Get the item name after "buy "
-                result = self.merchant.buy_item(self.player, item_name)
-                self.message_log.add_message(result, (255, 255, 255))
-            elif input_text.startswith("sell "):
-                item_name = input_text[5:]  # Get the item name after "sell "
-                result = self.merchant.sell_item(self.player, item_name)
-                self.message_log.add_message(result, (255, 255, 255))
-            elif input_text.startswith("buy "):
-                item_name = input_text[4:]  # Get the item name after "buy "
-                result = self.dungeon_merchant.buy_item(self.player, item_name)
-                self.message_log.add_message(result, (255, 255, 255))
-            elif input_text.startswith("sell "):
-                item_name = input_text[5:]  # Get the item name after "sell "
-                result = self.dungeon_merchant.sell_item(self.player, item_name)
-                self.message_log.add_message(result, (255, 255, 255))                
-            else:
-                add_ambient_merchant_message = [
-                    "The merchant squints at you: 'I only deal in proper trades. Say *buy <item>* or *sell <item>*.'",
-                    "The trader frowns: 'That makes no sense to me, friend. Try *buy <item>* or *sell <item>* if you mean business.'",
-                    "The merchant raises a brow: 'I’ll not play games. Speak plain: *buy <item>* or *sell <item>*.'",
-                ]
-                self.message_log.add_message(random.choice(add_ambient_merchant_message), (150, 150, 150))
+            # Determine which merchant is active
+            active_merchant = None
+            if self._previous_game_state == GameState.TAVERN and self.merchant:
+                active_merchant = self.merchant
+            elif self._previous_game_state == GameState.DUNGEON and self.dungeon_merchant:
+                active_merchant = self.dungeon_merchant
+
+            if active_merchant:
+                if input_text.startswith("buy "):
+                    item_name = input_text[4:]
+                    result = active_merchant.buy_item(self.player, item_name)
+                    self.message_log.add_message(result, (255, 255, 255))
+                elif input_text.startswith("sell "):
+                    item_name = input_text[5:]
+                    result = active_merchant.sell_item(self.player, item_name)
+                    self.message_log.add_message(result, (255, 255, 255))
+                else:
+                    add_ambient_merchant_message = [
+                        "The merchant squints at you: 'I only deal in proper trades. Say *buy <item>* or *sell <item>*.'",
+                        "The trader frowns: 'That makes no sense to me, friend. Try *buy <item>* or *sell <item>* if you mean business.'",
+                        "The merchant raises a brow: 'I’ll not play games. Speak plain: *buy <item>* or *sell <item>*.'",
+                    ]
+                    self.message_log.add_message(random.choice(add_ambient_merchant_message), (150, 150, 150))
             
-            # Return to the previous game state after trading
-            self.game_state = self._previous_game_state  # Revert to the previous state
-            return  # Exit the method after handling trade input
-    
-        # Handle other game states (Tavern or Dungeon)
-        if self.game_state == GameState.TAVERN:
-            # Handle Tavern-specific input here
-            pass
-        elif self.game_state == GameState.DUNGEON:
-            # Handle Dungeon-specific input here
-            pass
+            # After any trade attempt, revert state and hide input
+            self.game_state = self._previous_game_state
+            self.message_log.show_input_area = False
+            self.message_log.current_input = ""
+            return
+
+        # Fallback for other states if needed
+        self.message_log.show_input_area = False
+        self.message_log.current_input = ""
         
 
     def execute_targeted_ability(self):
