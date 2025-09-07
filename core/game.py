@@ -226,35 +226,38 @@ class Game:
 
     # Boss schedule: every 5th floor, ordered list
     BOSS_FLOORS = [
-        (1, 'RedDragon'),
-        (5, 'Troll'),
+        (3, 'Troll'),
+        (5, 'Owlbear'),
+        (7, 'MindFlayer'),
         (10, 'DeathSlaad'),
+        (12, 'Gauth'),
         (15, 'Beholder'),
-        (20, 'RedDragon'),
-        (25, 'Demogorgon'),
+        (18, 'RedDragon'),
+        (19, 'Demogorgon'),
+        (20, 'Arasta'),
     ]
 
     MONSTER_SPAWN_TIERS = {
         # 🌱 Early dungeon fodder (CR 1/8 – CR 1/4)
-        (1, 1): [Goblin, Wolf, GiantRat, MyconidSprout],
-        (2, 2): [Goblin, GoblinArcher, GiantRat, Wererat, Wolf, MyconidSprout],
-        (2, 3): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf, MyconidAdult],
+        (1, 2): [Goblin, Wolf, GiantRat, MyconidSprout],
+        (3, 4): [Goblin, GoblinArcher, GiantRat, Wererat, Wolf, MyconidSprout],
+        (5, 5): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf, MyconidAdult],
 
         # ⚔️ Early-mid dangers (CR 1/2 – CR 2)
-        (4, 5): [Skeleton, SkeletonArcher, Orc, Grick, Ooze],
-        (6, 7): [Lizardfolk, LizardfolkArcher, GiantSpider, Wererat, MyconidAdult],
+        (6, 7): [Skeleton, SkeletonArcher, Orc, Grick, Ooze],
+        (8, 9): [Lizardfolk, LizardfolkArcher, GiantSpider, Wererat, MyconidAdult],
 
         # 🛡️ Mid-game threats (CR 3 – CR 6)
-        (8, 9): [Centaur, CentaurArcher, Troll, Owlbear, Minotaur],
-        (10, 11): [Troll, Orc, GiantSpider, LargeOoze, Minotaur, GibberingMouther],
+        (10, 11): [Centaur, CentaurArcher, Troll, Owlbear, Minotaur],
+        (12, 13): [Troll, Orc, GiantSpider, LargeOoze, Minotaur, GibberingMouther],
 
         # 👁️ Late-mid bosses and horrors (CR 7 – CR 10)
-        (12, 13): [LargeOoze, GiantSpider, GibberingMouther, Gauth],
-        (14, 14): [Drider, Mezzoloth],
+        (14, 15): [LargeOoze, GiantSpider, GibberingMouther, Gauth],
+        (16, 16): [Drider, Mezzoloth],
 
         # 🔥 High level threats (CR 11 – CR 15)
-        (15, 16): [Yochlol, RedSlaad, LargeOoze, RedDragon],
-        (17, 18): [Beholder, MindFlayer, LargeOoze, DeathSlaad],
+        (17, 18): [Yochlol, RedSlaad, LargeOoze, RedDragon],
+        (19, 20): [Beholder, MindFlayer, LargeOoze, DeathSlaad, Gauth],
 
         # 🕷️ Endgame / campaign bosses (CR 20+)
         (19, 19): [Demogorgon],
@@ -479,6 +482,8 @@ class Game:
         self._previous_game_state = GameState.DUNGEON
         self.current_level = level_number
         self.max_level_reached = max(self.max_level_reached, level_number)
+        if hasattr(self, "game_map") and hasattr(self.game_map, "items_on_ground"):
+            self.game_map.items_on_ground.clear() 
 
         self.game_map = GameMap(70, 40)
         self.fov = FOV(self.game_map)
@@ -578,9 +583,12 @@ class Game:
                     boss_name = next((name for (f, name) in self.BOSS_FLOORS if f == level_number), None)
                     # Map names to classes (fallback to Demogorgon if missing)
                     name_to_cls = {
-                        'GoblinKing': Goblin,  # TODO: replace with GoblinKing class when available
-                        'GiantSpider': GiantSpider,
+                        'Troll': Troll,  # TODO: replace with GoblinKing class when available
+                        'Owlbear': Owlbear,
                         'Beholder': Beholder,
+                        'DeathSlaad': DeathSlaad,
+                        'Gauth': Gauth,
+                        'MindFlayer': MindFlayer,
                         'RedDragon': RedDragon,  # TODO: replace with Red Dragon class when available
                         'Demogorgon': Demogorgon,
                         'Arasta': Arasta
@@ -687,7 +695,7 @@ class Game:
             round_shield, kite_shield, tower_shield
         ]
 
-        item_spawn_chance = 0.99
+        item_spawn_chance = 0.5 + min(0.5, level_number * 0.02) # Scales from 30% to max 50% at level 10+
 
         for room in rooms:
             if random.random() < item_spawn_chance:
@@ -712,8 +720,7 @@ class Game:
                 if (item_x, item_y) != (self.player.x, self.player.y) and \
                    (item_x, item_y) not in self.stairs_positions.values() and \
                    not is_blocked_by_non_item_entity and \
-                   not is_occupied_by_another_item and \
-                    not is_decorative_tile:
+                   not is_occupied_by_another_item:
                     
 
                     chosen_template = random.choice(item_templates)
@@ -738,9 +745,7 @@ class Game:
         self.update_fov()
         
         self.bloodstains.clear()
-        self.floating_texts.clear()
-        if hasattr(self, "game_map") and hasattr(self.game_map, "items_on_ground"):
-            self.game_map.items_on_ground.clear()   
+        self.floating_texts.clear()  
 
         self.message_log.add_message(f"=== ENTERED DUNGEON LEVEL {level_number} ===", (0, 255, 255))        
         if hasattr(self, 'stairs_positions'):
@@ -2686,7 +2691,7 @@ class Game:
                         if has_torchlight:
                             entity_color_tint = (240, 240, 240, 255)  # Dimmer tint when torchlight active
                         else:
-                            entity_color_tint = (160, 160, 160, 255)  
+                            entity_color_tint = (180, 180, 180, 255)  
                     elif visibility_type == 'torch':
                         entity_color_tint = (180, 180, 180, 255)
                     elif visibility_type == 'darkvision':

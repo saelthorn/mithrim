@@ -906,7 +906,7 @@ class Fighter(Player):
         
         self.strength = 15
         self.dexterity = 13
-        self.constitution = 14
+        self.constitution = 1400
         self.intelligence = 8
         self.wisdom = 12
         self.charisma = 10
@@ -958,7 +958,7 @@ class Rogue(Player):
 
         self.strength = 8
         self.dexterity = 15
-        self.constitution = 13
+        self.constitution = 1300
         self.intelligence = 12
         self.wisdom = 10
         self.charisma = 14
