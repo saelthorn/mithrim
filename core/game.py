@@ -248,7 +248,7 @@ class Game:
         (8, 9): [Lizardfolk, LizardfolkArcher, GiantSpider, Wererat, MyconidAdult],
 
         # 🛡️ Mid-game threats (CR 3 – CR 6)
-        (10, 11): [Centaur, CentaurArcher, Troll, Owlbear, Minotaur],
+        (10, 11): [Centaur, CentaurArcher, Troll, Owlbear, Minotaur, RedSlaad],
         (12, 13): [Troll, Orc, GiantSpider, LargeOoze, Minotaur, GibberingMouther],
 
         # 👁️ Late-mid bosses and horrors (CR 7 – CR 10)
@@ -260,8 +260,8 @@ class Game:
         (19, 20): [Beholder, MindFlayer, LargeOoze, DeathSlaad, Gauth],
 
         # 🕷️ Endgame / campaign bosses (CR 20+)
-        (19, 19): [Demogorgon],
-        (20, 99): [Arasta],
+        (19, 19): [],
+        (20, 99): [GiantSpider],
     }
 
 
@@ -692,7 +692,7 @@ class Game:
             lesser_healing_potion, greater_healing_potion, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor,
             robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, 
             apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail,
-            round_shield, kite_shield, tower_shield
+            round_shield, kite_shield, tower_shield, torch
         ]
 
         item_spawn_chance = 0.5 + min(0.5, level_number * 0.02) # Scales from 30% to max 50% at level 10+

@@ -288,6 +288,8 @@ torch = OffHand(
     char='th', 
     color=(255, 140, 0), 
     description="A burning torch that can be held in your off-hand. Provides extra light.", 
+    damage_modifier=1,
+    attack_bonus=0,
     price=10,
     remaining_duration=250
 )
@@ -299,7 +301,7 @@ iron_dagger = OffHand(
     color=(180, 180, 180),
     description="A small, light blade.",
     damage_dice="1d4",
-    damage_modifier=1,
+    damage_modifier=2,
     attack_bonus=1,
     price = 15,
     category="dagger"
@@ -311,9 +313,9 @@ silver_dagger = OffHand(
     color=(180, 180, 180),
     description="A silver blade.",
     damage_dice="1d4",
-    damage_modifier=2,
+    damage_modifier=3,
     attack_bonus=3,
-    price = 20,
+    price = 30,
     category="dagger"
 )
 

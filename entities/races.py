@@ -40,7 +40,7 @@ class Human(Race):
             description="Humans are versatile and adaptable, with no particular strengths or weaknesses.",
             darkvision_radius=5,
             damage_resistances=[],
-            skill_proficiencies=["Any one skill"],
+            skill_proficiencies=["Any skill"],
             weapon_proficiencies=["Simple weapons"],
             armor_proficiencies=["Light armor"]
             )

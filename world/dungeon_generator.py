@@ -40,12 +40,12 @@ def generate_dungeon(game_map, level_number, max_rooms=16, room_min_size=5, room
     stairs_positions = {}
     
     floor_decoration_tiles = [crate, barrel, bones, dungeon_grass, cob_web, rubble, mushroom, fresh_bones, dungeon_grass_two, dungeon_floor_two, dungeon_floor_three] 
-    floor_decoration_chance = 0.2  # Ensure this is defined
+    floor_decoration_chance = 0.15  # Ensure this is defined
     torch_light_sources = []
 
     # Trap Definitions and Chance
     possible_traps = [DartTrap, SpikeTrap, FireTrap, ExplosiveTrap, AcidSprayTrap] # List of trap instances
-    trap_placement_chance = 0.1 # 10% chance for a floor tile to become a trap    
+    trap_placement_chance = 0.05 # 10% chance for a floor tile to become a trap    
     
     # Attempt to generate rooms
     for _ in range(max_rooms * 2): # Try more times than max_rooms to ensure we get enough
