@@ -532,10 +532,10 @@ dragonsbane_warhammer = Weapon(
     char="dbw",
     color=(175, 175, 175),
     description="A warhammer that has seen the end of countless dragons.",
-    damage_dice="1d8",
-    damage_modifier=3,
+    damage_dice="2d8",
+    damage_modifier=4,
     attack_bonus=3,
-    price=50,
+    price=70,
     is_two_handed=True,
     category="hammer"
 )

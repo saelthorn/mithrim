@@ -17,7 +17,6 @@ Map changes:
 
 To do:
      Prioritize - Make Mithrim Logo
-      - When Monster Dies it drops loot
 
      
      Not Prio - Add Companions 

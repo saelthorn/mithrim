@@ -1,7 +1,15 @@
 import random
 from core.pathfinding import astar
 from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff
-from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, bread, mushroom, CampfireKit
+
+from items.items import (
+    Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
+    bread, mushroom, CampfireKit, torch, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, 
+    iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, 
+    apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail, 
+    round_shield, kite_shield, tower_shield
+    )
+
 from world.tile import floor
 from world.bloodstain import Bloodstain
 from core.floating_text import FloatingText 
@@ -95,6 +103,9 @@ class Monster:
         self.telegraph_color = (255, 0, 0, 100)  # translucent red
         self.attack_cooldown = 0  # Cooldown for boss telegraphed attacks
         self.telegraph_timer = 0  # Timer for when telegraphed attack resolves (3 turns)
+
+        self.loot_table = []  # List of (item_template, drop_chance) tuples
+
 
             
 
@@ -536,10 +547,28 @@ class Monster:
         return damage_taken
 
     def die(self, game_instance): # Ensure this method accepts game_instance
-        """Handle death and return XP value"""
+        """Handle death, drop loot, and return XP value"""
         # NEW: Create a bloodstain at the entity's position
         bloodstain = Bloodstain(self.x, self.y, game_instance)
         game_instance.bloodstains.append(bloodstain)
+
+        # --- Handle Loot Drops ---
+        for item_template, drop_chance in self.loot_table:
+            if random.random() < drop_chance:
+                # Create a new instance of the item to avoid modifying the template
+                item_vars = {k: v for k, v in vars(item_template).items() if not k.startswith('_')}
+                
+                # Exclude attributes that are not part of the constructor
+                item_vars.pop('owner', None)
+                item_vars.pop('x', None)
+                item_vars.pop('y', None)
+
+                new_item = item_template.__class__(**item_vars)
+                new_item.x = self.x
+                new_item.y = self.y
+                game_instance.game_map.items_on_ground.append(new_item)
+                game_instance.message_log.add_message(f"The {self.name} dropped a {new_item.name}!", (0, 255, 255))
+
         return self.base_xp
 
     def add_status_effect(self, effect_name, duration, game_instance, source=None):
@@ -1131,9 +1160,13 @@ class GiantRat(Monster):
         # self.can_disease = True  # Filth Fever (homebrew disease effect)
         self.is_intelligent = False # Not intelligent enough to flee
 
+        self.loot_table = [
+            (meat, 0.25) # 25% chance to drop meat
+        ]
+
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": False,  # Proficient in Dexterity saves
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1180,6 +1213,10 @@ class Goblin(Monster):
         self.num_damage_dice = 1
         self.is_intelligent = True # Intelligent enough to flee
 
+        self.loot_table = [
+            (iron_dagger, 0.8) # 25% chance to drop meat
+        ]
+
         self.saving_throw_proficiencies = {
             "STR": False,
             "DEX": True,  # Proficient in Dexterity saves
@@ -1208,6 +1245,10 @@ class GoblinArcher(Monster):
         self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
         self.is_intelligent = True # Intelligent enough to flee
 
+        self.loot_table = [
+            (bread, 0.25) # 25% chance to drop meat
+        ]
+
         self.saving_throw_proficiencies = {
             "STR": False,
             "DEX": True,  # Proficient in Dexterity saves
@@ -1230,7 +1271,11 @@ class Skeleton(Monster):
         self.detection_range = 4
         self.num_damage_dice = 1
         self.is_intelligent = False # Not intelligent enough to flee
-
+        
+        self.loot_table = [
+            (bronze_short_sword, 0.85) # 25% chance to drop meat
+        ]
+        
         self.saving_throw_proficiencies = {
             "STR": False,
             "DEX": True,  # Proficient in Dexterity saves
@@ -1282,6 +1327,10 @@ class Orc(Monster):
         self.num_damage_dice = 1
         self.is_intelligent = True # Intelligent enough to flee
 
+        self.loot_table = [
+            (steel_battle_axe, 0.75) # 25% chance to drop meat
+        ]
+
         self.saving_throw_proficiencies = {
             "STR": False,
             "DEX": True,  # Proficient in Dexterity saves
@@ -1304,6 +1353,12 @@ class Centaur(Monster):
         self.detection_range = 6
         self.num_damage_dice = 2
         self.is_intelligent = True # Intelligent enough to flee
+
+        self.loot_table = [
+            (pole_arm, 0.75), # 75% chance to drop meat
+            (studded_leather_armor, 0.50), # 50% chance to drop armor
+            (meat, 0.25) # 25% chance to drop meat
+        ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -1333,6 +1388,11 @@ class CentaurArcher(Monster):
         self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
         self.is_intelligent = True # Intelligent enough to flee
 
+        self.loot_table = [
+            (iron_short_sword, 0.25) # 25% chance to drop meat
+            (meat, 0.25) # 25% chance to drop meat
+        ]
+
         self.saving_throw_proficiencies = {
             "STR": False,
             "DEX": True,  # Proficient in Dexterity saves
@@ -1357,6 +1417,10 @@ class Troll(Monster):
         # self.regeneration = True
         # self.regen_amount = 10  # per turn unless acid/fire damage
         self.is_intelligent = False # Not intelligent enough to flee (more brute force)
+
+        self.loot_table = [
+            (steel_maul, 0.85), # 85% chance to drop meat
+        ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -1384,6 +1448,10 @@ class Lizardfolk(Monster):
         self.poison_duration = 3
         self.poison_damage_per_turn = 2
         self.is_intelligent = True # Intelligent enough to flee
+
+        self.loot_table = [
+            (pole_arm, 0.75) # 25% chance to drop meat
+        ]        
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -1497,6 +1565,11 @@ class LargeOoze(Monster):  # Gelatinous Cube
         self.acid_burn_damage_per_turn = 4
         self.split_on_slash = True
         self.is_intelligent = False # Mindless
+
+        self.loot_table = [
+            (bronze_short_sword, 0.25), # 25% chance to drop meat
+            (round_shield, 0.25) # 25% chance to drop round shield
+        ]    
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -1662,6 +1735,10 @@ class MindFlayer(Monster):
         # self.psionic_stun_duration = 1
         self.is_intelligent = True # Highly intelligent
 
+        self.loot_table = [
+            (chainmail_armor, 0.75) # 75% chance to drop meat
+        ]
+
         self.saving_throw_proficiencies = {
             "STR": False,
             "DEX": True,  # Proficient in Dexterity saves
@@ -1685,6 +1762,10 @@ class Minotaur(Monster):
         self.num_damage_dice = 2
         # self.charge_attack = True
         self.is_intelligent = True # Intelligent enough to flee
+
+        self.loot_table = [
+            (steel_battle_axe, 0.75) # 25% chance to drop meat
+        ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -1711,6 +1792,12 @@ class Wererat(Monster):
         # self.disease = True
         self.is_intelligent = True # Intelligent enough to flee
 
+        self.loot_table = [
+            (iron_dagger, 0.85), # 85% chance to drop meat
+            (meat, 0.25), # 25% chance to drop meat
+            (iron_short_sword, 0.75) # 75% chance to drop meat
+        ]
+
         self.saving_throw_proficiencies = {
             "STR": False,
             "DEX": True,  # Proficient in Dexterity saves
@@ -1734,6 +1821,10 @@ class Wolf(Monster):
         self.num_damage_dice = 1
         # self.knock_prone_dc = 11
         self.is_intelligent = False # More beast-like
+        
+        self.loot_table = [
+            (meat, 0.60) # 25% chance to drop meat
+        ]        
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -1856,6 +1947,10 @@ class MyconidSprout(Monster):
         # self.pacify_duration = 1d4 rounds
         # Effect: Target becomes stunned
 
+        self.loot_table = [
+            (mushroom, 0.99) # 99% chance to drop meat
+        ]
+
         self.saving_throw_proficiencies = {
             "STR": False,
             "DEX": False,
@@ -1890,6 +1985,10 @@ class MyconidAdult(Monster):
         # Rapport Spores (telepathic network)
         # self.can_share_thoughts = True
         # Party-wide communication if close
+      
+        self.loot_table = [
+            (mushroom, 0.99) # 25% chance to drop meat
+        ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -1951,6 +2050,11 @@ class Gauth(Monster):
         self.damage_modifier = 2
         self.detection_range = 8
         self.is_intelligent = True  # Scheming, paranoid
+        self.range = 4  # Max range for ranged attacks
+        self.is_ranged = True
+        self.ranged_attack_bonus = 5  # Base ranged attack bonus
+        self.ranged_die_type = 8  # Base die type for ranged attacks
+        self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
 
         # Traits
         # Eye Rays (roll d6 each turn, fire 2 rays at random targets):
@@ -1964,6 +2068,10 @@ class Gauth(Monster):
         # Limited Anti-Magic Cone (like beholder, but only 150-degree arc)
         # self.anti_magic_cone = True
         # Range: 30 ft.
+
+        self.loot_table = [
+            (meat, 0.1) # 10% chance to drop meat
+        ]        
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -1988,6 +2096,10 @@ class Drider(Monster):
         self.detection_range = 12
         self.num_damage_dice = 3
         self.is_intelligent = True # Intelligent enough to flee
+
+        self.loot_table = [
+            (steel_rapier, 0.80) # 80% chance to drop rapier
+        ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
