@@ -1087,3 +1087,19 @@ class RayOfFrost(Ability):
 
 
 
+class ActionSurge(Ability):
+    def __init__(self):
+        super().__init__("Action Surge", "Gain an additional action on your turn.", cooldown=5)
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+        
+        game_instance.message_log.add_message(f"{user.name} uses Action Surge!", (255, 255, 0))
+        user.extra_turns = 3
+        
+        user.add_status_effect("ActionSurgeEffect", duration=user.extra_turns + 1, game_instance=game_instance)
+                
+        # Using the ability is a valid action that ends the current phase.
+        # The new logic in game.update() will catch the flag and grant the next turn.
+        return True

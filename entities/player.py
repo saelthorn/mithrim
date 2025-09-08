@@ -1,8 +1,8 @@
 import random
 from core. game import GameState
 from core.inventory import Inventory
-from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost
-from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight
+from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge
+from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect
 from items.items import torch, Food, Potion, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
@@ -118,6 +118,7 @@ class Player: # This is our base class for playable characters
         self.dash_active = False # <--- NEW: Flag for dash status      
 
         self.current_action_state = None  
+        self.extra_turns = 0
 
     def update_hunger(self, game_instance):
         """Decrease hunger every 2 turns."""
@@ -841,9 +842,11 @@ class Player: # This is our base class for playable characters
         elif effect_name == "CunningActionDashBuff":
             new_effect = CunningActionDashBuff(duration)
         elif effect_name == "EvasionBuff":
-            new_effect = EvasionBuff(duration)
+            new_effect = EvasionBuff(duration)          
         elif effect_name == "Torchlight":
             new_effect = Torchlight(duration)
+        elif effect_name == "ActionSurgeEffect":
+            new_effect = ActionSurgeEffect(duration)
         if new_effect:
             for existing_effect in self.active_status_effects:
                 if type(existing_effect) is type(new_effect):
@@ -861,6 +864,8 @@ class Player: # This is our base class for playable characters
     def process_status_effects(self, game_instance):
         """Processes active status effects and ability cooldowns on the player."""
         effects_to_remove = []
+        action_surge_effect = None
+
         for effect in self.active_status_effects:
             # Call apply_effect for continuous effects (like poison damage)
             effect.apply_effect(self, game_instance) # <--- Ensure this is called
@@ -868,7 +873,18 @@ class Player: # This is our base class for playable characters
             effect.tick_down()
             if effect.turns_left <= 0:
                 effects_to_remove.append(effect)
-        
+
+        # Special handling for ActionSurgeEffect to sync with the real counter
+        if action_surge_effect:
+            # The displayed duration is the number of *extra* turns plus the current one.
+            visual_duration = self.extra_turns + 1
+            action_surge_effect.turns_left = visual_duration
+            action_surge_effect.name = f"Action Surge ({self.extra_turns} left)"
+
+            if self.extra_turns <= 0:
+                # If the counter is empty, remove the effect.
+                effects_to_remove.append(action_surge_effect)
+
         for effect in effects_to_remove:
             self.active_status_effects.remove(effect)
             effect.on_end(self, game_instance)
@@ -948,6 +964,7 @@ class Fighter(Player):
         # Fighter abilities
         self.abilities["power_attack"] = PowerAttack() 
         self.abilities["second_wind"] = SecondWind()
+        self.abilities["action_surge"] = ActionSurge()
 
 
 class Rogue(Player):

@@ -40,7 +40,7 @@ from entities.tavern_npcs import create_tavern_npcs, NPC, Merchant
 from entities.dungeon_npcs import DungeonHealer, DungeonMerchant
 from entities.races import Human, HillDwarf, DrowElf # NEW: Import DrowElf
 from entities.summons import MageHandEntity
-from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, MageHand
+from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
 from core.message_log import MessageBox
 from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff
 from items.items import Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, bread, mushroom, CampfireKit, torch, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail, round_shield, kite_shield, tower_shield
@@ -959,7 +959,13 @@ class Game:
                 if not self.player.alive:  # Check if the player has died from hunger
                     self.handle_game_over()
                     return  # End the turn if the player is dead
-                                  
+
+        if current_acting_entity == self.player and self.player.extra_turns > 0:
+            self.player.extra_turns -= 1
+            self.message_log.add_message("You take an extra action!", (255, 255, 0))
+            self.player_has_acted = False # Reset for the next action
+            return # IMPORTANT: Exit before advancing to the next entity
+
        
         self.cleanup_entities()
 
@@ -1626,7 +1632,6 @@ class Game:
             if e2 < dx:
                 err += dx
                 current_y += sy
-        return False
 
 
 
@@ -1788,7 +1793,7 @@ class Game:
 
         elif self.game_state == GameState.DUNGEON:
             # --- Step 1: Identify potential targets at the new position ---
-            target_at_new_pos = self.get_target_at(new_x, new_y)
+            target_at_new_pos = self.get_target_at(new_x, new_y)          
             
             # --- Step 2: Identify monsters adjacent to player *before* moving ---
             monsters_adjacent_before_move = []
@@ -2017,7 +2022,7 @@ class Game:
 
             return True
         else:
-            self.message_log.add_message(f"You fail to smash the {target_tile.name}. It's tougher than it looks!", (255, 100, 100))
+            self.message_log.add_message(f"You fail to smash the {target_tile.name}. It's tougher than it looks!", (255, 100, 100))      
             return False
 
     

@@ -155,5 +155,17 @@ class Torchlight(StatusEffect):
                 game_instance.message_log.add_message(f"Failed to unequip and remove {off_hand_item.name}.", (255, 0, 0))
         else:
             game_instance.message_log.add_message(f"No torch equipped in off-hand to remove.", (150, 150, 150))
-    
 
+
+class ActionSurgeEffect(StatusEffect):
+    def __init__(self, duration):
+        super().__init__("Action Surge", duration)
+
+    def apply_effect(self, target, game_instance):
+        # This effect is purely for visual feedback.
+        # The name is updated dynamically in process_status_effects.
+        pass
+
+    def on_end(self, target, game_instance):
+        # The message for the end of the surge.
+        game_instance.message_log.add_message("Your surge of action ends.", (255, 200, 0))
