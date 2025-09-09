@@ -1,9 +1,9 @@
 import random
 from core. game import GameState
 from core.inventory import Inventory
-from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge
-from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect
-from items.items import torch, Food, Potion, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
+from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide
+from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden
+from items.items import torch, Food, Potion, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
 from core.floating_text import FloatingText
@@ -119,6 +119,7 @@ class Player: # This is our base class for playable characters
 
         self.current_action_state = None  
         self.extra_turns = 0
+        self.hidden_turns = 0
 
     def update_hunger(self, game_instance):
         """Decrease hunger every 2 turns."""
@@ -145,7 +146,7 @@ class Player: # This is our base class for playable characters
         # Ensure item is in inventory before trying to equip it
         if item not in self.inventory.items:
             game_instance.message_log.add_message(f"{item.name} is not in your inventory.", (255, 100, 100))
-            return False
+            return False 
 
         # Prevent adding the same item to multiple quick bar slots
         for slot, quick_item in self.quick_bar.items():
@@ -351,7 +352,7 @@ class Player: # This is our base class for playable characters
 
 
     def attack(self, target):
-        return 0
+        return 0 
 
     def gain_xp(self, amount, game_instance=None):
         self.current_xp += amount
@@ -741,9 +742,9 @@ class Player: # This is our base class for playable characters
         elif isinstance(item, OffHand):  # Handle off-hand items
             # Check if a two-handed weapon is already equipped
             if self.equipped_weapon and self.equipped_weapon.is_two_handed:
-                game_instance.message_log.add_message(f"You cannot equip {item.name} while wielding a two-handed weapon.", (255, 0, 0))
+                game_instance.message_log.add_message(f"You cannot equip {item.name} while wielding a two-handed weapon.", (255, 0, 0)) 
                 return False
-
+            
             if self.equipped_off_hand:
                 # If current off-hand is a torch, save remaining Torchlight duration back to torch item and remove effect
                 if self.equipped_off_hand.name.lower() == "torch":
@@ -847,6 +848,8 @@ class Player: # This is our base class for playable characters
             new_effect = Torchlight(duration)
         elif effect_name == "ActionSurgeEffect":
             new_effect = ActionSurgeEffect(duration)
+        elif effect_name == "Hidden":
+            new_effect = Hidden(duration)
         if new_effect:
             for existing_effect in self.active_status_effects:
                 if type(existing_effect) is type(new_effect):
@@ -854,7 +857,6 @@ class Player: # This is our base class for playable characters
                     game_instance.message_log.add_message(f"{self.name}'s {new_effect.name} effect is refreshed.", (200, 200, 255))
                     return
             self.active_status_effects.append(new_effect)
-            game_instance.message_log.add_message(f"{self.name} is now {new_effect.name.lower()}!", (255, 100, 0))
             print(f"DEBUG: {effect_name} successfully added to {self.name}.") # ADD THIS            
         else:
             game_instance.message_log.add_message(f"Warning: Attempted to add unknown status effect: {effect_name}", (255, 0, 0))
@@ -975,7 +977,7 @@ class Rogue(Player):
 
         self.strength = 8
         self.dexterity = 15
-        self.constitution = 1300
+        self.constitution = 13
         self.intelligence = 12
         self.wisdom = 10
         self.charisma = 14
@@ -1016,8 +1018,9 @@ class Rogue(Player):
         self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus + self.equipped_weapon.attack_bonus
 
         # Rogue abilities
-        self.abilities["cunning_action"] = CunningAction()
+        self.abilities["cunning_action"] = CunningActionDash()
         self.abilities["evasion"] = Evasion()
+        self.abilities["cunning_action_hide"] = CunningActionHide()
         self.abilities["spot_traps"] = SpotTrapsAbility()
         self.abilities["disarm_traps"] = DisarmTrapsAbility()
 

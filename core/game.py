@@ -40,9 +40,9 @@ from entities.tavern_npcs import create_tavern_npcs, NPC, Merchant
 from entities.dungeon_npcs import DungeonHealer, DungeonMerchant
 from entities.races import Human, HillDwarf, DrowElf # NEW: Import DrowElf
 from entities.summons import MageHandEntity
-from core.abilities import SecondWind, PowerAttack, CunningAction, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
+from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
 from core.message_log import MessageBox
-from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff
+from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Hidden
 
 from items.items import (
     Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
@@ -974,7 +974,12 @@ class Game:
             self.player_has_acted = False # Reset for the next action
             return # IMPORTANT: Exit before advancing to the next entity
 
-       
+        if current_acting_entity == self.player and self.player.hidden_turns > 0:
+            self.player.hidden_turns -= 1
+            self.player_has_acted = False # Reset for the next action
+            
+            return # IMPORTANT: Exit before advancing to the next entity   
+
         self.cleanup_entities()
 
         # If after cleanup, there are no entities left (e.g., all monsters died)
@@ -1741,12 +1746,12 @@ class Game:
             action_taken_in_menu = False
         elif key == pygame.K_q: # New key for quick bar slot 'q'
             if self.player.equip_to_quick_bar(self.selected_inventory_item, 'q', self):
-                action_taken_in_menu = True
+                action_taken_in_menu = False
             else:
                 self.message_log.add_message(f"Cannot equip {self.selected_inventory_item.name} to Quick Bar (Q).", (255, 100, 100))
         elif key == pygame.K_f: # New key for quick bar slot 'e'
             if self.player.equip_to_quick_bar(self.selected_inventory_item, 'f', self):
-                action_taken_in_menu = True
+                action_taken_in_menu = False
             else:
                 self.message_log.add_message(f"Cannot equip {self.selected_inventory_item.name} to Quick Bar (F).", (255, 100, 100))
 
@@ -1949,6 +1954,20 @@ class Game:
                     new_junk.x = x
                     new_junk.y = y
                     self.game_map.items_on_ground.append(new_junk)
+                elif random.random() < 0.25:
+                    new_potion = lesser_healing_potion.__class__(
+                        name=lesser_healing_potion.name,
+                        char=lesser_healing_potion.char,
+                        color=lesser_healing_potion.color,
+                        effect_type=lesser_healing_potion.effect_type,
+                        effect_value=lesser_healing_potion.effect_value,
+                        description=lesser_healing_potion.description,
+                        price=lesser_healing_potion.price
+                    )
+                    new_potion.x = x
+                    new_potion.y = y
+                    self.game_map.items_on_ground.append(new_potion)
+                    self.message_log.add_message(f"A {new_potion.name} drops from the {target_tile.name}!", new_potion.color)
                 elif random.random() < 0.3:
                     new_torch = torch.__class__(
                         name=torch.name,
@@ -1987,7 +2006,7 @@ class Game:
                     new_food.y = y
                     self.game_map.items_on_ground.append(new_food)
                     self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color)
-                elif random.random() < 0.25:
+                elif random.random() < 0.27:
                     new_food = fromage.__class__(
                         name=fromage.name,
                         char=fromage.char,
@@ -2013,7 +2032,7 @@ class Game:
                     new_food.y = y
                     self.game_map.items_on_ground.append(new_food)
                     self.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
-                elif random.random() < 0.4:
+                elif random.random() < 0.5:
                     new_food = mushroom.__class__(
                         name=mushroom.name,
                         char=mushroom.char,
@@ -2066,18 +2085,6 @@ class Game:
         final_d20_roll = roll1
         roll_message_part = f"a d20: [{roll1}]"
         
-        if advantage and disadvantage: # They cancel each other out
-            self.message_log.add_message("Advantage and Disadvantage cancel out.", (150, 150, 150))
-            # final_d20_roll remains roll1
-        elif advantage:
-            final_d20_roll = max(roll1, roll2)
-            roll_message_part = f"2d20 (Advantage): {roll1}, {roll2} -> {final_d20_roll}"
-            self.message_log.add_message("You roll with Advantage!", (100, 255, 100))
-        elif disadvantage:
-            final_d20_roll = min(roll1, roll2)
-            roll_message_part = f"2d20 (Disadvantage): {roll1}, {roll2} -> {final_d20_roll}"
-            self.message_log.add_message("You roll with Disadvantage!", (255, 100, 100))
-    
         # Use final_d20_roll for the attack calculation
         attack_modifier = self.player.attack_bonus
     
@@ -2092,12 +2099,45 @@ class Game:
             attack_modifier += power_attack_buff.attack_modifier # Apply accuracy penalty
             self.message_log.add_message(f"Power Attack: -{abs(power_attack_buff.attack_modifier)} to hit.", (255, 165, 0))
     
+        # --- Check for Hidden Status Effect ---
+        hidden_buff = None
+        for effect in self.player.active_status_effects:
+            if isinstance(effect, Hidden):
+                hidden_buff = effect
+                break
+
+        if hidden_buff:
+            self.message_log.add_message("Your attack from hiding deals extra damage!", (255, 215, 0))
+
+            sneak_dice_count = 0
+
+            if self.player.level >= 1:
+                # Sneak Attack always starts at 1d6
+                sneak_dice_count = 1 + ((self.player.level - 1) // 2)
+                # Cap at 10d6 (level 19+)
+                sneak_dice_count = min(sneak_dice_count, 10)
+              
+            advantage = True
+
+
+        if advantage and disadvantage: # They cancel each other out
+            self.message_log.add_message("Advantage and Disadvantage cancel out.", (150, 150, 150))
+            # final_d20_roll remains roll1
+        elif advantage:
+            final_d20_roll = max(roll1, roll2)
+            roll_message_part = f"2d20 (Advantage): {roll1}, {roll2} -> {final_d20_roll}"
+            self.message_log.add_message("You roll with Advantage!", (100, 255, 100))
+        elif disadvantage:
+            final_d20_roll = min(roll1, roll2)
+            roll_message_part = f"2d20 (Disadvantage): {roll1}, {roll2} -> {final_d20_roll}"
+            self.message_log.add_message("You roll with Disadvantage!", (255, 100, 100))
+
         attack_roll_total = final_d20_roll + attack_modifier # Use final_d20_roll here
         self.message_log.add_message(
             f"You roll {roll_message_part} + [{attack_modifier}] (Attack Bonus) = {attack_roll_total} vs AC {target.armor_class}",
             (200, 200, 255)
         )
-    
+
         # Critical hit/fumble based on the final_d20_roll
         is_critical_hit = (final_d20_roll == 20)
         is_critical_fumble = (final_d20_roll == 1)
@@ -2149,7 +2189,7 @@ class Game:
             damage_dice_rolls_sum = sum(damage_rolls)
     
             # Construct the message part for dice rolls
-            damage_message_dice_part = f"{total_dice_rolled}d{die_type} ({' + '.join(map(str, damage_rolls))})"
+            damage_message_dice_part = f"{total_dice_rolled}d{die_type} [{' + '.join(map(str, damage_rolls))}]"
     
             damage_modifier = self.player.attack_power
     
@@ -2160,6 +2200,19 @@ class Game:
                 self.player.active_status_effects.remove(power_attack_buff) # Remove the buff
                 self.message_log.add_message(f"Power Attack buff consumed.", (150, 150, 150))
     
+            if hidden_buff:
+                sneak_attack_rolls = []
+                
+                for _ in range(sneak_dice_count):
+                    sneak_attack_rolls.append(random.randint(1, 6))
+                sneak_attack_sum = sum(sneak_attack_rolls)
+                damage_dice_rolls_sum += sneak_attack_sum
+                damage_message_dice_part += f" + {sneak_dice_count}d6 [{' + '.join(map(str, sneak_attack_rolls))}] (Sneak Attack)"
+
+                self.player.active_status_effects.remove(hidden_buff) # Remove the buff after one attack
+                self.message_log.add_message(f"You are no longer hidden.", (150, 150, 150))
+
+
             damage_total = max(1, damage_dice_rolls_sum + damage_modifier)
     
             self.message_log.add_message(
@@ -3282,8 +3335,8 @@ class Game:
         equipped_armor_name = self.player.equipped_armor.name if self.player.equipped_armor else "None"
 
         current_y_right = draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_info, f"Weapon: {equipped_weapon_name}", (255, 255, 255), right_column_x, current_y_right, column_width)
-        current_y_right = draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_info, f"Offhand: {equipped_off_hand_name}", (255, 255, 255), right_column_x, current_y_right, column_width)
         current_y_right = draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_info, f"Armor: {equipped_armor_name}", (255, 255, 255), right_column_x, current_y_right, column_width)
+        current_y_right = draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_info, f"Offhand: {equipped_off_hand_name}", (255, 255, 255), right_column_x, current_y_right, column_width)
         current_y_right += 15
 
         self._draw_text(target_surface, self.inventory_font_section, "STATUS EFFECTS", (240, 240, 240), right_column_x, current_y_right)

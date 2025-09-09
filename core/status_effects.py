@@ -169,3 +169,15 @@ class ActionSurgeEffect(StatusEffect):
     def on_end(self, target, game_instance):
         # The message for the end of the surge.
         game_instance.message_log.add_message("Your surge of action ends.", (255, 200, 0))
+
+
+class Hidden(StatusEffect):
+    def __init__(self, duration=3): # Lasts for 3 turns
+        super().__init__("Cunning Action (Hide)", duration)
+    
+    def apply_effect(self, target, game_instance):
+        pass
+    
+    def on_end(self, target, game_instance):
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message(f"{target.name} steps out of the shadow.", (150, 150, 150))        

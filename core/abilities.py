@@ -195,7 +195,7 @@ class PowerAttack(Ability):
         return True # Indicate successful use and end turn
 
 
-class CunningAction(Ability):
+class CunningActionDash(Ability):
     def __init__(self):
         super().__init__("Cunning Action", "Use a bonus action to Dash.", cooldown=5)
 
@@ -1103,3 +1103,19 @@ class ActionSurge(Ability):
         # Using the ability is a valid action that ends the current phase.
         # The new logic in game.update() will catch the flag and grant the next turn.
         return True
+    
+
+class CunningActionHide(Ability):
+    def __init__(self):
+        super().__init__("Cunning Action: Hide", "Use a bonus action to Hide.", cooldown=20)
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+        
+        # Check if the player is already hidden
+        user.hidden_turns = 6
+        
+        user.add_status_effect("Hidden", duration=user.hidden_turns + 1, game_instance=game_instance)                
+        
+        return True  # Indicate successful use and end turn

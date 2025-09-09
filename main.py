@@ -13,6 +13,9 @@ def main():
     
     pygame.display.set_caption("Mithrim")
     
+    logo_icon = pygame.image.load('assets/mithrim_logo.png')
+    pygame.display.set_icon(logo_icon)    
+
     graphics.load_tileset('assets/mithrim_tileset-2.png')
     graphics.setup_tile_mapping() 
     clock = pygame.time.Clock()
