@@ -179,5 +179,4 @@ class Hidden(StatusEffect):
         pass
     
     def on_end(self, target, game_instance):
-        super().on_end(target, game_instance)
         game_instance.message_log.add_message(f"{target.name} steps out of the shadow.", (150, 150, 150))        

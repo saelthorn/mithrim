@@ -209,7 +209,7 @@ def generate_dungeon(game_map, level_number, max_rooms=16, room_min_size=5, room
             # IMPORTANT: If a decorative tile (like crate/barrel) was placed here,
             # it will be overwritten by the MimicTile or remain a floor tile for the Chest.
             # This is the correct behavior.
-            if random.random() < 0.1: # 20% chance for a chest to be a mimic
+            if random.random() < 0.05: # 5% chance for a chest to be a mimic
                 new_mimic = Mimic(chest_spawn_x, chest_spawn_y, 'C', (139, 69, 19))
                 new_mimic.name = "Disguised Chest Mimic"
                 game_map.tiles[chest_spawn_y][chest_spawn_x] = MimicTile(new_mimic, 'C', (139, 69, 19), "Chest")

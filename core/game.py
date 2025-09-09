@@ -1954,7 +1954,7 @@ class Game:
                     new_junk.x = x
                     new_junk.y = y
                     self.game_map.items_on_ground.append(new_junk)
-                elif random.random() < 0.25:
+                elif random.random() < 0.21:
                     new_potion = lesser_healing_potion.__class__(
                         name=lesser_healing_potion.name,
                         char=lesser_healing_potion.char,
@@ -2117,7 +2117,7 @@ class Game:
                 # Cap at 10d6 (level 19+)
                 sneak_dice_count = min(sneak_dice_count, 10)
               
-            advantage = True
+            advantage = True       
 
 
         if advantage and disadvantage: # They cancel each other out

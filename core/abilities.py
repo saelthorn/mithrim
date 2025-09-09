@@ -1089,7 +1089,7 @@ class RayOfFrost(Ability):
 
 class ActionSurge(Ability):
     def __init__(self):
-        super().__init__("Action Surge", "Gain an additional action on your turn.", cooldown=50)
+        super().__init__("Action Surge", "Gain an additional action on your turn.", cooldown=20)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
@@ -1107,7 +1107,7 @@ class ActionSurge(Ability):
 
 class CunningActionHide(Ability):
     def __init__(self):
-        super().__init__("Cunning Action: Hide", "Use a bonus action to Hide.", cooldown=20)
+        super().__init__("Cunning Action: Hide", "Use a bonus action to Hide.", cooldown=50)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):

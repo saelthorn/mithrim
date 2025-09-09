@@ -850,6 +850,7 @@ class Player: # This is our base class for playable characters
             new_effect = ActionSurgeEffect(duration)
         elif effect_name == "Hidden":
             new_effect = Hidden(duration)
+        
         if new_effect:
             for existing_effect in self.active_status_effects:
                 if type(existing_effect) is type(new_effect):
@@ -867,6 +868,7 @@ class Player: # This is our base class for playable characters
         """Processes active status effects and ability cooldowns on the player."""
         effects_to_remove = []
         action_surge_effect = None
+        hidden_buff = None
 
         for effect in self.active_status_effects:
             # Call apply_effect for continuous effects (like poison damage)
@@ -886,6 +888,14 @@ class Player: # This is our base class for playable characters
             if self.extra_turns <= 0:
                 # If the counter is empty, remove the effect.
                 effects_to_remove.append(action_surge_effect)
+
+        if hidden_buff:
+            visual_duration = self.hidden_turns + 1
+            hidden_buff.turns_left = visual_duration
+            hidden_buff.name = f"Hidden turns ({self.hidden_turns} left)"
+
+            if self.hidden_turns <= 0:
+                effects_to_remove.append(hidden_buff)   
 
         for effect in effects_to_remove:
             self.active_status_effects.remove(effect)
