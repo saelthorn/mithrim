@@ -134,6 +134,7 @@ def setup_tile_mapping():
         'MZ': (10 * CELL_DIM, 7 * CELL_DIM),  # Mezzoloth 
         'GU': (10 * CELL_DIM, 8 * CELL_DIM),  # Gauth 
         'AR': (10 * CELL_DIM, 9 * CELL_DIM),  # Arasta 
+        'AG': (11 * CELL_DIM, 9 * CELL_DIM),  # Alpha Grick 
 
 
 

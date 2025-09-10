@@ -1388,7 +1388,7 @@ class CentaurArcher(Monster):
         self.is_intelligent = True # Intelligent enough to flee
 
         self.loot_table = [
-            (iron_short_sword, 0.25) # 25% chance to drop meat
+            (iron_short_sword, 0.20), # 25% chance to drop meat
             (meat, 0.25) # 25% chance to drop meat
         ]
 
@@ -1566,7 +1566,7 @@ class LargeOoze(Monster):  # Gelatinous Cube
         self.is_intelligent = False # Mindless
 
         self.loot_table = [
-            (bronze_short_sword, 0.25), # 25% chance to drop meat
+            (bronze_short_sword, 0.30), # 25% chance to drop meat
             (round_shield, 0.25) # 25% chance to drop round shield
         ]    
 
@@ -1648,7 +1648,7 @@ class Demogorgon(Monster):
         self.base_xp = 155000
         self.monster_die_type = 12
         self.damage_modifier = 7
-        self.detection_range = 8
+        self.detection_range = 15
         self.num_damage_dice = 3
         self.footprint_size = 3
         # self.legendary_resistance = 3
@@ -1664,6 +1664,42 @@ class Demogorgon(Monster):
             "CHA": False,
         }        
 
+class AlphaGrick(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'AG', 'Alpha Grick', (169, 169, 169))
+        self.hp = 153  # 18d10 + 54
+        self.max_hp = 153
+        self.attack_bonus = 7  # +7 to hit (tentacles)
+        self.armor_class = 18
+        self.base_xp = 2900
+        self.monster_die_type = 8  # Tentacles 2d8, Beak 2d6
+        self.damage_modifier = 4   # STR mod +4
+        self.detection_range = 10
+        self.num_damage_dice = 2
+        self.is_intelligent = False  # Ambush predator, animal cunning but not "smart"
+
+        # Resistances
+        # self.resist_nonmagical = True
+        # self.damage_resistances = ["bludgeoning", "piercing", "slashing (nonmagical)"]
+
+        # Multiattack (not coded but relevant):
+        # Tentacles (2d8+4) + Beak (2d6+4)
+
+        self.loot_table = [
+            (meat, 0.25)  # 25% chance to drop meat
+        ]
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,   # +3 in stat block
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+
+
+
 class Grick(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'GK', 'Grick', (105, 105, 105))
@@ -1674,7 +1710,7 @@ class Grick(Monster):
         self.base_xp = 450
         self.monster_die_type = 6
         self.damage_modifier = 2
-        self.detection_range = 15
+        self.detection_range = 8
         self.num_damage_dice = 2
         # self.resist_nonmagical = True
         self.is_intelligent = False # Ambush predator, not intelligent

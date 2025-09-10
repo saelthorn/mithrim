@@ -31,7 +31,7 @@ from entities.monster import (
     LizardfolkArcher, GiantSpider, Beholder, LargeOoze, RedDragon,
     Owlbear, Demogorgon, Grick, GibberingMouther, MindFlayer, Minotaur,
     Wererat, Wolf, Yochlol, Drider, RedSlaad, DeathSlaad, MyconidSprout,
-    MyconidAdult, Mezzoloth, Gauth, Arasta
+    MyconidAdult, Mezzoloth, Gauth, Arasta, AlphaGrick
 
 )
 
@@ -236,9 +236,9 @@ class Game:
     BOSS_FLOORS = [
         (3, 'Troll'),
         (5, 'Owlbear'),
-        (7, 'MindFlayer'),
+        (7, 'AlphaGrick'),
         (10, 'DeathSlaad'),
-        (12, 'Gauth'),
+        (12, 'MindFlayer'),
         (15, 'Beholder'),
         (18, 'RedDragon'),
         (19, 'Demogorgon'),
@@ -596,6 +596,7 @@ class Game:
                         'Beholder': Beholder,
                         'DeathSlaad': DeathSlaad,
                         'Gauth': Gauth,
+                        'AlphaGrick': AlphaGrick,
                         'MindFlayer': MindFlayer,
                         'RedDragon': RedDragon,  # TODO: replace with Red Dragon class when available
                         'Demogorgon': Demogorgon,
@@ -2107,7 +2108,7 @@ class Game:
                 break
 
         if hidden_buff:
-            self.message_log.add_message("Your attack from hiding deals extra damage!", (255, 215, 0))
+            self.message_log.add_message("Your attack from hiding deals extra damage!", (255, 215, 0))         
 
             sneak_dice_count = 0
 

@@ -109,7 +109,12 @@ class Player: # This is our base class for playable characters
 
 
         # --- Abilities (Base abilities, subclasses will add/override) ---
-        self.abilities = {} # <--- Initialized as empty dictionary
+        self.abilities = {} 
+
+        # Initialize abilities scaling for level 1
+        for ability in self.abilities.values():
+            if hasattr(ability, 'scale_with_level'):
+                ability.scale_with_level(self.level)        
         
         # --- Status Effects ---
         self.active_status_effects = []
@@ -425,6 +430,11 @@ class Player: # This is our base class for playable characters
         self.max_hp = self._calculate_max_hp()
         self.hp = self.max_hp # Heal to full on level up
         
+
+        # Scale abilities
+        for ability in self.abilities.values():
+            if hasattr(ability, 'scale_with_level'):
+                ability.scale_with_level(self.level)
 
         # --- Recalculate attack power and attack bonus after leveling up ---
         self.update_attack_power()  # Ensure attack power and bonus are updated

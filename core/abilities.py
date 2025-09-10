@@ -226,6 +226,7 @@ class FireBolt(Ability):
     def __init__(self):
         super().__init__("Fire Bolt", "Hurl a searing bolt of fire at a foe.", cost=0, cooldown=2)
         self.range = 6  # Example range in tiles
+        self.damage_dice = 1 # Initial damage dice (e.g., 1d10)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
@@ -320,7 +321,10 @@ class FireBolt(Ability):
             return False  # Invalid target, do not consume a turn
 
         # Fire Bolt damage calculation (example: 1d10)
-        damage_roll = random.randint(1, 10)
+        # Use self.damage_dice for the number of d10s
+        damage_rolls = [random.randint(1, 10) for _ in range(self.damage_dice)]
+        total_damage = sum(damage_rolls)
+
         if target_monster and isinstance(target_monster, Monster):
             # Check if the target is specifically a Mimic
             hit_messages = [
@@ -331,9 +335,9 @@ class FireBolt(Ability):
             game_instance.message_log.add_message(random.choice(hit_messages), (255, 165, 0))
 
             if isinstance(target_monster, Mimic):
-                damage_dealt = target_monster.take_damage(damage_roll, game_instance) 
+                damage_dealt = target_monster.take_damage(total_damage, game_instance) 
             else:
-                damage_dealt = target_monster.take_damage(damage_roll, game_instance)  # Pass game_instance here
+                damage_dealt = target_monster.take_damage(total_damage, game_instance)  # Pass game_instance here
 
             game_instance.message_log.add_message(f"A bolt of fire strikes {target_monster.name} for {damage_dealt} damage!", (255, 165, 0))
             game_instance.message_log.add_message(f"{target_monster.name} has {target_monster.hp}/{target_monster.max_hp} HP", (255, 165, 0))
@@ -473,12 +477,22 @@ class FireBolt(Ability):
             print(f"DEBUG: FireBolt added INVALID! FloatingText for ({target_x},{target_y}). List size: {len(game_instance.floating_texts)}")  # <--- ADD THIS DEBUG
             return False  # Invalid target, stay in targeting mode
 
+    def scale_with_level(self, player_level):
+        """
+        Scales the Fire Bolt ability with player level.
+        Increases damage dice by 1 for every 4 levels (e.g., 1d10 at level 1, 2d10 at level 5, etc.)
+        """
+        additional_dice = (player_level - 1) // 4 # One extra die every 4 levels
+        self.damage_dice = 1 + additional_dice
+        print(f"[DEBUG] {self.name} scaled: damage_dice = {self.damage_dice} at player level {player_level}") 
+
+
 class Fireball(Ability):
     def __init__(self):
         super().__init__("Fireball", "A bright streak flashes and explodes in a fiery blast.", cost=0, cooldown=100)
         self.radius = 4  # Radius of the fireball effect
         self.range = 8
-        self.damage_dice = 8  # Number of damage dice
+        self.damage_dice = 8  # Number of damage dice (e.g., 8d6)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
@@ -534,11 +548,12 @@ class Fireball(Ability):
             return False  # Do not consume a turn
 
         # Calculate the damage
-        damage_rolls = [random.randint(1, 6) for _ in range(self.damage_dice)]  # Roll 8d6
+        # Use self.damage_dice for the number of d6s
+        damage_rolls = [random.randint(1, 6) for _ in range(self.damage_dice)]  # Roll Xd6
         total_damage = sum(damage_rolls)
 
         # Notify the player of the damage
-        game_instance.message_log.add_message(f"{user.name} casts Fireball and rolls 8d6 {damage_rolls}.", (255, 165, 0))
+        game_instance.message_log.add_message(f"{user.name} casts Fireball and rolls {self.damage_dice}d6 {damage_rolls}.", (255, 165, 0))
         game_instance.message_log.add_message(f"Fireball deals {total_damage} fire damage!", (255, 165, 0))
 
         # Apply damage to all entities in the area of effect
@@ -703,6 +718,15 @@ class Fireball(Ability):
     def is_within_radius(self, x, y, center_x, center_y, radius):
         """Check if the (x, y) coordinates are within the radius of the center point."""
         return (x - center_x) ** 2 + (y - center_y) ** 2 <= radius ** 2
+    
+    def scale_with_level(self, player_level):
+        """
+        Scales the Fireball ability with player level.
+        Increases damage dice by 1 for every 4 levels (e.g., 8d6 at level 1, 9d6 at level 5, etc.)
+        """
+        additional_dice = (player_level - 1) // 4 # One extra die every 4 levels
+        self.damage_dice = 8 + additional_dice
+        print(f"[DEBUG] {self.name} scaled: damage_dice = {self.damage_dice} at player level {player_level}") 
 
 
 class MistyStep(Ability):
@@ -838,6 +862,7 @@ class RayOfFrost(Ability):
     def __init__(self):
         super().__init__("Ray of Frost", "Hurl a chilling ray of frost at a foe.", cost=0, cooldown=2)
         self.range = 6  # Example range in tiles
+        self.damage_dice = 1 # Initial damage dice (e.g., 1d8)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
@@ -931,8 +956,11 @@ class RayOfFrost(Ability):
             game_instance.message_log.add_message("Ray of Frost requires a monster target or a destructible object.", (255, 150, 0))
             return False  # Invalid target, do not consume a turn
 
-        # Ray of Frost damage calculation (1d8 cold damage)
-        damage_roll = random.randint(1, 8)
+        # Ray of Frost damage calculation (Xd8 cold damage)
+        # Use self.damage_dice for the number of d8s
+        damage_rolls = [random.randint(1, 8) for _ in range(self.damage_dice)]
+        total_damage = sum(damage_rolls)
+
         if target_monster and isinstance(target_monster, Monster):
             # Check if the target is specifically a Mimic
             hit_messages = [
@@ -943,9 +971,9 @@ class RayOfFrost(Ability):
             game_instance.message_log.add_message(random.choice(hit_messages), (0, 255, 255))
 
             if isinstance(target_monster, Mimic):
-                damage_dealt = target_monster.take_damage(damage_roll, game_instance, damage_type='cold')
+                damage_dealt = target_monster.take_damage(total_damage, game_instance, damage_type='cold')
             else:
-                damage_dealt = target_monster.take_damage(damage_roll, game_instance, damage_type='cold')  # Pass game_instance here
+                damage_dealt = target_monster.take_damage(total_damage, game_instance, damage_type='cold')  # Pass game_instance here
 
             game_instance.message_log.add_message(f"A ray of frost strikes {target_monster.name} for {damage_dealt} cold damage!", (0, 255, 255))
             game_instance.message_log.add_message(f"{target_monster.name} has {target_monster.hp}/{target_monster.max_hp} HP", (0, 255, 255))
@@ -1085,11 +1113,20 @@ class RayOfFrost(Ability):
             print(f"DEBUG: RayOfFrost added INVALID! FloatingText for ({target_x},{target_y}). List size: {len(game_instance.floating_texts)}")  # <--- ADD THIS DEBUG
             return False  # Invalid target, stay in targeting mode
 
+    def scale_with_level(self, player_level):
+        """
+        Scales the Ray of Frost ability with player level.
+        Increases damage dice by 1 for every 4 levels (e.g., 1d8 at level 1, 2d8 at level 5, etc.)
+        """
+        additional_dice = (player_level - 1) // 4 # One extra die every 4 levels
+        self.damage_dice = 1 + additional_dice
+
+        print(f"[DEBUG] {self.name} scaled: damage_dice = {self.damage_dice} at player level {player_level}")        
 
 
 class ActionSurge(Ability):
     def __init__(self):
-        super().__init__("Action Surge", "Gain an additional action on your turn.", cooldown=20)
+        super().__init__("Action Surge", "Gain an additional action on your turn.", cooldown=30)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
@@ -1116,6 +1153,9 @@ class CunningActionHide(Ability):
         # Check if the player is already hidden
         user.hidden_turns = 6
         
-        user.add_status_effect("Hidden", duration=user.hidden_turns + 1, game_instance=game_instance)                
+        user.add_status_effect("Hidden", duration=user.hidden_turns + 1, game_instance=game_instance)
+
+        game_instance.floating_texts.append(FloatingText(user.x, user.y, "HIDDEN!", (150, 150, 180)))
+               
         
         return True  # Indicate successful use and end turn
