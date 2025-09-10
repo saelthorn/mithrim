@@ -1799,7 +1799,8 @@ class Minotaur(Monster):
         self.is_intelligent = True # Intelligent enough to flee
 
         self.loot_table = [
-            (steel_battle_axe, 0.75) # 25% chance to drop meat
+            (steel_battle_axe, 0.75),
+            (meat, 0.25) # 25% chance to drop meat
         ]
 
         self.saving_throw_proficiencies = {
@@ -1828,9 +1829,8 @@ class Wererat(Monster):
         self.is_intelligent = True # Intelligent enough to flee
 
         self.loot_table = [
-            (iron_dagger, 0.85), # 85% chance to drop meat
+            (iron_dagger, 0.85), # 85% chance to drop dagger
             (meat, 0.25), # 25% chance to drop meat
-            (iron_short_sword, 0.75) # 75% chance to drop meat
         ]
 
         self.saving_throw_proficiencies = {

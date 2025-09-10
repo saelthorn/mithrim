@@ -55,6 +55,7 @@ from items.items import (
 from core.pathfinding import astar
 from world.tile import floor, MimicTile, TrapTile
 from world.bloodstain import Bloodstain
+from world.altar import Altar
 from core.floating_text import FloatingText 
 import graphics
 
@@ -264,7 +265,7 @@ class Game:
         (16, 16): [Drider, Mezzoloth],
 
         # 🔥 High level threats (CR 11 – CR 15)
-        (17, 18): [Yochlol, RedSlaad, LargeOoze, RedDragon],
+        (17, 18): [Yochlol, RedSlaad, LargeOoze, AlphaGrick],
         (19, 20): [Beholder, MindFlayer, LargeOoze, DeathSlaad, Gauth],
 
         # 🕷️ Endgame / campaign bosses (CR 20+)
@@ -518,6 +519,15 @@ class Game:
         self.camera.target_y = self.player.y
         # No need to call self.camera.update here, as render will do it.
 
+        # Altar generation (this is correct placement)
+        altars_to_place = min(1 + level_number // 3, 3)
+        for _ in range(altars_to_place):
+            if len(rooms) > 1:
+                altar_room = random.choice(rooms[1:])
+                x, y = altar_room.center()
+                if self.game_map.is_walkable(x, y):
+                    altar = Altar(x, y)
+                    self.game_map.altars.append(altar)
         
         self.entities = [self.player]
         
@@ -1785,6 +1795,17 @@ class Game:
         new_x = self.player.x + dx
         new_y = self.player.y + dy
 
+        # Add altar interaction check
+        altar_at_pos = None
+        for altar in self.game_map.altars:
+            if altar.x == new_x and altar.y == new_y:
+                altar_at_pos = altar
+                break
+            
+        if altar_at_pos:
+            altar_at_pos.interact(self.player, self)
+            return True  # Action taken
+
         if self.game_state == GameState.TAVERN:
             if (new_x, new_y) == self.door_position:
                 self.message_log.add_message("You enter the dark dungeon...", (100, 255, 100))
@@ -2531,6 +2552,33 @@ class Game:
                 self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height)
 
             self.render_map_with_fov()
+            
+            # Render altars
+            if hasattr(self.game_map, 'altars'):
+                for altar in self.game_map.altars:
+                    if self.camera.is_in_viewport(altar.x, altar.y):
+                        visibility_type = self.fov.get_visibility_type(altar.x, altar.y)
+
+                        # Only render if visible or explored
+                        if visibility_type in ['player', 'torch', 'darkvision', 'explored']:
+                            screen_x_float, screen_y_float = self.camera.world_to_screen(altar.x, altar.y)
+                            draw_x = screen_x_float * config.TILE_SIZE
+                            draw_y = screen_y_float * config.TILE_SIZE
+
+                            # Set color tint based on visibility
+                            if visibility_type == 'player':
+                                altar_color_tint = (240, 240, 240, 255)
+                            elif visibility_type == 'torch':
+                                altar_color_tint = (180, 180, 180, 255)
+                            elif visibility_type == 'darkvision':
+                                altar_color_tint = (120, 120, 120, 255)
+                            elif visibility_type == 'explored':
+                                altar_color_tint = (60, 60, 60, 255)
+                            else:
+                                continue  # Don't render if not visible
+                            
+                            graphics.draw_tile(self.internal_surface, draw_x, draw_y, altar.char, color_tint=altar_color_tint)            
+
             self.render_items_on_ground()
             self.render_tile_highlights()
             self.render_bloodstains()

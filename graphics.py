@@ -60,6 +60,7 @@ def setup_tile_mapping():
         '#': (1 * CELL_DIM, 3 * CELL_DIM),  # Wall
         '>': (8 * CELL_DIM, 3 * CELL_DIM),  # Stairs Down
         '<': (9 * CELL_DIM, 3 * CELL_DIM),  # Stairs Up
+        'alt': (10 * CELL_DIM, 3 * CELL_DIM), # Altar
         '+': (2 * CELL_DIM, 3 * CELL_DIM),  # Tavern Door
         ';': (1 * CELL_DIM, 4 * CELL_DIM),  # Bones
         '%': (2 * CELL_DIM, 4 * CELL_DIM),  # Rubble

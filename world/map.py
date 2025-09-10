@@ -9,6 +9,8 @@ class GameMap:
         self.items_on_ground = [] # <--- NEW: List to hold items dropped or generated on the map
         self.fov = None
         self.torch_light_sources = []
+        self.altars = []  # Add this line to store altars       
+        
 
     def is_walkable(self, x, y):
         """Check if a position is walkable"""

@@ -180,3 +180,22 @@ class Hidden(StatusEffect):
     
     def on_end(self, target, game_instance):
         game_instance.message_log.add_message(f"{target.name} steps out of the shadow.", (150, 150, 150))        
+
+
+class BlindnessCurse:
+    def __init__(self, duration, original_vision):
+        self.name = "Curse of Blindness"
+        self.duration = duration
+        self.turns_left = duration
+        self.original_vision = original_vision
+    
+    def apply_effect(self, target, game_instance):
+        # Vision is already reduced, just tick down
+        self.turns_left -= 1
+    
+    def on_end(self, target, game_instance):
+        target.darkvision_radius = self.original_vision
+        game_instance.message_log.add_message("Your vision returns to normal.", (150, 150, 150))
+    
+    def tick_down(self):
+        self.turns_left -= 1        

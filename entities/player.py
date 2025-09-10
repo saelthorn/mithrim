@@ -2,7 +2,7 @@ import random
 from core. game import GameState
 from core.inventory import Inventory
 from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide
-from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden
+from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, BlindnessCurse
 from items.items import torch, Food, Potion, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
@@ -33,8 +33,8 @@ class Player: # This is our base class for playable characters
         self.gold = 50
 
         # Player-specific attributes
-        self.level = 1
-        self.current_xp = 0
+        self.level = 19
+        self.current_xp = 299
         self.xp_to_next_level = 300 # Base XP to level up
 
         # --- D&D 5e Ability Scores (Base values, will be overridden by subclasses) ---
@@ -537,7 +537,7 @@ class Player: # This is our base class for playable characters
                 ability.current_cooldown = 0  # Reset cooldown for each ability
         
             # Increase ambush chance (e.g., from 20% to 50%)
-            if random.random() < 0.1:  # 10% chance for ambush
+            if random.random() < 0.2:  # 20% chance for ambush
                 ambush_msgs = [
                     "The fire flickers... shadows shift — an ambush!",
                     "Rustling breaks the quiet — danger approaches!",
@@ -848,6 +848,14 @@ class Player: # This is our base class for playable characters
             new_effect = AcidBurned(duration, source)
         elif effect_name == "Burning":
             new_effect = Burning(duration, source)   
+        elif effect_name == "CurseOfBlindness":
+            new_effect = BlindnessCurse(duration)  
+        elif effect_name == "CurseOfWeakness":
+            new_effect = PowerAttackBuff(duration)  
+        elif effect_name == "BlessingOfStrength":
+            new_effect = PowerAttackBuff(duration) 
+        elif effect_name == "BlessingOfAgility":
+            new_effect = EvasionBuff(duration)                       
         elif effect_name == "PowerAttackBuff":
             new_effect = PowerAttackBuff(duration)
         elif effect_name == "CunningActionDashBuff":
