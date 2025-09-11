@@ -42,7 +42,7 @@ from entities.races import Human, HillDwarf, DrowElf # NEW: Import DrowElf
 from entities.summons import MageHandEntity
 from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
 from core.message_log import MessageBox
-from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Hidden
+from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness
 
 from items.items import (
     Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
@@ -520,15 +520,49 @@ class Game:
         # No need to call self.camera.update here, as render will do it.
 
         # Altar generation (this is correct placement)
-        altars_to_place = min(1 + level_number // 3, 3)
+        altars_to_place = min(1 + level_number // 1, 1)
         for _ in range(altars_to_place):
+            # Find a suitable room for the altar (preferably not the starting room)
             if len(rooms) > 1:
+                # Select a room, excluding the first one (player spawn)
                 altar_room = random.choice(rooms[1:])
-                x, y = altar_room.center()
-                if self.game_map.is_walkable(x, y):
-                    altar = Altar(x, y)
+
+                # Try to find an unoccupied spot within the room for the altar
+                possible_altar_spots = []
+                # Iterate over all tiles within the room (excluding walls)
+                for y_coord in range(altar_room.y1 + 1, altar_room.y2):
+                    for x_coord in range(altar_room.x1 + 1, altar_room.x2):
+                        # Check if the tile is walkable (floor)
+                        if self.game_map.is_walkable(x_coord, y_coord):
+                            # Check if it's not a stairs position
+                            is_stairs = False
+                            for _, pos in self.stairs_positions.items():
+                                if (x_coord, y_coord) == pos:
+                                    is_stairs = True
+                                    break
+                                
+                            # Check if it's not already occupied by another altar
+                            is_occupied_by_altar = False
+                            for existing_altar in self.game_map.altars:
+                                if existing_altar.x == x_coord and existing_altar.y == y_coord:
+                                    is_occupied_by_altar = True
+                                    break
+                            # Check if it's not occupied by any existing items on the ground
+                            is_occupied_by_item = False
+                            for existing_item in self.game_map.items_on_ground:
+                                if existing_item.x == x_coord and existing_item.y == y_coord:
+                                    is_occupied_by_item = True
+                                    break
+                            # Add to possible spots if all checks pass
+                            if not is_stairs and not is_occupied_by_altar and not is_occupied_by_item:
+                                possible_altar_spots.append((x_coord, y_coord))
+
+                if possible_altar_spots:
+                    # Choose a random spot from the valid ones
+                    altar_x, altar_y = random.choice(possible_altar_spots)
+                    altar = Altar(altar_x, altar_y)
                     self.game_map.altars.append(altar)
-        
+
         self.entities = [self.player]
         
         monsters_per_level = min(5 + level_number, len(rooms) - 1)
@@ -2110,6 +2144,20 @@ class Game:
         # Use final_d20_roll for the attack calculation
         attack_modifier = self.player.attack_bonus
     
+        # --- Altar Blessings and Curses ---
+        blessing_of_strength = None
+        for effect in self.player.active_status_effects:
+            if isinstance(effect, BlessingOfStrength):
+                blessing_of_strength = effect
+                break
+
+        curse_of_weakness = None
+        for effect in self.player.active_status_effects:
+            if isinstance(effect, CurseOfWeakness):
+                curse_of_weakness = effect
+                break
+
+
         # --- Check for PowerAttackBuff ---
         power_attack_buff = None
         for effect in self.player.active_status_effects:
@@ -2215,6 +2263,14 @@ class Game:
     
             damage_modifier = self.player.attack_power
     
+            if blessing_of_strength:
+                damage_modifier += blessing_of_strength.damage_modifier
+                self.message_log.add_message(f"Blessing of Strength: +{blessing_of_strength.damage_modifier} damage.", (0, 255, 255))
+
+            if curse_of_weakness:
+                damage_modifier += curse_of_weakness.damage_modifier # Note: This is negative
+                self.message_log.add_message(f"Curse of Weakness: -{curse_of_weakness.damage_modifier} damage.", (255, 0, 255))
+
             if power_attack_buff:
                 damage_modifier += power_attack_buff.damage_modifier # Apply damage bonus
                 self.message_log.add_message(f"Power Attack: +{power_attack_buff.damage_modifier} damage.", (255, 165, 0))

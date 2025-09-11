@@ -2,7 +2,7 @@ import random
 from core. game import GameState
 from core.inventory import Inventory
 from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide
-from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, BlindnessCurse
+from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength
 from items.items import torch, Food, Potion, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
@@ -289,7 +289,7 @@ class Player: # This is our base class for playable characters
             
             self.attack_bonus += self.weapon_proficiency_penalty
             self.attack_power += self.weapon_proficiency_penalty
-    
+
         print(f"Updated Attack Power: {self.attack_power}")  # Debugging output
         print(f"Updated Attack Bonus: {self.attack_bonus}")  # Debugging output
     
@@ -388,7 +388,7 @@ class Player: # This is our base class for playable characters
             # Add a message for half damage
             if damage_taken < original_damage: # Only if damage was actually reduced
                 game_instance.message_log.add_message(f"{self.name} evades, taking only {damage_taken} damage!", (100, 255, 100))
-            
+                
         self.hp -= damage_taken
 
         if self.hp <= 0:
@@ -844,28 +844,40 @@ class Player: # This is our base class for playable characters
         
         if effect_name == "Poisoned":
             new_effect = Poisoned(duration, source)
+        
         elif effect_name == "AcidBurned":
             new_effect = AcidBurned(duration, source)
+        
         elif effect_name == "Burning":
             new_effect = Burning(duration, source)   
+        
         elif effect_name == "CurseOfBlindness":
-            new_effect = BlindnessCurse(duration)  
+            new_effect = CurseOfBlindness(duration)  
+
         elif effect_name == "CurseOfWeakness":
-            new_effect = PowerAttackBuff(duration)  
+            new_effect = CurseOfWeakness(duration)
+
         elif effect_name == "BlessingOfStrength":
-            new_effect = PowerAttackBuff(duration) 
+            new_effect = BlessingOfStrength(duration)
+
         elif effect_name == "BlessingOfAgility":
-            new_effect = EvasionBuff(duration)                       
+            new_effect = BlessingOfAgility(duration)
+
         elif effect_name == "PowerAttackBuff":
             new_effect = PowerAttackBuff(duration)
+        
         elif effect_name == "CunningActionDashBuff":
             new_effect = CunningActionDashBuff(duration)
+        
         elif effect_name == "EvasionBuff":
             new_effect = EvasionBuff(duration)          
+        
         elif effect_name == "Torchlight":
             new_effect = Torchlight(duration)
+        
         elif effect_name == "ActionSurgeEffect":
             new_effect = ActionSurgeEffect(duration)
+        
         elif effect_name == "Hidden":
             new_effect = Hidden(duration)
         

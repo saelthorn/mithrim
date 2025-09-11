@@ -1,5 +1,6 @@
 import random
-from core.status_effects import PowerAttackBuff, EvasionBuff, BlindnessCurse
+from entities.player import Player
+from core.status_effects import CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength
 
 class Altar:
     def __init__(self, x, y):
@@ -19,15 +20,17 @@ class Altar:
             blessing_type = random.choice(["strength", "agility"])
             if blessing_type == "strength":
                 self.effect = {
-                    "type": "blessing",
-                    "name": "BlessingOfStrength",
-                    "description": "+5 to damage bonus for 200 turns",
-                    "duration": 200
+                    "type": "blessing", 
+                    "name": "BlessingOfStrength",  # Changed to match add_status_effect
+                    "display_name": "Blessing of Strength",
+                    "description": "+5 Damage bonus for 150 turns",
+                    "duration": 150
                 }
             else:  # agility
                 self.effect = {
                     "type": "blessing", 
-                    "name": "BlessingOfAgility",
+                    "name": "BlessingOfAgility",  # Changed to match add_status_effect
+                    "display_name": "Blessing of Agility",
                     "description": "+2 AC for 150 turns",
                     "duration": 150
                 }
@@ -36,14 +39,16 @@ class Altar:
             if curse_type == "weakness":
                 self.effect = {
                     "type": "curse",
-                    "name": "CurseOfWeakness",
+                    "name": "CurseOfWeakness",  # Changed to match add_status_effect
+                    "display_name": "Curse of Weakness",
                     "description": "-5 Damage bonus for 150 turns",
                     "duration": 150
                 }
             else:  # blindness
                 self.effect = {
                     "type": "curse",
-                    "name": "CurseOfBlindness",
+                    "name": "CurseOfBlindness",  # Changed to match add_status_effect
+                    "display_name": "Curse of Blindness",
                     "description": "Vision radius reduced to 2 for 150 turns",
                     "duration": 150
                 }
@@ -66,47 +71,24 @@ class Altar:
 
     def _apply_blessing(self, player, game_instance):
         """Apply a blessing effect to the player"""
-        game_instance.message_log.add_message(f"You feel divine energy flow through you!", (0, 255, 0))
-        
-        if self.effect["name"] == "Blessing Of Strength":
-            # Create a custom status effect for strength blessing
-            strength_buff = PowerAttackBuff(duration=self.effect["duration"])
-            strength_buff.name = "BlessingOfStrength"
-            strength_buff.damage_modifier = 5  # +5 damage bonus
-            strength_buff.attack_modifier = 0  # No penalty to hit
-            
-            player.add_status_effect(strength_buff, duration=30, game_instance=game_instance)
-            game_instance.message_log.add_message(f"Blessing of Strength: +5 damage bonus for {self.effect['duration']} turns!", (0, 255, 0))
-            
-        elif self.effect["name"] == "Blessing Of Agility":
-            # Create a custom evasion buff for AC bonus
-            agility_buff = EvasionBuff(duration=self.effect["duration"])
-            agility_buff.name = "BlessingOfAgility"
-            agility_buff.dodge_bonus = 2  # +2 AC
-            
-            player.add_status_effect(agility_buff, duration=30, game_instance=game_instance)
-            game_instance.message_log.add_message(f"Blessing of Agility: +2 AC for {self.effect['duration']} turns!", (0, 255, 0))
+        game_instance.message_log.add_message("You feel divine energy flow through you!", (0, 255, 0))
+
+        if self.effect["name"] == "BlessingOfStrength":
+            player.add_status_effect("BlessingOfStrength", self.effect["duration"], game_instance=game_instance)
+            game_instance.message_log.add_message(f"{self.effect['display_name']}: +5 damage bonus for {self.effect['duration']} turns!", (0, 255, 0))
+
+        elif self.effect["name"] == "BlessingOfAgility":
+            player.add_status_effect("BlessingOfAgility", self.effect["duration"], game_instance=game_instance)
+            game_instance.message_log.add_message(f"{self.effect['display_name']}: +2 AC for {self.effect['duration']} turns!", (0, 255, 0))
 
     def _apply_curse(self, player, game_instance):
         """Apply a curse effect to the player"""
-        game_instance.message_log.add_message(f"A dark energy washes over you!", (255, 0, 0))
-        
-        if self.effect["name"] == "Curse Of Weakness":
-            # Create a negative strength effect
-            weakness_curse = PowerAttackBuff(duration=self.effect["duration"])
-            weakness_curse.name = "CurseOfWeakness"
-            weakness_curse.damage_modifier = -5  # -5 damage penalty
-            weakness_curse.attack_modifier = 0
-            
-            player.add_status_effect(weakness_curse, duration=30, game_instance=game_instance)
-            game_instance.message_log.add_message(f"Curse of Weakness: -5 damage bonus for {self.effect['duration']} turns!", (255, 0, 0))
-            
-        elif self.effect["name"] == "Curse Of Blindness":
-            # Store original darkvision and reduce it temporarily
-            original_darkvision = player.darkvision_radius
-            player.darkvision_radius = 2  # Reduce to 2 tiles
-            
-            blindness_curse = BlindnessCurse(self.effect["duration"], original_darkvision)
-            player.active_status_effects.append(blindness_curse, duration=30, game_instance=game_instance)
-            game_instance.message_log.add_message(f"Curse of Blindness: Vision reduced to 2 tiles for {self.effect['duration']} turns!", (255, 0, 0))
+        game_instance.message_log.add_message("A dark energy washes over you!", (255, 0, 0))
 
+        if self.effect["name"] == "CurseOfWeakness":
+            player.add_status_effect("CurseOfWeakness", self.effect["duration"], game_instance=game_instance)
+            game_instance.message_log.add_message(f"{self.effect['display_name']}: -5 damage bonus for {self.effect['duration']} turns!", (255, 0, 0))
+
+        elif self.effect["name"] == "CurseOfBlindness":
+            player.add_status_effect("CurseOfBlindness", self.effect["duration"], game_instance=game_instance)
+            game_instance.message_log.add_message(f"{self.effect['display_name']}: Vision reduced to 2 tiles for {self.effect['duration']} turns!", (255, 0, 0))

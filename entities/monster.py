@@ -1,6 +1,6 @@
 import random
 from core.pathfinding import astar
-from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff
+from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff, BlessingOfAgility
 
 from items.items import (
     Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
@@ -351,6 +351,9 @@ class Monster:
                 if isinstance(effect, EvasionBuff):
                     target_ac += effect.dodge_bonus
                     game.message_log.add_message(f"The {target.name} is evasive! Target AC: {target_ac}", (100, 255, 255))
+                if isinstance(effect, BlessingOfAgility):
+                    target_ac += effect.ac_bonus
+                    game.message_log.add_message(f"The {target.name} is agile! Target AC: {target_ac}", (100, 255, 255))
         game.message_log.add_message(
             f"The {self.name} rolls {roll_message_part} + {attack_bonus} (Attack Bonus) = {attack_roll_total} vs AC {target_ac}",
             (255, 150, 150)
@@ -449,6 +452,8 @@ class Monster:
             for effect in target.active_status_effects:
                 if isinstance(effect, EvasionBuff):
                     target_ac += effect.dodge_bonus
+                if isinstance(effect, BlessingOfAgility):
+                    target_ac += effect.ac_bonus
         game.message_log.add_message(
             f"The {self.name} rolls {final_d20_roll} + {self.ranged_attack_bonus} (Attack Bonus) = {attack_roll_total} vs AC {target_ac}",
             (200, 200, 255)

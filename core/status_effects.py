@@ -182,20 +182,61 @@ class Hidden(StatusEffect):
         game_instance.message_log.add_message(f"{target.name} steps out of the shadow.", (150, 150, 150))        
 
 
-class BlindnessCurse:
-    def __init__(self, duration, original_vision):
-        self.name = "Curse of Blindness"
-        self.duration = duration
-        self.turns_left = duration
-        self.original_vision = original_vision
+
+class BlessingOfStrength(StatusEffect):
+    def __init__(self, duration=50):
+        super().__init__("Blessing of Strength", duration)
+        self.damage_modifier = 5
     
     def apply_effect(self, target, game_instance):
-        # Vision is already reduced, just tick down
-        self.turns_left -= 1
+        # The damage bonus is applied dynamically during attack calculations
+        pass
     
     def on_end(self, target, game_instance):
-        target.darkvision_radius = self.original_vision
-        game_instance.message_log.add_message("Your vision returns to normal.", (150, 150, 150))
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message("The strength blessing fades away.", (150, 150, 150))
+
+class BlessingOfAgility(StatusEffect):
+    def __init__(self, duration=50):
+        super().__init__("Blessing of Agility", duration)
+        self.ac_bonus = 2
+
+        self.damage_reduction_multiplier = 0.5 # Take half damage if hit        
     
-    def tick_down(self):
-        self.turns_left -= 1        
+    def apply_effect(self, target, game_instance):
+        # The AC bonus is applied dynamically during attack calculations
+        pass
+    
+    def on_end(self, target, game_instance):
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message("The agility blessing fades away.", (150, 150, 150))
+
+class CurseOfWeakness(StatusEffect):
+    def __init__(self, duration=50):
+        super().__init__("Curse of Weakness", duration)
+        self.damage_modifier = -5
+    
+    def apply_effect(self, target, game_instance):
+        # The damage penalty is applied dynamically during attack calculations
+        pass
+    
+    def on_end(self, target, game_instance):
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message("The weakness curse lifts.", (150, 150, 150))
+
+class CurseOfBlindness(StatusEffect):
+    def __init__(self, duration=50):
+        super().__init__("Curse of Blindness", duration)
+        self.original_vision = None
+    
+    def apply_effect(self, target, game_instance):
+        if self.original_vision is None:  # First application
+            self.original_vision = target.darkvision_radius
+            target.darkvision_radius = 2
+            game_instance.message_log.add_message("Your vision becomes blurry and dark!", (255, 0, 0))
+    
+    def on_end(self, target, game_instance):
+        if self.original_vision is not None:
+            target.darkvision_radius = self.original_vision
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message("Your vision returns to normal.", (150, 150, 150))  

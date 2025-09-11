@@ -87,21 +87,6 @@ def generate_dungeon(game_map, level_number, max_rooms=16, room_min_size=5, room
         rooms.append(RectRoom(game_map.width // 2 - 2, game_map.height // 2 - 2, 5, 5))
         dig_room(game_map, rooms[0])
 
-
-    # Add altar generation logic (place this after room generation)
-    altars_to_place = min(1 + level_number // 2, 2)  # 1 altar every 3 levels, max 3
-    
-    for _ in range(altars_to_place):
-        # Find a suitable room for the altar (preferably not the starting room)
-        if len(rooms) > 1:
-            altar_room = random.choice(rooms[1:])  # Skip first room (player start)
-            x, y = altar_room.center()
-            
-            # Ensure it's a walkable position
-            if game_map.is_walkable(x, y):
-                altar = Altar(x, y)
-                game_map.altars.append(altar)
-
     # --- Place Stairs (Guaranteed Placement) ---
     # Place stairs_down in the last room generated
     if rooms:
