@@ -16,7 +16,6 @@ Map changes:
 
 
 To do:
-     Prioritize - Make Mithrim Logo
 
      
      Not Prio - Add Companions 

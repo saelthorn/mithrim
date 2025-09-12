@@ -193,6 +193,15 @@ class PowerAttack(Ability):
         # Power Attack does NOT enter targeting mode. It just applies a buff.
         # The player's turn should end after using this ability.
         return True # Indicate successful use and end turn
+    
+    def scale_with_level(self, player_level):
+        """
+        Scales the Power Attack ability with player level.
+        Increases damage bonus by 1 for every 4 levels (e.g., +5 at level 1, +6 at level 5, etc.)
+        """
+        additional_damage = (player_level - 1) // 5 # One extra damage every 4 levels
+        PowerAttackBuff.damage_bonus = 5 + additional_damage
+        print(f"[DEBUG] {self.name} scaled: damage_bonus = {PowerAttackBuff.damage_bonus} at player level {player_level}")
 
 
 class CunningActionDash(Ability):
@@ -482,7 +491,7 @@ class FireBolt(Ability):
         Scales the Fire Bolt ability with player level.
         Increases damage dice by 1 for every 4 levels (e.g., 1d10 at level 1, 2d10 at level 5, etc.)
         """
-        additional_dice = (player_level - 1) // 4 # One extra die every 4 levels
+        additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
         self.damage_dice = 1 + additional_dice
         print(f"[DEBUG] {self.name} scaled: damage_dice = {self.damage_dice} at player level {player_level}") 
 
@@ -724,7 +733,7 @@ class Fireball(Ability):
         Scales the Fireball ability with player level.
         Increases damage dice by 1 for every 4 levels (e.g., 8d6 at level 1, 9d6 at level 5, etc.)
         """
-        additional_dice = (player_level - 1) // 4 # One extra die every 4 levels
+        additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
         self.damage_dice = 8 + additional_dice
         print(f"[DEBUG] {self.name} scaled: damage_dice = {self.damage_dice} at player level {player_level}") 
 
@@ -1118,7 +1127,7 @@ class RayOfFrost(Ability):
         Scales the Ray of Frost ability with player level.
         Increases damage dice by 1 for every 4 levels (e.g., 1d8 at level 1, 2d8 at level 5, etc.)
         """
-        additional_dice = (player_level - 1) // 4 # One extra die every 4 levels
+        additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
         self.damage_dice = 1 + additional_dice
 
         print(f"[DEBUG] {self.name} scaled: damage_dice = {self.damage_dice} at player level {player_level}")        
