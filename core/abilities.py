@@ -1155,7 +1155,7 @@ class ActionSurge(Ability):
         Scales the Action Surge ability with player level.
         Reduces cooldown by 1 turn for every 6 levels (e.g., 30 turns at level 1, 29 at level 7, etc.)
         """
-        cooldown_reduction = (player_level - 1) // 6 # One less turn of cooldown every 6 levels
+        cooldown_reduction = (player_level - 2) // 6 # One less turn of cooldown every 6 levels
         self.cooldown = max(10, 30 - cooldown_reduction) # Minimum cooldown of 10 turns
 
         print(f"[DEBUG] {self.name} scaled: cooldown = {self.cooldown} at player level {player_level}")
@@ -1185,7 +1185,7 @@ class CunningActionHide(Ability):
         Scales the Cunning Action: Hide ability with player level.
         Reduces cooldown by 1 turn for every 5 levels (e.g., 50 turns at level 1, 49 at level 6, etc.)
         """
-        cooldown_reduction = (player_level - 1) // 5 # One less turn of cooldown every 5 levels
+        cooldown_reduction = (player_level - 2) // 5 # One less turn of cooldown every 5 levels
         self.cooldown = max(15, 50 - cooldown_reduction) # Minimum cooldown of 15 turns
 
         print(f"[DEBUG] {self.name} scaled: cooldown = {self.cooldown} at player level {player_level}")

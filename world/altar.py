@@ -42,7 +42,7 @@ class Altar:
                     "name": "CurseOfWeakness",  # Changed to match add_status_effect
                     "display_name": "Curse of Weakness",
                     "description": "-5 Damage bonus for 150 turns",
-                    "duration": 150
+                    "duration": 120
                 }
             else:  # blindness
                 self.effect = {
@@ -50,7 +50,7 @@ class Altar:
                     "name": "CurseOfBlindness",  # Changed to match add_status_effect
                     "display_name": "Curse of Blindness",
                     "description": "Vision radius reduced to 2 for 150 turns",
-                    "duration": 150
+                    "duration": 75
                 }
 
     def interact(self, player, game_instance):
@@ -91,4 +91,4 @@ class Altar:
 
         elif self.effect["name"] == "CurseOfBlindness":
             player.add_status_effect("CurseOfBlindness", self.effect["duration"], game_instance=game_instance)
-            game_instance.message_log.add_message(f"{self.effect['display_name']}: Vision reduced to 2 tiles for {self.effect['duration']} turns!", (255, 0, 0))
+            game_instance.message_log.add_message(f"{self.effect['display_name']}: Vision reduced to 4 tiles for {self.effect['duration']} turns!", (255, 0, 0))

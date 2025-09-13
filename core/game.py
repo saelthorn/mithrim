@@ -265,8 +265,8 @@ class Game:
         (16, 16): [Drider, Mezzoloth],
 
         # 🔥 High level threats (CR 11 – CR 15)
-        (17, 18): [Yochlol, RedSlaad, LargeOoze, AlphaGrick],
-        (19, 20): [Beholder, MindFlayer, LargeOoze, DeathSlaad, Gauth],
+        (17, 17): [Yochlol, RedSlaad, LargeOoze, AlphaGrick],
+        (18, 18): [Beholder, MindFlayer, LargeOoze, DeathSlaad, Gauth],
 
         # 🕷️ Endgame / campaign bosses (CR 20+)
         (19, 19): [],
