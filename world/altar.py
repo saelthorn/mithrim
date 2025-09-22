@@ -50,7 +50,7 @@ class Altar:
                     "name": "CurseOfBlindness",  # Changed to match add_status_effect
                     "display_name": "Curse of Blindness",
                     "description": "Vision radius reduced to 2 for 150 turns",
-                    "duration": 75
+                    "duration": 50
                 }
 
     def interact(self, player, game_instance):

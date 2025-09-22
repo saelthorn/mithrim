@@ -56,6 +56,7 @@ from core.pathfinding import astar
 from world.tile import floor, MimicTile, TrapTile
 from world.bloodstain import Bloodstain
 from world.altar import Altar
+from world.water_features import river, lake, is_water_tile # NEW: Import water tiles and helper
 from core.floating_text import FloatingText 
 import graphics
 
@@ -553,8 +554,11 @@ class Game:
                                 if existing_item.x == x_coord and existing_item.y == y_coord:
                                     is_occupied_by_item = True
                                     break
+                            # NEW: Check if it's not a water tile
+                            is_water = is_water_tile(self.game_map.tiles[y_coord][x_coord])
+
                             # Add to possible spots if all checks pass
-                            if not is_stairs and not is_occupied_by_altar and not is_occupied_by_item:
+                            if not is_stairs and not is_occupied_by_altar and not is_occupied_by_item and not is_water:
                                 possible_altar_spots.append((x_coord, y_coord))
 
                 if possible_altar_spots:
@@ -580,7 +584,7 @@ class Game:
                     candidate_rooms,
                     key=lambda r: max(0, (r.x2 - r.x1 - 1)) * max(0, (r.y2 - r.y1 - 1))
                 )
-                # Find a spawn point inside the boss room that is walkable and not on stairs
+                # Find a spawn point inside the boss room that is walkable and not on stairs or water
                 preferred_spots = []
                 center_x, center_y = boss_room.center()
                 # Require a 1-tile margin from room walls to avoid spawning overlapping walls visually
@@ -601,7 +605,7 @@ class Game:
 
                 spawn_x, spawn_y = None, None
                 for sx, sy in preferred_spots:
-                    # Require 2x2 walkable area for boss spawn AND ensure all 4 tiles are floor-like (not walls/doors)
+                    # Require 2x2 walkable area for boss spawn AND ensure all 4 tiles are floor-like (not walls/doors/water)
                     size_ok = True
                     for ox in (0, 1):
                         for oy in (0, 1):
@@ -619,9 +623,9 @@ class Game:
                             if ('up' in self.stairs_positions and (tx, ty) == self.stairs_positions.get('up')):
                                 size_ok = False
                                 break
-                            # Ensure tile type is floor-ish (avoid walls/doors overlap). Use tile char check.
-                            tile_char = self.game_map.tiles[ty][tx].char if hasattr(self.game_map.tiles[ty][tx], 'char') else None
-                            if tile_char in ['#', '+']:
+                            # Ensure tile type is floor-ish (avoid walls/doors/water overlap). Use tile char check.
+                            tile_obj = self.game_map.tiles[ty][tx]
+                            if tile_obj.char in ['#', '+'] or is_water_tile(tile_obj): # NEW: Check for water tiles
                                 size_ok = False
                                 break
                         if not size_ok:
@@ -667,8 +671,9 @@ class Game:
 
         for i, room in enumerate(monster_rooms):
             x, y = room.center()
+            # NEW: Ensure monster doesn't spawn on water
             if (0 <= x < self.game_map.width and 0 <= y < self.game_map.height and
-                self.game_map.is_walkable(x, y)):
+                self.game_map.is_walkable(x, y) and not is_water_tile(self.game_map.tiles[y][x])):
                 # Randomly choose a monster class from the possible_monsters list
                 chosen_monster_class = random.choice(possible_monsters)
 
@@ -689,8 +694,10 @@ class Game:
                 possible_spawn_points = []
                 for y_coord in range(healer_room.y1 + 2, healer_room.y2 - 1):
                     for x_coord in range(healer_room.x1 + 2, healer_room.x2 - 1):
+                        # NEW: Check for water tiles
                         if self.game_map.is_walkable(x_coord, y_coord) and \
-                           not any(e.x == x_coord and e.y == y_coord for e in self.entities):
+                           not any(e.x == x_coord and e.y == y_coord for e in self.entities) and \
+                           not is_water_tile(self.game_map.tiles[y_coord][x_coord]):
                             is_near_tunnel = False
                             for dx, dy in [(-1,0), (1,0), (0,-1), (0,1)]:
                                 neighbor_x, neighbor_y = x_coord + dx, y_coord + dy
@@ -719,8 +726,10 @@ class Game:
                 possible_spawn_points = []
                 for y_coord in range(merchant_room.y1 + 2, merchant_room.y2 - 1):
                     for x_coord in range(merchant_room.x1 + 2, merchant_room.x2 - 1):
+                        # NEW: Check for water tiles
                         if self.game_map.is_walkable(x_coord, y_coord) and \
-                           not any(e.x == x_coord and e.y == y_coord for e in self.entities):
+                           not any(e.x == x_coord and e.y == y_coord for e in self.entities) and \
+                           not is_water_tile(self.game_map.tiles[y_coord][x_coord]):
                             is_near_tunnel = False
                             for dx, dy in [(-1,0), (1,0), (0,-1), (0,1)]:
                                 neighbor_x, neighbor_y = x_coord + dx, y_coord + dy
@@ -769,11 +778,14 @@ class Game:
 
 
                 is_decorative_tile = self.game_map.tiles[item_y][item_x] != floor                    
+                # NEW: Check if the spot is a water tile
+                is_water = is_water_tile(self.game_map.tiles[item_y][item_x])
 
                 if (item_x, item_y) != (self.player.x, self.player.y) and \
                    (item_x, item_y) not in self.stairs_positions.values() and \
                    not is_blocked_by_non_item_entity and \
-                   not is_occupied_by_another_item:
+                   not is_occupied_by_another_item and \
+                   not is_water: # NEW: Don't spawn items on water
                     
 
                     chosen_template = random.choice(item_templates)
@@ -2759,9 +2771,8 @@ class Game:
 
     def render_map_with_fov(self, full_redraw=False):
         if not hasattr(self, 'game_map') or self.game_map is None:
-            # No map to render yet, just return
             return
-        
+
         camera_x_int = int(self.camera.x)
         camera_y_int = int(self.camera.y)
 
@@ -2777,14 +2788,13 @@ class Game:
 
                 visibility_type = self.fov.get_visibility_type(x, y)
 
-                # Draw the tile based on visibility
                 tile = self.game_map.tiles[y][x]      
-                
-                # Draw the tile normally if explored or visible
-                render_color_tint = None  # Initialize render_color_tint
+
+                # Set color tint based on visibility (applies to all tiles, including water)
+                render_color_tint = None
                 if visibility_type == 'player':
                     if has_torchlight:
-                        render_color_tint = (240, 240, 240, 255)  # Dimmer tint when torchlight active
+                        render_color_tint = (240, 240, 240, 255)
                     else:
                         render_color_tint = (160, 160, 160, 255)  
                 elif visibility_type == 'torch':
@@ -2794,22 +2804,25 @@ class Game:
                 elif visibility_type == 'explored':
                     render_color_tint = (60, 60, 60, 255)
                 elif visibility_type == 'unexplored':
-                    render_color_tint = (20, 20, 20, 255)
+                    # For unexplored, draw nothing (black/invisible)
+                    continue
+                else:
+                    continue  # Don't render if truly invisible
 
+                # Draw the tile using the restored sprite-based draw_tile
                 graphics.draw_tile(self.internal_surface, draw_x, draw_y, tile.char, color_tint=render_color_tint)
 
-                # Handle TrapTile display
+                # Handle special tiles (e.g., TrapTile, MimicTile - your existing logic)
                 if isinstance(tile, TrapTile):
                     display_char = tile.get_display_char()
                     display_color = tile.get_display_color()
-                    # Draw the base tile (floor, wall, or trap's hidden/revealed char)
                     graphics.draw_tile(self.internal_surface, draw_x, draw_y, display_char, color_tint=render_color_tint) 
 
-                if full_redraw: # Only add to dirty rects if it's a full redraw or a specific tile changed
+                if full_redraw:
                     self.add_dirty_rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)   
 
                 tile_rect = pygame.Rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)
-                self.dirty_rects.append(tile_rect)                                                            
+                self.dirty_rects.append(tile_rect)
 
 
     def render_tile_highlights(self):
@@ -2838,6 +2851,7 @@ class Game:
         if not hasattr(self, 'game_map') or self.game_map is None:
             return        
         map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT 
+
         for entity in self.entities:
             if isinstance(entity, Mimic) and entity.disguised:
                 continue 
@@ -2853,24 +2867,32 @@ class Game:
                 if (0 <= draw_x < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
                     0 <= draw_y < map_render_height):
 
-
                     has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)
 
-                    # Initialize entity_color_tint here
-                    entity_color_tint = None
+                    # Determine base color for the entity (your entity.color)
+                    entity_color = entity.color
+
+                    # Apply visibility tint (RGB only for simplicity)
                     if visibility_type == 'player':
                         if has_torchlight:
-                            entity_color_tint = (240, 240, 240, 255)  # Dimmer tint when torchlight active
+                            entity_color_tint = (240, 240, 240)
                         else:
-                            entity_color_tint = (180, 180, 180, 255)  
+                            entity_color_tint = (180, 180, 180)
                     elif visibility_type == 'torch':
-                        entity_color_tint = (180, 180, 180, 255)
+                        entity_color_tint = (180, 180, 180)
                     elif visibility_type == 'darkvision':
-                        entity_color_tint = (120, 120, 120, 255)
+                        entity_color_tint = (120, 120, 120)
                     elif visibility_type == 'explored':
-                        entity_color_tint = (60, 60, 60, 255)
-                    elif visibility_type == 'unexplored':
-                        entity_color_tint = (20, 20, 20, 255)
+                        entity_color_tint = (60, 60, 60)
+                    else:
+                        entity_color_tint = (255, 255, 255)  # Default
+
+                    # Multiply entity's color by tint
+                    final_color = (
+                        min(255, int(entity_color[0] * (entity_color_tint[0] / 255.0))),
+                        min(255, int(entity_color[1] * (entity_color_tint[1] / 255.0))),
+                        min(255, int(entity_color[2] * (entity_color_tint[2] / 255.0)))
+                    )
 
                     footprint_size = getattr(entity, 'footprint_size', 1)
                     tile_size_override = config.TILE_SIZE * footprint_size if footprint_size > 1 else None
@@ -2878,23 +2900,63 @@ class Game:
                     # Determine flip_x only for player
                     flip_x = False
                     if entity == self.player:
-                        flip_x = not self.player.facing_right  # Flip if facing left
+                        flip_x = not self.player.facing_right
 
-                    graphics.draw_tile(
-                        self.internal_surface,
-                        draw_x,
-                        draw_y,
-                        entity.char,
-                        color_tint=entity_color_tint,
-                        tile_size=tile_size_override,
-                        flip_x=flip_x
-                    )
+                    # --- Submersion Effect for Player (Sprite-Based) ---
+                    if entity == self.player:
+                        player_tile = self.game_map.tiles[entity.y][entity.x]
+                        is_submerged = is_water_tile(player_tile)
+
+                        # Get the base sprite for the entity char
+                        base_sprite = graphics.get_tile_surface(entity.char)
+                        if base_sprite is None:
+                            print(f"ERROR: No sprite for player char '{entity.char}'")
+                            continue  # Skip rendering this frame
+
+                        base_sprite = base_sprite.convert_alpha()
+
+                        # Apply flip if needed
+                        sprite_surface = base_sprite.copy()
+                        if flip_x:
+                            sprite_surface = pygame.transform.flip(sprite_surface, True, False)
+
+                        # Apply tint to the full sprite
+                        tinted_sprite = sprite_surface.copy()
+                        tinted_sprite.fill((final_color[0], final_color[1], final_color[2], 255), special_flags=pygame.BLEND_RGBA_MULT)
+                        sprite_surface = tinted_sprite
+
+                        if is_submerged:
+                            # Create top-half clip rect (source rect for blit)
+                            half_height = config.TILE_SIZE // 2
+                            clip_rect = pygame.Rect(0, 0, config.TILE_SIZE, half_height)
+
+                            # Blit only the top half of the tinted sprite
+                            self.internal_surface.blit(sprite_surface, (draw_x, draw_y), clip_rect)
+
+                            # Optional: Add ripple sprite in bottom half
+                            ripple_sprite = graphics.get_tile_surface('~')  # Use '~' sprite for ripple
+                            if ripple_sprite:
+                                ripple_sprite = ripple_sprite.convert_alpha()
+                                ripple_sprite = pygame.transform.scale(ripple_sprite, (config.TILE_SIZE, half_height))
+                                ripple_tint = (0, 100, 200, 128)  # Semi-transparent blue
+                                ripple_sprite.fill(ripple_tint, special_flags=pygame.BLEND_RGBA_MULT)
+                                self.internal_surface.blit(ripple_sprite, (draw_x, draw_y + half_height))
+                        else:
+                            # Normal full rendering
+                            self.internal_surface.blit(sprite_surface, (draw_x, draw_y))
+                    else:
+                        # Non-player: Use draw_tile for consistency (full sprite)
+                        graphics.draw_tile(
+                            self.internal_surface,
+                            draw_x,
+                            draw_y,
+                            entity.char,
+                            color_tint=(final_color[0], final_color[1], final_color[2], 255),
+                            tile_size=tile_size_override,
+                            flip_x=flip_x
+                        )
 
                     self.add_dirty_rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)
-                else:
-                    pass
-            else:
-                pass
 
 
     def render_bloodstains(self):

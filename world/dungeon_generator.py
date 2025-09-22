@@ -6,6 +6,7 @@ from items.items import Chest, generate_random_loot
 from entities.monster import Mimic
 from world.altar import Altar
 from traps import DartTrap, SpikeTrap, FireTrap, ExplosiveTrap, AcidSprayTrap
+from world.water_features import generate_water_features, river, lake # NEW: Import water features generator and tile types
 
 class RectRoom:
     def __init__(self, x, y, w, h):
@@ -116,6 +117,11 @@ def generate_dungeon(game_map, level_number, max_rooms=16, room_min_size=5, room
 
     # Place stairs_up in the first room generated (player's spawn room)
     if rooms:
+
+        cx, cy = rooms[1].center()  # Second room
+        game_map.tiles[cy][cx] = river
+        print(f"DEBUG: Forced river tile at ({cx}, {cy})")    
+            
         stairs_up_room = rooms[0]
         stairs_x, stairs_y = stairs_up_room.center()
 
@@ -139,6 +145,25 @@ def generate_dungeon(game_map, level_number, max_rooms=16, room_min_size=5, room
             stairs_positions['up'] = (stairs_x, stairs_y)
             game_map.items_on_ground = [item for item in game_map.items_on_ground if not (item.x == stairs_x and item.y == stairs_y)]
 
+    # NEW: Generate water features after rooms and stairs are placed
+    # Pass the water_spawn_chance based on level_number if desired, e.g., 0.4 for level 1
+    water_spawn_chance = 1.0  # TEMP: Force 100% chance for testing (set back to 0.4 later)
+    water_tiles = generate_water_features(game_map, rooms, water_spawn_chance)
+    
+    # DEBUG: Print water generation info (remove after testing)
+    print(f"DEBUG: Generated {len(water_tiles)} water tiles on level {level_number}")
+    if water_tiles:
+        sample_tile = game_map.tiles[water_tiles[0][1]][water_tiles[0][0]]  # First water tile
+        print(f"DEBUG: Sample water tile at {water_tiles[0]}: char='{sample_tile.char}', name='{sample_tile.name}', blocked={sample_tile.blocked}")
+    else:
+        print("DEBUG: No water tiles generated - check room count or spawn chance")
+
+    # Ensure water doesn't overwrite stairs
+    for wx, wy in water_tiles:
+        if (wx, wy) == stairs_positions.get('down'):
+            game_map.tiles[wy][wx] = stairs_down
+        elif (wx, wy) == stairs_positions.get('up'):
+            game_map.tiles[wy][wx] = stairs_up
 
     trap_rooms = random.sample(range(len(rooms)), k=min(2, len(rooms)))  # Randomly select 1 or 2 rooms for traps
 
@@ -158,6 +183,9 @@ def generate_dungeon(game_map, level_number, max_rooms=16, room_min_size=5, room
                 if 'down' in stairs_positions and (rx, ry) == stairs_positions['down']:
                     continue
                 if 'up' in stairs_positions and (rx, ry) == stairs_positions['up']:
+                    continue
+                # Skip if this spot is a water tile
+                if game_map.tiles[ry][rx] in [river, lake]:
                     continue
                 
                 if game_map.tiles[ry][rx] == floor: # Only place on floor tiles
@@ -187,12 +215,14 @@ def generate_dungeon(game_map, level_number, max_rooms=16, room_min_size=5, room
                             game_map.tiles[ry][rx] = chosen_decoration
 
         # --- Chests (and Chest Mimics) ---
-        # Place chests/mimics at room center, but only if not already occupied by stairs
+        # Place chests/mimics at room center, but only if not already occupied by stairs or water
         chest_spawn_x, chest_spawn_y = room.center()
         if 'down' in stairs_positions and (chest_spawn_x, chest_spawn_y) == stairs_positions['down']:
             continue # Skip if stairs_down are at the center of this room
         if 'up' in stairs_positions and (chest_spawn_x, chest_spawn_y) == stairs_positions['up']:
             continue # Skip if stairs_up are at the center of this room
+        if game_map.tiles[chest_spawn_y][chest_spawn_x] in [river, lake]: # Skip if water tile
+            continue
 
         if random.random() < 0.2: # Increased overall chest spawn chance to 50%
             # Check if the spot is already occupied by an item (Mimic or Chest)
@@ -223,8 +253,4 @@ def generate_dungeon(game_map, level_number, max_rooms=16, room_min_size=5, room
                 game_map.tiles[chest_spawn_y][chest_spawn_x] = floor # <--- ADD THIS LINE
 
     return rooms, stairs_positions, torch_light_sources
-
-
-
-
 

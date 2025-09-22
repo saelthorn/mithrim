@@ -1,5 +1,6 @@
 import pygame
 import config
+import math  # For wave patterns in fallbacks
 
 # Global variable to hold the loaded tileset image
 TILESET_IMAGE = None
@@ -24,16 +25,16 @@ def load_tileset(filepath):
         print(f"Tileset loaded: {filepath}, size: {TILESET_IMAGE.get_size()}")
     except pygame.error as e:
         print(f"Error loading tileset: {e}")
-        pygame.quit()
-        exit()
+        # Don't quit—fallback to generated tiles
+        TILESET_IMAGE = None
+        print("Using generated fallback tiles (no tileset image)")
 
 def setup_tile_mapping():
     global TILE_MAPPING
         
-    # The coordinates in TILE_MAPPING now need to reflect the *actual pixel start*
-    # of each tile's 13x13 cell.
-    # So, we multiply the grid column/row by CELL_DIM (13).
-
+    # FIXED: Distinct positions for '~' (river) and '≈' (lake)
+    # Adjust these coordinates based on your tileset PNG (e.g., column 11, row 4 for river; try column 12 for lake if needed)
+    # Use an image editor to verify the grid positions.
     TILE_MAPPING = {
 
         # Player Characters (based on race-class combinations)
@@ -64,7 +65,7 @@ def setup_tile_mapping():
         '+': (2 * CELL_DIM, 3 * CELL_DIM),  # Tavern Door
         ';': (1 * CELL_DIM, 4 * CELL_DIM),  # Bones
         '%': (2 * CELL_DIM, 4 * CELL_DIM),  # Rubble
-        '~': (3 * CELL_DIM, 4 * CELL_DIM),  # Cobweb
+        'x': (3 * CELL_DIM, 4 * CELL_DIM),  # Cobweb
         '*': (4 * CELL_DIM, 4 * CELL_DIM),  # Mushroom
         'fb': (5 * CELL_DIM, 4 * CELL_DIM), # Fresh Bones
         '`': (6 * CELL_DIM, 4 * CELL_DIM),  # Dungeon Grass
@@ -72,6 +73,8 @@ def setup_tile_mapping():
         '.2': (8 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Two
         '.3': (9 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Three
         '`2': (10 * CELL_DIM, 4 * CELL_DIM), # Dungeon Grass Two
+        '~': (11 * CELL_DIM, 4 * CELL_DIM),  # River (Water) - FIXED: Keep this
+        '≈': (12 * CELL_DIM, 4 * CELL_DIM),  # Lake (Water) - FIXED: Distinct position (adjust if your tileset has it elsewhere)
         
         # IMPORTANT: Ensure 'C' is your *closed* chest graphic
         'C': (4 * CELL_DIM, 5 * CELL_DIM),  # Chest (Closed)
@@ -91,7 +94,7 @@ def setup_tile_mapping():
         'B': (3 * CELL_DIM, 5 * CELL_DIM),  # Mimic Barrel
         'K': (1 * CELL_DIM, 5 * CELL_DIM),  # Mimic Crate
         'M': (6 * CELL_DIM, 5 * CELL_DIM),  # Mimic (Generic Revealed Form)
-
+        
         # Pressure Plate / Trap Graphics
         '^': (0 * CELL_DIM, 4 * CELL_DIM), # Example: A simple triangle or pressure plate graphic
         '_': (0 * CELL_DIM, 4 * CELL_DIM), # Use floor graphic for hidden pressure plate (or a specific hidden trap graphic)   
@@ -211,10 +214,7 @@ def setup_tile_mapping():
 
        
     }
-    print("Tile mapping setup complete.")        
-
-
-
+    print("Tile mapping setup complete.")
 
 def get_tile_surface(char):
     """
@@ -231,10 +231,7 @@ def get_tile_surface(char):
 
     x, y = tile_coords
     
-    # The tile_rect now extracts the ORIGINAL_TILE_DIM (12x12) from the calculated
-    # position, plus any fine-tuning offsets.
-    # This is the crucial part: x and y are already calculated using CELL_DIM.
-    # We then add TILE_X_OFFSET/TILE_Y_OFFSET to get to the top-left of the *actual sprite*.
+    # The tile_rect now extracts the ORIGINAL_TILE_DIM (12x12) from the calculated position
     tile_rect = pygame.Rect(x + TILE_X_OFFSET, y + TILE_Y_OFFSET, ORIGINAL_TILE_DIM, ORIGINAL_TILE_DIM)
     
     # Add a check to ensure the rect is within the tileset image bounds
@@ -243,7 +240,7 @@ def get_tile_surface(char):
         return pygame.Surface((config.TILE_SIZE, config.TILE_SIZE), pygame.SRCALPHA) # Return blank tile
 
     subsurface = TILESET_IMAGE.subsurface(tile_rect)
-
+    
     # The scaling here should now be crisp if the source subsurface is correct.
     if config.TILE_SIZE != ORIGINAL_TILE_DIM:
         scaled_surface = pygame.transform.scale(subsurface, (config.TILE_SIZE, config.TILE_SIZE))
@@ -257,17 +254,19 @@ def draw_tile(screen_surface, draw_x, draw_y, char, color_tint=None, tile_size=N
     if tile_size is None or tile_size == config.TILE_SIZE:
         tile_surface = get_tile_surface(char)
     else:
-        # Extract base tile then rescale to requested size
+        # Extract base tile then rescale to requested size (int or tuple)
         base_surface = get_tile_surface(char)
         tile_surface = pygame.transform.scale(base_surface, (tile_size, tile_size))
 
     if flip_x:
         tile_surface = pygame.transform.flip(tile_surface, True, False)
-
+    
     if color_tint:
         tinted_surface = tile_surface.copy()
         tinted_surface.fill(color_tint, special_flags=pygame.BLEND_RGBA_MULT)
         tile_surface = tinted_surface
     
-    # --- MODIFIED: Blit directly using draw_x, draw_y ---
-    screen_surface.blit(tile_surface, (draw_x, draw_y))    
+    # Blit directly using draw_x, draw_y (int if floats)
+    blit_x = int(draw_x) if hasattr(draw_x, '__float__') else draw_x
+    blit_y = int(draw_y) if hasattr(draw_y, '__float__') else draw_y
+    screen_surface.blit(tile_surface, (blit_x, blit_y))    

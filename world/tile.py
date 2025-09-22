@@ -25,7 +25,7 @@ dungeon_floor_three = Tile(blocked=False, char='.3', color=(200, 180, 50), name=
 dungeon_grass = Tile(blocked=False, char='`', color=(0, 160, 20), name="Dungeon Grass")
 dungeon_grass_two = Tile(blocked=False, char='`2', color=(0, 160, 20), name="Dungeon Grass Two")
 rubble = Tile(blocked=False, char='%', color=(150, 150, 150), name="Rubble")
-cob_web = Tile(blocked=True, char='~', color=(200, 200, 200), block_sight=False, destructible=True, name="Cobweb")   
+cob_web = Tile(blocked=True, char='x', color=(200, 200, 200), block_sight=False, destructible=True, name="Cobweb")   
 mushroom = Tile(blocked=False, char='*', color=(255, 0, 255), name="Mushroom")
 fresh_bones = Tile(blocked=False, char='fb', color=(200, 200, 180), name="Fresh Bones")
 bones = Tile(blocked=False, char=';', color=(200, 200, 180), name="Bones")
@@ -46,6 +46,8 @@ door = Tile(blocked=False, char='+', color=(205, 133, 63), name="Door")
 fireplace = Tile(blocked=True, char='F', color=(255, 69, 0), name="Fireplace")
 tavern_crate = Tile(blocked=False, char='{', color=(139, 69, 19), name="Tavern Crate")
 tavern_barrel = Tile(blocked=False, char='}', color=(139, 69, 19), name="Tavern Barrel")
+
+from world.water_features import river, lake # NEW: Import river and lake tiles
 
 class MimicTile(Tile):
     def __init__(self, mimic_entity, char, color, name): # 'char' here will be 'K' or 'B'
@@ -84,7 +86,4 @@ class TrapTile(Tile):
             return (255, 0, 0)  # Red for triggered
         else:
             return self.trap_instance.color  # Trap's own color
-
-
-
 
