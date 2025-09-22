@@ -2851,113 +2851,109 @@ class Game:
         if not hasattr(self, 'game_map') or self.game_map is None:
             return        
         map_render_height = config.INTERNAL_GAME_AREA_PIXEL_HEIGHT 
-
+        
         for entity in self.entities:
             if isinstance(entity, Mimic) and entity.disguised:
                 continue 
             visibility_type = self.fov.get_visibility_type(entity.x, entity.y)
-
+    
             if entity.alive and self.camera.is_in_viewport(entity.x, entity.y) and \
                (visibility_type == 'player' or visibility_type == 'torch' or visibility_type == 'explored' or visibility_type == 'darkvision'):
-
+    
                 screen_x_float, screen_y_float = self.camera.world_to_screen(entity.x, entity.y)
                 draw_x = screen_x_float * config.TILE_SIZE
                 draw_y = screen_y_float * config.TILE_SIZE
-
+    
                 if (0 <= draw_x < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
                     0 <= draw_y < map_render_height):
-
+    
                     has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)
-
-                    # Determine base color for the entity (your entity.color)
-                    entity_color = entity.color
-
-                    # Apply visibility tint (RGB only for simplicity)
+    
+                    # KEPT: Visibility-based tinting (dimming for FOV effects)
+                    entity_color_tint = None
                     if visibility_type == 'player':
                         if has_torchlight:
-                            entity_color_tint = (240, 240, 240)
+                            entity_color_tint = (240, 240, 240, 255)  # Dimmer tint when torchlight active
                         else:
-                            entity_color_tint = (180, 180, 180)
+                            entity_color_tint = (180, 180, 180, 255)  
                     elif visibility_type == 'torch':
-                        entity_color_tint = (180, 180, 180)
+                        entity_color_tint = (180, 180, 180, 255)
                     elif visibility_type == 'darkvision':
-                        entity_color_tint = (120, 120, 120)
+                        entity_color_tint = (120, 120, 120, 255)
                     elif visibility_type == 'explored':
-                        entity_color_tint = (60, 60, 60)
-                    else:
-                        entity_color_tint = (255, 255, 255)  # Default
-
-                    # Multiply entity's color by tint
-                    final_color = (
-                        min(255, int(entity_color[0] * (entity_color_tint[0] / 255.0))),
-                        min(255, int(entity_color[1] * (entity_color_tint[1] / 255.0))),
-                        min(255, int(entity_color[2] * (entity_color_tint[2] / 255.0)))
-                    )
-
+                        entity_color_tint = (60, 60, 60, 255)
+                    elif visibility_type == 'unexplored':
+                        entity_color_tint = (20, 20, 20, 255)
+    
                     footprint_size = getattr(entity, 'footprint_size', 1)
                     tile_size_override = config.TILE_SIZE * footprint_size if footprint_size > 1 else None
-
+    
                     # Determine flip_x only for player
                     flip_x = False
                     if entity == self.player:
                         flip_x = not self.player.facing_right
-
-                    # --- Submersion Effect for Player (Sprite-Based) ---
+    
+                    # --- Submersion Effect for Player (Visibility Tint Applied Directly to Sprite) ---
                     if entity == self.player:
                         player_tile = self.game_map.tiles[entity.y][entity.x]
                         is_submerged = is_water_tile(player_tile)
-
+                        
                         # Get the base sprite for the entity char
                         base_sprite = graphics.get_tile_surface(entity.char)
                         if base_sprite is None:
                             print(f"ERROR: No sprite for player char '{entity.char}'")
                             continue  # Skip rendering this frame
-
+                        
                         base_sprite = base_sprite.convert_alpha()
-
+                        
                         # Apply flip if needed
                         sprite_surface = base_sprite.copy()
                         if flip_x:
                             sprite_surface = pygame.transform.flip(sprite_surface, True, False)
-
-                        # Apply tint to the full sprite
-                        tinted_sprite = sprite_surface.copy()
-                        tinted_sprite.fill((final_color[0], final_color[1], final_color[2], 255), special_flags=pygame.BLEND_RGBA_MULT)
-                        sprite_surface = tinted_sprite
-
+                        
+                        # KEPT: Apply visibility tint directly to the sprite (no entity.color multiplication)
+                        # REMOVED: final_color multiplication with entity.color - use tint as-is on raw sprite
+                        if entity_color_tint:
+                            tinted_sprite = sprite_surface.copy()
+                            tinted_sprite.fill(entity_color_tint, special_flags=pygame.BLEND_RGBA_MULT)
+                            sprite_surface = tinted_sprite
+    
                         if is_submerged:
                             # Create top-half clip rect (source rect for blit)
                             half_height = config.TILE_SIZE // 2
                             clip_rect = pygame.Rect(0, 0, config.TILE_SIZE, half_height)
-
+                            
                             # Blit only the top half of the tinted sprite
                             self.internal_surface.blit(sprite_surface, (draw_x, draw_y), clip_rect)
-
-                            # Optional: Add ripple sprite in bottom half
+                            
+                            # Optional: Add ripple sprite in bottom half (visibility tint applied if needed)
                             ripple_sprite = graphics.get_tile_surface('~')  # Use '~' sprite for ripple
                             if ripple_sprite:
                                 ripple_sprite = ripple_sprite.convert_alpha()
                                 ripple_sprite = pygame.transform.scale(ripple_sprite, (config.TILE_SIZE, half_height))
-                                ripple_tint = (0, 100, 200, 128)  # Semi-transparent blue
-                                ripple_sprite.fill(ripple_tint, special_flags=pygame.BLEND_RGBA_MULT)
+                                # Apply visibility tint to ripple (direct, no entity.color)
+                                if entity_color_tint:
+                                    ripple_tinted = ripple_sprite.copy()
+                                    ripple_tinted.fill(entity_color_tint, special_flags=pygame.BLEND_RGBA_MULT)
+                                    ripple_sprite = ripple_tinted
                                 self.internal_surface.blit(ripple_sprite, (draw_x, draw_y + half_height))
                         else:
-                            # Normal full rendering
+                            # Normal full rendering (tinted sprite)
                             self.internal_surface.blit(sprite_surface, (draw_x, draw_y))
                     else:
-                        # Non-player: Use draw_tile for consistency (full sprite)
+                        # Non-player entities: Use draw_tile with visibility tint directly (no entity.color overlay)
                         graphics.draw_tile(
                             self.internal_surface,
                             draw_x,
                             draw_y,
                             entity.char,
-                            color_tint=(final_color[0], final_color[1], final_color[2], 255),
+                            color_tint=entity_color_tint,  # KEPT: Direct visibility tint on sprite
                             tile_size=tile_size_override,
                             flip_x=flip_x
                         )
-
+    
                     self.add_dirty_rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)
-
+        
 
     def render_bloodstains(self):
         """Renders bloodstains on the map."""
