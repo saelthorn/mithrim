@@ -41,6 +41,8 @@ class Monster:
         self.blocks_movement = True
         self.active_status_effects = []
 
+        self.can_swim = False
+
         self.is_active = False # New attribute: True if monster is awake/active
         self.sleep_cooldown = 0 # New attribute: Timer for how long to stay asleep        
 
@@ -1180,6 +1182,7 @@ class GiantRat(Monster):
 class Ooze(Monster):  
     def __init__(self, x, y):
         super().__init__(x, y, 'OZ', 'Ooze', (100, 100, 100))
+        self.can_swim = True
         self.hp = 22
         self.max_hp = 22
         self.attack_bonus = 2
@@ -1438,6 +1441,7 @@ class Troll(Monster):
 class Lizardfolk(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'LF', 'Lizardfolk', (46, 139, 87))
+        self.can_swim = True
         self.hp = 22
         self.max_hp = 22
         self.attack_bonus = 2
@@ -1469,6 +1473,7 @@ class Lizardfolk(Monster):
 class LizardfolkArcher(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'LA', 'Lizardfolk Archer', (60, 179, 113))
+        self.can_swim = True
         self.hp = 22
         self.max_hp = 22
         self.attack_bonus = 2
@@ -1555,6 +1560,7 @@ class Beholder(Monster):
 class LargeOoze(Monster):  # Gelatinous Cube
     def __init__(self, x, y):
         super().__init__(x, y, 'LO', 'Large Ooze', (34, 139, 34))
+        self.can_swim = True
         self.hp = 85
         self.max_hp = 85
         self.attack_bonus = 4
@@ -1587,6 +1593,7 @@ class LargeOoze(Monster):  # Gelatinous Cube
 class RedDragon(Monster):  
     def __init__(self, x, y):
         super().__init__(x, y, 'RDR', 'Red Dragon', (255, 0, 0))
+        self.can_swim = True
         self.hp = 256
         self.max_hp = 256
         self.attack_bonus = 4
@@ -1708,6 +1715,7 @@ class AlphaGrick(Monster):
 class Grick(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'GK', 'Grick', (105, 105, 105))
+        self.can_swim = True
         self.hp = 27
         self.max_hp = 27
         self.attack_bonus = 3
@@ -2126,6 +2134,7 @@ class Gauth(Monster):
 class Drider(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'DD', 'Drider', (112, 128, 144))
+        self.can_swim = True
         self.hp = 123
         self.max_hp = 123
         self.attack_bonus = 3

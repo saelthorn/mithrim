@@ -1,4 +1,5 @@
 import heapq
+from world.water_features import is_water_tile
 
 class Node:
     """A node in the pathfinding grid."""
@@ -54,8 +55,16 @@ def astar(game_map, start, end, entities=None, moving_entity=None, ignore_destru
                 tx, ty = pos_x + ox, pos_y + oy
                 if not (0 <= tx < game_map.width and 0 <= ty < game_map.height):
                     return False
-                if not game_map.is_walkable(tx, ty):
+                
+                tile = game_map.tiles[ty][tx]
+                can_swim = getattr(moving_entity, 'can_swim', False)
+                if is_water_tile(tile):
+                    if not can_swim:
+                        return False # Block non-swimmers
+                    # If can_swim, it's a valid tile, so continue loop
+                elif not game_map.is_walkable(tx, ty):
                     return False
+
                 if entities:
                     for ent in entities:
                         if hasattr(ent, 'occupies_tile'):
@@ -98,23 +107,30 @@ def astar(game_map, start, end, entities=None, moving_entity=None, ignore_destru
 
             # Check tile walkability with destructible tile consideration
             tile = game_map.tiles[node_position[1]][node_position[0]]
-            if ignore_destructible and getattr(moving_entity, 'footprint_size', 1) >= 3:
-                # Treat destructible tiles as walkable for large monsters
-                if tile.destructible:
-                    pass  # Allow pathfinding through destructible tiles
-                elif not game_map.is_walkable(node_position[0], node_position[1]):
-                    continue
-            else:
-                if not game_map.is_walkable(node_position[0], node_position[1]):
-                    continue
+            can_swim = getattr(moving_entity, 'can_swim', False)
+
+            # New unified check for walkability
+            is_tile_walkable = game_map.is_walkable(node_position[0], node_position[1])
+            is_tile_water = is_water_tile(tile)
+
+            # Determine if the tile is passable for the entity
+            is_passable = False
+            if is_tile_water:
+                if can_swim:
+                    is_passable = True
+            elif is_tile_walkable:
+                is_passable = True
+            elif ignore_destructible and tile.destructible and getattr(moving_entity, 'footprint_size', 1) >= 3:
+                is_passable = True # Large monsters can path through destructibles
+
+            if not is_passable:
+                continue
 
             # Make sure walkable terrain (and clearance if multi-tile entity)
             if getattr(moving_entity, 'footprint_size', 1) > 1:
                 if not has_footprint_clearance(node_position[0], node_position[1]):
                     continue
-            else:
-                if not game_map.is_walkable(node_position[0], node_position[1]):
-                    continue
+            # Single-tile entity check is already covered by the `is_passable` logic above
 
             # Make sure not blocked by another entity (excluding the current entity and the target)
             if entities:

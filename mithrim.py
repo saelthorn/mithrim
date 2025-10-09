@@ -1,0 +1,33 @@
+import pygame
+import config
+from core.game import Game
+import graphics
+
+def main():
+    pygame.init()
+
+    pygame.key.set_repeat(400, 150) # Delay 200ms, repeat every 75ms
+    
+    # --- MODIFIED: Removed pygame.SCALED flag ---
+    screen = pygame.display.set_mode((config.BASE_SCREEN_WIDTH, config.BASE_SCREEN_HEIGHT), pygame.RESIZABLE)
+    
+    pygame.display.set_caption("Mithrim")
+    
+    logo_icon = pygame.image.load('assets/mithrim_logo.png')
+    pygame.display.set_icon(logo_icon)    
+
+    graphics.load_tileset('assets/mithrim_tileset-2.png')
+    graphics.setup_tile_mapping() 
+    clock = pygame.time.Clock()
+    game = Game(screen) 
+    
+    running = True
+    while running:
+        dt = clock.tick(config.FPS) / 1000
+        running = game.handle_events()
+        game.update(dt)
+        game.render()
+    pygame.quit() 
+
+if __name__ == "__main__":
+    main()
