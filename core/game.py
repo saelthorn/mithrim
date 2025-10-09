@@ -236,8 +236,7 @@ class Game:
 
     # Boss schedule: every 5th floor, ordered list
     BOSS_FLOORS = [
-        (1, 'Beholder'),
-        (3, 'Troll'),
+        (1, 'Troll'),
         (5, 'Owlbear'),
         (7, 'AlphaGrick'),
         (10, 'DeathSlaad'),

@@ -33,8 +33,8 @@ class Player: # This is our base class for playable characters
         self.gold = 50
 
         # Player-specific attributes
-        self.level = 19
-        self.current_xp = 299
+        self.level = 1
+        self.current_xp = 0
         self.xp_to_next_level = 300 # Base XP to level up
 
         # --- D&D 5e Ability Scores (Base values, will be overridden by subclasses) ---
