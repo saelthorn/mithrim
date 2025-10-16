@@ -236,7 +236,7 @@ class Game:
 
     # Boss schedule: every 5th floor, ordered list
     BOSS_FLOORS = [
-        (1, 'Troll'),
+        (3, 'Troll'),
         (5, 'Owlbear'),
         (7, 'AlphaGrick'),
         (10, 'DeathSlaad'),
@@ -1849,8 +1849,14 @@ class Game:
                 break
             
         if altar_at_pos:
-            altar_at_pos.interact(self.player, self)
-            return True  # Action taken
+            interaction_result = altar_at_pos.interact(self.player, self)
+            if interaction_result is True:
+                self.player_has_acted = True
+                return True
+            elif interaction_result == 'already_used':
+                pass
+            else:
+                return False
 
         if self.game_state == GameState.TAVERN:
             if (new_x, new_y) == self.door_position:
@@ -2281,7 +2287,7 @@ class Game:
 
             if curse_of_weakness:
                 damage_modifier += curse_of_weakness.damage_modifier # Note: This is negative
-                self.message_log.add_message(f"Curse of Weakness: -{curse_of_weakness.damage_modifier} damage.", (255, 0, 255))
+                self.message_log.add_message(f"Curse of Weakness: {curse_of_weakness.damage_modifier} damage.", (255, 0, 255))
 
             if power_attack_buff:
                 damage_modifier += power_attack_buff.damage_modifier # Apply damage bonus

@@ -57,11 +57,16 @@ class Altar:
         """Handle interaction with the altar"""
         if self.activated:
             game_instance.message_log.add_message("The altar's magic has already been spent.", (150, 150, 150))
-            return False
+            return 'already_used'
             
         self.activated = True
         self.color = (100, 100, 100)  # Gray out after use
         
+        spent_altar_tile = game_instance.game_map.tiles [self.y][self.x]
+        spent_altar_tile.destructible = True
+        spent_altar_tile.name = "Spent Altar"
+        spent_altar_tile.color = self.color
+
         if self.effect["type"] == "blessing":
             self._apply_blessing(player, game_instance)
         else:
@@ -91,4 +96,4 @@ class Altar:
 
         elif self.effect["name"] == "CurseOfBlindness":
             player.add_status_effect("CurseOfBlindness", self.effect["duration"], game_instance=game_instance)
-            game_instance.message_log.add_message(f"{self.effect['display_name']}: Vision reduced to 4 tiles for {self.effect['duration']} turns!", (255, 0, 0))
+            game_instance.message_log.add_message(f"{self.effect['display_name']}: Vision reduced for {self.effect['duration']} turns!", (255, 0, 0))
