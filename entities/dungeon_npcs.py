@@ -1,7 +1,7 @@
 import random
 
 from core.game import GameState
-from items.items import torch, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, full_plate_armor, robes_of_protection, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, CampfireKit
+from items.items import torch, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, full_plate_armor, robes_of_protection, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, CampfireKit, Weapon, Armor, OffHand
 from entities.base_entity import NPC
 
 class DungeonHealer(NPC):
@@ -109,6 +109,7 @@ class DungeonMerchant(NPC):
 
         # Allow player to buy or sell
         game.message_log.add_message("Type 'buy {item}' to buy and 'sell {item}' to sell.", (200, 200, 255))
+        game.message_log.add_message("Or use 'sell all weapons' or 'sell all armor' to bulk sell.", (200, 200, 255))
         game.message_log.add_message("Type your input:", (200, 200, 255))
         game.message_log.add_message(" ", (200, 200, 255))
 
@@ -140,7 +141,31 @@ class DungeonMerchant(NPC):
 
 
     def sell_item(self, player, item_name):
-        """Logic to sell an item."""
+        """Logic to sell an item or multiple items."""
+        # Handle bulk selling
+        if item_name == "all weapons":
+            weapons = [item for item in player.inventory.items if isinstance(item, (Weapon, OffHand))]
+            if not weapons:
+                return "You don't have any weapons to sell."
+            total_gold = 0
+            for item in weapons:
+                player.inventory.remove_item(item)
+                total_gold += item.price // 2
+                self.items_for_sale.append(item)
+            return f"You sold {len(weapons)} weapon(s) for {total_gold} gold!"
+        
+        if item_name == "all armor":
+            armor_items = [item for item in player.inventory.items if isinstance(item, Armor)]
+            if not armor_items:
+                return "You don't have any armor to sell."
+            total_gold = 0
+            for item in armor_items:
+                player.inventory.remove_item(item)
+                total_gold += item.price // 2
+                self.items_for_sale.append(item)
+            return f"You sold {len(armor_items)} armor item(s) for {total_gold} gold!"
+        
+        # Handle single item selling
         for item in player.inventory.items:  # Access the player's inventory items
             if item.name.lower() == item_name.lower():  # Case insensitive comparison
                 player.inventory.remove_item(item)  # Remove the item from the player's inventory
