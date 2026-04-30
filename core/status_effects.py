@@ -228,15 +228,20 @@ class CurseOfBlindness(StatusEffect):
     def __init__(self, duration=50):
         super().__init__("Curse of Blindness", duration)
         self.original_vision = None
+        self.original_darkvision = None
     
     def apply_effect(self, target, game_instance):
         if self.original_vision is None:  # First application
-            self.original_vision = target.radius
-            target.radius = 3
+            self.original_vision = getattr(target, 'vision_radius', 4)
+            self.original_darkvision = getattr(target, 'darkvision_radius', 0)
+            target.vision_radius = 2
+            target.darkvision_radius = 0
             game_instance.message_log.add_message("Your vision becomes blurry and dark!", (255, 0, 0))
     
     def on_end(self, target, game_instance):
         if self.original_vision is not None:
-            target.radius = self.original_vision
+            target.vision_radius = self.original_vision
+        if self.original_darkvision is not None:
+            target.darkvision_radius = self.original_darkvision
         super().on_end(target, game_instance)
         game_instance.message_log.add_message("Your vision returns to normal.", (150, 150, 150))  

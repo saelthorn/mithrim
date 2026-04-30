@@ -152,6 +152,7 @@ class DungeonMerchant(NPC):
                 player.inventory.remove_item(item)
                 total_gold += item.price // 2
                 self.items_for_sale.append(item)
+            player.gold += total_gold
             return f"You sold {len(weapons)} weapon(s) for {total_gold} gold!"
         
         if item_name == "all armor":
@@ -163,6 +164,7 @@ class DungeonMerchant(NPC):
                 player.inventory.remove_item(item)
                 total_gold += item.price // 2
                 self.items_for_sale.append(item)
+            player.gold += total_gold
             return f"You sold {len(armor_items)} armor item(s) for {total_gold} gold!"
         
         # Handle single item selling

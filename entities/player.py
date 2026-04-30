@@ -84,6 +84,7 @@ class Player: # This is our base class for playable characters
         
 
         self.remaining_torchlight_duration = 0
+        self.vision_radius = 4
 
         # Recalculate max HP and AC based on base stats and equipped gear
         self.max_hp = 0 

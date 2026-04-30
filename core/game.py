@@ -148,7 +148,7 @@ class Game:
         # NEW: Start in character creation state
         self.game_state = GameState.CHARACTER_CREATION 
         self._previous_game_state = None
-        self.current_level = 1
+        self.current_level = 1  
         self.max_level_reached = 1
         self.player_has_acted = False
         self.message_log = MessageBox(
@@ -222,7 +222,7 @@ class Game:
         # NEW: Flag to track if game over message has been displayed
         self._game_over_displayed = False
 
-        self.death_screen_alpha = 0  # Alpha for "YOU DIED" text
+        self.death_screen_alpha = 0  # Alpha for game over title text
         self.death_screen_bg_alpha = 0  # Alpha for background overlay
         self.death_screen_subtext_alpha = 0  # Alpha for subtext
         self.death_screen_animation_phase = 0  # 0=text fade-in, 1=bg fade-in, 2=subtext fade-in, 3=done
@@ -231,6 +231,11 @@ class Game:
         self.fade_out_speed = 15 # NEW: Speed of the fade-out
         self.fade_in_alpha = 255
         self.fade_in_speed = 15
+
+        self.game_over_victory = False
+        self.game_over_title = "YOU DIED"
+        self.game_over_story_lines = []
+        self.game_over_subtext = "Press R to Restart or Q to Quit"
 
         self.ignore_next_input = False  # Flag to ignore input after restart
 
@@ -895,7 +900,7 @@ class Game:
 
 
     def update_fov(self):
-        base_radius = 4  # base vision radius
+        base_radius = getattr(self.player, 'vision_radius', 4)  # base vision radius
         torch_bonus = 0
         has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)    
         
@@ -918,7 +923,7 @@ class Game:
             self.player.y,
             radius=base_radius,
             light_source_type='player',
-            player_darkvision_radius=max(self.player.darkvision_radius, base_radius)
+            player_darkvision_radius=max(getattr(self.player, 'darkvision_radius', 0), base_radius)
         )
 
         # If torchlight active, compute extended FOV with 'torch' light source
@@ -2331,6 +2336,9 @@ class Game:
                 xp_gained = target.die(game_instance)
                 self.player.gain_xp(xp_gained, game_instance)  # Use 'self' (player) here
                 self.message_log.add_message(f"You gain {xp_gained} XP!", (100, 255, 100))  # Log the XP gained
+                if target.name == 'Arasta' and self.current_level == 20:
+                    self.handle_victory()
+                    return
                 if random.random() < 0.7:
                     self.add_ambient_combat_message()
             else:
@@ -2550,14 +2558,37 @@ class Game:
             chosen_death_message = random.choice(death_messages)
             self.message_log.add_message(chosen_death_message, (255, 0, 0))
             self._game_over_displayed = True
-            self.player.die()
+            self.game_over_victory = False
+            self.game_over_title = "YOU DIED"
+            self.game_over_story_lines = []
+            self.game_over_subtext = "Press R to Restart or Q to Quit"
+            if self.player:
+                self.player.die()
 
-            # Reset animation variables for death screen
-            self.death_screen_alpha = 0  # Alpha for "YOU DIED" text
-            self.death_screen_bg_alpha = 0  # Alpha for background overlay
-            self.death_screen_subtext_alpha = 0  # Alpha for subtext
-            self.death_screen_animation_phase = 0  # 0=text fade-in, 1=bg fade-in, 2=subtext fade-in, 3=done
+            self.death_screen_alpha = 0
+            self.death_screen_bg_alpha = 0
+            self.death_screen_subtext_alpha = 0
+            self.death_screen_animation_phase = 0
 
+        self.game_state = GameState.GAME_OVER
+
+    def handle_victory(self):
+        if not self._game_over_displayed:
+            self._game_over_displayed = True
+            self.game_over_victory = True
+            self.game_over_title = "VICTORY"
+            self.game_over_story_lines = [
+                "Arasta collapses beneath your final strike, her webs unraveling into the cold air.",
+                "You leave the dungeon as more than a desperate stranger — you leave as its breaker.",
+                "The tavern's dim warmth was once a shelter from debt and curse; now it becomes a place of legend.",
+                "Your name will be whispered by weary travelers as the one who toppled the spider queen."
+            ]
+            self.game_over_subtext = "Press R to Restart or Q to Quit"
+
+            self.death_screen_alpha = 0
+            self.death_screen_bg_alpha = 0
+            self.death_screen_subtext_alpha = 0
+            self.death_screen_animation_phase = 0
 
         self.game_state = GameState.GAME_OVER
 
@@ -2753,25 +2784,37 @@ class Game:
 
 
     def render_game_over_screen(self):
-        # Render background overlay with fade-in alpha AFTER "YOU DIED" text
+        # Render background overlay with fade-in alpha after the title text
         if self.death_screen_animation_phase >= 1:
             overlay_surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
             overlay_surface.fill((0, 0, 0, self.death_screen_bg_alpha))
             self.screen.blit(overlay_surface, (0, 0))
 
-        # Render "YOU DIED" text with fade-in alpha
+        # Render title text with fade-in alpha
         font = pygame.font.SysFont('consolas', 72, bold=True)
-        text_surface = font.render("YOU DIED", True, (255, 0, 0))
+        title_color = (0, 255, 0) if self.game_over_victory else (255, 0, 0)
+        text_surface = font.render(self.game_over_title, True, title_color)
         text_surface.set_alpha(self.death_screen_alpha)
-        text_rect = text_surface.get_rect(center=(self.screen.get_width() // 2, self.screen.get_height() // 2))
+        text_rect = text_surface.get_rect(center=(self.screen.get_width() // 2, self.screen.get_height() // 2 - 40))
         self.screen.blit(text_surface, text_rect)
+
+        # Render story lines for victory after background is visible
+        if self.death_screen_animation_phase >= 2 and self.game_over_victory:
+            font_small = pygame.font.SysFont('consolas', 24)
+            y_offset = text_rect.bottom + 20
+            for line in self.game_over_story_lines:
+                story_surface = font_small.render(line, True, (220, 220, 220))
+                story_surface.set_alpha(self.death_screen_subtext_alpha)
+                story_rect = story_surface.get_rect(center=(self.screen.get_width() // 2, y_offset))
+                self.screen.blit(story_surface, story_rect)
+                y_offset += story_surface.get_height() + 8
 
         # Render subtext with fade-in alpha after background is visible
         if self.death_screen_animation_phase >= 2:
             font_small = pygame.font.SysFont('consolas', 24)
-            subtext = font_small.render("Press R to Restart or Q to Quit", True, (255, 255, 255))
+            subtext = font_small.render(self.game_over_subtext, True, (255, 255, 255))
             subtext.set_alpha(self.death_screen_subtext_alpha)
-            subtext_rect = subtext.get_rect(center=(self.screen.get_width() // 2, self.screen.get_height() // 2 + 60))
+            subtext_rect = subtext.get_rect(center=(self.screen.get_width() // 2, self.screen.get_height() - 80))
             self.screen.blit(subtext, subtext_rect)
             
 
@@ -3752,7 +3795,8 @@ class Game:
             else:
                 controls_list.append("SPACE: Attack/Pickup")
             controls_list.extend([
-                "Arrow keys/hjkl: Move",
+                "Arrow keys/WSAD: Move",
+                "1-9: Use Abilities",
                 "I: Open Inventory",
                 "C: Open Character Sheet",
                 "> = Stairs down",
@@ -3763,6 +3807,7 @@ class Game:
                 "I: Close Inventory",
                 "C: Open Character Sheet",
                 "1-9/0: Select Item",
+                "Enter: Use/Equip Selected Item",
             ])
         elif self.game_state == GameState.INVENTORY_MENU:
             controls_list.extend([
