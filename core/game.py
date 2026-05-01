@@ -3821,6 +3821,11 @@ class Game:
                 "C: Close Character Menu",
                 "I: Open Inventory",
             ])
+        elif self.game_state == GameState.TRADE:
+            controls_list.extend([
+                "Type: 'sell <item name>' or 'buy <item name>'",
+                "Type: 'sell all weapons' or 'sell all armor'",
+            ])
         for control in controls_list:
             if current_y + font_small.get_linesize() < max_controls_y:
                 current_y = draw_wrapped_and_update_y(self.screen, font_small, control, (150, 150, 150), panel_offset_x, current_y)

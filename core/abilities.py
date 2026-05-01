@@ -7,7 +7,7 @@ from entities.monster import Monster, Mimic
 from entities.summons import MageHandEntity
 from entities.base_entity import NPC
 from core.floating_text import FloatingText
-from items.items import Potion, Food, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, torch, wood_plank # NEW: Import for potion drop
+from items.items import Potion, Food, OffHand, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, torch, wood_plank # NEW: Import for potion drop
 
 
 class Ability:
@@ -852,7 +852,7 @@ class MageHand(Ability):
 
         # Check if the target is an item (specifically a potion)
         item_at_target = game_instance.get_interactable_item_at(target_x, target_y)
-        if item_at_target and (isinstance(item_at_target, Potion) or isinstance(item_at_target, Food) or isinstance(item_at_target, Offhand)):
+        if item_at_target and (isinstance(item_at_target, Potion) or isinstance(item_at_target, Food) or isinstance(item_at_target, OffHand)):
             # Instead of using mage_hand_actor, add the potion directly to the user's inventory
             if item_at_target.on_pickup(user, game_instance):  # Use the actual user as the picker
                 game_instance.message_log.add_message(f"The Mage Hand picks up the {item_at_target.name}!", (0, 255, 0))

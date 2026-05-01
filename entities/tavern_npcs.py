@@ -97,7 +97,7 @@ class Merchant(NPC):
 
         # Allow player to buy or sell
         game.message_log.add_message("Type 'buy {item}' to buy and 'sell {item}' to sell.", (200, 200, 255))
-        game.message_log.add_message("Or use 'sell all weapons' or 'sell all armor' to bulk sell.", (200, 200, 255))
+        game.message_log.add_message("Or use 'buy all food', 'sell all weapons', or 'sell all armor'.", (200, 200, 255))
         game.message_log.add_message("Type your input:", (200, 200, 255))
         game.message_log.add_message(" ", (200, 200, 255))
 
@@ -109,6 +109,38 @@ class Merchant(NPC):
 
 
     def buy_item(self, player, item_name):
+        if item_name == "all food":
+            food_items = [item for item in self.items_for_sale if isinstance(item, Food)]
+            if not food_items:
+                return "No food items are available for sale."
+
+            purchased_items = []
+            total_cost = 0
+            for item in list(food_items):
+                if player.gold < item.price:
+                    continue
+
+                new_item = item.__class__(
+                    name=item.name,
+                    char=item.char,
+                    color=item.color,
+                    description=item.description,
+                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                )
+
+                if player.inventory.add_item(new_item):
+                    player.gold -= item.price
+                    total_cost += item.price
+                    purchased_items.append(item.name)
+                    self.items_for_sale.remove(item)
+                else:
+                    break
+
+            if not purchased_items:
+                return "You couldn't buy any food. Check your gold or inventory space."
+            item_list = ", ".join(purchased_items)
+            return f"You bought {len(purchased_items)} food items for {total_cost} gold: {item_list}."
+
         for item in self.items_for_sale:
             if item.name.lower() == item_name.lower():
                 if player.gold >= item.price:

@@ -37,7 +37,7 @@ def dig_tunnel_y(game_map, y1, y2, x):
     for y in range(min(y1, y2), max(y1, y2) + 1):
         game_map.tiles[y][x] = tile.floor
 
-def generate_dungeon(game_map, level_number, max_rooms=16, room_min_size=5, room_max_size=16):
+def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=5, room_max_size=12):
     rooms = []
     stairs_positions = {}
     
