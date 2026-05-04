@@ -14,7 +14,7 @@ class Altar:
         self.effect = None
         
         # Randomly determine if this altar gives a blessing or curse
-        self.is_blessing = random.random() < 0.7  # 70% chance for blessing
+        self.is_blessing = random.random() < 0.3  # 70% chance for blessing
         
         if self.is_blessing:
             blessing_type = random.choice(["strength", "agility"])

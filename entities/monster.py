@@ -234,6 +234,7 @@ class Monster:
             if self.can_move_to(next_x, next_y, game_map, game):
                 self.x = next_x
                 self.y = next_y
+                game.update_fov()  # Update FOV after movement to handle submerging
                 # game.message_log.add_message(f"The {self.name} moves to ({self.x}, {self.y}).", self.color)
                 return True
             else:
@@ -276,6 +277,7 @@ class Monster:
             # Check footprint clearance instead of just single tile
             if self.can_occupy_position(new_x, new_y, game_map, game.entities, exclusions=[self]):
                 self.x, self.y = new_x, new_y
+                game.update_fov()  # Update FOV after movement
                 return True  # Successfully fled one step
     
         return False  # Could not find a valid tile to flee to
@@ -910,6 +912,7 @@ class Monster:
                         if self.can_move_to(new_x, new_y, game_map, game):
                             self.x = new_x
                             self.y = new_y
+                            game.update_fov()  # Update FOV after movement
                         else:
                             game.message_log.add_message(f"The {self.name} is blocked and cannot reach {player.name}!", (100, 100, 100))
                     else:
@@ -942,6 +945,7 @@ class Monster:
                         if self.can_move_to(new_x, new_y, game_map, game):
                             self.x = new_x
                             self.y = new_y
+                            game.update_fov()  # Update FOV after movement
                         else:
                             game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
                     else:
@@ -973,6 +977,7 @@ class Monster:
                             if self.can_move_to(nx, ny, game_map, game):
                                 self.x = nx
                                 self.y = ny
+                                game.update_fov()  # Update FOV after movement
                                 moved = True
                                 break
 
@@ -1858,6 +1863,7 @@ class Wererat(Monster):
 class Wolf(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'WF', 'Wolf', (112, 128, 144))
+        self.can_swim = True
         self.hp = 11
         self.max_hp = 11
         self.attack_bonus = 2

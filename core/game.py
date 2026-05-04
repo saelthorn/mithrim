@@ -2942,61 +2942,56 @@ class Game:
                     if entity == self.player:
                         flip_x = not self.player.facing_right
     
-                    # --- Submersion Effect for Player (Visibility Tint Applied Directly to Sprite) ---
-                    if entity == self.player:
-                        player_tile = self.game_map.tiles[entity.y][entity.x]
-                        is_submerged = is_water_tile(player_tile)
-                        
+                    # Check for submersion (player or swimming monsters on water)
+                    entity_tile = self.game_map.tiles[entity.y][entity.x]
+                    is_submerged = (entity == self.player or (hasattr(entity, 'can_swim') and entity.can_swim)) and is_water_tile(entity_tile)
+    
+                    if is_submerged:
                         # Get the base sprite for the entity char
                         base_sprite = graphics.get_tile_surface(entity.char)
                         if base_sprite is None:
-                            print(f"ERROR: No sprite for player char '{entity.char}'")
+                            print(f"ERROR: No sprite for entity char '{entity.char}'")
                             continue  # Skip rendering this frame
                         
                         base_sprite = base_sprite.convert_alpha()
                         
-                        # Apply flip if needed
+                        # Apply flip if needed (only for player)
                         sprite_surface = base_sprite.copy()
                         if flip_x:
                             sprite_surface = pygame.transform.flip(sprite_surface, True, False)
                         
-                        # KEPT: Apply visibility tint directly to the sprite (no entity.color multiplication)
-                        # REMOVED: final_color multiplication with entity.color - use tint as-is on raw sprite
+                        # Apply visibility tint directly to the sprite
                         if entity_color_tint:
                             tinted_sprite = sprite_surface.copy()
                             tinted_sprite.fill(entity_color_tint, special_flags=pygame.BLEND_RGBA_MULT)
                             sprite_surface = tinted_sprite
     
-                        if is_submerged:
-                            # Create top-half clip rect (source rect for blit)
-                            half_height = config.TILE_SIZE // 2
-                            clip_rect = pygame.Rect(0, 0, config.TILE_SIZE, half_height)
-                            
-                            # Blit only the top half of the tinted sprite
-                            self.internal_surface.blit(sprite_surface, (draw_x, draw_y), clip_rect)
-                            
-                            # Optional: Add ripple sprite in bottom half (visibility tint applied if needed)
-                            ripple_sprite = graphics.get_tile_surface('~')  # Use '~' sprite for ripple
-                            if ripple_sprite:
-                                ripple_sprite = ripple_sprite.convert_alpha()
-                                ripple_sprite = pygame.transform.scale(ripple_sprite, (config.TILE_SIZE, half_height))
-                                # Apply visibility tint to ripple (direct, no entity.color)
-                                if entity_color_tint:
-                                    ripple_tinted = ripple_sprite.copy()
-                                    ripple_tinted.fill(entity_color_tint, special_flags=pygame.BLEND_RGBA_MULT)
-                                    ripple_sprite = ripple_tinted
-                                self.internal_surface.blit(ripple_sprite, (draw_x, draw_y + half_height))
-                        else:
-                            # Normal full rendering (tinted sprite)
-                            self.internal_surface.blit(sprite_surface, (draw_x, draw_y))
+                        # Create top-half clip rect (source rect for blit)
+                        half_height = config.TILE_SIZE // 2
+                        clip_rect = pygame.Rect(0, 0, config.TILE_SIZE, half_height)
+                        
+                        # Blit only the top half of the tinted sprite
+                        self.internal_surface.blit(sprite_surface, (draw_x, draw_y), clip_rect)
+                        
+                        # Add ripple sprite in bottom half
+                        ripple_sprite = graphics.get_tile_surface('~')  # Use '~' sprite for ripple
+                        if ripple_sprite:
+                            ripple_sprite = ripple_sprite.convert_alpha()
+                            ripple_sprite = pygame.transform.scale(ripple_sprite, (config.TILE_SIZE, half_height))
+                            # Apply visibility tint to ripple
+                            if entity_color_tint:
+                                ripple_tinted = ripple_sprite.copy()
+                                ripple_tinted.fill(entity_color_tint, special_flags=pygame.BLEND_RGBA_MULT)
+                                ripple_sprite = ripple_tinted
+                            self.internal_surface.blit(ripple_sprite, (draw_x, draw_y + half_height))
                     else:
-                        # Non-player entities: Use draw_tile with visibility tint directly (no entity.color overlay)
+                        # Normal rendering for non-submerged entities
                         graphics.draw_tile(
                             self.internal_surface,
                             draw_x,
                             draw_y,
                             entity.char,
-                            color_tint=entity_color_tint,  # KEPT: Direct visibility tint on sprite
+                            color_tint=entity_color_tint,
                             tile_size=tile_size_override,
                             flip_x=flip_x
                         )

@@ -33,7 +33,7 @@ class Player: # This is our base class for playable characters
         self.gold = 50
 
         # Player-specific attributes
-        self.level = 1
+        self.level = 99
         self.current_xp = 0
         self.xp_to_next_level = 300 # Base XP to level up
 
@@ -91,8 +91,8 @@ class Player: # This is our base class for playable characters
         self.hp = 0     
 
         self.hunger = 100  # Max hunger value
-        self.hunger_decrease_rate = 1  # Hunger decreases by 1 per turn
-        self.hunger_threshold = 20  # Threshold for negative effects
+        self.hunger_decrease_rate = 0.5  # Hunger decreases by 1 per turn
+        self.hunger_threshold = 25  # Increase threshold for hunger warnings
         self.turns_since_last_hunger_decrease = 0 
 
         self.attack_power = 0  # Base attack power
@@ -523,7 +523,9 @@ class Player: # This is our base class for playable characters
         if campfire_kit and self.is_adjacent_to(campfire_kit):
             # Fully recover HP and remove status effects
             self.hp = self.max_hp
-            self.active_status_effects.clear()  # Remove all status effects
+            for effect in list(self.active_status_effects):
+                effect.on_end(self, game_instance)
+            self.active_status_effects.clear()  # Remove all status effects after processing on_end
             campfire_msgs = [
                 f"{self.name} rests by the campfire, the flames chasing away the dungeon's chill...",
                 f"The warmth of the campfire eases {self.name}'s wounds and weary spirit...",
