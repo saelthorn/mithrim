@@ -132,6 +132,20 @@ class EvasionBuff(StatusEffect):
         game_instance.message_log.add_message(f"{target.name}'s Evasion fades.", (150, 150, 150))
 
 
+class GuardBuff(StatusEffect):
+    def __init__(self, duration=3, ac_bonus=5, source=None):
+        super().__init__("Guard", duration, source)
+        self.ac_bonus = ac_bonus
+
+    def apply_effect(self, target, game_instance):
+        if self.turns_left == self.duration:
+            game_instance.message_log.add_message(f"{target.name} holds the shield steady, increasing AC by {self.ac_bonus}.", (100, 255, 100))
+
+    def on_end(self, target, game_instance):
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message(f"{target.name}'s guard falters.", (150, 150, 150))
+
+
 class Torchlight(StatusEffect):
     def __init__(self, duration=250):
         super().__init__("Torchlight", duration)

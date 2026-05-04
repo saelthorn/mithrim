@@ -204,6 +204,32 @@ class PowerAttack(Ability):
         print(f"[DEBUG] {self.name} scaled: damage_bonus = {PowerAttackBuff.damage_bonus} at player level {player_level}")
 
 
+class Guard(Ability):
+    def __init__(self):
+        super().__init__("Guard", "Brace behind your shield, increasing your armor class for a short time.", cost=0, cooldown=10)
+        self.base_ac_bonus = 5
+        self.ac_bonus = self.base_ac_bonus
+        self.duration = 4
+
+    def use(self, user, game_instance):
+        if not user.equipped_off_hand or getattr(user.equipped_off_hand, 'category', '').lower() != 'shield':
+            game_instance.message_log.add_message("You must have a shield equipped to Guard!", (255, 100, 100))
+            return False
+
+        if not super().use(user, game_instance):
+            return False
+
+        # Apply the Guard status effect with the current AC bonus.
+        user.add_status_effect("Guard", self.duration, game_instance, source=self)
+        game_instance.message_log.add_message(f"{user.name} braces behind the shield, gaining +{self.ac_bonus} AC!", (100, 255, 100))
+        return True
+
+    def scale_with_level(self, player_level):
+        additional_ac = (player_level - 1) // 4  # +1 AC every 4 levels
+        self.ac_bonus = self.base_ac_bonus + additional_ac
+        print(f"[DEBUG] {self.name} scaled: ac_bonus = {self.ac_bonus} at player level {player_level}")
+
+
 class CunningActionDash(Ability):
     def __init__(self):
         super().__init__("Cunning Action", "Use a bonus action to Dash.", cooldown=5)
@@ -233,7 +259,7 @@ class Evasion(Ability):
 
 class ThrowKnife(Ability):
     def __init__(self):
-        super().__init__("Throw Knife", "Hurl a throwing knife at a foe.", cost=0, cooldown=2)
+        super().__init__("Throw Knife", "Hurl a throwing knife at a foe.", cost=0, cooldown=3)
         self.range = 6  # Range in tiles
         self.damage_dice = 1  # 1d4
 

@@ -1,6 +1,6 @@
 import random
 from core.pathfinding import astar
-from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff, BlessingOfAgility
+from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff, BlessingOfAgility, GuardBuff
 
 from items.items import (
     Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
@@ -358,6 +358,9 @@ class Monster:
                 if isinstance(effect, BlessingOfAgility):
                     target_ac += effect.ac_bonus
                     game.message_log.add_message(f"The {target.name} is agile! Target AC: {target_ac}", (100, 255, 255))
+                if isinstance(effect, GuardBuff):
+                    target_ac += effect.ac_bonus
+                    game.message_log.add_message(f"The {target.name} is guarded! Target AC: {target_ac}", (100, 255, 255))
         game.message_log.add_message(
             f"The {self.name} rolls {roll_message_part} + {attack_bonus} (Attack Bonus) = {attack_roll_total} vs AC {target_ac}",
             (255, 150, 150)

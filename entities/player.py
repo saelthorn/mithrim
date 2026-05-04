@@ -1,8 +1,8 @@
 import random
 from core. game import GameState
 from core.inventory import Inventory
-from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide, ThrowKnife
-from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength
+from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide, ThrowKnife, Guard
+from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff
 from items.items import torch, Food, Potion, throwing_knife, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
@@ -874,6 +874,10 @@ class Player: # This is our base class for playable characters
         
         elif effect_name == "EvasionBuff":
             new_effect = EvasionBuff(duration)          
+
+        elif effect_name == "Guard":
+            guard_bonus = getattr(source, 'ac_bonus', 5)
+            new_effect = GuardBuff(duration, ac_bonus=guard_bonus, source=source)
         
         elif effect_name == "Torchlight":
             new_effect = Torchlight(duration)
@@ -981,10 +985,10 @@ class Fighter(Player):
         self.primary_stat = 'strength'  # Set primary stat for Fighter        
         
         # Set starting equipment
-        self.inventory.add_item(iron_dagger)
+        self.inventory.add_item(CampfireKit())  
+        self.inventory.add_item(throwing_knife)
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
-        self.inventory.add_item(CampfireKit())  
 
         self.equipped_weapon = iron_short_sword
         self.equipped_off_hand = round_shield
@@ -1011,6 +1015,7 @@ class Fighter(Player):
         self.abilities["second_wind"] = SecondWind()
         self.abilities["action_surge"] = ActionSurge()
         self.abilities["throw_knife"] = ThrowKnife()
+        self.abilities["guard"] = Guard()
 
 
 class Rogue(Player):
