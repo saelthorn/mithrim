@@ -33,7 +33,7 @@ class Player: # This is our base class for playable characters
         self.gold = 50
 
         # Player-specific attributes
-        self.level = 99
+        self.level = 1
         self.current_xp = 0
         self.xp_to_next_level = 300 # Base XP to level up
 
@@ -134,6 +134,15 @@ class Player: # This is our base class for playable characters
             if self.hunger > 0:
                 self.hunger -= self.hunger_decrease_rate
             self.turns_since_last_hunger_decrease = 0  # Reset the counter
+
+            # Auto-consume one food item when hunger drops to or below the threshold.
+            if self.hunger <= self.hunger_threshold:
+                food_item = next((item for item in self.inventory.items if isinstance(item, Food)), None)
+                if food_item:
+                    game_instance.message_log.add_message(f"{self.name} is hungry and eats {food_item.name}.", (200, 200, 100))
+                    self.eat_food(food_item, game_instance)
+                    return
+
             # Check if hunger has reached 0
             if self.hunger <= 0:
                 self.hunger = 0

@@ -1,7 +1,7 @@
 import random
 
 from core.game import GameState
-from items.items import torch, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, full_plate_armor, robes_of_protection, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, CampfireKit, Food, Weapon, Armor, OffHand
+from items.items import torch, throwing_knife, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, full_plate_armor, robes_of_protection, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, CampfireKit, Food, Weapon, Armor, OffHand
 from entities.base_entity import NPC
 
 class DungeonHealer(NPC):
@@ -54,6 +54,7 @@ class DungeonMerchant(NPC):
             bread,
             fromage,
             torch,
+            throwing_knife,
         ]
         # Chance-based items with their spawn probabilities (fewer and simpler than dungeon merchant)
         chance_items_with_chance = [
