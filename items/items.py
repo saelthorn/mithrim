@@ -294,6 +294,17 @@ torch = OffHand(
     remaining_duration=250
 )
 
+throwing_knife = OffHand(
+    name="Throwing Knife",
+    char="dgr", # Using same char as other weapons for now
+    color=(180, 180, 180),
+    description="A small knife designed for throwing.",
+    damage_dice="1d4",
+    damage_modifier=1,
+    attack_bonus=2,
+    price = 10,
+    category="dagger"
+)
 
 iron_dagger = OffHand(
     name="Iron Dagger",

@@ -7,7 +7,7 @@ from entities.monster import Monster, Mimic
 from entities.summons import MageHandEntity
 from entities.base_entity import NPC
 from core.floating_text import FloatingText
-from items.items import Potion, Food, OffHand, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, torch, wood_plank # NEW: Import for potion drop
+from items.items import Potion, Food, OffHand, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, torch, wood_plank, throwing_knife # NEW: Import for potion drop
 
 
 class Ability:
@@ -229,6 +229,187 @@ class Evasion(Ability):
         user.add_status_effect("EvasionBuff", duration=10, game_instance=game_instance)
         game_instance.message_log.add_message(f"{user.name} activates Evasion!", (100, 255, 255))
         return True
+
+
+class ThrowKnife(Ability):
+    def __init__(self):
+        super().__init__("Throw Knife", "Hurl a throwing knife at a foe.", cost=0, cooldown=2)
+        self.range = 6  # Range in tiles
+        self.damage_dice = 1  # 1d4
+
+    def use(self, user, game_instance):
+        # Check if user has a throwing knife in inventory or equipped
+        has_throwing_knife = False
+        
+        # Check if equipped as off-hand
+        if user.equipped_off_hand and user.equipped_off_hand.name.lower() == "throwing knife":
+            has_throwing_knife = True
+        
+        # Check if in inventory
+        if not has_throwing_knife:
+            for item in user.inventory.items:
+                if item.name.lower() == "throwing knife":
+                    has_throwing_knife = True
+                    break
+        
+        if not has_throwing_knife:
+            game_instance.message_log.add_message(f"You don't have a throwing knife!", (255, 100, 100))
+            return False
+
+        if not super().use(user, game_instance):
+            return False
+
+        # Helper: footprint-aware visibility
+        def is_entity_visible(ent):
+            allowed = ['player', 'torch', 'darkvision']
+            size = getattr(ent, 'footprint_size', 1)
+            if size > 1:
+                for oy in range(size):
+                    for ox in range(size):
+                        if game_instance.fov.get_visibility_type(ent.x + ox, ent.y + oy) in allowed:
+                            return True
+                return False
+            return game_instance.fov.get_visibility_type(ent.x, ent.y) in allowed
+
+        # Helper: footprint-aware distance (min distance to any occupied tile)
+        def distance_to_entity(ent):
+            size = getattr(ent, 'footprint_size', 1)
+            if size > 1:
+                best = None
+                for oy in range(size):
+                    for ox in range(size):
+                        d = user.distance_to(ent.x + ox, ent.y + oy)
+                        if best is None or d < best:
+                            best = d
+                return best if best is not None else 9999
+            return user.distance_to(ent.x, ent.y)
+
+        # Find only monster targets within range (footprint-aware)
+        monster_targets = []
+        for entity in game_instance.entities:
+            if isinstance(entity, Monster) and entity.alive:
+                distance = distance_to_entity(entity)
+                if distance <= self.range:  # Check against ability range
+                    if is_entity_visible(entity):  # Footprint-aware FOV
+                        monster_targets.append(entity)
+        
+        # If there are monster targets, auto-target the closest one
+        if monster_targets:
+            target = min(monster_targets, key=lambda m: user.distance_to(m.x, m.y))
+            
+            # Set the game state to targeting mode
+            game_instance.game_state = GameState.TARGETING
+            game_instance.ability_in_use = self  # Store which ability is being used
+            game_instance.targeting_ability_range = self.range
+            
+            # Initialize targeting cursor at the auto-selected monster's position
+            game_instance.targeting_cursor_x = target.x
+            game_instance.targeting_cursor_y = target.y
+            
+            game_instance.message_log.add_message(f"{user.name} prepares to throw a knife! Auto-targeting {target.name}.", (100, 255, 100))
+            game_instance.message_log.add_message("Use Arrow Keys to change target, Enter to confirm, Esc to cancel.", (100, 255, 100))
+            return True  # Indicate successful initiation of targeting
+        else:
+            game_instance.message_log.add_message(f"{user.name} prepares to throw a knife! No enemies in range. Select a target (Arrow Keys, Enter to confirm, Esc to cancel).", (100, 255, 100))
+            game_instance.game_state = GameState.TARGETING
+            game_instance.ability_in_use = self  # Store which ability is being used
+            game_instance.targeting_ability_range = self.range
+            
+            # Initialize targeting cursor at player's position
+            game_instance.targeting_cursor_x = user.x
+            game_instance.targeting_cursor_y = user.y
+            
+            return True  # Indicate successful initiation of targeting
+
+    def execute_on_target(self, user, game_instance, target_x, target_y):
+        """
+        Performs the Throw Knife effect on the selected target.
+        """
+        target_monster = game_instance.get_target_at(target_x, target_y)
+
+        # Check if the target is within the player's FOV
+        if not game_instance.fov.get_visibility_type(target_x, target_y) in ['player', 'torch', 'darkvision']:
+            game_instance.message_log.add_message(f"You cannot throw at {target_x}, {target_y} because it is out of sight!", (255, 0, 0))
+            return False  # Do not consume a turn
+
+        if not game_instance.check_line_of_sight(user.x, user.y, target_x, target_y):
+            game_instance.message_log.add_message(f"A wall blocks your throw to {target_x}, {target_y}!", (255, 0, 0))
+            return False  # Do not consume a turn
+
+        # Check if the target is a valid monster
+        if not target_monster or not isinstance(target_monster, Monster):
+            game_instance.message_log.add_message("Throw Knife requires a monster target.", (255, 150, 0))
+            return False  # Invalid target, do not consume a turn
+
+        # Remove throwing knife from inventory or unequip it
+        knife_to_throw = None
+        
+        # Check if equipped as off-hand
+        if user.equipped_off_hand and user.equipped_off_hand.name.lower() == "throwing knife":
+            knife_to_throw = user.equipped_off_hand
+            user.equipped_off_hand = None
+            game_instance.message_log.add_message(f"You throw your equipped {knife_to_throw.name}!", (100, 255, 100))
+        else:
+            # Search inventory for throwing knife
+            for item in user.inventory.items:
+                if item.name.lower() == "throwing knife":
+                    knife_to_throw = item
+                    user.inventory.remove_item(item)
+                    game_instance.message_log.add_message(f"You throw a {knife_to_throw.name} from your inventory!", (100, 255, 100))
+                    break
+        
+        if not knife_to_throw:
+            game_instance.message_log.add_message(f"No throwing knife found!", (255, 0, 0))
+            return False
+
+        # Calculate damage: 1d4 + damage modifier from throwing knife
+        damage_modifier = user.get_ability_modifier(user.dexterity)
+        damage_rolls = [random.randint(1, 4) for _ in range(self.damage_dice)]
+        total_damage = sum(damage_rolls) + damage_modifier
+
+        # Apply damage to the target
+        hit_messages = [
+            f"A throwing knife streaks towards the {target_monster.name}!",
+            f"Your knife spins through the air and strikes the {target_monster.name}!",
+            f"The {target_monster.name} is hit by your throwing knife!",
+        ]
+        game_instance.message_log.add_message(random.choice(hit_messages), (255, 100, 100))
+
+        if isinstance(target_monster, Mimic):
+            damage_dealt = target_monster.take_damage(total_damage, game_instance)
+        else:
+            damage_dealt = target_monster.take_damage(total_damage, game_instance)
+
+        game_instance.message_log.add_message(f"A knife strikes {target_monster.name} for {damage_dealt} damage!", (255, 100, 100))
+        game_instance.message_log.add_message(f"{target_monster.name} has {target_monster.hp}/{target_monster.max_hp} HP", (100, 255, 100))
+
+        # Add FloatingText for damage
+        hit_text = FloatingText(target_monster.x, target_monster.y, "HIT!", (255, 255, 0))
+        game_instance.floating_texts.append(hit_text)
+
+        damage_text = FloatingText(target_monster.x, target_monster.y - 0.5, str(damage_dealt), (255, 0, 0))
+        game_instance.floating_texts.append(damage_text)
+
+        if not target_monster.alive:
+            xp_gained = target_monster.die(game_instance)
+            user.gain_xp(xp_gained, game_instance)
+        
+        # Place the thrown knife at the target location
+        knife_to_throw.x = target_x
+        knife_to_throw.y = target_y
+        game_instance.game_map.items_on_ground.append(knife_to_throw)
+        game_instance.message_log.add_message(f"The {knife_to_throw.name} lands at ({target_x}, {target_y}).", (150, 150, 150))
+        
+        return True  # Successfully used ability
+
+    def scale_with_level(self, player_level):
+        """
+        Scales the Throw Knife ability with player level.
+        Increases damage dice by 1 for every 4 levels.
+        """
+        additional_dice = (player_level - 1) // 5  # One extra die every 4 levels
+        self.damage_dice = 1 + additional_dice
+        print(f"[DEBUG] {self.name} scaled: damage_dice = {self.damage_dice} at player level {player_level}")
 
 
 class FireBolt(Ability):
