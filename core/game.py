@@ -2455,7 +2455,7 @@ class Game:
                     self.message_log.add_message("Welcome, new adventurer!", (0, 255, 0))                    
             return
 
-        # --- NEW: Only process turns for active monsters ---
+        # --- NEW: Only process turns for active entities ---
         current = self.get_current_entity()
         if current and current != self.player and current.alive:
             if isinstance(current, Monster) and not current.is_active:
@@ -2490,11 +2490,16 @@ class Game:
                         # After next_turn, it might be a monster's turn or player's again.
                         # Continue the while loop to process the next entity.
                         continue # Go back to the start of the while loop
-                elif isinstance(current_entity, Monster) and current_entity.alive:
-                    # Process monster's turn
-                    if current_entity.is_active: # Only process if monster is active
-                        current_entity.take_turn(self.player, self.game_map, self)
-                    # Monster has acted (or skipped if inactive), advance turn.
+                elif current_entity.alive and hasattr(current_entity, 'take_turn'):
+                    # Process entity's turn (Monster, SummonedEntity, NPC, etc.)
+                    if isinstance(current_entity, Monster) and hasattr(current_entity, 'is_active'):
+                        if not current_entity.is_active:
+                            # Skip inactive monsters
+                            self.next_turn()
+                            continue
+                    # Call take_turn for any entity that has it
+                    current_entity.take_turn(self.player, self.game_map, self)
+                    # Entity has acted, advance turn.
                     self.next_turn() # This will call cleanup_entities again and advance index
                     # Continue the while loop to process the next entity.
                     continue # Go back to the start of the while loop

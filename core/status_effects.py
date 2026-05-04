@@ -195,7 +195,15 @@ class Hidden(StatusEffect):
     def on_end(self, target, game_instance):
         game_instance.message_log.add_message(f"{target.name} steps out of the shadow.", (150, 150, 150))        
 
-
+class SummonedImpEffect(StatusEffect):
+    def __init__(self, duration=60): # Lasts for 60 turns (1 hour)
+        super().__init__("Summoned Imp", duration)
+    
+    def apply_effect(self, target, game_instance):
+        pass
+    
+    def on_end(self, target, game_instance):
+        game_instance.message_log.add_message(f"The summoned imp vanishes back to its plane.", (150, 150, 150))
 
 class BlessingOfStrength(StatusEffect):
     def __init__(self, duration=50):

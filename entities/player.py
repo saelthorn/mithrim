@@ -1,7 +1,7 @@
 import random
 from core. game import GameState
 from core.inventory import Inventory
-from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide, ThrowKnife, Guard
+from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp
 from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff
 from items.items import torch, Food, Potion, throwing_knife, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
@@ -33,9 +33,9 @@ class Player: # This is our base class for playable characters
         self.gold = 50
 
         # Player-specific attributes
-        self.level = 1
+        self.level = 3
         self.current_xp = 0
-        self.xp_to_next_level = 300 # Base XP to level up
+        self.xp_to_next_level = 2700 # Base XP to level up
 
         # --- D&D 5e Ability Scores (Base values, will be overridden by subclasses) ---
         self.strength = 10
@@ -91,7 +91,7 @@ class Player: # This is our base class for playable characters
         self.hp = 0     
 
         self.hunger = 100  # Max hunger value
-        self.hunger_decrease_rate = 0.5  # Hunger decreases by 1 per turn
+        self.hunger_decrease_rate = 1  # Hunger decreases by 1 per turn
         self.hunger_threshold = 25  # Increase threshold for hunger warnings
         self.turns_since_last_hunger_decrease = 0 
 
@@ -896,7 +896,7 @@ class Player: # This is our base class for playable characters
         
         elif effect_name == "Hidden":
             new_effect = Hidden(duration)
-        
+
         if new_effect:
             for existing_effect in self.active_status_effects:
                 if type(existing_effect) is type(new_effect):
@@ -1143,3 +1143,4 @@ class Wizard(Player):
         self.abilities["mage_hand"] = MageHand()
         self.abilities["fireball"] = Fireball()
         self.abilities["detect_magic"] = DetectMagic()
+        self.abilities["summon_imp"] = SummonImp()

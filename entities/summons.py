@@ -116,3 +116,107 @@ class MageHandEntity(SummonedEntity):
             game_instance.turn_order.remove(self)
         # No FOV update needed as it's not a light source and doesn't block sight.
 
+
+class Imp(SummonedEntity):
+    """
+    A small devil imp summoned by the Wizard's Summon Imp ability.
+    It can attack enemies and defend its summoner.
+    """
+    def __init__(self, x, y, owner):
+        super().__init__(x, y, 'GU', 'Imp', (180, 50, 50), owner, duration=60)  # Lasts 60 turns (1 hour)
+        self.hp = 10
+        self.max_hp = 10
+        self.armor_class = 12
+        self.blocks_movement = True
+        self.attack_power = 2  # +2 modifier for d4 sting attack
+        self.initiative = 0
+        self.active_status_effects = []
+
+    def take_turn(self, player, game_map, game_instance):
+        """
+        Imp takes its turn. It follows the player and attacks enemies in melee range.
+        """
+        self.tick_duration(game_instance)
+        if not self.alive:
+            return
+
+        # Find all adjacent enemies (melee range - distance of 1)
+        adjacent_enemies = []
+        for entity in game_instance.entities:
+            if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive:
+                continue
+            if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
+                distance = abs(self.x - entity.x) + abs(self.y - entity.y)
+                if distance == 1:  # Adjacent (melee range)
+                    adjacent_enemies.append(entity)
+                    print(f"[DEBUG] Found adjacent enemy: {entity.name} at distance {distance}")
+
+        # Priority 1: Attack adjacent enemies
+        if adjacent_enemies:
+            # Attack the closest adjacent enemy
+            target = min(adjacent_enemies, key=lambda e: abs(self.x - e.x) + abs(self.y - e.y))
+            print(f"[DEBUG] Imp attacking {target.name}")
+            self.attack_enemy(target, game_instance)
+            return
+
+        # Priority 2: If not adjacent to player, move towards the player
+        distance_to_player = abs(self.x - self.owner.x) + abs(self.y - self.owner.y)
+        print(f"[DEBUG] Distance to player: {distance_to_player}")
+        
+        if distance_to_player > 1:
+            dx = 0
+            dy = 0
+            if self.owner.x < self.x:
+                dx = -1
+            elif self.owner.x > self.x:
+                dx = 1
+            if self.owner.y < self.y:
+                dy = -1
+            elif self.owner.y > self.y:
+                dy = 1
+            
+            new_x = self.x + dx
+            new_y = self.y + dy
+            
+            print(f"[DEBUG] Imp moving from ({self.x}, {self.y}) to ({new_x}, {new_y})")
+            
+            if game_map.is_walkable(new_x, new_y):
+                # Check if blocked by another entity
+                blocked = False
+                for entity in game_instance.entities:
+                    if entity.x == new_x and entity.y == new_y and entity.blocks_movement:
+                        blocked = True
+                        print(f"[DEBUG] Move blocked by {entity.name}")
+                        break
+                if not blocked:
+                    self.x = new_x
+                    self.y = new_y
+                    print(f"[DEBUG] Imp moved to ({self.x}, {self.y})")
+            else:
+                print(f"[DEBUG] Target tile ({new_x}, {new_y}) not walkable")
+
+    def attack_enemy(self, target, game_instance):
+        """Imp attacks an adjacent enemy."""
+        import random
+        d20_roll = random.randint(1, 20)
+        attack_bonus = self.attack_power + 2  # +2 proficiency bonus
+        attack_total = d20_roll + attack_bonus
+        target_ac = getattr(target, 'armor_class', 10)
+
+        if attack_total >= target_ac:
+            damage_roll = random.randint(1, 4) + self.attack_power
+            damage_dealt = target.take_damage(damage_roll, game_instance, damage_type="piercing")
+            game_instance.message_log.add_message(f"The imp stings {target.name} for {damage_dealt} damage!", (255, 100, 100))
+        else:
+            game_instance.message_log.add_message(f"The imp's sting misses {target.name}!", (150, 150, 150))
+
+    def die(self, game_instance):
+        """Handles the Imp vanishing."""
+        self.alive = False
+        game_instance.message_log.add_message(f"The {self.name} shrieks and dissipates in a puff of sulfurous smoke!", self.color)
+        if self in game_instance.entities:
+            game_instance.entities.remove(self)
+        if self in game_instance.turn_order:
+            game_instance.turn_order.remove(self)
+        game_instance.update_fov()
+

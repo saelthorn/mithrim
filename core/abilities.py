@@ -4,7 +4,7 @@ from world.tile import floor, MimicTile, TrapTile
 from core.status_effects import PowerAttackBuff, EvasionBuff
 from core.game import GameState
 from entities.monster import Monster, Mimic
-from entities.summons import MageHandEntity
+from entities.summons import MageHandEntity, Imp
 from entities.base_entity import NPC
 from core.floating_text import FloatingText
 from items.items import Potion, Food, OffHand, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, torch, wood_plank, throwing_knife # NEW: Import for potion drop
@@ -1396,4 +1396,57 @@ class CunningActionHide(Ability):
         self.cooldown = max(15, 50 - cooldown_reduction) # Minimum cooldown of 15 turns
 
         print(f"[DEBUG] {self.name} scaled: cooldown = {self.cooldown} at player level {player_level}")
+
+
+class SummonImp(Ability):
+    def __init__(self):
+        super().__init__("Summon Imp", "Conjure a small imp to fight alongside you for 1 minute.", cooldown=120)
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+
+        # Check if player already has an imp summoned
+        for entity in game_instance.entities:
+            if isinstance(entity, Imp) and entity.owner == user:
+                game_instance.message_log.add_message(f"You already have an imp summoned!", (255, 150, 0))
+                return False
+
+        # Systematically check all 8 adjacent tiles
+        adjacent_offsets = [(0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1)]
+        
+        for dx, dy in adjacent_offsets:
+            new_x = user.x + dx
+            new_y = user.y + dy
+            
+            # Check if the spot is walkable
+            if game_instance.game_map.is_walkable(new_x, new_y):
+                # Check if blocked by another entity
+                blocked = False
+                for entity in game_instance.entities:
+                    if entity.x == new_x and entity.y == new_y and entity.blocks_movement:
+                        blocked = True
+                        break
+                
+                if not blocked:
+                    # Summon the imp
+                    imp = Imp(new_x, new_y, user)
+                    game_instance.entities.append(imp)
+                    game_instance.turn_order.append(imp)
+                    game_instance.message_log.add_message(f"A small imp materializes with a cackling laugh!", (180, 50, 50))
+                    print(f"[DEBUG] Imp summoned at ({new_x}, {new_y}) for player at ({user.x}, {user.y})")
+                    game_instance.update_fov()
+                    return True
+
+        game_instance.message_log.add_message(f"There's no room to summon an imp nearby!", (255, 150, 0))
+        return False
+
+    def scale_with_level(self, player_level):
+        """
+        Scales the Summon Imp ability with player level.
+        Increases imp's HP by 1 for every 3 levels.
+        """
+        # This scaling is applied when the imp is created, not to the ability itself
+        print(f"[DEBUG] {self.name} scaled at player level {player_level}")
+
 
