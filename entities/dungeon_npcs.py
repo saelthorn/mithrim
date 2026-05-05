@@ -152,6 +152,9 @@ class DungeonMerchant(NPC):
             if not purchased_items:
                 return "You couldn't buy any food. Check your gold or inventory space."
             item_list = ", ".join(purchased_items)
+            player.update_throw_knife_ability()
+            player.update_spellbook_abilities()
+            player.update_guard_ability()
             return f"You bought {len(purchased_items)} food items for {total_cost} gold: {item_list}."
 
         for item in self.items_for_sale:
@@ -162,6 +165,9 @@ class DungeonMerchant(NPC):
                     # Give the actual item instance to the player
                     if player.inventory.add_item(item):
                         self.items_for_sale.remove(item)  # Remove the item from merchant
+                        player.update_throw_knife_ability()
+                        player.update_spellbook_abilities()
+                        player.update_guard_ability()
                         return f"You bought {item.name}!"
                     else:
                         # If adding failed, refund the player
@@ -186,6 +192,9 @@ class DungeonMerchant(NPC):
                 total_gold += item.price // 2
                 self.items_for_sale.append(item)
             player.gold += total_gold
+            player.update_throw_knife_ability()
+            player.update_spellbook_abilities()
+            player.update_guard_ability()
             return f"You sold {len(weapons)} weapon(s) for {total_gold} gold!"
         
         if item_name == "all armor":
@@ -198,6 +207,9 @@ class DungeonMerchant(NPC):
                 total_gold += item.price // 2
                 self.items_for_sale.append(item)
             player.gold += total_gold
+            player.update_throw_knife_ability()
+            player.update_spellbook_abilities()
+            player.update_guard_ability()
             return f"You sold {len(armor_items)} armor item(s) for {total_gold} gold!"
         
         # Handle single item selling
@@ -206,6 +218,9 @@ class DungeonMerchant(NPC):
                 player.inventory.remove_item(item)  # Remove the item from the player's inventory
                 player.gold += item.price // 2  # Assuming the merchant pays half the price
                 self.items_for_sale.append(item)  # Add the item back to the merchant's inventory
+                player.update_throw_knife_ability()
+                player.update_spellbook_abilities()
+                player.update_guard_ability()
                 return f"You sold {item.name}!"
         return "Item not found in your inventory."
 
