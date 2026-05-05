@@ -5,11 +5,11 @@ BASE_SCREEN_HEIGHT = 700
 
 
 # UI panel width as a ratio of the total screen width
-UI_PANEL_WIDTH_RATIO = 0.19 # UI panel takes 16% of screen width
+UI_PANEL_WIDTH_RATIO = 0.19 # UI panel takes 19% of screen width
 
 
 # Message log height as a ratio of the total screen height
-MESSAGE_LOG_HEIGHT_RATIO = 0.25 # Increased to 30% for a taller box
+MESSAGE_LOG_HEIGHT_RATIO = 0.25 # Increased to 25% for a taller box
 
 
 # Set TILE_SIZE to match your tileset's individual tile size (e.g., 12x12)
@@ -22,10 +22,10 @@ FPS = 60
 
 
 # --- Minimap Settings ---
-MINIMAP_WIDTH_RATIO = 0.2  # 15% of screen width
-MINIMAP_HEIGHT_RATIO = 0.2  # 15% of screen height
-MINIMAP_MARGIN_TOP_RATIO = 0.01  # 2% of screen height (NEW)
-MINIMAP_MARGIN_RIGHT_RATIO = 0.18  # 2% of screen width (NEW)
+MINIMAP_WIDTH_RATIO = 0.2  # 20% of screen width
+MINIMAP_HEIGHT_RATIO = 0.2  # 20% of screen height
+MINIMAP_MARGIN_TOP_RATIO = 0.01  # 1% of screen height (NEW)
+MINIMAP_MARGIN_RIGHT_RATIO = 0.18  # 18% of screen width (NEW)
 MINIMAP_TILE_SIZE = 1       # Size of each tile on the minimap in pixels
 MINIMAP_ALPHA = 180         # Transparency of the minimap surface (0-255)
 

@@ -6,15 +6,15 @@ import math  # For wave patterns in fallbacks
 TILESET_IMAGE = None
 TILE_MAPPING = {}
 
-ORIGINAL_TILE_DIM = 24 # Confirmed 12x12 in Figma
+ORIGINAL_TILE_DIM = 24 # Confirmed 24x24 in Figma
 TILE_SPACING = 1     # 1 pixel space after each tile
 
 # The effective dimension of each tile cell in the tileset, including spacing
 CELL_DIM = ORIGINAL_TILE_DIM + TILE_SPACING
 
 # --- Global X-axis offset for tile extraction ---
-# These offsets should be 0 if your 12x12 sprites are perfectly at the top-left
-# of their 13x13 grid cell. Adjust only if sprites are consistently shifted.
+# These offsets should be 0 if your 24x24 sprites are perfectly at the top-left
+# of their 25x25 grid cell. Adjust only if sprites are consistently shifted.
 TILE_X_OFFSET = 0 
 TILE_Y_OFFSET = 0 
 
@@ -56,7 +56,7 @@ def setup_tile_mapping():
         '{': (0 * CELL_DIM, 6 * CELL_DIM),  # Tavern Crate
         '}': (2 * CELL_DIM, 6 * CELL_DIM),  # Tavern Barrel
         ',': (0 * CELL_DIM, 16 * CELL_DIM), # Tavern Floor
-        ':': (1 * CELL_DIM, 16 * CELL_DIM), # Kitchen Tavern Floor
+        '?': (1 * CELL_DIM, 16 * CELL_DIM), # Kitchen Tavern Floor
         '.': (0 * CELL_DIM, 3 * CELL_DIM),  # Floor
         '#': (1 * CELL_DIM, 3 * CELL_DIM),  # Wall
         '>': (8 * CELL_DIM, 3 * CELL_DIM),  # Stairs Down
@@ -139,6 +139,7 @@ def setup_tile_mapping():
         'GU': (10 * CELL_DIM, 8 * CELL_DIM),  # Gauth 
         'AR': (10 * CELL_DIM, 9 * CELL_DIM),  # Arasta 
         'AG': (11 * CELL_DIM, 9 * CELL_DIM),  # Alpha Grick 
+        'IM': (11 * CELL_DIM, 8 * CELL_DIM),  # Imp
 
 
 
@@ -181,6 +182,7 @@ def setup_tile_mapping():
         # Weapons
         'dgr': (4 * CELL_DIM, 13 * CELL_DIM),  # Iron Dagger
         'sdr': (4 * CELL_DIM, 14 * CELL_DIM),  # SIlver Dagger
+        'thr': (4 * CELL_DIM, 15 * CELL_DIM),  # Throwing Knife
 
         'shs': (5 * CELL_DIM, 13 * CELL_DIM),  # Shortsword
         'fhs': (5 * CELL_DIM, 14 * CELL_DIM),  # Flameheart Shortsword

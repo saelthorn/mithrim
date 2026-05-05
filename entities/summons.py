@@ -123,7 +123,7 @@ class Imp(SummonedEntity):
     It can attack enemies and defend its summoner.
     """
     def __init__(self, x, y, owner):
-        super().__init__(x, y, 'GU', 'Imp', (180, 50, 50), owner, duration=60)  # Lasts 60 turns (1 hour)
+        super().__init__(x, y, 'IM', 'Imp', (180, 50, 50), owner, duration=60)  # Lasts 60 turns (1 hour)
         self.hp = 10
         self.max_hp = 10
         self.armor_class = 12

@@ -19,10 +19,10 @@ def generate_tavern(game_map, player):
         "#              #",
         "#              #",
         "#              ##T##",
-        "# c  c  c      :}}{#",
-        "T========      :::{T",
-        "#              ::::T",
-        "#              ::{}#",
+        "# c  c  c      ?}}{#",
+        "T========      ???{T",
+        "#              ????T",
+        "#              ??{}#",
         "###################"
     ]
 
@@ -37,7 +37,7 @@ def generate_tavern(game_map, player):
         '}': tavern_barrel,
         '#': wall,
         ' ': floor,
-        ':': tavern_kitchen_floor,
+        '?': tavern_kitchen_floor,
         '+': door,
         '=': bar_counter,
         'c': chair,
