@@ -1738,6 +1738,7 @@ class Game:
             if item_to_pick_up.on_pickup(self.player, self):
                 # Remove the item from the ground after successful pickup
                 self.game_map.items_on_ground.remove(item_to_pick_up)
+                self.player.update_throw_knife_ability()
                 self.update_fov() # Update FOV to reflect item removal
                 return True
             else:
@@ -1798,6 +1799,7 @@ class Game:
                 self.message_log.add_message(f"Cannot equip {self.selected_inventory_item.name}.", (255, 100, 100))
         elif key == pygame.K_d:
             self.player.inventory.remove_item(self.selected_inventory_item)
+            self.player.update_throw_knife_ability()
             self.selected_inventory_item.x = self.player.x
             self.selected_inventory_item.y = self.player.y
             self.game_map.items_on_ground.append(self.selected_inventory_item)

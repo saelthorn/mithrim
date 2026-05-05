@@ -133,6 +133,7 @@ class Imp(SummonedEntity):
         self.attack_power = 2  # +2 modifier for d4 sting attack
         self.initiative = 0
         self.active_status_effects = []
+        self.proficiency_bonus = 2
 
     def take_turn(self, player, game_map, game_instance):
         """
@@ -230,17 +231,21 @@ class Imp(SummonedEntity):
         """Imp attacks an adjacent enemy."""
         import random
         d20_roll = random.randint(1, 20)
-        attack_bonus = self.attack_power + 2  # +2 proficiency bonus
+        attack_bonus = self.attack_power + self.proficiency_bonus
         attack_total = d20_roll + attack_bonus
         target_ac = getattr(target, 'armor_class', 10)
 
         # Show the attack roll
-        game_instance.message_log.add_message(f"The imp attacks {target.name} with a {attack_total} (d20: {d20_roll} + {attack_bonus}) vs AC {target_ac}!", (255, 255, 255))
+        game_instance.message_log.add_message(f"The imp rolls a d20: [{d20_roll}] + [{attack_bonus}] (Attack Bonus) = {attack_total} vs AC {target_ac}!", (255, 150, 150))
 
         if attack_total >= target_ac:
-            damage_roll = random.randint(1, 4) + self.attack_power
-            damage_dealt = target.take_damage(damage_roll, game_instance, damage_type="piercing")
+            game_instance.message_log.add_message(f"The imp's sting hits {target.name}!", (255, 100, 100))
+
+            damage_roll = random.randint(1, 4) 
+            damage_dealt = target.take_damage(damage_roll, game_instance, damage_type="piercing") + self.attack_power
+            game_instance.message_log.add_message(f"The imp rolls a 1d4: [{damage_roll}] + [{self.attack_power}] (Attack Power) = {damage_dealt} damage!", (255, 150, 150))
             game_instance.message_log.add_message(f"The imp stings {target.name} for {damage_dealt} damage!", (255, 100, 100))
+            game_instance.message_log.add_message(f"{target.name} has {getattr(target, 'hp', 'unknown')}/{getattr(target, 'max_hp', 'unknown')} HP.", (255, 120, 120))
             
             # Add floating text for successful hit
             hit_text = FloatingText(target.x, target.y, "HIT!", (255, 255, 0))

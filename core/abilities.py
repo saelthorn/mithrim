@@ -369,63 +369,95 @@ class ThrowKnife(Ability):
 
         # Remove throwing knife from inventory or unequip it
         knife_to_throw = None
-        
+        attack_modifier = user.get_ability_modifier(user.dexterity) + user.proficiency_bonus
+
         # Check if equipped as off-hand
         if user.equipped_off_hand and user.equipped_off_hand.name.lower() == "throwing knife":
             knife_to_throw = user.equipped_off_hand
+            attack_modifier += getattr(knife_to_throw, "attack_bonus", 0)
             user.equipped_off_hand = None
+            user.update_throw_knife_ability()
             game_instance.message_log.add_message(f"You throw your equipped {knife_to_throw.name}!", (100, 255, 100))
         else:
             # Search inventory for throwing knife
             for item in user.inventory.items:
                 if item.name.lower() == "throwing knife":
                     knife_to_throw = item
+                    attack_modifier += getattr(item, "attack_bonus", 0)
                     user.inventory.remove_item(item)
+                    user.update_throw_knife_ability()
                     game_instance.message_log.add_message(f"You throw a {knife_to_throw.name} from your inventory!", (100, 255, 100))
                     break
-        
+
         if not knife_to_throw:
             game_instance.message_log.add_message(f"No throwing knife found!", (255, 0, 0))
             return False
 
-        # Calculate damage: 1d4 + damage modifier from throwing knife
-        damage_modifier = user.get_ability_modifier(user.dexterity)
-        damage_rolls = [random.randint(1, 4) for _ in range(self.damage_dice)]
-        total_damage = sum(damage_rolls) + damage_modifier
+        # Roll to hit with a d20
+        d20_roll = random.randint(1, 20)
+        attack_roll_total = d20_roll + attack_modifier
+        target_ac = getattr(target_monster, "armor_class", 10)
 
-        # Apply damage to the target
-        hit_messages = [
-            f"A throwing knife streaks towards the {target_monster.name}!",
-            f"Your knife spins through the air and strikes the {target_monster.name}!",
-            f"The {target_monster.name} is hit by your throwing knife!",
-        ]
-        game_instance.message_log.add_message(random.choice(hit_messages), (255, 100, 100))
+        game_instance.message_log.add_message(
+            f"You roll a d20: [{d20_roll}] + [{attack_modifier}] = {attack_roll_total} vs AC {target_ac}",
+            (200, 200, 255)
+        )
 
-        if isinstance(target_monster, Mimic):
-            damage_dealt = target_monster.take_damage(total_damage, game_instance)
+        is_critical_hit = (d20_roll == 20)
+        is_critical_fumble = (d20_roll == 1)
+
+        if is_critical_hit:
+            game_instance.message_log.add_message("CRITICAL HIT! The knife finds a weak point!", (255, 255, 0))
+            hit_successful = True
+        elif is_critical_fumble:
+            game_instance.message_log.add_message("CRITICAL FUMBLE! Your throw goes wild.", (255, 0, 0))
+            hit_successful = False
         else:
-            damage_dealt = target_monster.take_damage(total_damage, game_instance)
+            hit_successful = attack_roll_total >= target_ac
 
-        game_instance.message_log.add_message(f"A knife strikes {target_monster.name} for {damage_dealt} damage!", (255, 100, 100))
-        game_instance.message_log.add_message(f"{target_monster.name} has {target_monster.hp}/{target_monster.max_hp} HP", (100, 255, 100))
+        if hit_successful:
+            hit_messages = [
+                f"A throwing knife streaks towards the {target_monster.name}!",
+                f"Your knife spins through the air and strikes the {target_monster.name}!",
+                f"The {target_monster.name} is hit by your throwing knife!",
+            ]
+            game_instance.message_log.add_message(random.choice(hit_messages), (255, 100, 100))
 
-        # Add FloatingText for damage
-        hit_text = FloatingText(target_monster.x, target_monster.y, "HIT!", (255, 255, 0))
-        game_instance.floating_texts.append(hit_text)
+            damage_modifier = user.get_ability_modifier(user.dexterity)
+            damage_rolls = [random.randint(1, 4) for _ in range(self.damage_dice)]
+            total_damage = sum(damage_rolls) + damage_modifier
 
-        damage_text = FloatingText(target_monster.x, target_monster.y - 0.5, str(damage_dealt), (255, 0, 0))
-        game_instance.floating_texts.append(damage_text)
+            if isinstance(target_monster, Mimic):
+                damage_dealt = target_monster.take_damage(total_damage, game_instance)
+            else:
+                damage_dealt = target_monster.take_damage(total_damage, game_instance)
 
-        if not target_monster.alive:
-            xp_gained = target_monster.die(game_instance)
-            user.gain_xp(xp_gained, game_instance)
-        
-        # Place the thrown knife at the target location
+            game_instance.message_log.add_message(f"A knife strikes {target_monster.name} for {damage_dealt} damage!", (255, 100, 100))
+            game_instance.message_log.add_message(f"{target_monster.name} has {target_monster.hp}/{target_monster.max_hp} HP", (100, 255, 100))
+
+            hit_text = FloatingText(target_monster.x, target_monster.y, "HIT!", (255, 255, 0))
+            game_instance.floating_texts.append(hit_text)
+
+            damage_text = FloatingText(target_monster.x, target_monster.y - 0.5, str(damage_dealt), (255, 0, 0))
+            game_instance.floating_texts.append(damage_text)
+
+            if not target_monster.alive:
+                xp_gained = target_monster.die(game_instance)
+                user.gain_xp(xp_gained, game_instance)
+        else:
+            miss_messages = [
+                f"Your knife sails past the {target_monster.name}!",
+                f"The {target_monster.name} narrowly avoids your thrown knife!",
+                f"You miss the {target_monster.name} with your throw!",
+            ]
+            game_instance.message_log.add_message(random.choice(miss_messages), (255, 150, 150))
+
+        # Place the thrown knife at the target location regardless of hit or miss
         knife_to_throw.x = target_x
         knife_to_throw.y = target_y
         game_instance.game_map.items_on_ground.append(knife_to_throw)
         game_instance.message_log.add_message(f"The {knife_to_throw.name} lands at ({target_x}, {target_y}).", (150, 150, 150))
-        
+
         return True  # Successfully used ability
 
     def scale_with_level(self, player_level):

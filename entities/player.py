@@ -668,6 +668,21 @@ class Player: # This is our base class for playable characters
         game_instance.message_log.add_message(f"You can't use {item.name} this way.", (255, 100, 100))
         return False
 
+    def has_throwing_knife(self):
+        """Return True if the player has a Throwing Knife in inventory or equipped off-hand."""
+        if self.equipped_off_hand and self.equipped_off_hand.name.lower() == "throwing knife":
+            return True
+        for item in self.inventory.items:
+            if getattr(item, "name", "").lower() == "throwing knife":
+                return True
+        return False
+
+    def update_throw_knife_ability(self):
+        if self.has_throwing_knife():
+            self.abilities["throw_knife"] = ThrowKnife()
+        else:
+            self.abilities.pop("throw_knife", None)
+
     def equip_item(self, item, game_instance, from_quick_bar=False):
         if isinstance(item, Weapon):
             # Check if the weapon is two-handed
@@ -802,6 +817,7 @@ class Player: # This is our base class for playable characters
 
             # Recalculate attack bonus after equipping the off-hand weapon
             self.update_attack_power()
+            self.update_throw_knife_ability()
 
             return True
 
@@ -842,6 +858,7 @@ class Player: # This is our base class for playable characters
                         game_instance.message_log.add_message(f"{self.name}'s torchlight fades but the glow lingers in the torch.", (255, 165, 0))
                 self.equipped_off_hand = None
                 self.update_attack_power()
+                self.update_throw_knife_ability()
                 return True
 
 
@@ -1023,7 +1040,7 @@ class Fighter(Player):
         self.abilities["power_attack"] = PowerAttack() 
         self.abilities["second_wind"] = SecondWind()
         self.abilities["action_surge"] = ActionSurge()
-        self.abilities["throw_knife"] = ThrowKnife()
+        self.update_throw_knife_ability()
         self.abilities["guard"] = Guard()
 
 
@@ -1080,7 +1097,7 @@ class Rogue(Player):
         self.abilities["cunning_action"] = CunningActionDash()
         self.abilities["evasion"] = Evasion()
         self.abilities["cunning_action_hide"] = CunningActionHide()
-        self.abilities["throw_knife"] = ThrowKnife()
+        self.update_throw_knife_ability()
         self.abilities["spot_traps"] = SpotTrapsAbility()
         self.abilities["disarm_traps"] = DisarmTrapsAbility()
 
@@ -1141,6 +1158,7 @@ class Wizard(Player):
         self.abilities["ray_of_frost"] = RayOfFrost()
         self.abilities["misty_step"] = MistyStep()
         self.abilities["mage_hand"] = MageHand()
-        self.abilities["fireball"] = Fireball()
         self.abilities["detect_magic"] = DetectMagic()
+        self.abilities["fireball"] = Fireball()
         self.abilities["summon_imp"] = SummonImp()
+        self.update_throw_knife_ability()
