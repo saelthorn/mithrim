@@ -826,9 +826,9 @@ class Monster:
             if self.telegraph_timer == 0 and self.pending_telegraph_tiles:
                 # Resolve telegraphed attack
                 for tx, ty in self.pending_telegraph_tiles:
-                    if player.x == tx and player.y == ty and player.alive:
+                    if target_entity.x == tx and target_entity.y == ty and target_entity.alive:
                         dmg = max(1, getattr(self, 'damage_modifier', 2) + random.randint(1, 20))
-                        player.take_damage(dmg, game, damage_type='fire')
+                        target_entity.take_damage(dmg, game, damage_type='fire')
                         game.floating_texts.append(FloatingText(tx, ty, f"-{dmg}", (255, 80, 80)))
                 self.pending_telegraph_tiles = []
         if not self.alive:
@@ -847,6 +847,29 @@ class Monster:
 
         dist_to_player = self.distance_to(player.x, player.y)
         player_detected = self.detect_player(player, game)
+
+        # NEW: Check for player's summoned entities and prioritize attacking them
+        target_entity = None
+        target_distance = float('inf')
+
+        # Look for summoned entities owned by the player
+        for entity in game.entities:
+            if (hasattr(entity, 'owner') and entity.owner == player and
+                hasattr(entity, 'alive') and entity.alive and
+                hasattr(entity, 'blocks_movement') and entity.blocks_movement):
+                dist = self.distance_to(entity.x, entity.y)
+                if dist < target_distance:
+                    target_distance = dist
+                    target_entity = entity
+
+        # If no summoned entities found, target the player
+        if target_entity is None:
+            target_entity = player
+            target_distance = dist_to_player
+
+        # Check torchlight stimulus to trigger investigate state
+        if not player_detected and self.is_intelligent: # Only intelligent monsters investigate light
+            self.check_torchlight_in_range(game)
 
         # Check torchlight stimulus to trigger investigate state
         if not player_detected and self.is_intelligent: # Only intelligent monsters investigate light
@@ -894,18 +917,18 @@ class Monster:
             if self.ai_state == AI_State.DESPERATE_FIGHT:
                 game.message_log.add_message(f"The {self.name} is desperate and fights on!", (255, 100, 100))
 
-                if self.is_ranged and dist_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
-                    self.ranged_attack(player, game)
+                if self.is_ranged and target_distance <= self.range and game.check_line_of_sight(self.x, self.y, target_entity.x, target_entity.y):
+                    self.ranged_attack(target_entity, game)
                     return
-                elif self.is_adjacent_to(player):
-                    self.attack(player, game)
+                elif self.is_adjacent_to(target_entity):
+                    self.attack(target_entity, game)
                     return
                 else:
                     path = astar(
                         game_map,
                         (self.x, self.y),
-                        (player.x, player.y),
-                        entities=[e for e in game.entities if e != self and e != player and e.alive and e.blocks_movement],
+                        (target_entity.x, target_entity.y),
+                        entities=[e for e in game.entities if e != self and e != target_entity and e.alive and e.blocks_movement],
                         moving_entity=self
                     )
                     if path and len(path) > 1:
@@ -917,21 +940,21 @@ class Monster:
                             self.y = new_y
                             game.update_fov()  # Update FOV after movement
                         else:
-                            game.message_log.add_message(f"The {self.name} is blocked and cannot reach {player.name}!", (100, 100, 100))
+                            game.message_log.add_message(f"The {self.name} is blocked and cannot reach {target_entity.name}!", (100, 100, 100))
                     else:
-                        game.message_log.add_message(f"The {self.name} cannot find a path to {player.name}!", (150, 150, 150))
+                        game.message_log.add_message(f"The {self.name} cannot find a path to {target_entity.name}!", (150, 150, 150))
                     return
 
             if self.ai_state == AI_State.CHASING:
-                if self.is_ranged and dist_to_player <= self.range and game.check_line_of_sight(self.x, self.y, player.x, player.y):
-                    self.ranged_attack(player, game)
+                if self.is_ranged and target_distance <= self.range and game.check_line_of_sight(self.x, self.y, target_entity.x, target_entity.y):
+                    self.ranged_attack(target_entity, game)
                     return
 
-                if self.is_adjacent_to(player):
-                    self.attack(player, game)
+                if self.is_adjacent_to(target_entity):
+                    self.attack(target_entity, game)
                     return
 
-                target_pos = (player.x, player.y) if game.check_line_of_sight(self.x, self.y, player.x, player.y) else self.last_known_player_position
+                target_pos = (target_entity.x, target_entity.y) if game.check_line_of_sight(self.x, self.y, target_entity.x, target_entity.y) else self.last_known_player_position
 
                 if target_pos:
                     path = astar(
@@ -952,9 +975,9 @@ class Monster:
                         else:
                             game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
                     else:
-                        # Pathfinding failed: try greedy direct movement towards player
-                        dx = player.x - self.x
-                        dy = player.y - self.y
+                        # Pathfinding failed: try greedy direct movement towards target
+                        dx = target_entity.x - self.x
+                        dy = target_entity.y - self.y
 
                         step_x = 0
                         step_y = 0
@@ -990,16 +1013,16 @@ class Monster:
                     self.patrol(game_map, game)
                 return
         else:
-            # Non-intelligent monsters chase player if detected, else patrol
+            # Non-intelligent monsters chase target if detected, else patrol
             if player_detected:
-                if self.is_ranged and dist_to_player <= self.range:
-                    self.ranged_attack(player, game)
+                if self.is_ranged and target_distance <= self.range:
+                    self.ranged_attack(target_entity, game)
                     return
-                elif self.is_adjacent_to(player):
-                    self.attack(player, game)
+                elif self.is_adjacent_to(target_entity):
+                    self.attack(target_entity, game)
                     return
                 else:
-                    self.move_towards(player.x, player.y, game_map, game)
+                    self.move_towards(target_entity.x, target_entity.y, game_map, game)
                     return
             else:
                 self.patrol(game_map, game)

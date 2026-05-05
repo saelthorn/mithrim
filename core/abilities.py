@@ -246,7 +246,7 @@ class CunningActionDash(Ability):
 
 class Evasion(Ability):
     def __init__(self):
-        super().__init__("Evasion", "Become incredibly agile, greatly increasing dodge chance and taking half damage if hit. Lasts 3 turns.", cooldown=40)
+        super().__init__("Evasion", "Become incredibly agile, greatly increasing dodge chance and taking half damage if hit. Lasts 3 turns.", cooldown=29)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
@@ -259,7 +259,7 @@ class Evasion(Ability):
 
 class ThrowKnife(Ability):
     def __init__(self):
-        super().__init__("Throw Knife", "Hurl a throwing knife at a foe.", cost=0, cooldown=3)
+        super().__init__("Throw Knife", "Hurl a throwing knife at a foe.", cost=0, cooldown=2)
         self.range = 6  # Range in tiles
         self.damage_dice = 1  # 1d4
 
@@ -1342,7 +1342,7 @@ class RayOfFrost(Ability):
 
 class ActionSurge(Ability):
     def __init__(self):
-        super().__init__("Action Surge", "Gain an additional action on your turn.", cooldown=30)
+        super().__init__("Action Surge", "Gain an additional action on your turn.", cooldown=20)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
@@ -1360,10 +1360,10 @@ class ActionSurge(Ability):
     def scale_with_level(self, player_level):
         """
         Scales the Action Surge ability with player level.
-        Reduces cooldown by 1 turn for every 6 levels (e.g., 30 turns at level 1, 29 at level 7, etc.)
+        Reduces cooldown by 1 turn for every 6 levels (e.g., 20 turns at level 1, 19 at level 7, etc.)
         """
         cooldown_reduction = (player_level - 2) // 6 # One less turn of cooldown every 6 levels
-        self.cooldown = max(10, 30 - cooldown_reduction) # Minimum cooldown of 10 turns
+        self.cooldown = max(10, 20 - cooldown_reduction) # Minimum cooldown of 10 turns
 
         print(f"[DEBUG] {self.name} scaled: cooldown = {self.cooldown} at player level {player_level}")
 
@@ -1371,7 +1371,7 @@ class ActionSurge(Ability):
 
 class CunningActionHide(Ability):
     def __init__(self):
-        super().__init__("Cunning Action: Hide", "Use a bonus action to Hide.", cooldown=50)
+        super().__init__("Cunning Action: Hide", "Use a bonus action to Hide.", cooldown=39)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
@@ -1390,17 +1390,17 @@ class CunningActionHide(Ability):
     def scale_with_level(self, player_level):
         """
         Scales the Cunning Action: Hide ability with player level.
-        Reduces cooldown by 1 turn for every 5 levels (e.g., 50 turns at level 1, 49 at level 6, etc.)
+        Reduces cooldown by 1 turn for every 5 levels (e.g., 39 turns at level 1, 38 at level 6, etc.)
         """
         cooldown_reduction = (player_level - 2) // 5 # One less turn of cooldown every 5 levels
-        self.cooldown = max(15, 50 - cooldown_reduction) # Minimum cooldown of 15 turns
+        self.cooldown = max(15, 39 - cooldown_reduction) # Minimum cooldown of 15 turns
 
         print(f"[DEBUG] {self.name} scaled: cooldown = {self.cooldown} at player level {player_level}")
 
 
 class SummonImp(Ability):
     def __init__(self):
-        super().__init__("Summon Imp", "Conjure a small imp to fight alongside you for 1 minute.", cooldown=120)
+        super().__init__("Summon Imp", "Conjure a small imp to fight alongside you for 1 minute.", cooldown=20)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):

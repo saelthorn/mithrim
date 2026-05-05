@@ -1,5 +1,8 @@
 from entities.base_entity import NPC # Reusing NPC as a base for simplicity
 from core.status_effects import Poisoned, AcidBurned, Burning
+from core.pathfinding import astar
+from core import game
+from core.floating_text import FloatingText
 
 class SummonedEntity(NPC):
     """
@@ -90,8 +93,7 @@ class MageHandEntity(SummonedEntity):
                     game_instance.message_log.add_message(f"{self.name}'s {new_effect.name} effect is refreshed.", (200, 200, 255))
                     return
             self.active_status_effects.append(new_effect)
-            game_instance.message_log.add_message(f"{self.name} triggers the trap and dissipates!", (255, 100, 0))
-            print(f"DEBUG: {effect_name} successfully added to {self.name}.") # ADD THIS            
+            game_instance.message_log.add_message(f"{self.name} triggers the trap and dissipates!", (255, 100, 0))         
         else:
             game_instance.message_log.add_message(f"Warning: Attempted to add unknown status effect: {effect_name}", (255, 0, 0))
             print(f"Warning: Attempted to add unknown status effect: {effect_name}")
@@ -134,7 +136,8 @@ class Imp(SummonedEntity):
 
     def take_turn(self, player, game_map, game_instance):
         """
-        Imp takes its turn. It follows the player and attacks enemies in melee range.
+        Imp takes its turn. It attacks enemies in melee range, pathfinds to enemies within 8 tiles,
+        or follows the player if no enemies are nearby.
         """
         self.tick_duration(game_instance)
         if not self.alive:
@@ -159,9 +162,40 @@ class Imp(SummonedEntity):
             self.attack_enemy(target, game_instance)
             return
 
-        # Priority 2: If not adjacent to player, move towards the player
+        # Priority 2: Find enemies within 8 tiles and pathfind toward the nearest one
+        enemies_in_range = []
+        for entity in game_instance.entities:
+            if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive:
+                continue
+            if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
+                distance = abs(self.x - entity.x) + abs(self.y - entity.y)
+                if distance <= 8:  # Within 8 tiles
+                    enemies_in_range.append(entity)
+
+        if enemies_in_range:
+            # Find the nearest enemy
+            nearest_enemy = min(enemies_in_range, key=lambda e: abs(self.x - e.x) + abs(self.y - e.y))
+
+            # Use A* pathfinding to find a path to the enemy
+            path = astar(game_map, (self.x, self.y), (nearest_enemy.x, nearest_enemy.y))
+            if path and len(path) > 1:  # path[0] is current position, path[1] is next step
+                next_x, next_y = path[1]
+
+                # Check if the next tile is walkable and not blocked
+                if game_map.is_walkable(next_x, next_y):
+                    blocked = False
+                    for entity in game_instance.entities:
+                        if entity.x == next_x and entity.y == next_y and entity.blocks_movement and entity != self:
+                            blocked = True
+                            break
+                    if not blocked:
+                        self.x = next_x
+                        self.y = next_y
+                        print(f"[DEBUG] Imp moved to ({self.x}, {self.y}) toward enemy")
+                        return
+
+        # Priority 3: If not adjacent to player, move towards the player
         distance_to_player = abs(self.x - self.owner.x) + abs(self.y - self.owner.y)
-        print(f"[DEBUG] Distance to player: {distance_to_player}")
         
         if distance_to_player > 1:
             dx = 0
@@ -178,7 +212,6 @@ class Imp(SummonedEntity):
             new_x = self.x + dx
             new_y = self.y + dy
             
-            print(f"[DEBUG] Imp moving from ({self.x}, {self.y}) to ({new_x}, {new_y})")
             
             if game_map.is_walkable(new_x, new_y):
                 # Check if blocked by another entity
@@ -186,12 +219,10 @@ class Imp(SummonedEntity):
                 for entity in game_instance.entities:
                     if entity.x == new_x and entity.y == new_y and entity.blocks_movement:
                         blocked = True
-                        print(f"[DEBUG] Move blocked by {entity.name}")
                         break
                 if not blocked:
                     self.x = new_x
                     self.y = new_y
-                    print(f"[DEBUG] Imp moved to ({self.x}, {self.y})")
             else:
                 print(f"[DEBUG] Target tile ({new_x}, {new_y}) not walkable")
 
@@ -203,12 +234,25 @@ class Imp(SummonedEntity):
         attack_total = d20_roll + attack_bonus
         target_ac = getattr(target, 'armor_class', 10)
 
+        # Show the attack roll
+        game_instance.message_log.add_message(f"The imp attacks {target.name} with a {attack_total} (d20: {d20_roll} + {attack_bonus}) vs AC {target_ac}!", (255, 255, 255))
+
         if attack_total >= target_ac:
             damage_roll = random.randint(1, 4) + self.attack_power
             damage_dealt = target.take_damage(damage_roll, game_instance, damage_type="piercing")
             game_instance.message_log.add_message(f"The imp stings {target.name} for {damage_dealt} damage!", (255, 100, 100))
+            
+            # Add floating text for successful hit
+            hit_text = FloatingText(target.x, target.y, "HIT!", (255, 255, 0))
+            damage_text = FloatingText(target.x, target.y - 0.5, str(damage_dealt), (255, 0, 0))
+            game_instance.floating_texts.append(hit_text)
+            game_instance.floating_texts.append(damage_text)
         else:
             game_instance.message_log.add_message(f"The imp's sting misses {target.name}!", (150, 150, 150))
+            
+            # Add floating text for miss
+            miss_text = FloatingText(target.x, target.y, "MISS!", (150, 150, 150))
+            game_instance.floating_texts.append(miss_text)
 
     def die(self, game_instance):
         """Handles the Imp vanishing."""

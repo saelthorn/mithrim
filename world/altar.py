@@ -14,7 +14,7 @@ class Altar:
         self.effect = None
         
         # Randomly determine if this altar gives a blessing or curse
-        self.is_blessing = random.random() < 0.3  # 70% chance for blessing
+        self.is_blessing = random.random() < 0.4  # 40% chance for blessing
         
         if self.is_blessing:
             blessing_type = random.choice(["strength", "agility"])
@@ -50,7 +50,7 @@ class Altar:
                     "name": "CurseOfBlindness",  # Changed to match add_status_effect
                     "display_name": "Curse of Blindness",
                     "description": "Vision radius reduced to 2 for 150 turns",
-                    "duration": 50
+                    "duration": 120
                 }
 
     def interact(self, player, game_instance):
