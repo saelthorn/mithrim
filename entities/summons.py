@@ -1,3 +1,4 @@
+import random
 from entities.base_entity import NPC # Reusing NPC as a base for simplicity
 from core.status_effects import Poisoned, AcidBurned, Burning
 from core.pathfinding import astar
@@ -135,6 +136,31 @@ class Imp(SummonedEntity):
         self.active_status_effects = []
         self.proficiency_bonus = 2
 
+        self.strength = 6
+        self.dexterity = 17
+        self.constitution = 13
+        self.intelligence = 11
+        self.wisdom = 12
+        self.charisma = 14
+
+    def die(self, game_instance):
+        super().die(game_instance)
+        if self.owner and hasattr(self.owner, 'abilities'):
+            summon_ability = self.owner.abilities.get("summon_imp")
+            if summon_ability and summon_ability.current_cooldown == 0:
+                summon_ability.current_cooldown = summon_ability.cooldown
+
+    def make_saving_throw(self, save_type, dc, game_instance, source=None):
+        """Imps can make saving throws to avoid certain effects."""
+        ability_score = getattr(self, save_type, 10)
+        save_bonus = (ability_score - 10) // 2 + self.proficiency_bonus
+        d20_roll = random.randint(1, 20)
+        total_save = d20_roll + save_bonus
+
+        game_instance.message_log.add_message(f"The {self.name} rolls a {save_type} saving throw: [{d20_roll}] + [{save_bonus}] (Save Bonus) = {total_save} vs DC {dc}", (255, 150, 150))
+
+        return total_save >= dc
+    
     def take_turn(self, player, game_map, game_instance):
         """
         Imp takes its turn. It attacks enemies in melee range, pathfinds to enemies within 8 tiles,
@@ -267,5 +293,9 @@ class Imp(SummonedEntity):
             game_instance.entities.remove(self)
         if self in game_instance.turn_order:
             game_instance.turn_order.remove(self)
+        if self.owner and hasattr(self.owner, 'abilities'):
+            summon_ability = self.owner.abilities.get("summon_imp")
+            if summon_ability and summon_ability.current_cooldown == 0:
+                summon_ability.current_cooldown = summon_ability.cooldown
         game_instance.update_fov()
 

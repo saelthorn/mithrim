@@ -452,6 +452,9 @@ class ThrowKnife(Ability):
             ]
             game_instance.message_log.add_message(random.choice(miss_messages), (255, 150, 150))
 
+            miss_text = FloatingText(target_x, target_y, "MISS!", (255, 150, 150))
+            game_instance.floating_texts.append(miss_text)
+
         # Place the thrown knife at the target location regardless of hit or miss
         knife_to_throw.x = target_x
         knife_to_throw.y = target_y
@@ -1435,14 +1438,19 @@ class SummonImp(Ability):
         super().__init__("Summon Imp", "Conjure a small imp to fight alongside you for 1 minute.", cooldown=20)
 
     def use(self, user, game_instance):
-        if not super().use(user, game_instance):
+        if not self.can_use(user, game_instance):
             return False
 
-        # Check if player already has an imp summoned
+        existing_imp = None
         for entity in game_instance.entities:
             if isinstance(entity, Imp) and entity.owner == user:
-                game_instance.message_log.add_message(f"You already have an imp summoned!", (255, 150, 0))
-                return False
+                existing_imp = entity
+                break
+
+        if existing_imp:
+            game_instance.message_log.add_message(f"You dismiss your imp back to the Abyss.", (180, 180, 255))
+            existing_imp.die(game_instance)
+            return True
 
         # Systematically check all 8 adjacent tiles
         adjacent_offsets = [(0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1)]

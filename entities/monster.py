@@ -1250,6 +1250,7 @@ class Goblin(Monster):
         self.detection_range = 6
         self.num_damage_dice = 1
         self.is_intelligent = True # Intelligent enough to flee
+        self.can_poison = True
 
         self.loot_table = [
             (iron_dagger, 0.8) # 25% chance to drop meat
@@ -1282,6 +1283,7 @@ class GoblinArcher(Monster):
         self.ranged_die_type = 6  # Base die type for ranged attacks
         self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
         self.is_intelligent = True # Intelligent enough to flee
+        self.can_poison = True
 
         self.loot_table = [
             (bread, 0.25) # 25% chance to drop meat

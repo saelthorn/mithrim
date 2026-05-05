@@ -2046,7 +2046,7 @@ class Game:
         d20_roll = random.randint(1, 20)
         skill_check_total = d20_roll + athletics_bonus
         self.message_log.add_message(
-            f"You attempt to smash the {target_tile.name} (DC {destruction_dc}): {d20_roll} + {athletics_bonus} = {skill_check_total}",
+            f"You roll d20 to attempt to smash the {target_tile.name} (DC {destruction_dc}): [{d20_roll}] + [{athletics_bonus}] (Athletics Bonus) = {skill_check_total}",
             (200, 200, 255)
         )
         

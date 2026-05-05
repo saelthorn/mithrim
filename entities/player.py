@@ -697,6 +697,18 @@ class Player: # This is our base class for playable characters
             self.abilities.pop("fireball", None)
             self.abilities.pop("summon_imp", None)
 
+    def has_shield_equipped(self):
+        return (
+            self.equipped_off_hand is not None and
+            getattr(self.equipped_off_hand, 'category', '').lower() == 'shield'
+        )
+
+    def update_guard_ability(self):
+        if self.class_name == "Fighter" and self.has_shield_equipped():
+            self.abilities["guard"] = Guard()
+        else:
+            self.abilities.pop("guard", None)
+
     def equip_item(self, item, game_instance, from_quick_bar=False):
         if isinstance(item, Weapon):
             # Check if the weapon is two-handed
@@ -834,6 +846,7 @@ class Player: # This is our base class for playable characters
             self.update_attack_power()
             self.update_throw_knife_ability()
             self.update_spellbook_abilities()
+            self.update_guard_ability()
 
             return True
 
@@ -876,6 +889,7 @@ class Player: # This is our base class for playable characters
                 self.update_attack_power()
                 self.update_throw_knife_ability()
                 self.update_spellbook_abilities()
+                self.update_guard_ability()
                 return True
 
 
@@ -1058,7 +1072,7 @@ class Fighter(Player):
         self.abilities["second_wind"] = SecondWind()
         self.abilities["action_surge"] = ActionSurge()
         self.update_throw_knife_ability()
-        self.abilities["guard"] = Guard()
+        self.update_guard_ability()
 
 
 class Rogue(Player):
@@ -1145,10 +1159,10 @@ class Wizard(Player):
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
-        self.inventory.add_item(spell_book)
+        self.inventory.add_item(glass_orb)
 
         self.equipped_weapon = oak_staff
-        self.equipped_off_hand = glass_orb
+        self.equipped_off_hand = spell_book
         self.equipped_armor = robes
         
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
