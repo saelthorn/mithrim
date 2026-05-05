@@ -39,7 +39,7 @@ from entities.base_entity import NPC
 from entities.tavern_npcs import create_tavern_npcs, NPC, Merchant
 from entities.dungeon_npcs import DungeonHealer, DungeonMerchant
 from entities.races import Human, HillDwarf, DrowElf # NEW: Import DrowElf
-from entities.summons import MageHandEntity
+from entities.summons import MageHandEntity, SummonedEntity
 from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
 from core.message_log import MessageBox
 from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness
@@ -1902,6 +1902,16 @@ class Game:
                 elif isinstance(target_at_new_pos, DungeonHealer):
                     target_at_new_pos.offer_rest(self.player, self)
                     return True
+                elif isinstance(target_at_new_pos, SummonedEntity) and target_at_new_pos.owner == self.player:
+                    # Swap positions with player's own summoned entity
+                    target_at_new_pos.x, self.player.x = self.player.x, target_at_new_pos.x
+                    target_at_new_pos.y, self.player.y = self.player.y, target_at_new_pos.y
+                    self.message_log.add_message(f"You swap places with the {target_at_new_pos.name}!", (100, 255, 200))
+                    self.update_fov()
+                    self.camera.target_x = float(self.player.x)
+                    self.camera.target_y = float(self.player.y)
+                    self.player_has_acted = True
+                    return True
                 else:
                     self.message_log.add_message(f"You can't attack {target_at_new_pos.name}.", (255, 150, 0))
                     return False
@@ -1914,12 +1924,34 @@ class Game:
                         continue
                     if hasattr(entity, 'occupies_tile'):
                         if entity.occupies_tile(new_x, new_y):
-                            self.message_log.add_message(f"You can't move onto {entity.name}.", (255, 150, 0))
-                            return False
+                            # Check if it's a summoned entity - if so, swap positions
+                            if isinstance(entity, SummonedEntity):
+                                entity.x, self.player.x = self.player.x, entity.x
+                                entity.y, self.player.y = self.player.y, entity.y
+                                self.message_log.add_message(f"You swap places with the {entity.name}!", (100, 255, 200))
+                                self.player_has_acted = True
+                                self.update_fov()
+                                self.camera.target_x = float(self.player.x)
+                                self.camera.target_y = float(self.player.y)
+                                return True
+                            else:
+                                self.message_log.add_message(f"You can't move onto {entity.name}.", (255, 150, 0))
+                                return False
                     else:
                         if getattr(entity, 'x', None) == new_x and getattr(entity, 'y', None) == new_y:
-                            self.message_log.add_message(f"You can't move onto {entity.name}.", (255, 150, 0))
-                            return False
+                            # Check if it's a summoned entity - if so, swap positions
+                            if isinstance(entity, SummonedEntity):
+                                entity.x, self.player.x = self.player.x, entity.x
+                                entity.y, self.player.y = self.player.y, entity.y
+                                self.message_log.add_message(f"You swap places with the {entity.name}!", (100, 255, 200))
+                                self.player_has_acted = True
+                                self.update_fov()
+                                self.camera.target_x = float(self.player.x)
+                                self.camera.target_y = float(self.player.y)
+                                return True
+                            else:
+                                self.message_log.add_message(f"You can't move onto {entity.name}.", (255, 150, 0))
+                                return False
                 # --- NEW: Trap Check BEFORE Movement ---
                 target_tile_obj = self.game_map.tiles[new_y][new_x]
                 if isinstance(target_tile_obj, TrapTile) and target_tile_obj.trap_instance.is_hidden:
