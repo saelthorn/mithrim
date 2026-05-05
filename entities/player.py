@@ -3,7 +3,7 @@ from core. game import GameState
 from core.inventory import Inventory
 from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp
 from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff
-from items.items import torch, Food, Potion, throwing_knife, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
+from items.items import torch, Food, Potion, throwing_knife, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, spell_book, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
 from core.floating_text import FloatingText
@@ -100,7 +100,7 @@ class Player: # This is our base class for playable characters
 
         self.armor_class = 0  
         
-        self.inventory = Inventory(capacity=20)
+        self.inventory = Inventory(capacity=30)
         self.inventory.owner = self # Ensure inventory owner is set
         
         self.quick_bar = {
@@ -683,6 +683,20 @@ class Player: # This is our base class for playable characters
         else:
             self.abilities.pop("throw_knife", None)
 
+    def has_spell_book_equipped(self):
+        return (
+            self.equipped_off_hand is not None and
+            getattr(self.equipped_off_hand, 'category', '').lower() == 'spellbook'
+        )
+
+    def update_spellbook_abilities(self):
+        if self.class_name == "Wizard" and self.has_spell_book_equipped():
+            self.abilities["fireball"] = Fireball()
+            self.abilities["summon_imp"] = SummonImp()
+        else:
+            self.abilities.pop("fireball", None)
+            self.abilities.pop("summon_imp", None)
+
     def equip_item(self, item, game_instance, from_quick_bar=False):
         if isinstance(item, Weapon):
             # Check if the weapon is two-handed
@@ -698,6 +712,7 @@ class Player: # This is our base class for playable characters
 
                     # Recalculate attack bonus after equipping the off-hand weapon
                     self.update_attack_power()  # Call the method to update the attack bonus                    
+                    self.update_spellbook_abilities()
 
             # If the player is equipping a weapon, check for existing equipped weapon
             if self.equipped_weapon:
@@ -818,6 +833,7 @@ class Player: # This is our base class for playable characters
             # Recalculate attack bonus after equipping the off-hand weapon
             self.update_attack_power()
             self.update_throw_knife_ability()
+            self.update_spellbook_abilities()
 
             return True
 
@@ -859,6 +875,7 @@ class Player: # This is our base class for playable characters
                 self.equipped_off_hand = None
                 self.update_attack_power()
                 self.update_throw_knife_ability()
+                self.update_spellbook_abilities()
                 return True
 
 
@@ -1128,6 +1145,7 @@ class Wizard(Player):
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
+        self.inventory.add_item(spell_book)
 
         self.equipped_weapon = oak_staff
         self.equipped_off_hand = glass_orb
@@ -1159,6 +1177,5 @@ class Wizard(Player):
         self.abilities["misty_step"] = MistyStep()
         self.abilities["mage_hand"] = MageHand()
         self.abilities["detect_magic"] = DetectMagic()
-        self.abilities["fireball"] = Fireball()
-        self.abilities["summon_imp"] = SummonImp()
+        self.update_spellbook_abilities()
         self.update_throw_knife_ability()

@@ -306,6 +306,17 @@ throwing_knife = OffHand(
     category="dagger"
 )
 
+spell_book = OffHand(
+    name="Spell Book",
+    char="spb",
+    color=(120, 0, 220),
+    description="A wizard's spell book that enables advanced spellcasting.",
+    defense_bonus=0,
+    attack_bonus=0,
+    price=50,
+    category="spellbook"
+)
+
 iron_dagger = OffHand(
     name="Iron Dagger",
     char="dgr", # Using same char as other weapons for now
