@@ -1,8 +1,8 @@
 import random
 from core. game import GameState
 from core.inventory import Inventory
-from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp, PreciseStrike
-from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff, PreciseStrikeBuff
+from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp, PreciseStrike, PrepTime
+from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
 from items.items import torch, Food, Potion, throwing_knife, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, spell_book, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
@@ -362,6 +362,10 @@ class Player: # This is our base class for playable characters
             base_ac += self.equipped_armor.ac_bonus  # Add armor bonus
         if self.equipped_off_hand:  # Check if an off-hand item is equipped
             base_ac += self.equipped_off_hand.defense_bonus  # Add off-hand defense bonus if it's a shield
+
+        for effect in self.active_status_effects:
+            if isinstance(effect, FleetFooted):
+                base_ac += effect.ac_bonus
 
         return base_ac
 
@@ -953,6 +957,15 @@ class Player: # This is our base class for playable characters
         elif effect_name == "PreciseStrikeBuff":
             new_effect = PreciseStrikeBuff(duration)
         
+        elif effect_name == "Prepared":
+            new_effect = Prepared(duration)
+        
+        elif effect_name == "FleetFooted":
+            new_effect = FleetFooted(duration)
+        
+        elif effect_name == "AppliedToxins":
+            new_effect = AppliedToxins(duration)
+        
         elif effect_name == "CunningActionDashBuff":
             new_effect = CunningActionDashBuff(duration)
         
@@ -1024,6 +1037,10 @@ class Player: # This is our base class for playable characters
 
             if isinstance(effect, CunningActionDashBuff):
                 self.dash_active = False       
+
+        # Recalculate armor class after any status changes that may affect defense
+        self.armor_class = self._calculate_ac()
+
         for ability_name, ability_obj in self.abilities.items():
             ability_obj.tick_cooldown()
 
@@ -1163,6 +1180,7 @@ class Rogue(Player):
         self.abilities["cunning_action"] = CunningActionDash()
         self.abilities["evasion"] = Evasion()
         self.abilities["cunning_action_hide"] = CunningActionHide()
+        self.abilities["prep_time"] = PrepTime()
         self.update_throw_knife_ability()
         self.update_thieves_tools_ability()
         self._scale_all_abilities()  # Scale abilities after adding them

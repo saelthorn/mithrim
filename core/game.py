@@ -42,7 +42,7 @@ from entities.races import Human, HillDwarf, DrowElf # NEW: Import DrowElf
 from entities.summons import MageHandEntity, SummonedEntity
 from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
 from core.message_log import MessageBox
-from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness, PreciseStrikeBuff
+from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
 
 from items.items import (
     Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
@@ -2242,7 +2242,22 @@ class Game:
         if precise_strike_buff:
             attack_modifier += precise_strike_buff.attack_bonus_modifier # Apply attack bonus
             self.message_log.add_message(f"Precise Strike: +{precise_strike_buff.attack_bonus_modifier} to hit.", (0, 255, 255))
-    
+
+        prepared_buff = None
+        for effect in self.player.active_status_effects:
+            if isinstance(effect, Prepared):
+                prepared_buff = effect
+                break
+
+        if prepared_buff:
+            self.message_log.add_message(f"Prepared: +{prepared_buff.attack_power_modifier} attack power.", (0, 255, 255))
+
+        applied_toxins_buff = None
+        for effect in self.player.active_status_effects:
+            if isinstance(effect, AppliedToxins):
+                applied_toxins_buff = effect
+                break
+
         # --- Check for Hidden Status Effect ---
         hidden_buff = None
         for effect in self.player.active_status_effects:
@@ -2358,7 +2373,18 @@ class Game:
                 # The buff should be consumed after one attack
                 self.player.active_status_effects.remove(power_attack_buff) # Remove the buff
                 self.message_log.add_message(f"Power Attack buff consumed.", (150, 150, 150))
-    
+
+            if prepared_buff:
+                damage_modifier += prepared_buff.attack_power_modifier
+
+            if applied_toxins_buff and hit_successful:
+                poison_dice_count = applied_toxins_buff.poison_damage_dice * (2 if is_critical_hit else 1)
+                poison_rolls = [random.randint(1, applied_toxins_buff.poison_die_type) for _ in range(poison_dice_count)]
+                poison_sum = sum(poison_rolls)
+                damage_dice_rolls_sum += poison_sum
+                damage_message_dice_part += f" + {poison_dice_count}d{applied_toxins_buff.poison_die_type} [{' + '.join(map(str, poison_rolls))}] (Applied Toxins)"
+                self.message_log.add_message(f"Applied Toxins deals +{poison_sum} poison damage.", (0, 255, 100))
+
             if hidden_buff:
                 sneak_attack_rolls = []
                 

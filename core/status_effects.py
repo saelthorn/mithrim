@@ -125,6 +125,56 @@ class PreciseStrikeBuff(StatusEffect):
         game_instance.message_log.add_message(f"{target.name}'s precise strike fades.", (150, 150, 150))
 
 
+class Prepared(StatusEffect):
+    base_attack_power_modifier = 2
+
+    def __init__(self, duration=10):
+        super().__init__("Prepared", duration)
+        self.attack_power_modifier = self.base_attack_power_modifier
+
+    def apply_effect(self, target, game_instance):
+        if self.turns_left == self.duration:
+            game_instance.message_log.add_message(f"{target.name} feels prepared, their strikes are sharper!", (0, 255, 255))
+
+    def on_end(self, target, game_instance):
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message(f"{target.name}'s prepared focus fades.", (150, 150, 150))
+
+
+class FleetFooted(StatusEffect):
+    base_ac_bonus = 2
+
+    def __init__(self, duration=10):
+        super().__init__("FleetFooted", duration)
+        self.ac_bonus = self.base_ac_bonus
+
+    def apply_effect(self, target, game_instance):
+        if self.turns_left == self.duration:
+            game_instance.message_log.add_message(f"{target.name} moves with FleetFooted grace, gaining better defense!", (0, 255, 255))
+
+    def on_end(self, target, game_instance):
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message(f"{target.name}'s FleetFooted defense fades.", (150, 150, 150))
+
+
+class AppliedToxins(StatusEffect):
+    base_poison_die_type = 4
+    base_poison_damage_dice = 1
+
+    def __init__(self, duration=10):
+        super().__init__("Applied Toxins", duration)
+        self.poison_die_type = self.base_poison_die_type
+        self.poison_damage_dice = self.base_poison_damage_dice
+
+    def apply_effect(self, target, game_instance):
+        if self.turns_left == self.duration:
+            game_instance.message_log.add_message(f"{target.name}'s weapons are coated with applied toxins!", (0, 255, 100))
+
+    def on_end(self, target, game_instance):
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message(f"{target.name}'s toxins wear off.", (150, 150, 150))
+
+
 class CunningActionDashBuff(StatusEffect):
     def __init__(self, duration=1): # Lasts for 1 turn (until next movement)
         super().__init__("Cunning Action (Dash)", duration)

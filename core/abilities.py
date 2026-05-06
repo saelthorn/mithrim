@@ -1,7 +1,7 @@
 import random
 from world.tile import floor, MimicTile, TrapTile
 
-from core.status_effects import PowerAttackBuff, EvasionBuff, PreciseStrikeBuff
+from core.status_effects import PowerAttackBuff, EvasionBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
 from core.game import GameState
 from entities.monster import Monster, Mimic
 from entities.summons import MageHandEntity, Imp
@@ -231,6 +231,36 @@ class PreciseStrike(Ability):
         PreciseStrikeBuff.base_attack_bonus_modifier = 5 + additional_bonus
 
         print(f"[DEBUG] {self.name} scaled: attack_bonus_modifier = {PreciseStrikeBuff.base_attack_bonus_modifier} at player level {player_level}")
+
+
+class PrepTime(Ability):
+    def __init__(self):
+        super().__init__("Prep Time", "Prepare for battle: gain defense, extra attack power, and coat your weapons in toxins.", cooldown=20)
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+
+        user.add_status_effect("Prepared", duration=10, game_instance=game_instance)
+        user.add_status_effect("FleetFooted", duration=10, game_instance=game_instance)
+        user.add_status_effect("AppliedToxins", duration=10, game_instance=game_instance)
+
+        game_instance.message_log.add_message(f"{user.name} takes prep time, readying their strikes and their defenses.", (0, 255, 255))
+        return True
+    
+    def scale_with_level(self, player_level):
+        """
+        Scales the Prep Time ability with player level.
+        Increases attack power modifier and defense bonus every 4 levels.
+        """
+        additional_attack_bonus = (player_level - 1) // 4
+        additional_defense_bonus = (player_level - 1) // 4
+
+        Prepared.base_attack_power_modifier = 2 + additional_attack_bonus
+        FleetFooted.base_ac_bonus = 2 + additional_defense_bonus
+        AppliedToxins.base_poison_damage_dice = 1 + additional_attack_bonus
+
+        print(f"[DEBUG] {self.name} scaled: attack_power_modifier = {Prepared.base_attack_power_modifier}, ac_bonus = {FleetFooted.base_ac_bonus}, poison_damage_dice = {AppliedToxins.base_poison_damage_dice} at player level {player_level}")
 
 
 class Guard(Ability):
