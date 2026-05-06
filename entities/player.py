@@ -1005,8 +1005,13 @@ class Player: # This is our base class for playable characters
         hidden_buff = None
 
         for effect in self.active_status_effects:
+            if isinstance(effect, ActionSurgeEffect):
+                action_surge_effect = effect
+            elif isinstance(effect, Hidden):
+                hidden_buff = effect
+
             # Call apply_effect for continuous effects (like poison damage)
-            effect.apply_effect(self, game_instance) # <--- Ensure this is called
+            effect.apply_effect(self, game_instance)
             
             effect.tick_down()
             if effect.turns_left <= 0:

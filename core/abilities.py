@@ -1441,13 +1441,14 @@ class RayOfFrost(Ability):
 class ActionSurge(Ability):
     def __init__(self):
         super().__init__("Action Surge", "Gain an additional action on your turn.", cooldown=20)
+        self.extra_turns = 2
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
             return False
         
         game_instance.message_log.add_message(f"{user.name} uses Action Surge!", (255, 255, 0))
-        user.extra_turns = 2
+        user.extra_turns = self.extra_turns
         
         user.add_status_effect("ActionSurgeEffect", duration=user.extra_turns + 1, game_instance=game_instance)
                 
@@ -1458,12 +1459,13 @@ class ActionSurge(Ability):
     def scale_with_level(self, player_level):
         """
         Scales the Action Surge ability with player level.
-        Reduces cooldown by 1 turn for every 6 levels (e.g., 20 turns at level 1, 19 at level 7, etc.)
+        Reduces cooldown by 1 turn for every 6 levels and grants additional extra turn every 10 levels.
         """
-        cooldown_reduction = (player_level - 2) // 6 # One less turn of cooldown every 6 levels
-        self.cooldown = max(10, 20 - cooldown_reduction) # Minimum cooldown of 10 turns
+        cooldown_reduction = (player_level - 2) // 6  # One less turn of cooldown every 6 levels
+        self.cooldown = max(10, 20 - cooldown_reduction)  # Minimum cooldown of 10 turns
+        self.extra_turns = 2 + (player_level - 1) // 10  # Gain an extra turn every 10 levels
 
-        print(f"[DEBUG] {self.name} scaled: cooldown = {self.cooldown} at player level {player_level}")
+        print(f"[DEBUG] {self.name} scaled: cooldown = {self.cooldown}, extra_turns = {self.extra_turns} at player level {player_level}")
 
     
 
