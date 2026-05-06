@@ -253,7 +253,6 @@ class Evasion(Ability):
             return False
         
         user.add_status_effect("EvasionBuff", duration=10, game_instance=game_instance)
-        game_instance.message_log.add_message(f"{user.name} activates Evasion!", (100, 255, 255))
         return True
 
 

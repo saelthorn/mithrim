@@ -13,6 +13,7 @@ Map changes:
      - Add rivers or something
      - Make sure the dungeon exit(stairs down) is far from the dungeon entrance(stairs up) 
      - Add locked doors
+     - Add locked chests
 
 
 To do:

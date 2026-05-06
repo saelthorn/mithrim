@@ -193,7 +193,8 @@ class Hidden(StatusEffect):
         pass
     
     def on_end(self, target, game_instance):
-        game_instance.message_log.add_message(f"{target.name} steps out of the shadow.", (150, 150, 150))        
+        game_instance.message_log.add_message(f"{target.name} steps out of the shadow.", (150, 150, 150))
+        target.hidden_turns = 0  # Reset hidden_turns to ensure hidden state is cleared        
 
 class SummonedImpEffect(StatusEffect):
     def __init__(self, duration=60): # Lasts for 60 turns (1 hour)

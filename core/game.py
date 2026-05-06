@@ -2175,6 +2175,14 @@ class Game:
         if not target.alive:
             return
         
+        # Reveal if hidden
+        if self.player.hidden_turns > 0:
+            self.player.hidden_turns = 0
+            hidden_buff = next((e for e in self.player.active_status_effects if isinstance(e, Hidden)), None)
+            if hidden_buff:
+                self.player.active_status_effects.remove(hidden_buff)
+                hidden_buff.on_end(self.player, self)
+        
         # Check if ANY tile of the target is in the player's FOV (supports multi-tile entities)
         visible_ok = False
         allowed_vis = ['player', 'torch', 'darkvision']
