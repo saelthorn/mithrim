@@ -232,7 +232,7 @@ class Guard(Ability):
 
 class CunningActionDash(Ability):
     def __init__(self):
-        super().__init__("Cunning Action", "Use a bonus action to Dash.", cooldown=5)
+        super().__init__("Cunning Action: Dash", "Use a bonus action to Dash.", cooldown=5)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):

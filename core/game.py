@@ -1740,6 +1740,7 @@ class Game:
                 self.game_map.items_on_ground.remove(item_to_pick_up)
                 self.player.update_throw_knife_ability()
                 self.player.update_spellbook_abilities()
+                self.player.update_thieves_tools_ability()
                 self.player.update_guard_ability()
                 self.update_fov() # Update FOV to reflect item removal
                 return True
@@ -1803,6 +1804,7 @@ class Game:
             self.player.inventory.remove_item(self.selected_inventory_item)
             self.player.update_throw_knife_ability()
             self.player.update_spellbook_abilities()
+            self.player.update_thieves_tools_ability()
             self.player.update_guard_ability()
             self.selected_inventory_item.x = self.player.x
             self.selected_inventory_item.y = self.player.y

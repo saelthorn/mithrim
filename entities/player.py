@@ -668,6 +668,23 @@ class Player: # This is our base class for playable characters
         game_instance.message_log.add_message(f"You can't use {item.name} this way.", (255, 100, 100))
         return False
 
+    def has_thieves_tools(self):
+        """Return True if the player has Thieves' Tools in inventory or equipped off-hand."""
+        if self.equipped_off_hand and self.equipped_off_hand.name.lower() == "thieves' tools":
+            return True
+        for item in self.inventory.items:
+            if getattr(item, "name", "").lower() == "thieves' tools":
+                return True
+        return False
+
+    def update_thieves_tools_ability(self):
+        if self.has_thieves_tools():
+            self.abilities["spot_traps"] = SpotTrapsAbility()
+            self.abilities["disarm_traps"] = DisarmTrapsAbility()
+        else:
+            self.abilities.pop("spot_traps", None)
+            self.abilities.pop("disarm_traps", None)
+
     def has_throwing_knife(self):
         """Return True if the player has a Throwing Knife in inventory or equipped off-hand."""
         if self.equipped_off_hand and self.equipped_off_hand.name.lower() == "throwing knife":
@@ -846,6 +863,7 @@ class Player: # This is our base class for playable characters
             self.update_attack_power()
             self.update_throw_knife_ability()
             self.update_spellbook_abilities()
+            self.update_thieves_tools_ability()
             self.update_guard_ability()
 
             return True
@@ -889,6 +907,7 @@ class Player: # This is our base class for playable characters
                 self.update_attack_power()
                 self.update_throw_knife_ability()
                 self.update_spellbook_abilities()
+                self.update_thieves_tools_ability()
                 self.update_guard_ability()
                 return True
 
@@ -1129,8 +1148,7 @@ class Rogue(Player):
         self.abilities["evasion"] = Evasion()
         self.abilities["cunning_action_hide"] = CunningActionHide()
         self.update_throw_knife_ability()
-        self.abilities["spot_traps"] = SpotTrapsAbility()
-        self.abilities["disarm_traps"] = DisarmTrapsAbility()
+        self.update_thieves_tools_ability()
 
 
 class Wizard(Player):
