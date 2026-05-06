@@ -197,11 +197,12 @@ class PowerAttack(Ability):
     def scale_with_level(self, player_level):
         """
         Scales the Power Attack ability with player level.
-        Increases damage bonus by 1 for every 4 levels (e.g., +5 at level 1, +6 at level 5, etc.)
+        Increases extra damage dice by 1 for every 4 levels.
         """
-        additional_damage = (player_level - 1) // 5 # One extra damage every 4 levels
-        PowerAttackBuff.damage_bonus = 5 + additional_damage
-        print(f"[DEBUG] {self.name} scaled: damage_bonus = {PowerAttackBuff.damage_bonus} at player level {player_level}")
+        additional_dice = (player_level - 1) // 4
+        PowerAttackBuff.base_extra_damage_dice = 1 + additional_dice
+
+        print(f"[DEBUG] {self.name} scaled: extra_damage_dice = {PowerAttackBuff.base_extra_damage_dice} at player level {player_level}")
 
 
 class Guard(Ability):
@@ -426,6 +427,8 @@ class ThrowKnife(Ability):
             damage_rolls = [random.randint(1, 4) for _ in range(self.damage_dice)]
             total_damage = sum(damage_rolls) + damage_modifier
 
+            game_instance.message_log.add_message(f"You roll {self.damage_dice}d4 for damage: {damage_rolls} + [{damage_modifier}] (DEX Modifier) = {total_damage} damage!", (255, 100, 0))
+
             if isinstance(target_monster, Mimic):
                 damage_dealt = target_monster.take_damage(total_damage, game_instance)
             else:
@@ -467,9 +470,8 @@ class ThrowKnife(Ability):
         Scales the Throw Knife ability with player level.
         Increases damage dice by 1 for every 4 levels.
         """
-        additional_dice = (player_level - 1) // 5  # One extra die every 4 levels
+        additional_dice = (player_level - 1) // 4  # One extra die every 4 levels
         self.damage_dice = 1 + additional_dice
-        print(f"[DEBUG] {self.name} scaled: damage_dice = {self.damage_dice} at player level {player_level}")
 
 
 class FireBolt(Ability):
@@ -574,6 +576,8 @@ class FireBolt(Ability):
         # Use self.damage_dice for the number of d10s
         damage_rolls = [random.randint(1, 10) for _ in range(self.damage_dice)]
         total_damage = sum(damage_rolls)
+
+        game_instance.message_log.add_message(f"You roll {self.damage_dice}d10 for damage: {damage_rolls} = {total_damage}", (255, 100, 0))
 
         if target_monster and isinstance(target_monster, Monster):
             # Check if the target is specifically a Mimic
@@ -1210,6 +1214,8 @@ class RayOfFrost(Ability):
         # Use self.damage_dice for the number of d8s
         damage_rolls = [random.randint(1, 8) for _ in range(self.damage_dice)]
         total_damage = sum(damage_rolls)
+
+        game_instance.message_log.add_message(f"You roll {self.damage_dice}d8 for damage: {damage_rolls} = {total_damage}", (255, 100, 0))
 
         if target_monster and isinstance(target_monster, Monster):
             # Check if the target is specifically a Mimic

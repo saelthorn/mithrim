@@ -84,10 +84,15 @@ class AcidBurned(StatusEffect):
 
 
 class PowerAttackBuff(StatusEffect):
+    base_attack_modifier = -5
+    base_damage_modifier = 10
+    base_extra_damage_dice = 1
+
     def __init__(self, duration=2): # Typically lasts for 2 turn (the next attack)
         super().__init__("Power Attack Buff", duration)
-        self.attack_modifier = -5 # Example: -5 to hit
-        self.damage_modifier = 10 # Example: +10 to damage
+        self.attack_modifier = self.base_attack_modifier
+        self.damage_modifier = self.base_damage_modifier
+        self.extra_damage_dice = self.base_extra_damage_dice
 
     def apply_effect(self, target, game_instance):
         """This effect modifies the player's stats directly when active."""

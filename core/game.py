@@ -2177,14 +2177,6 @@ class Game:
         if not target.alive:
             return
         
-        # Reveal if hidden
-        if self.player.hidden_turns > 0:
-            self.player.hidden_turns = 0
-            hidden_buff = next((e for e in self.player.active_status_effects if isinstance(e, Hidden)), None)
-            if hidden_buff:
-                self.player.active_status_effects.remove(hidden_buff)
-                hidden_buff.on_end(self.player, self)
-        
         # Check if ANY tile of the target is in the player's FOV (supports multi-tile entities)
         visible_ok = False
         allowed_vis = ['player', 'torch', 'darkvision']
@@ -2343,8 +2335,15 @@ class Game:
                 self.message_log.add_message(f"Curse of Weakness: {curse_of_weakness.damage_modifier} damage.", (255, 0, 255))
 
             if power_attack_buff:
-                damage_modifier += power_attack_buff.damage_modifier # Apply damage bonus
+                damage_modifier += power_attack_buff.damage_modifier # Apply flat damage bonus
                 self.message_log.add_message(f"Power Attack: +{power_attack_buff.damage_modifier} damage.", (255, 165, 0))
+                if getattr(power_attack_buff, "extra_damage_dice", 0) > 0:
+                    extra_dice_count = power_attack_buff.extra_damage_dice * (2 if is_critical_hit else 1)
+                    extra_rolls = [random.randint(1, die_type) for _ in range(extra_dice_count)]
+                    extra_sum = sum(extra_rolls)
+                    damage_dice_rolls_sum += extra_sum
+                    damage_message_dice_part += f" + {extra_dice_count}d{die_type} [{' + '.join(map(str, extra_rolls))}] (Power Attack)"
+                    self.message_log.add_message(f"Power Attack adds {extra_dice_count}d{die_type} damage.", (255, 165, 0))
                 # The buff should be consumed after one attack
                 self.player.active_status_effects.remove(power_attack_buff) # Remove the buff
                 self.message_log.add_message(f"Power Attack buff consumed.", (150, 150, 150))
@@ -2394,6 +2393,15 @@ class Game:
                     f"{target.name} has {target.hp}/{target.max_hp} HP",
                     (255, 255, 0)
                 )
+
+        # Reveal if hidden
+        if self.player.hidden_turns > 0:
+            self.player.hidden_turns = 0
+            hidden_buff = next((e for e in self.player.active_status_effects if isinstance(e, Hidden)), None)
+            if hidden_buff:
+                self.player.active_status_effects.remove(hidden_buff)
+                hidden_buff.on_end(self.player, self)
+
         else:
             miss_messages = [
                 f"Your attack {attack_roll_total} misses the {target.name} (AC {target.armor_class})!",

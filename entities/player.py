@@ -33,7 +33,7 @@ class Player: # This is our base class for playable characters
         self.gold = 50
 
         # Player-specific attributes
-        self.level = 3
+        self.level = 20
         self.current_xp = 0
         self.xp_to_next_level = 2700 # Base XP to level up
 
@@ -679,11 +679,16 @@ class Player: # This is our base class for playable characters
 
     def update_thieves_tools_ability(self):
         if self.has_thieves_tools():
-            self.abilities["spot_traps"] = SpotTrapsAbility()
-            self.abilities["disarm_traps"] = DisarmTrapsAbility()
+            self.add_scaled_ability("spot_traps", SpotTrapsAbility())
+            self.add_scaled_ability("disarm_traps", DisarmTrapsAbility())
         else:
             self.abilities.pop("spot_traps", None)
             self.abilities.pop("disarm_traps", None)
+
+    def add_scaled_ability(self, key, ability):
+        self.abilities[key] = ability
+        if hasattr(ability, 'scale_with_level'):
+            ability.scale_with_level(self.level)
 
     def has_throwing_knife(self):
         """Return True if the player has a Throwing Knife in inventory or equipped off-hand."""
@@ -696,7 +701,7 @@ class Player: # This is our base class for playable characters
 
     def update_throw_knife_ability(self):
         if self.has_throwing_knife():
-            self.abilities["throw_knife"] = ThrowKnife()
+            self.add_scaled_ability("throw_knife", ThrowKnife())
         else:
             self.abilities.pop("throw_knife", None)
 
@@ -708,8 +713,8 @@ class Player: # This is our base class for playable characters
 
     def update_spellbook_abilities(self):
         if self.class_name == "Wizard" and self.has_spell_book_equipped():
-            self.abilities["fireball"] = Fireball()
-            self.abilities["summon_imp"] = SummonImp()
+            self.add_scaled_ability("fireball", Fireball())
+            self.add_scaled_ability("summon_imp", SummonImp())
         else:
             self.abilities.pop("fireball", None)
             self.abilities.pop("summon_imp", None)
@@ -722,7 +727,7 @@ class Player: # This is our base class for playable characters
 
     def update_guard_ability(self):
         if self.class_name == "Fighter" and self.has_shield_equipped():
-            self.abilities["guard"] = Guard()
+            self.add_scaled_ability("guard", Guard())
         else:
             self.abilities.pop("guard", None)
 
@@ -1038,6 +1043,12 @@ class Player: # This is our base class for playable characters
         dy = abs(self.y - other_y)
         return max(dx, dy) # Chebyshev distance (for grid-based movement)
 
+    def _scale_all_abilities(self):
+        """Scale all abilities based on current player level."""
+        for ability in self.abilities.values():
+            if hasattr(ability, 'scale_with_level'):
+                ability.scale_with_level(self.level)
+
 
 class Fighter(Player):
     def __init__(self, x, y, char, name, color):
@@ -1092,6 +1103,7 @@ class Fighter(Player):
         self.abilities["action_surge"] = ActionSurge()
         self.update_throw_knife_ability()
         self.update_guard_ability()
+        self._scale_all_abilities()  # Scale abilities after adding them
 
 
 class Rogue(Player):
@@ -1149,6 +1161,7 @@ class Rogue(Player):
         self.abilities["cunning_action_hide"] = CunningActionHide()
         self.update_throw_knife_ability()
         self.update_thieves_tools_ability()
+        self._scale_all_abilities()  # Scale abilities after adding them
 
 
 class Wizard(Player):
@@ -1211,3 +1224,4 @@ class Wizard(Player):
         self.abilities["detect_magic"] = DetectMagic()
         self.update_spellbook_abilities()
         self.update_throw_knife_ability()
+        self._scale_all_abilities()  # Scale abilities after adding them
