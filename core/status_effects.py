@@ -107,6 +107,24 @@ class PowerAttackBuff(StatusEffect):
         # No need to revert stats here, as they are applied dynamically during attack.
 
 
+class PreciseStrikeBuff(StatusEffect):
+    base_attack_bonus_modifier = 5
+
+    def __init__(self, duration=10): # Lasts for 10 turns
+        super().__init__("Precise Strike", duration)
+        self.attack_bonus_modifier = self.base_attack_bonus_modifier
+
+    def apply_effect(self, target, game_instance):
+        """This effect modifies the player's attack bonus."""
+        if self.turns_left == self.duration: # Only log when first applied
+            game_instance.message_log.add_message(f"{target.name} gains precise strike!", (0, 255, 255))
+
+    def on_end(self, target, game_instance):
+        """Called when the buff expires."""
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message(f"{target.name}'s precise strike fades.", (150, 150, 150))
+
+
 class CunningActionDashBuff(StatusEffect):
     def __init__(self, duration=1): # Lasts for 1 turn (until next movement)
         super().__init__("Cunning Action (Dash)", duration)

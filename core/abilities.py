@@ -1,7 +1,7 @@
 import random
 from world.tile import floor, MimicTile, TrapTile
 
-from core.status_effects import PowerAttackBuff, EvasionBuff
+from core.status_effects import PowerAttackBuff, EvasionBuff, PreciseStrikeBuff
 from core.game import GameState
 from entities.monster import Monster, Mimic
 from entities.summons import MageHandEntity, Imp
@@ -203,6 +203,34 @@ class PowerAttack(Ability):
         PowerAttackBuff.base_extra_damage_dice = 1 + additional_dice
 
         print(f"[DEBUG] {self.name} scaled: extra_damage_dice = {PowerAttackBuff.base_extra_damage_dice} at player level {player_level}")
+
+
+class PreciseStrike(Ability):
+    def __init__(self):
+        super().__init__("Precise Strike", "Focus your aim, increasing your attack bonus for 10 turns.", cooldown=20)
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+        
+        # Apply the PreciseStrikeBuff to the user
+        user.add_status_effect("PreciseStrikeBuff", duration=10, game_instance=game_instance)
+        
+        game_instance.message_log.add_message(f"{user.name} focuses their aim!", (0, 255, 255))
+        
+        # This ability does NOT enter targeting mode. It just applies a buff.
+        # The player's turn should end after using this ability.
+        return True # Indicate successful use and end turn
+    
+    def scale_with_level(self, player_level):
+        """
+        Scales the Precise Strike ability with player level.
+        Increases attack bonus modifier by 1 for every 4 levels.
+        """
+        additional_bonus = (player_level - 1) // 4
+        PreciseStrikeBuff.base_attack_bonus_modifier = 5 + additional_bonus
+
+        print(f"[DEBUG] {self.name} scaled: attack_bonus_modifier = {PreciseStrikeBuff.base_attack_bonus_modifier} at player level {player_level}")
 
 
 class Guard(Ability):

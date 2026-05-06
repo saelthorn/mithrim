@@ -42,7 +42,7 @@ from entities.races import Human, HillDwarf, DrowElf # NEW: Import DrowElf
 from entities.summons import MageHandEntity, SummonedEntity
 from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
 from core.message_log import MessageBox
-from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness
+from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness, PreciseStrikeBuff
 
 from items.items import (
     Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
@@ -2231,6 +2231,17 @@ class Game:
         if power_attack_buff:
             attack_modifier += power_attack_buff.attack_modifier # Apply accuracy penalty
             self.message_log.add_message(f"Power Attack: -{abs(power_attack_buff.attack_modifier)} to hit.", (255, 165, 0))
+    
+        # --- Check for PreciseStrikeBuff ---
+        precise_strike_buff = None
+        for effect in self.player.active_status_effects:
+            if isinstance(effect, PreciseStrikeBuff):
+                precise_strike_buff = effect
+                break
+            
+        if precise_strike_buff:
+            attack_modifier += precise_strike_buff.attack_bonus_modifier # Apply attack bonus
+            self.message_log.add_message(f"Precise Strike: +{precise_strike_buff.attack_bonus_modifier} to hit.", (0, 255, 255))
     
         # --- Check for Hidden Status Effect ---
         hidden_buff = None
