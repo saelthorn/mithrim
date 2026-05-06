@@ -1501,6 +1501,9 @@ class CunningActionHide(Ability):
 class SummonImp(Ability):
     def __init__(self):
         super().__init__("Summon Imp", "Conjure a small imp to fight alongside you for 1 minute.", cooldown=20)
+        self.imp_max_hp = 10
+        self.imp_attack_power = 2
+        self.imp_proficiency_bonus = 2
 
     def use(self, user, game_instance):
         if not self.can_use(user, game_instance):
@@ -1534,8 +1537,15 @@ class SummonImp(Ability):
                         break
                 
                 if not blocked:
-                    # Summon the imp
-                    imp = Imp(new_x, new_y, user)
+                    # Summon the imp with scaled stats
+                    imp = Imp(
+                        new_x,
+                        new_y,
+                        user,
+                        hp=self.imp_max_hp,
+                        attack_power=self.imp_attack_power,
+                        proficiency_bonus=self.imp_proficiency_bonus,
+                    )
                     game_instance.entities.append(imp)
                     game_instance.turn_order.append(imp)
                     game_instance.message_log.add_message(f"A small imp materializes with a cackling laugh!", (180, 50, 50))
@@ -1549,9 +1559,16 @@ class SummonImp(Ability):
     def scale_with_level(self, player_level):
         """
         Scales the Summon Imp ability with player level.
-        Increases imp's HP by 1 for every 3 levels.
+        Increases imp HP and damage as the caster gains levels.
         """
-        # This scaling is applied when the imp is created, not to the ability itself
-        print(f"[DEBUG] {self.name} scaled at player level {player_level}")
+        self.imp_max_hp = 10 + max(0, (player_level - 1) // 2)
+        self.imp_attack_power = 2 + max(0, (player_level - 1) // 4)
+        self.imp_proficiency_bonus = 2 + max(0, (player_level - 1) // 5)
+
+        print(
+            f"[DEBUG] {self.name} scaled: imp_max_hp={self.imp_max_hp}, "
+            f"attack_power={self.imp_attack_power}, proficiency_bonus={self.imp_proficiency_bonus} "
+            f"at player level {player_level}"
+        )
 
 

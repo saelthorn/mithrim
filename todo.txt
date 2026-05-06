@@ -17,7 +17,8 @@ Map changes:
 
 
 To do:
-
+     - Add + modifiers to equipments and items
+     - More visual updates
      
      Not Prio - Add Companions 
 

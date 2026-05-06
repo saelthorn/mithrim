@@ -125,16 +125,16 @@ class Imp(SummonedEntity):
     A small devil imp summoned by the Wizard's Summon Imp ability.
     It can attack enemies and defend its summoner.
     """
-    def __init__(self, x, y, owner):
+    def __init__(self, x, y, owner, hp=10, attack_power=2, proficiency_bonus=2):
         super().__init__(x, y, 'IM', 'Imp', (180, 50, 50), owner, duration=60)  # Lasts 60 turns (1 hour)
-        self.hp = 10
-        self.max_hp = 10
+        self.hp = hp
+        self.max_hp = hp
         self.armor_class = 12
         self.blocks_movement = True
-        self.attack_power = 2  # +2 modifier for d4 sting attack
+        self.attack_power = attack_power  # +2 modifier for d4 sting attack
         self.initiative = 0
         self.active_status_effects = []
-        self.proficiency_bonus = 2
+        self.proficiency_bonus = proficiency_bonus
 
         self.strength = 6
         self.dexterity = 17
@@ -142,6 +142,30 @@ class Imp(SummonedEntity):
         self.intelligence = 11
         self.wisdom = 12
         self.charisma = 14
+
+    def add_status_effect(self, effect_name, duration, game_instance, source=None):
+        """Adds a status effect to the player."""
+        new_effect = None
+        
+        if effect_name == "Poisoned":
+            new_effect = Poisoned(duration, source)
+        elif effect_name == "AcidBurned":
+            new_effect = AcidBurned(duration, source)
+        elif effect_name == "Burning":
+            new_effect = Burning(duration, source) 
+        
+        if new_effect:
+            for existing_effect in self.active_status_effects:
+                if type(existing_effect) is type(new_effect):
+                    existing_effect.turns_left = new_effect.duration
+                    game_instance.message_log.add_message(f"{self.name}'s {new_effect.name} effect is refreshed.", (200, 200, 255))
+                    return
+            self.active_status_effects.append(new_effect)
+            game_instance.message_log.add_message(f"{self.name} triggers the trap and dissipates!", (255, 100, 0))         
+        else:
+            game_instance.message_log.add_message(f"Warning: Attempted to add unknown status effect: {effect_name}", (255, 0, 0))
+            print(f"Warning: Attempted to add unknown status effect: {effect_name}")
+
 
     def die(self, game_instance):
         super().die(game_instance)
