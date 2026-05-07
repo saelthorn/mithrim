@@ -41,14 +41,17 @@ def setup_tile_mapping():
         'HF': (0 * CELL_DIM, 0 * CELL_DIM),  # Human Fighter
         'HR': (1 * CELL_DIM, 0 * CELL_DIM),  # Human Rogue
         'HW': (2 * CELL_DIM, 0 * CELL_DIM),  # Human Wizard
+        'HC': (3 * CELL_DIM, 0 * CELL_DIM),  # Human Cleric
 
         'DF': (0 * CELL_DIM, 1 * CELL_DIM),  # HillDwarf Fighter
         'DR': (1 * CELL_DIM, 1 * CELL_DIM),  # HillDwarf Rogue
         'DW': (2 * CELL_DIM, 1 * CELL_DIM),  # HillDwarf Wizard
+        'DC': (3 * CELL_DIM, 1 * CELL_DIM),  # HillDwarf Cleric
 
         'EF': (0 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Fighter
         'ER': (1 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Rogue
         'EW': (2 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Wizard
+        'EC': (3 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Cleric
 
 
         # Map Tiles
@@ -132,14 +135,15 @@ def setup_tile_mapping():
         'YL': (8 * CELL_DIM, 7 * CELL_DIM),  # Yochlol
         'DD': (8 * CELL_DIM, 8 * CELL_DIM),  # Drider
         'DS': (8 * CELL_DIM, 9 * CELL_DIM),  # Death Slaad
-        'RS': (9 * CELL_DIM, 9 * CELL_DIM),  # Red Slaad
         'MS': (9 * CELL_DIM, 7 * CELL_DIM),  # Myconid Sprout
         'MA': (9 * CELL_DIM, 8 * CELL_DIM),  # Myconid Adult 
+        'RS': (9 * CELL_DIM, 9 * CELL_DIM),  # Red Slaad
         'MZ': (10 * CELL_DIM, 7 * CELL_DIM),  # Mezzoloth 
         'GU': (10 * CELL_DIM, 8 * CELL_DIM),  # Gauth 
         'AR': (10 * CELL_DIM, 9 * CELL_DIM),  # Arasta 
-        'AG': (11 * CELL_DIM, 9 * CELL_DIM),  # Alpha Grick 
+        'ID': (11 * CELL_DIM, 7 * CELL_DIM), # Intellect Devourer
         'IM': (11 * CELL_DIM, 8 * CELL_DIM),  # Imp
+        'AG': (11 * CELL_DIM, 9 * CELL_DIM),  # Alpha Grick 
 
 
 

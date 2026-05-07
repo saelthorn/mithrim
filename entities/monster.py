@@ -2236,3 +2236,67 @@ class Arasta(Monster):
             "WIS": True,
             "CHA": False,
         }
+
+class IntellectDevourer(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'ID', 'Intellect Devourer', (255, 0, 255))  # Bright pink/purple brain-like creature
+
+        self.hp = 21
+        self.max_hp = 21
+        self.attack_bonus = 4
+        self.armor_class = 12
+        self.base_xp = 450
+        self.monster_die_type = 4   # Claw attack (1d4+2)
+        self.num_damage_dice = 2    # Two claws: 2d4+2 each
+        self.damage_modifier = 2
+        self.detection_range = 4
+        self.is_intelligent = True  # Cunning and insidious, but not strategic
+
+        # Add Devour Intellect: force an INT save (DC 12) or target takes 2d10 psychic damage and loses all INT until restored
+        #self.is_ranged = True
+        #self.ranged_attack_bonus = 4  # Base ranged attack bonus
+        #self.range = 5  # Max range for ranged attacks
+        #self.ranged_die_type = 4  # Base die type for ranged attacks
+        #self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": False,
+            "CON": False,
+            "INT": True,  # Proficient in Intelligence saves
+            "WIS": False,
+            "CHA": False,
+        }
+
+class Imp(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'IM', 'Imp', (255, 0, 255))  # Small red devil with wings
+
+        self.hp = 10
+        self.max_hp = 10
+        self.attack_bonus = 2
+        self.armor_class = 13
+        self.base_xp = 50
+        self.monster_die_type = 4   # Sting attack (1d4+1)
+        self.num_damage_dice = 1
+        self.damage_modifier = 1
+        self.detection_range = 6
+        self.is_intelligent = True  # Cunning and mischievous
+
+        # Shapechanger: can polymorph into a rat, raven, or spider (tiny forms)
+        # self.shapechanger = True
+
+        # Poison Sting: DC 11 CON save or take 3d6 poison damage and become poisoned for 1 hour
+        self.can_poison = True
+        self.poison_dc = 11
+        self.poison_duration = 4  
+        self.poison_damage_per_turn = 6
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": False,
+            "CON": False,
+            "INT": True,   # Proficient in Intelligence saves
+            "WIS": False,
+            "CHA": False,
+        }

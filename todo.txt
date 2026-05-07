@@ -14,13 +14,17 @@ Map changes:
      - Make sure the dungeon exit(stairs down) is far from the dungeon entrance(stairs up) 
      - Add locked doors
      - Add locked chests
+     - Change the setting to prison
 
 
 To do:
      - Add + modifiers to equipments and items
      - More visual updates
+     - Sanity feature
+     - More Altar Curses and Buffs
+     - Increase the chance of Clerics get buffs from Altars
      
-     Not Prio - Add Companions 
+     Not Prio - Add Companions
 
 
 To fix:

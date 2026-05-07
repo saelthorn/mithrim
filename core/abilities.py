@@ -1572,3 +1572,169 @@ class SummonImp(Ability):
         )
 
 
+class CureWounds(Ability):
+    def __init__(self):
+        super().__init__("Cure Wounds", "Heal yourself or an ally within 6 tiles for 1d8 HP.", cooldown=3) # 3 turns cooldown
+        self.range = 6
+        self.healing_dice = 1
+
+    def use(self, user, game_instance):
+        # Call base class use to handle cooldown and initial checks.
+        # If base.use returns False (because can_use failed), then this method should also return False.
+        if not super().use(user, game_instance):
+            return False
+        
+        # Find valid targets (player and friendly allies within range)
+        valid_targets = []
+        for entity in game_instance.entities:
+            if entity.alive and (entity == user or isinstance(entity, NPC)):
+                distance = user.distance_to(entity.x, entity.y)
+                if distance <= self.range:
+                    valid_targets.append(entity)
+
+        if not valid_targets:
+            game_instance.message_log.add_message("No valid targets for Cure Wounds within range.", (255, 150, 0))
+            return False
+
+        # If there are valid targets, enter targeting mode
+        game_instance.message_log.add_message(f"{user.name} prepares to cast Cure Wounds! Select a target (Arrow Keys, Enter to confirm, Esc to cancel).", (0, 255, 255))
+        game_instance.game_state = GameState.TARGETING
+        game_instance.ability_in_use = self
+        game_instance.targeting_ability_range = self.range
+        game_instance.targeting_cursor_x = user.x
+        game_instance.targeting_cursor_y = user.y
+
+        return True
+
+    def execute_on_target(self, user, game_instance, target_x, target_y):
+        """Apply Cure Wounds to the chosen target."""
+        if user.x == target_x and user.y == target_y:
+            target = user
+        else:
+            target = game_instance.get_target_at(target_x, target_y)
+
+        if not target or not target.alive or not (target == user or isinstance(target, NPC)):
+            game_instance.message_log.add_message("Cure Wounds can only be cast on yourself or a friendly ally.", (255, 150, 0))
+            return False
+
+        heal_rolls = [random.randint(1, 8) for _ in range(self.healing_dice)]
+        total_heal = sum(heal_rolls)
+        old_hp = getattr(target, 'hp', 0)
+
+        if hasattr(target, 'heal'):
+            healed_amount = target.heal(total_heal)
+        else:
+            target.hp = min(target.max_hp, target.hp + total_heal)
+            healed_amount = target.hp - old_hp
+
+        game_instance.message_log.add_message(f"You casts Cure Wounds on {target.name}", (0, 255, 0))
+        game_instance.message_log.add_message(f"You roll {self.healing_dice}d8 for healing: {heal_rolls} = {total_heal}", (0, 255, 0))
+        game_instance.message_log.add_message(f"Healed for {healed_amount} HP ({heal_rolls}).", (0, 255, 0))
+        return True
+    
+    def scale_with_level(self, player_level):
+        """
+        Scales the Cure Wounds ability with player level.
+        Increases healing dice by 1 for every 4 levels (e.g., 1d8 at level 1, 2d8 at level 5, etc.)
+        """
+        additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
+        self.healing_dice = 1 + additional_dice
+
+        print(f"[DEBUG] {self.name} scaled: healing_dice = {self.healing_dice} at player level {player_level}")
+
+
+class SacredFlame(Ability):
+    def __init__(self):
+        super().__init__("Sacred Flame", "Call down a radiant flame to damage an enemy within 6 tiles.", cost=0, cooldown=2)
+        self.range = 6
+        self.damage_dice = 1
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+
+        # Find valid targets (enemies within range)
+        monster_targets = []
+        for entity in game_instance.entities:
+            if isinstance(entity, Monster) and entity.alive:
+                distance = user.distance_to(entity.x, entity.y)
+                if distance <= self.range:
+                    monster_targets.append(entity)
+
+        if not monster_targets:
+            game_instance.message_log.add_message("No valid targets for Sacred Flame within range.", (255, 150, 0))
+            return False
+
+        # If there are monster targets, auto-target the closest one
+        target = min(monster_targets, key=lambda m: user.distance_to(m.x, m.y))
+
+        # Set the game state to targeting mode
+        game_instance.game_state = GameState.TARGETING
+        game_instance.ability_in_use = self
+        game_instance.targeting_ability_range = self.range
+
+        # Initialize targeting cursor at the auto-selected monster's position
+        game_instance.targeting_cursor_x = target.x
+        game_instance.targeting_cursor_y = target.y
+
+        game_instance.message_log.add_message(f"{user.name} prepares Sacred Flame! Auto-targeting {target.name}.", (255, 255, 0))
+        game_instance.message_log.add_message("Use Arrow Keys to change target, Enter to confirm, Esc to cancel.", (255, 255, 0))
+        return True
+    
+    def execute_on_target(self, user, game_instance, target_x, target_y):
+        target = game_instance.get_target_at(target_x, target_y)
+
+        if not target or not isinstance(target, Monster) or not target.alive:
+            game_instance.message_log.add_message("Sacred Flame can only be cast on an enemy.", (255, 150, 0))
+            return False
+
+        damage_rolls = [random.randint(1, 8) for _ in range(self.damage_dice)]
+        total_damage = sum(damage_rolls)
+
+        # All targets must roll a Dexterity saving throw (DC 10)
+        dex_modifier = 0
+        if hasattr(target, 'dexterity'):
+            dex_modifier = (target.dexterity - 10) // 2
+        
+        # Add proficiency bonus if the target has proficiency in DEX saves
+        if target.saving_throw_proficiencies.get('DEX', False):
+            proficiency_bonus = getattr(target, 'proficiency_bonus', 0)
+            dex_modifier += proficiency_bonus
+        
+        save_roll = random.randint(1, 20) + dex_modifier
+        dc = 10
+        
+        if save_roll >= dc:
+            total_damage //= 2
+            game_instance.message_log.add_message(f"{target.name} makes a Dexterity saving throw (rolled {save_roll}, DC {dc})! Damage is halved to {total_damage}.", (255, 255, 0))
+        else:
+            game_instance.message_log.add_message(f"{target.name} fails the Dexterity saving throw (rolled {save_roll}, DC {dc})! Full damage applies.", (255, 255, 0))
+
+        game_instance.message_log.add_message(f"You roll {self.damage_dice}d8 for damage: {damage_rolls} = {total_damage}", (255, 100, 0))
+
+        damage_dealt = target.take_damage(total_damage, game_instance, damage_type='radiant')
+
+        hit_text = FloatingText(target.x, target.y, "HIT!", (220, 220, 0))
+        game_instance.floating_texts.append(hit_text)
+
+        damage_text = FloatingText(target.x, target.y - 0.5, str(damage_dealt), (220, 220, 0))  # <--- ADJUSTED Y
+        game_instance.floating_texts.append(damage_text)
+
+
+        game_instance.message_log.add_message(f"A sacred flame strikes {target.name} for {damage_dealt} radiant damage!", (255, 255, 0))
+        game_instance.message_log.add_message(f"{target.name} has {target.hp}/{target.max_hp} HP", (255, 255, 0))
+
+        if not target.alive:
+            xp_gained = target.die(game_instance)
+            user.gain_xp(xp_gained, game_instance)
+        return True
+    
+    def scale_with_level(self, player_level):
+        """
+        Scales the Sacred Flame ability with player level.
+        Increases damage dice by 1 for every 4 levels (e.g., 1d8 at level 1, 2d8 at level 5, etc.)
+        """
+        additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
+        self.damage_dice = 1 + additional_dice
+
+        print(f"[DEBUG] {self.name} scaled: damage_dice = {self.damage_dice} at player level {player_level}")

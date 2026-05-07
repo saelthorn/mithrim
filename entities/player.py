@@ -1,9 +1,9 @@
 import random
 from core. game import GameState
 from core.inventory import Inventory
-from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp, PreciseStrike, PrepTime
+from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp, PreciseStrike, PrepTime, CureWounds, SacredFlame
 from core.status_effects import StatusEffect, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
-from items.items import torch, Food, Potion, throwing_knife, bread, green_apple, iron_long_sword, chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, spell_book, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
+from items.items import torch, Food, Potion, throwing_knife, bread, green_apple, iron_long_sword, steel_mace, chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, spell_book, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
 from core.floating_text import FloatingText
@@ -730,7 +730,7 @@ class Player: # This is our base class for playable characters
         )
 
     def update_guard_ability(self):
-        if self.class_name == "Fighter" and self.has_shield_equipped():
+        if self.class_name in ["Fighter", "Cleric"] and self.has_shield_equipped():
             self.add_scaled_ability("guard", Guard())
         else:
             self.abilities.pop("guard", None)
@@ -1251,4 +1251,62 @@ class Wizard(Player):
         self.abilities["detect_magic"] = DetectMagic()
         self.update_spellbook_abilities()
         self.update_throw_knife_ability()
+        self._scale_all_abilities()  # Scale abilities after adding them
+
+class Cleric(Player):
+    def __init__(self, x, y, char, name, color):
+        super().__init__(x, y, char, name, color)
+        self.class_name = "Cleric"
+        self.hit_die = 8
+
+        self.strength = 14
+        self.dexterity = 10
+        self.constitution = 13
+        self.intelligence = 12
+        self.wisdom = 15
+        self.charisma = 8
+
+        self.saving_throw_proficiencies = {
+            "WIS": True, "CHA": True,
+            "STR": False, "DEX": False, 
+            "CON": False, "INT": False,
+        }
+
+        self.primary_stat = 'wisdom'  # Set primary stat for Cleric 
+
+        # Set starting equipment
+        self.inventory.add_item(bread)
+        self.inventory.add_item(bread)
+        self.inventory.add_item(lesser_healing_potion)
+        self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
+        #self.inventory.add_item(holy_symbol)
+
+        self.equipped_weapon = steel_mace
+        self.equipped_off_hand = kite_shield
+        self.equipped_armor = chainmail_armor
+        
+        # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
+        # These calculations MUST happen
+        self.max_hp = self._calculate_max_hp()
+        self.hp = self.max_hp
+        self.armor_class = self._calculate_ac()
+
+        # Class-specific weapon and armor proficiencies
+        self.class_weapon_proficiencies = ["mace", "warhammer", "flail", "quarterstaff", "light hammer"]  # Clerics typically use these
+        self.class_armor_proficiencies = ["light", "medium", "shield"]  # Clerics can wear light and medium armor, and use shields
+
+        self.weapon_proficiencies = self.class_weapon_proficiencies.copy()
+        self.armor_proficiencies = self.class_armor_proficiencies.copy()
+
+        # Cleric's primary attack stat is Wisdom (for spells) or Strength (for weapons)
+        # For basic weapon attacks, let's use Strength for now.
+        # For spell attack rolls, it would be Wisdom.
+        self.attack_power = self.get_ability_modifier(self.strength) + self.equipped_weapon.damage_modifier
+        self.attack_bonus = self.get_ability_modifier(self.strength) + self.proficiency_bonus
+
+        # Cleric abilities
+        self.abilities["cure_wounds"] = CureWounds()
+        self.abilities["sacred_flame"] = SacredFlame()
+        self.update_throw_knife_ability()
+        self.update_guard_ability()
         self._scale_all_abilities()  # Scale abilities after adding them

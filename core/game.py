@@ -22,7 +22,7 @@ from core.fov import FOV
 from world.map import GameMap
 from world.dungeon_generator import generate_dungeon
 from world.tavern_generator import generate_tavern
-from entities.player import Player, Fighter, Rogue, Wizard
+from entities.player import Player, Fighter, Rogue, Wizard, Cleric
 
 # NEW: Import all monster classes
 from entities.monster import (
@@ -31,7 +31,7 @@ from entities.monster import (
     LizardfolkArcher, GiantSpider, Beholder, LargeOoze, RedDragon,
     Owlbear, Demogorgon, Grick, GibberingMouther, MindFlayer, Minotaur,
     Wererat, Wolf, Yochlol, Drider, RedSlaad, DeathSlaad, MyconidSprout,
-    MyconidAdult, Mezzoloth, Gauth, Arasta, AlphaGrick
+    MyconidAdult, Mezzoloth, Gauth, Arasta, AlphaGrick, IntellectDevourer, Imp
 
 )
 
@@ -182,27 +182,30 @@ class Game:
         self.available_races = [Human(), HillDwarf(), DrowElf()]
         self.selected_race_index = 0 
         self.character_name = "Shadowblade" # Default name, could be input later
-        self.character_class = Wizard # Available classes: Fighter, Rogue, Wizard
+        self.character_class = Rogue # Available classes: Fighter, Rogue, Wizard, Cleric
 
         self.race_class_visuals = {
             # Human mappings
             ("Human", "Fighter"): ('HF', (255, 255, 255)), # 'HF' for Human Fighter
             ("Human", "Rogue"): ('HR', (255, 255, 0)),    # 'HR' for Human Rogue
             ("Human", "Wizard"): ('HW', (0, 200, 255)),   # 'HW' for Human Wizard
+            ("Human", "Cleric"): ('HC', (255, 255, 0)),    # 'HC' for Human Cleric
          
             # Hill Dwarf mappings
             ("HillDwarf", "Fighter"): ('DF', (180, 120, 60)), # 'DF' for Dwarf Fighter
             ("HillDwarf", "Rogue"): ('DR', (200, 150, 0)),   # 'DR' for Dwarf Rogue
             ("HillDwarf", "Wizard"): ('DW', (100, 150, 255)), # 'DW' for Dwarf Wizard
+            ("HillDwarf", "Cleric"): ('DC', (255, 255, 0)),   # 'DC' for Dwarf Cleric
 
             # Drow Elf mappings (NEW)
             ("DrowElf", "Fighter"): ('EF', (100, 0, 100)), # Example: Purple for Drow Fighter
             ("DrowElf", "Rogue"): ('ER', (150, 0, 150)),   # Example: Darker Purple for Drow Rogue
             ("DrowElf", "Wizard"): ('EW', (200, 0, 200)),  # Example: Lighter Purple for Drow Wizard
+            ("DrowElf", "Cleric"): ('EC', (255, 255, 0)),   # Example: Yellow for Drow Cleric
         }
 
         # Class selection
-        self.available_classes = [Fighter, Rogue, Wizard] # List of class objects
+        self.available_classes = [Fighter, Rogue, Wizard, Cleric] # List of class objects
         self.selected_class_index = 0 
 
         # Call a method to start character creation
@@ -254,8 +257,8 @@ class Game:
 
     MONSTER_SPAWN_TIERS = {
         # 🌱 Early dungeon fodder (CR 1/8 – CR 1/4)
-        (1, 2): [Goblin, Wolf, GiantRat, MyconidSprout],
-        (3, 4): [Goblin, GoblinArcher, GiantRat, Wererat, Wolf, MyconidSprout],
+        (1, 2): [Goblin, Wolf, GiantRat, MyconidSprout, Imp],
+        (3, 4): [Goblin, GoblinArcher, GiantRat, Wererat, Wolf, MyconidSprout, IntellectDevourer, Imp],
         (5, 5): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf, MyconidAdult],
 
         # ⚔️ Early-mid dangers (CR 1/2 – CR 2)
@@ -310,7 +313,7 @@ class Game:
         chosen_class_constructor = self.available_classes[self.selected_class_index]
         
         race_name_str = chosen_race.name.replace(" ", "") # "HillDwarf" from "Hill Dwarf"
-        class_name_str = chosen_class_constructor.__name__ # "Fighter", "Rogue", "Wizard"
+        class_name_str = chosen_class_constructor.__name__ # "Fighter", "Rogue", "Wizard", "Cleric"
 
         default_char = '@' # Fallback char
         default_color = (255, 255, 255) # Fallback color (white)      
@@ -3422,6 +3425,15 @@ class Game:
                 "armor_proficiencies": ["None"],
                 "weapon_proficiencies": ["Daggers", "Darts", "Slings", "Quarterstaffs", "Light crossbows"],
                 "starting_equipment": ["A quarterstaff", "A component pouch", "A scholar's pack", "A spellbook"]
+            },
+            "Cleric": {
+                "description": "A priestly champion who wields divine magic in service of a higher power. Clerics can heal wounds, turn undead, and call down divine wrath.",
+                "hit_die": "1d8",
+                "primary_ability": "Wisdom",
+                "saving_throws": ["Wisdom", "Charisma"],
+                "armor_proficiencies": ["Light", "Medium", "Shields"],
+                "weapon_proficiencies": ["Simple"],
+                "starting_equipment": ["A mace", "Scale mail", "A light crossbow and 20 bolts", "A priest's pack", "A shield emblazoned with the symbol of their deity"]
             }
         }
         # Return specific details for the class, or a generic message if not found
