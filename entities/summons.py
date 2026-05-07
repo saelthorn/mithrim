@@ -197,7 +197,7 @@ class Imp(SummonedEntity):
         # Find all adjacent enemies (melee range - distance of 1)
         adjacent_enemies = []
         for entity in game_instance.entities:
-            if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive:
+            if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = abs(self.x - entity.x) + abs(self.y - entity.y)
@@ -216,7 +216,7 @@ class Imp(SummonedEntity):
         # Priority 2: Find enemies within 8 tiles and pathfind toward the nearest one
         enemies_in_range = []
         for entity in game_instance.entities:
-            if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive:
+            if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = abs(self.x - entity.x) + abs(self.y - entity.y)
@@ -330,7 +330,7 @@ class Celestial(SummonedEntity):
     It can heal allies and smite enemies with radiant energy.
     """
     def __init__(self, x, y, owner, hp=20, proficiency_bonus=2, attack_power=4,):
-        super().__init__(x, y, 'CS', 'Celestial Spirit', (255, 255, 200), owner, duration=60)  # Lasts 60 turns (1 hour)
+        super().__init__(x, y, 'CS', 'Celestial Spirit', (255, 255, 200), owner, duration=160)  # Lasts 160 turns (16 minutes)
         self.hp = hp
         self.max_hp = hp
         self.armor_class = 15
@@ -400,7 +400,7 @@ class Celestial(SummonedEntity):
         # Find all adjacent enemies (melee range - distance of 1)
         adjacent_enemies = []
         for entity in game_instance.entities:
-            if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive:
+            if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = abs(self.x - entity.x) + abs(self.y - entity.y)
@@ -417,7 +417,7 @@ class Celestial(SummonedEntity):
         # Priority 2: Find enemies within 8 tiles and pathfind toward the nearest one
         enemies_in_range = []
         for entity in game_instance.entities:
-            if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive:
+            if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = abs(self.x - entity.x) + abs(self.y - entity.y)
@@ -529,7 +529,7 @@ class SpiritualWeaponEntity(SummonedEntity):
     It can attack enemies with force damage.
     """
     def __init__(self, x, y, owner, hp=1, proficiency_bonus=2, attack_power=5):
-        super().__init__(x, y, 'sw', 'Spiritual Weapon', (200, 200, 255), owner, duration=10)  # Lasts 10 turns (1 minute)
+        super().__init__(x, y, 'sw', 'Spiritual Weapon', (200, 200, 255), owner, duration=50)  # Lasts 50 turns (5 minutes)
         self.hp = hp
         self.max_hp = hp
         self.armor_class = 0
@@ -600,7 +600,7 @@ class SpiritualWeaponEntity(SummonedEntity):
         
         adjacent_enemies = []
         for entity in game_instance.entities:
-            if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive:
+            if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = abs(self.x - entity.x) + abs(self.y - entity.y)
@@ -614,7 +614,7 @@ class SpiritualWeaponEntity(SummonedEntity):
 
         enemies_in_range = []
         for entity in game_instance.entities:
-            if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive:
+            if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = abs(self.x - entity.x) + abs(self.y - entity.y)
