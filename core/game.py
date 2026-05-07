@@ -151,6 +151,7 @@ class Game:
         self.current_level = 1  
         self.max_level_reached = 1
         self.player_has_acted = False
+        self.player_bonus_action_used = False
         self.message_log = MessageBox(
             0,
             config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT,
@@ -1066,6 +1067,7 @@ class Game:
         if current == self.player:
             self.update_fov()
             self.player_has_acted = False  # This is correctly reset for player's turn
+            self.player_bonus_action_used = False  # Reset bonus action availability on a new player turn
             if random.random() < 0.1:
                 ambient_msgs = [
                     "The dungeon emits an eerie glow...",
@@ -1515,10 +1517,18 @@ class Game:
                         ability_index = event.key - pygame.K_1
                         if 0 <= ability_index < len(abilities_list):
                             ability_to_use = abilities_list[ability_index]
-                            if self.game_state == GameState.DUNGEON:    
-                                if ability_to_use.use(self.player, self):
+                            if self.game_state == GameState.DUNGEON:
+                                if getattr(ability_to_use, "is_bonus_action", False) and self.player_bonus_action_used:
+                                    self.message_log.add_message(
+                                        f"{ability_to_use.name} is a bonus action and you have already used your bonus action this turn.",
+                                        (255, 150, 0)
+                                    )
+                                elif ability_to_use.use(self.player, self):
                                     if self.game_state != GameState.TARGETING:
-                                        action_taken = True
+                                        if getattr(ability_to_use, "is_bonus_action", False):
+                                            self.player_bonus_action_used = True
+                                        else:
+                                            action_taken = True
                                 else:
                                     pass # Debug print removed
                             else:
@@ -1654,17 +1664,20 @@ class Game:
         # Pass the confirmed target coordinates to the ability's execute_on_target method
         # This method will contain the specific logic for each ability.
         if self.ability_in_use.execute_on_target(self.player, self, target_x, target_y):
-            print("DEBUG: ability_in_use.execute_on_target returned True. Resetting state.") # <--- ADD THIS
-            # If the ability successfully executed its effect, then reset state and end turn
-            self._reset_targeting_state()
+            print("DEBUG: ability_in_use.execute_on_target returned True. Resetting state.")
+            # If the ability successfully executed its effect, then reset targeting state.
+            should_end_turn = not getattr(self.ability_in_use, "is_bonus_action", False)
+            if not should_end_turn:
+                self.player_bonus_action_used = True
+            self._reset_targeting_state(end_turn=should_end_turn)
         else:
             print("DEBUG: ability_in_use.execute_on_target returned False. Staying in targeting mode.") # <--- ADD THIS
             # If execute_on_target returns False, it means the target was invalid for that ability
             # (e.g., Fire Bolt on empty tile, Misty Step on blocked tile). Stay in targeting mode.
             pass # Message already handled by ability.execute_on_target
 
-    def _reset_targeting_state(self):
-        """Cleans up targeting-related state vars and ends the player's turn."""
+    def _reset_targeting_state(self, end_turn=True):
+        """Cleans up targeting-related state vars and optionally ends the player's turn."""
         self.game_state = self._previous_game_state # Revert to previous game state (DUNGEON/TAVERN)
         self.ability_in_use = None # Clear the ability reference
         self.targeting_ability_range = 0
@@ -1672,9 +1685,9 @@ class Game:
         self.targeting_cursor_y = 0
         self.player.current_action_state = None # <--- THIS IS THE CRITICAL FIX FOR MISTY STEP
 
-        # This is the critical part: End the player's turn.
-        self.player_has_acted = True
-        self.next_turn()
+        if end_turn:
+            self.player_has_acted = True
+            self.next_turn()
 
 
     def check_line_of_sight(self, x1, y1, x2, y2):

@@ -1,7 +1,7 @@
 # Base resolution for scaling (e.g., 1280x720 or 1920x1080)
 # This is a reference, not a fixed screen size.
-BASE_SCREEN_WIDTH = 1200
-BASE_SCREEN_HEIGHT = 700
+BASE_SCREEN_WIDTH = 1600
+BASE_SCREEN_HEIGHT = 900
 
 
 # UI panel width as a ratio of the total screen width

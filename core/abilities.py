@@ -1570,8 +1570,8 @@ class SummonImp(Ability):
 
 class CureWounds(Ability):
     def __init__(self):
-        super().__init__("Cure Wounds", "Heal yourself or an ally within 6 tiles for 1d8 HP.", cooldown=3) # 3 turns cooldown
-        self.range = 6
+        super().__init__("Cure Wounds", "Heal yourself or an ally within 2 tiles for 1d8 HP.", cooldown=16) # 16 turns cooldown
+        self.range = 2
         self.healing_dice = 1
 
     def use(self, user, game_instance):
@@ -1624,15 +1624,90 @@ class CureWounds(Ability):
             target.hp = min(target.max_hp, target.hp + total_heal)
             healed_amount = target.hp - old_hp
 
-        game_instance.message_log.add_message(f"You casts Cure Wounds on {target.name}", (0, 255, 0))
+        game_instance.message_log.add_message(f"You cast Cure Wounds on {target.name}", (0, 255, 0))
         game_instance.message_log.add_message(f"You roll {self.healing_dice}d8 for healing: {heal_rolls} = {total_heal}", (0, 255, 0))
-        game_instance.message_log.add_message(f"Healed for {healed_amount} HP ({heal_rolls}).", (0, 255, 0))
+        game_instance.message_log.add_message(f"Healed for {healed_amount} HP.", (0, 255, 0))
+        game_instance.floating_texts.append(FloatingText(target.x, target.y, f"{healed_amount}", (0, 255, 0)))
         return True
     
     def scale_with_level(self, player_level):
         """
         Scales the Cure Wounds ability with player level.
         Increases healing dice by 1 for every 4 levels (e.g., 1d8 at level 1, 2d8 at level 5, etc.)
+        """
+        additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
+        self.healing_dice = 1 + additional_dice
+
+        print(f"[DEBUG] {self.name} scaled: healing_dice = {self.healing_dice} at player level {player_level}")
+
+
+class HealingWord(Ability):
+    def __init__(self):
+        super().__init__("Healing Word", "Heal yourself or an ally within 6 tiles for 1d4 HP as a bonus action.", cooldown=16)
+        self.range = 6
+        self.healing_dice = 1
+        self.is_bonus_action = True  # This ability can be used as a bonus action
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+        
+        # Find valid targets (player and friendly allies within range)
+        valid_targets = []
+        for entity in game_instance.entities:
+            if entity.alive and (entity == user or isinstance(entity, NPC)):
+                distance = user.distance_to(entity.x, entity.y)
+                if distance <= self.range:
+                    valid_targets.append(entity)
+
+        if not valid_targets:
+            game_instance.message_log.add_message("No valid targets for Healing Word within range.", (255, 150, 0))
+            return False
+
+        # If there are valid targets, enter targeting mode
+        game_instance.message_log.add_message(f"{user.name} prepares to cast Healing Word!", (0, 255, 255))
+        game_instance.message_log.add_message("Select a target to heal", (0, 255, 255))
+        game_instance._previous_game_state = game_instance.game_state
+        game_instance.game_state = GameState.TARGETING
+        game_instance.ability_in_use = self
+        game_instance.targeting_ability_range = self.range
+        game_instance.targeting_cursor_x = user.x
+        game_instance.targeting_cursor_y = user.y
+
+        return True
+    
+    def execute_on_target(self, user, game_instance, target_x, target_y):
+        """Apply Healing Word to the chosen target."""
+        if user.x == target_x and user.y == target_y:
+            target = user
+        else:
+            target = game_instance.get_target_at(target_x, target_y)
+
+        if not target or not target.alive or not (target == user or isinstance(target, NPC)):
+            game_instance.message_log.add_message("Healing Word can only be cast on yourself or a friendly ally.", (255, 150, 0))
+            return False
+
+        heal_rolls = [random.randint(1, 4) for _ in range(self.healing_dice)]
+        total_heal = sum(heal_rolls)
+        old_hp = getattr(target, 'hp', 0)
+
+        if hasattr(target, 'heal'):
+            healed_amount = target.heal(total_heal)
+        else:
+            target.hp = min(target.max_hp, target.hp + total_heal)
+            healed_amount = target.hp - old_hp
+
+        game_instance.floating_texts.append(FloatingText(target.x, target.y, f"{healed_amount}", (0, 255, 0)))
+
+        game_instance.message_log.add_message(f"You cast Healing Word on {target.name}", (0, 255, 0))
+        game_instance.message_log.add_message(f"You roll {self.healing_dice}d4 for healing: {heal_rolls} = {total_heal}", (0, 255, 0))
+        game_instance.message_log.add_message(f"Healed for {healed_amount} HP", (0, 255, 0))
+        return True
+
+    def scale_with_level(self, player_level):
+        """
+        Scales the Healing Word ability with player level.
+        Increases healing dice by 1 for every 4 levels (e.g., 1d4 at level 1, 2d4 at level 5, etc.)
         """
         additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
         self.healing_dice = 1 + additional_dice
