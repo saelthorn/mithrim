@@ -1,7 +1,7 @@
 import random
 from world.tile import floor, MimicTile, TrapTile
 
-from core.status_effects import PowerAttackBuff, EvasionBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
+from core.status_effects import DivineStrikeBuff, PowerAttackBuff, EvasionBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
 from core.game import GameState
 from entities.monster import Monster, Mimic
 from entities.summons import MageHandEntity, Imp, Celestial
@@ -1878,5 +1878,28 @@ class SummonCelestial(Ability):
             f"attack_power={self.celestial_attack_power}, proficiency_bonus={self.celestial_proficiency_bonus} "
             f"at player level {player_level}"
         )
+
+class DivineStrike(Ability):
+    def __init__(self):
+        super().__init__("Divine Strike", "Your weapon attacks deal an extra 1d8 radiant damage on a hit.", cooldown=10)
+        self.extra_damage_dice = 1
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+        
+        user.add_status_effect("DivineStrikeBuff", duration=3, game_instance=game_instance)
+        game_instance.message_log.add_message(f"{user.name} empowers their weapon with divine energy!", (255, 255, 0))
+        return True
+    
+    def scale_with_level(self, player_level):
+        """
+        Scales the Divine Strike ability with player level.
+        Increases extra damage dice by 1 for every 4 levels (e.g., 1d8 at level 1, 2d8 at level 5, etc.)
+        """
+        additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
+        DivineStrikeBuff.base_extra_damage_dice = 1 + additional_dice
+
+        print(f"[DEBUG] {self.name} scaled: extra_damage_dice = {DivineStrikeBuff.base_extra_damage_dice} at player level {player_level}")
 
 

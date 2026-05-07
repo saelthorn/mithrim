@@ -106,6 +106,27 @@ class PowerAttackBuff(StatusEffect):
         super().on_end(target, game_instance)
         # No need to revert stats here, as they are applied dynamically during attack.
 
+class DivineStrikeBuff(StatusEffect):
+    base_attack_bonus_modifier = 5
+    base_extra_damage_dice = 1
+    base_damage_modifier = 10 
+
+
+    def __init__(self, duration=2): # Typically lasts for 2 turns (the next attack)
+        super().__init__("Divine Strike Buff", duration)
+        self.damage_modifier = self.base_attack_bonus_modifier
+        self.base_extra_damage_dice = self.base_extra_damage_dice
+        self.extra_damage_dice = self.base_extra_damage_dice
+
+    def apply_effect(self, target, game_instance):
+        """This effect modifies the player's damage directly when active."""
+        if self.turns_left == self.duration: # Only log when first applied
+            game_instance.message_log.add_message(f"{target.name} is imbued with Divine Strike!", (255, 215, 0))
+
+    def on_end(self, target, game_instance):
+        """Called when the buff expires."""
+        super().on_end(target, game_instance)
+        # No need to revert stats here, as they are applied dynamically during attack.
 
 class PreciseStrikeBuff(StatusEffect):
     base_attack_bonus_modifier = 5
@@ -341,3 +362,4 @@ class CurseOfBlindness(StatusEffect):
             target.darkvision_radius = self.original_darkvision
         super().on_end(target, game_instance)
         game_instance.message_log.add_message("Your vision returns to normal.", (150, 150, 150))  
+

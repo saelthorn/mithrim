@@ -42,7 +42,7 @@ from entities.races import Human, HillDwarf, DrowElf # NEW: Import DrowElf
 from entities.summons import MageHandEntity, SummonedEntity
 from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
 from core.message_log import MessageBox
-from core.status_effects import PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
+from core.status_effects import PowerAttackBuff, DivineStrikeBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
 
 from items.items import (
     Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
@@ -2247,7 +2247,18 @@ class Game:
         if power_attack_buff:
             attack_modifier += power_attack_buff.attack_modifier # Apply accuracy penalty
             self.message_log.add_message(f"Power Attack: -{abs(power_attack_buff.attack_modifier)} to hit.", (255, 165, 0))
-    
+
+        # --- Check for DivineStrikeBuff ---
+        divine_strike_buff = None
+        for effect in self.player.active_status_effects:
+            if isinstance(effect, DivineStrikeBuff):
+                divine_strike_buff = effect
+                break
+
+        if divine_strike_buff:
+            attack_modifier += divine_strike_buff.base_attack_bonus_modifier # Apply attack bonus
+            self.message_log.add_message(f"Divine Strike: +{divine_strike_buff.base_attack_bonus_modifier} to hit.", (255, 255, 0))
+
         # --- Check for PreciseStrikeBuff ---
         precise_strike_buff = None
         for effect in self.player.active_status_effects:
@@ -2389,6 +2400,20 @@ class Game:
                 # The buff should be consumed after one attack
                 self.player.active_status_effects.remove(power_attack_buff) # Remove the buff
                 self.message_log.add_message(f"Power Attack buff consumed.", (150, 150, 150))
+
+            if divine_strike_buff:
+                damage_modifier += divine_strike_buff.damage_modifier # Apply flat damage bonus
+                self.message_log.add_message(f"Divine Strike: +{divine_strike_buff.damage_modifier} damage.", (255, 255, 0))
+                if getattr(divine_strike_buff, "extra_damage_dice", 0) > 0:
+                    extra_dice_count = divine_strike_buff.extra_damage_dice * (2 if is_critical_hit else 1)
+                    extra_rolls = [random.randint(1, die_type) for _ in range(extra_dice_count)]
+                    extra_sum = sum(extra_rolls)
+                    damage_dice_rolls_sum += extra_sum
+                    damage_message_dice_part += f" + {extra_dice_count}d{die_type} [{' + '.join(map(str, extra_rolls))}] (Divine Strike)"
+                    self.message_log.add_message(f"Divine Strike adds {extra_dice_count}d{die_type} damage.", (255, 255, 0))
+                # The buff should be consumed after one attack
+                self.player.active_status_effects.remove(divine_strike_buff) # Remove the buff
+                self.message_log.add_message(f"Divine Strike buff consumed.", (150, 150, 150))
 
             if prepared_buff:
                 damage_modifier += prepared_buff.attack_power_modifier
