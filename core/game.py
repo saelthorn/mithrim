@@ -257,16 +257,16 @@ class Game:
 
     MONSTER_SPAWN_TIERS = {
         # 🌱 Early dungeon fodder (CR 1/8 – CR 1/4)
-        (1, 2): [Goblin, Wolf, GiantRat, MyconidSprout, Imp],
-        (3, 4): [Goblin, GoblinArcher, GiantRat, Wererat, Wolf, MyconidSprout, IntellectDevourer, Imp],
-        (5, 5): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf, MyconidAdult],
+        (1, 2): [Goblin, Wolf, Imp, GiantRat, MyconidSprout],
+        (3, 4): [Goblin, GoblinArcher, GiantRat, GiantSpider, Wererat, Wolf, MyconidSprout, IntellectDevourer, Imp],
+        (5, 5): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf, MyconidAdult, IntellectDevourer],
 
         # ⚔️ Early-mid dangers (CR 1/2 – CR 2)
         (6, 7): [Skeleton, SkeletonArcher, Orc, Grick, Ooze],
         (8, 9): [Lizardfolk, LizardfolkArcher, GiantSpider, Wererat, MyconidAdult],
 
         # 🛡️ Mid-game threats (CR 3 – CR 6)
-        (10, 11): [Centaur, CentaurArcher, Troll, Owlbear, Minotaur, RedSlaad],
+        (10, 11): [Centaur, CentaurArcher, Troll, Owlbear, Minotaur, RedSlaad, GibberingMouther],
         (12, 13): [Troll, Orc, GiantSpider, LargeOoze, Minotaur, GibberingMouther],
 
         # 👁️ Late-mid bosses and horrors (CR 7 – CR 10)
@@ -3904,8 +3904,7 @@ class Game:
                 "1-9: Use Abilities",
                 "I: Open Inventory",
                 "C: Open Character Sheet",
-                "> = Stairs down",
-                "< = Stairs up"
+                "Q/F: Use Quick Bar Item",
             ])
         elif self.game_state == GameState.INVENTORY:
             controls_list.extend([
@@ -3930,6 +3929,12 @@ class Game:
             controls_list.extend([
                 "Type: 'sell <item name>' or 'buy <item name>'",
                 "Type: 'sell all weapons' or 'sell all armor'",
+            ])
+        elif self.game_state == GameState.TARGETING:
+            controls_list.extend([
+                "Arrow keys/WSAD: Move Targeting Reticle",
+                "Enter: Confirm Target",
+                "Esc: Cancel Targeting"
             ])
         for control in controls_list:
             if current_y + font_small.get_linesize() < max_controls_y:

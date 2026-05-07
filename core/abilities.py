@@ -4,7 +4,7 @@ from world.tile import floor, MimicTile, TrapTile
 from core.status_effects import PowerAttackBuff, EvasionBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
 from core.game import GameState
 from entities.monster import Monster, Mimic
-from entities.summons import MageHandEntity, Imp
+from entities.summons import MageHandEntity, Imp, Celestial
 from entities.base_entity import NPC
 from core.floating_text import FloatingText
 from items.items import Potion, Food, OffHand, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, torch, wood_plank, throwing_knife # NEW: Import for potion drop
@@ -391,10 +391,9 @@ class ThrowKnife(Ability):
             game_instance.targeting_cursor_y = target.y
             
             game_instance.message_log.add_message(f"{user.name} prepares to throw a knife! Auto-targeting {target.name}.", (100, 255, 100))
-            game_instance.message_log.add_message("Use Arrow Keys to change target, Enter to confirm, Esc to cancel.", (100, 255, 100))
             return True  # Indicate successful initiation of targeting
         else:
-            game_instance.message_log.add_message(f"{user.name} prepares to throw a knife! No enemies in range. Select a target (Arrow Keys, Enter to confirm, Esc to cancel).", (100, 255, 100))
+            game_instance.message_log.add_message(f"{user.name} prepares to throw a knife! No enemies in range.).", (100, 255, 100))
             game_instance.game_state = GameState.TARGETING
             game_instance.ability_in_use = self  # Store which ability is being used
             game_instance.targeting_ability_range = self.range
@@ -589,12 +588,11 @@ class FireBolt(Ability):
             game_instance.targeting_cursor_y = target.y
             
             game_instance.message_log.add_message(f"{user.name} prepares Fire Bolt! Auto-targeting {target.name}.", (255, 100, 0))
-            game_instance.message_log.add_message("Use Arrow Keys to change target, Enter to confirm, Esc to cancel.", (255, 100, 0))
             return True  # Indicate successful initiation of targeting
         
         # If no monster targets are found, revert to manual targeting starting at player
         else:
-            game_instance.message_log.add_message(f"{user.name} prepares Fire Bolt! No enemies in range. Select a target (Arrow Keys, Enter to confirm, Esc to cancel).", (255, 100, 0))
+            game_instance.message_log.add_message(f"{user.name} prepares Fire Bolt! No enemies in range).", (255, 100, 0))
             game_instance.game_state = GameState.TARGETING
             game_instance.ability_in_use = self  # Store which ability is being used
             game_instance.targeting_ability_range = self.range
@@ -833,12 +831,11 @@ class Fireball(Ability):
             game_instance.targeting_cursor_y = target.y
             
             game_instance.message_log.add_message(f"{user.name} conjures Fireball! Auto-targeting {target.name}.", (255, 100, 0))
-            game_instance.message_log.add_message("Use Arrow Keys to change target, Enter to confirm, Esc to cancel.", (255, 100, 0))
             return True  # Indicate successful initiation of targeting
         
         # If no monster targets are found, revert to manual targeting starting at player
         else:
-            game_instance.message_log.add_message(f"{user.name} conjures Fireball! No enemies in range. Select a target (Arrow Keys, Enter to confirm, Esc to cancel).", (255, 100, 0))
+            game_instance.message_log.add_message(f"{user.name} conjures Fireball! No enemies in range. Select a target).", (255, 100, 0))
             game_instance.game_state = GameState.TARGETING
             game_instance.ability_in_use = self  # Store which ability is being used
             game_instance.targeting_ability_range = self.range
@@ -1052,7 +1049,7 @@ class MistyStep(Ability):
         
         # Set the player's action state to indicate a choice is pending
         user.current_action_state = "misty_step_teleport" # A new state for Misty Step
-        game_instance.message_log.add_message(f"{user.name} prepares to Misty Step! Select a destination (Arrow Keys, Enter to confirm, Esc to cancel).", (100, 255, 255))
+        game_instance.message_log.add_message(f"{user.name} prepares to Misty Step! Select a destination).", (100, 255, 255))
         
         # Initialize targeting cursor at player's position for selection
         game_instance.targeting_cursor_x = user.x
@@ -1128,7 +1125,7 @@ class MageHand(Ability):
         if not super().use(user, game_instance):
             return False
 
-        game_instance.message_log.add_message("Select a target to trigger a trap or pick up an item (Arrow Keys, Enter to confirm, Esc to cancel).", (255, 100, 0))
+        game_instance.message_log.add_message("Select a target to trigger a trap or pick up an item).", (255, 100, 0))
 
         game_instance.game_state = GameState.TARGETING
         game_instance.ability_in_use = self
@@ -1227,12 +1224,11 @@ class RayOfFrost(Ability):
             game_instance.targeting_cursor_y = target.y
 
             game_instance.message_log.add_message(f"{user.name} prepares Ray of Frost! Auto-targeting {target.name}.", (0, 255, 255))
-            game_instance.message_log.add_message("Use Arrow Keys to change target, Enter to confirm, Esc to cancel.", (0, 255, 255))
             return True  # Indicate successful initiation of targeting
 
         # If no monster targets are found, revert to manual targeting starting at player
         else:
-            game_instance.message_log.add_message(f"{user.name} prepares Ray of Frost! No enemies in range. Select a target (Arrow Keys, Enter to confirm, Esc to cancel).", (0, 255, 255))
+            game_instance.message_log.add_message(f"{user.name} prepares Ray of Frost! No enemies in range.).", (0, 255, 255))
             game_instance.game_state = GameState.TARGETING
             game_instance.ability_in_use = self  # Store which ability is being used
             game_instance.targeting_ability_range = self.range
@@ -1597,7 +1593,8 @@ class CureWounds(Ability):
             return False
 
         # If there are valid targets, enter targeting mode
-        game_instance.message_log.add_message(f"{user.name} prepares to cast Cure Wounds! Select a target (Arrow Keys, Enter to confirm, Esc to cancel).", (0, 255, 255))
+        game_instance.message_log.add_message(f"{user.name} prepares to cast Cure Wounds!).", (0, 255, 255))
+        game_instance.message_log.add_message(f"Select a target to heal", (0, 255, 255))
         game_instance.game_state = GameState.TARGETING
         game_instance.ability_in_use = self
         game_instance.targeting_ability_range = self.range
@@ -1678,7 +1675,6 @@ class SacredFlame(Ability):
         game_instance.targeting_cursor_y = target.y
 
         game_instance.message_log.add_message(f"{user.name} prepares Sacred Flame! Auto-targeting {target.name}.", (255, 255, 0))
-        game_instance.message_log.add_message("Use Arrow Keys to change target, Enter to confirm, Esc to cancel.", (255, 255, 0))
         return True
     
     def execute_on_target(self, user, game_instance, target_x, target_y):
@@ -1738,3 +1734,74 @@ class SacredFlame(Ability):
         self.damage_dice = 1 + additional_dice
 
         print(f"[DEBUG] {self.name} scaled: damage_dice = {self.damage_dice} at player level {player_level}")
+
+class SummonCelestial(Ability):
+    def __init__(self):
+        super().__init__("Summon Celestial", "Summon a powerful celestial ally to fight for you for 1 minute.", cooldown=30)
+        self.celestial_max_hp = 20
+        self.celestial_attack_power = 5
+        self.celestial_proficiency_bonus = 3
+
+    def use(self, user, game_instance):
+        if not self.can_use(user, game_instance):
+            return False
+
+        existing_celestial = None
+        for entity in game_instance.entities:
+            if isinstance(entity, Celestial) and entity.owner == user:
+                existing_celestial = entity
+                break
+
+        if existing_celestial:
+            game_instance.message_log.add_message(f"You dismiss your celestial back to the heavens.", (200, 200, 255))
+            existing_celestial.die(game_instance)
+            return True
+
+        adjacent_offsets = [(0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1)]
+        
+        for dx, dy in adjacent_offsets:
+            new_x = user.x + dx
+            new_y = user.y + dy
+            
+            if game_instance.game_map.is_walkable(new_x, new_y):
+                blocked = False
+                for entity in game_instance.entities:
+                    if entity.x == new_x and entity.y == new_y and entity.blocks_movement:
+                        blocked = True
+                        break
+                
+                if not blocked:
+                    celestial = Celestial(
+                        new_x,
+                        new_y,
+                        user,
+                        hp=self.celestial_max_hp,
+                        attack_power=self.celestial_attack_power,
+                        proficiency_bonus=self.celestial_proficiency_bonus,
+                    )
+                    game_instance.entities.append(celestial)
+                    game_instance.turn_order.append(celestial)
+                    game_instance.message_log.add_message(f"A radiant celestial descends from the heavens to aid you!", (200, 200, 255))
+                    print(f"[DEBUG] Celestial summoned at ({new_x}, {new_y}) for player at ({user.x}, {user.y})")
+                    game_instance.update_fov()
+                    return True
+
+        game_instance.message_log.add_message(f"There's no room to summon a celestial nearby!", (255, 150, 0))
+        return False
+    
+    def scale_with_level(self, player_level):
+        """
+        Scales the Summon Celestial ability with player level.
+        Increases celestial HP and damage as the caster gains levels.
+        """
+        self.celestial_max_hp = 20 + max(0, (player_level - 1) // 2)
+        self.celestial_attack_power = 5 + max(0, (player_level - 1) // 4)
+        self.celestial_proficiency_bonus = 3 + max(0, (player_level - 1) // 5)
+
+        print(
+            f"[DEBUG] {self.name} scaled: celestial_max_hp={self.celestial_max_hp}, "
+            f"attack_power={self.celestial_attack_power}, proficiency_bonus={self.celestial_proficiency_bonus} "
+            f"at player level {player_level}"
+        )
+
+
