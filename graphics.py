@@ -153,7 +153,9 @@ def setup_tile_mapping():
         'H': (6 * CELL_DIM, 0 * CELL_DIM),  # Healer (NPC)
         'rc': (7 * CELL_DIM, 0 * CELL_DIM), # Merchant (NPC)
         'mh': (6 * CELL_DIM, 2 * CELL_DIM), # Mage Hand (Skill)
-        
+        'sw': (14 * CELL_DIM, 2 * CELL_DIM), # Spiritual Weapon (Skill)
+        'CS': (12 * CELL_DIM, 8 * CELL_DIM), # Celestial Spirit (Skill)
+
         # Item Characters
         'cf': (8 * CELL_DIM, 2 * CELL_DIM), # Campfire 
         'pn': (9 * CELL_DIM, 2 * CELL_DIM), # Wood Plank (Junk)

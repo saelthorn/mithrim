@@ -4,7 +4,7 @@ from world.tile import floor, MimicTile, TrapTile
 from core.status_effects import DivineStrikeBuff, PowerAttackBuff, EvasionBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
 from core.game import GameState
 from entities.monster import Monster, Mimic
-from entities.summons import MageHandEntity, Imp, Celestial
+from entities.summons import MageHandEntity, Imp, Celestial, SpiritualWeaponEntity
 from entities.base_entity import NPC
 from core.floating_text import FloatingText
 from items.items import Potion, Food, OffHand, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, torch, wood_plank, throwing_knife # NEW: Import for potion drop
@@ -1810,6 +1810,7 @@ class SacredFlame(Ability):
 
         print(f"[DEBUG] {self.name} scaled: damage_dice = {self.damage_dice} at player level {player_level}")
 
+
 class SummonCelestial(Ability):
     def __init__(self):
         super().__init__("Summon Celestial", "Summon a powerful celestial ally to fight for you for 1 minute.", cooldown=30)
@@ -1879,6 +1880,7 @@ class SummonCelestial(Ability):
             f"at player level {player_level}"
         )
 
+
 class DivineStrike(Ability):
     def __init__(self):
         super().__init__("Divine Strike", "Your weapon attacks deal an extra 1d8 radiant damage on a hit.", cooldown=10)
@@ -1903,3 +1905,66 @@ class DivineStrike(Ability):
         print(f"[DEBUG] {self.name} scaled: extra_damage_dice = {DivineStrikeBuff.base_extra_damage_dice} at player level {player_level}")
 
 
+class SpiritualWeapon(Ability):
+    def __init__(self):
+        super().__init__("Spiritual Weapon", "Summon a floating weapon that strikes a target within 5 tiles as a bonus action.", cooldown=10)
+        self.spiritual_weapon_max_hp = 1
+        self.spiritual_weapon_attack_power = 5
+        self.spiritual_weapon_proficiency_bonus = 2
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+        
+        existing_weapon = None
+        for entity in game_instance.entities:
+            if isinstance(entity, SpiritualWeaponEntity) and entity.owner == user:
+                existing_weapon = entity
+                break
+
+        if existing_weapon:
+            game_instance.message_log.add_message(f"You dismiss your spiritual weapon.", (180, 180, 255))
+            existing_weapon.die(game_instance)
+            return True
+        
+        adjacent_offsets = [(0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1)]
+
+        for dx, dy in adjacent_offsets:
+            new_x = user.x + dx
+            new_y = user.y + dy
+            
+            if game_instance.game_map.is_walkable(new_x, new_y):
+                blocked = False
+                for entity in game_instance.entities:
+                    if entity.x == new_x and entity.y == new_y and entity.blocks_movement:
+                        blocked = True
+                        break
+                
+                if not blocked:
+                    spiritual_weapon = SpiritualWeaponEntity(
+                        new_x,
+                        new_y,
+                        user,
+                        hp=self.spiritual_weapon_max_hp,  # Spiritual weapon is a temporary entity that doesn't have HP in the traditional sense
+                        attack_power=self.spiritual_weapon_attack_power,
+                        proficiency_bonus=self.spiritual_weapon_proficiency_bonus,
+                    )
+                    game_instance.entities.append(spiritual_weapon)
+                    game_instance.turn_order.append(spiritual_weapon)
+                    game_instance.message_log.add_message(f"A shimmering spiritual weapon materializes and floats nearby!", (180, 180, 255))
+                    print(f"[DEBUG] Spiritual Weapon summoned at ({new_x}, {new_y}) for player at ({user.x}, {user.y})")
+                    game_instance.update_fov()
+                    return True
+                
+        game_instance.message_log.add_message(f"There's no room to summon a spiritual weapon nearby!", (255, 150, 0))
+        return False                
+    
+    def scale_with_level(self, player_level):
+        """
+        Scales the Spiritual Weapon ability with player level.
+        Increases damage dice by 1 for every 4 levels (e.g., 1d8 at level 1, 2d8 at level 5, etc.)
+        """
+        additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
+        self.damage_dice = 1 + additional_dice
+
+        print(f"[DEBUG] {self.name} scaled: damage_dice = {self.damage_dice} at player level {player_level}")
