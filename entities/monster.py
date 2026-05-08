@@ -1,6 +1,6 @@
 import random
 from core.pathfinding import astar
-from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff, BlessingOfAgility, GuardBuff
+from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff, BlessingOfAgility, GuardBuff, ParryBuff
 
 from items.items import (
     Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
@@ -434,6 +434,15 @@ class Monster:
             game.message_log.add_message(random.choice(miss_messages), (200, 200, 200))
             miss_text = FloatingText(target.x, target.y, "MISS!", (150, 150, 150))
             game.floating_texts.append(miss_text)
+
+            # Check for Parry counter-attack
+            if hasattr(target, 'active_status_effects'):
+                for effect in target.active_status_effects:
+                    if isinstance(effect, ParryBuff):
+                        game.message_log.add_message(f"{target.name} counters with a devastating riposte!", (255, 255, 0))
+                        # Trigger immediate counter-attack
+                        game.handle_player_attack(self, game)
+                        break  # Only counter once per miss
 
 
     def ranged_attack(self, target, game):
