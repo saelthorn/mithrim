@@ -1294,7 +1294,7 @@ class RayOfFrost(Ability):
         damage_rolls = [random.randint(1, 8) for _ in range(self.damage_dice)]
         total_damage = sum(damage_rolls)
 
-        game_instance.message_log.add_message(f"You roll {self.damage_dice}d8 for damage: {damage_rolls} = {total_damage}", (255, 100, 0))
+        game_instance.message_log.add_message(f"You roll {self.damage_dice}d8 for damage: {damage_rolls} = {total_damage}", (0, 255, 255))
 
         if target_monster and isinstance(target_monster, Monster):
             # Check if the target is specifically a Mimic

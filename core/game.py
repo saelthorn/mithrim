@@ -3942,7 +3942,7 @@ class Game:
                 controls_list.append(f"Move onto {'<' if stairs_dir == 'up' else '>'} to {'ascend' if stairs_dir == 'up' else 'descend'}")
             dungeon_npc = self.check_dungeon_npc_interaction()
             if dungeon_npc:
-                controls_list.append(f"SPACE: Talk to {dungeon_npc.name}")
+                controls_list.append(f"F: Talk to {dungeon_npc.name}")
             else:
                 controls_list.append("SPACE: Attack/Pickup")
             controls_list.extend([

@@ -331,7 +331,7 @@ class BlessingOfStrength(StatusEffect):
 class BlessingOfFortitude(StatusEffect):
     def __init__(self, duration=50):
         super().__init__("Blessing of Fortitude", duration)
-        self.hp_bonus = 10
+        self.hp_bonus = 20
     
     def apply_effect(self, target, game_instance):
         # The HP bonus is applied dynamically during max HP calculations

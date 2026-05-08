@@ -839,6 +839,26 @@ class Monster:
         if not self.alive:
             return
 
+        # NEW: Check for player's summoned entities and prioritize attacking them
+        # This must be done early so target_entity is available for telegraph resolution
+        target_entity = None
+        target_distance = float('inf')
+
+        # Look for summoned entities owned by the player
+        for entity in game.entities:
+            if (hasattr(entity, 'owner') and entity.owner == player and
+                hasattr(entity, 'alive') and entity.alive and
+                hasattr(entity, 'blocks_movement') and entity.blocks_movement):
+                dist = self.distance_to(entity.x, entity.y)
+                if dist < target_distance:
+                    target_distance = dist
+                    target_entity = entity
+
+        # If no summoned entities found, target the player
+        if target_entity is None:
+            target_entity = player
+            target_distance = self.distance_to(player.x, player.y)
+
         # Decrement timers
         if self.attack_cooldown > 0:
             self.attack_cooldown -= 1
@@ -868,25 +888,6 @@ class Monster:
 
         dist_to_player = self.distance_to(player.x, player.y)
         player_detected = self.detect_player(player, game)
-
-        # NEW: Check for player's summoned entities and prioritize attacking them
-        target_entity = None
-        target_distance = float('inf')
-
-        # Look for summoned entities owned by the player
-        for entity in game.entities:
-            if (hasattr(entity, 'owner') and entity.owner == player and
-                hasattr(entity, 'alive') and entity.alive and
-                hasattr(entity, 'blocks_movement') and entity.blocks_movement):
-                dist = self.distance_to(entity.x, entity.y)
-                if dist < target_distance:
-                    target_distance = dist
-                    target_entity = entity
-
-        # If no summoned entities found, target the player
-        if target_entity is None:
-            target_entity = player
-            target_distance = dist_to_player
 
         # Check torchlight stimulus to trigger investigate state
         if not player_detected and self.is_intelligent: # Only intelligent monsters investigate light

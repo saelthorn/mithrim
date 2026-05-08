@@ -1,6 +1,6 @@
 import random
 from entities.player import Player
-from core.status_effects import CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, BlessingOfBloodlust, CurseOfRot
+from core.status_effects import CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, BlessingOfBloodlust, CurseOfRot, BlessingOfFortitude
 
 class Altar:
     def __init__(self, x, y):
@@ -26,7 +26,7 @@ class Altar:
         self.color = (100, 100, 100)  # Gray out after use
         
         spent_altar_tile = game_instance.game_map.tiles [self.y][self.x]
-        spent_altar_tile.destructible = True
+        #spent_altar_tile.destructible = True
         spent_altar_tile.name = "Spent Altar"
         spent_altar_tile.color = self.color
 
@@ -62,8 +62,8 @@ class Altar:
                     "type": "blessing", 
                     "name": "BlessingOfFortitude",
                     "display_name": "Blessing of Fortitude",
-                    "description": "+10 max HP for 60 turns",
-                    "duration": 60
+                    "description": "+20 max HP for 150 turns",
+                    "duration": 150
                 }
             elif blessing_type == "bloodlust":
                 self.effect = {
