@@ -141,3 +141,45 @@ class DrowElf(Race):
                 (150, 200, 255)
             )
 
+class Tiefling(Race):
+    def __init__(self):
+        super().__init__(
+            name="Tiefling",
+            description="Tieflings are known for their infernal heritage and magical abilities.",
+            darkvision_radius=10,
+            damage_resistances=["Fire"],
+            skill_proficiencies=["Intimidation", "Arcana"],
+            weapon_proficiencies=["Simple weapons"],
+            armor_proficiencies=["Light armor"]
+            )
+    
+    def apply_traits(self, player_instance, game_instance):
+        super().apply_traits(player_instance, game_instance) # Call base method for logging and applying darkvision_radius
+        player_instance.intelligence += 1
+        player_instance.charisma += 2
+        
+        game_instance.message_log.add_message(
+            f"{player_instance.name} gains +1 Intelligence and +2 Charisma from being a Tiefling.",
+            (200, 200, 255)
+        )
+        # MODIFIED: Message for darkvision
+        if self.darkvision_radius > 0:
+            game_instance.message_log.add_message(
+                f"{player_instance.name} gains Darkvision (range {self.darkvision_radius} tiles), allowing sight in darkness.",
+                (150, 200, 255)
+            )
+        game_instance.message_log.add_message(
+            f"{player_instance.name} gains resistance to Fire damage.",
+            (150, 200, 255)
+        )
+        if self.weapon_proficiencies:
+            game_instance.message_log.add_message(
+                f"{player_instance.name} is proficient with: {', '.join(self.weapon_proficiencies)}.",
+                (150, 200, 255)
+            )
+        if self.armor_proficiencies:
+            game_instance.message_log.add_message(
+                f"{player_instance.name} is proficient with {', '.join(self.armor_proficiencies)} armor.",
+                (150, 200, 255)
+            )
+

@@ -53,6 +53,11 @@ def setup_tile_mapping():
         'EW': (2 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Wizard
         'EC': (3 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Cleric
 
+        'TF': (0 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Fighter
+        'TR': (1 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Rogue
+        'TW': (2 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Wizard
+        'TC': (3 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Cleric
+
 
         # Map Tiles
         'bl': (11 * CELL_DIM, 2 * CELL_DIM),# Bloodstain
@@ -109,7 +114,7 @@ def setup_tile_mapping():
         'GB': (1 * CELL_DIM, 7 * CELL_DIM),  # Goblin
         'SK': (2 * CELL_DIM, 7 * CELL_DIM),  # Skeleton (Monster)
         'OR': (5 * CELL_DIM, 8 * CELL_DIM),  # Orc (Monster)
-        'TR': (5 * CELL_DIM, 7 * CELL_DIM),  # Troll
+        'TL': (5 * CELL_DIM, 7 * CELL_DIM),  # Troll
         'RDR': (7 * CELL_DIM, 7 * CELL_DIM),  # Dragon (Monster)
         
         'OZ': (0 * CELL_DIM, 8 * CELL_DIM),  # Ooze (Monster)

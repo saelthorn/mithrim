@@ -1444,7 +1444,7 @@ class CentaurArcher(Monster):
 
 class Troll(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'TR', 'Troll', (0, 100, 0))
+        super().__init__(x, y, 'TL', 'Troll', (0, 100, 0))
         self.hp = 84
         self.max_hp = 84
         self.attack_bonus = 4

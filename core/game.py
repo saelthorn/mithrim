@@ -38,7 +38,7 @@ from entities.monster import (
 from entities.base_entity import NPC
 from entities.tavern_npcs import create_tavern_npcs, NPC, Merchant
 from entities.dungeon_npcs import DungeonHealer, DungeonMerchant
-from entities.races import Human, HillDwarf, DrowElf # NEW: Import DrowElf
+from entities.races import Human, HillDwarf, DrowElf, Tiefling 
 from entities.summons import MageHandEntity, SummonedEntity
 from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
 from core.message_log import MessageBox
@@ -180,7 +180,7 @@ class Game:
 
         # Character creation specific variables
         # UPDATED: Add DrowElf to available races
-        self.available_races = [Human(), HillDwarf(), DrowElf()]
+        self.available_races = [Human(), HillDwarf(), DrowElf(), Tiefling()]
         self.selected_race_index = 0 
         self.character_name = "Shadowblade" # Default name, could be input later
         self.character_class = Rogue # Available classes: Fighter, Rogue, Wizard, Cleric
@@ -198,11 +198,17 @@ class Game:
             ("HillDwarf", "Wizard"): ('DW', (100, 150, 255)), # 'DW' for Dwarf Wizard
             ("HillDwarf", "Cleric"): ('DC', (255, 255, 0)),   # 'DC' for Dwarf Cleric
 
-            # Drow Elf mappings (NEW)
-            ("DrowElf", "Fighter"): ('EF', (100, 0, 100)), # Example: Purple for Drow Fighter
-            ("DrowElf", "Rogue"): ('ER', (150, 0, 150)),   # Example: Darker Purple for Drow Rogue
-            ("DrowElf", "Wizard"): ('EW', (200, 0, 200)),  # Example: Lighter Purple for Drow Wizard
-            ("DrowElf", "Cleric"): ('EC', (255, 255, 0)),   # Example: Yellow for Drow Cleric
+            # Drow Elf mappings 
+            ("DrowElf", "Fighter"): ('EF', (100, 0, 100)), # Purple for Drow Fighter
+            ("DrowElf", "Rogue"): ('ER', (150, 0, 150)),   # Darker Purple for Drow Rogue
+            ("DrowElf", "Wizard"): ('EW', (200, 0, 200)),  # Lighter Purple for Drow Wizard
+            ("DrowElf", "Cleric"): ('EC', (255, 255, 0)),   # Yellow for Drow Cleric
+
+            # Tiefling mappings (NEW)
+            ("Tiefling", "Fighter"): ('TF', (150, 0, 0)), # Red for Tiefling Fighter
+            ("Tiefling", "Rogue"): ('TR', (200, 0, 0)),   # Dark Red for Tiefling Rogue
+            ("Tiefling", "Wizard"): ('TW', (255, 0, 0)),  # Bright Red for Tiefling Wizard
+            ("Tiefling", "Cleric"): ('TC', (255, 255, 0)),   # Yellow for Tiefling Cleric
         }
 
         # Class selection
