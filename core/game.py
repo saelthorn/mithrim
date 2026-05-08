@@ -2466,7 +2466,7 @@ class Game:
     
     
             if not target.alive:
-                xp_gained = target.die(game_instance)
+                xp_gained = target.die(game_instance, killer=self.player)
                 self.player.gain_xp(xp_gained, game_instance)  # Use 'self' (player) here
                 self.message_log.add_message(f"You gain {xp_gained} XP!", (100, 255, 100))  # Log the XP gained
                 if target.name == 'Arasta' and self.current_level == 20:

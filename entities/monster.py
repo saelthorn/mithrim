@@ -566,11 +566,23 @@ class Monster:
             
         return damage_taken
 
-    def die(self, game_instance): # Ensure this method accepts game_instance
+    def die(self, game_instance, killer=None): # Ensure this method accepts game_instance
         """Handle death, drop loot, and return XP value"""
         # NEW: Create a bloodstain at the entity's position
         bloodstain = Bloodstain(self.x, self.y, game_instance)
         game_instance.bloodstains.append(bloodstain)
+
+        # Check for Blessing of Bloodlust on killer
+        if killer and hasattr(killer, 'active_status_effects'):
+            for effect in killer.active_status_effects:
+                if effect.name == "Blessing of Bloodlust":
+                    heal_amount = effect.hp_restore_on_kill
+                    killer.heal(heal_amount)
+                    game_instance.message_log.add_message(f"Bloodlust restores {heal_amount} HP!", (255, 0, 0))
+                    # Create floating text for the healing
+                    floating_text = FloatingText(killer.x, killer.y, f"+{heal_amount}", (0, 255, 0))
+                    game_instance.floating_texts.append(floating_text)
+                    break
 
         # --- Handle Loot Drops ---
         for item_template, drop_chance in self.loot_table:

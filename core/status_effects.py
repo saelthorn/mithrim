@@ -328,6 +328,32 @@ class BlessingOfStrength(StatusEffect):
         super().on_end(target, game_instance)
         game_instance.message_log.add_message("The strength blessing fades away.", (150, 150, 150))
 
+class BlessingOfFortitude(StatusEffect):
+    def __init__(self, duration=50):
+        super().__init__("Blessing of Fortitude", duration)
+        self.hp_bonus = 10
+    
+    def apply_effect(self, target, game_instance):
+        # The HP bonus is applied dynamically during max HP calculations
+        pass
+    
+    def on_end(self, target, game_instance):
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message("The fortitude blessing fades away.", (150, 150, 150))
+
+class BlessingOfBloodlust(StatusEffect):
+    def __init__(self, duration=50):
+        super().__init__("Blessing of Bloodlust", duration)
+        self.hp_restore_on_kill = 5 # Restores 5 HP on kill
+    
+    def apply_effect(self, target, game_instance):
+        # The HP restoration is handled in the player's attack logic when an enemy is killed
+        pass
+    
+    def on_end(self, target, game_instance):
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message("The bloodlust blessing fades away.", (150, 150, 150))
+
 class BlessingOfAgility(StatusEffect):
     def __init__(self, duration=50):
         super().__init__("Blessing of Agility", duration)
@@ -355,6 +381,21 @@ class CurseOfWeakness(StatusEffect):
     def on_end(self, target, game_instance):
         super().on_end(target, game_instance)
         game_instance.message_log.add_message("The weakness curse lifts.", (150, 150, 150))
+
+class CurseOfRot(StatusEffect):
+    def __init__(self, duration=50):
+        super().__init__("Curse of Rot", duration)
+        self.damage_per_turn = 1 # Take 1 damage per turn
+    
+    def apply_effect(self, target, game_instance):
+        if self.turns_left > 0:
+            damage = self.damage_per_turn
+            target.take_damage(damage, game_instance, damage_type='rot')
+            game_instance.message_log.add_message(f"{target.name} takes {damage} rot damage!", (139, 69, 19))
+    
+    def on_end(self, target, game_instance):
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message(f"The rot curse fades away.", (150, 150, 150))
 
 class CurseOfBlindness(StatusEffect):
     def __init__(self, duration=50):

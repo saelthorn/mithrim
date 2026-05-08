@@ -2,7 +2,7 @@ import random
 from core. game import GameState
 from core.inventory import Inventory
 from core.abilities import Parry, SecondWind, SpiritualWeapon, DivineStrike, HealingWord, SummonCelestial, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp, PreciseStrike, PrepTime, CureWounds, SacredFlame
-from core.status_effects import ParryBuff, StatusEffect, DivineStrikeBuff, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
+from core.status_effects import BlessingOfBloodlust, BlessingOfFortitude, CurseOfRot, ParryBuff, StatusEffect, DivineStrikeBuff, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
 from items.items import torch, Food, Potion, throwing_knife, bread, green_apple, iron_long_sword, steel_mace, chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, spell_book, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
@@ -950,11 +950,20 @@ class Player: # This is our base class for playable characters
         elif effect_name == "CurseOfBlindness":
             new_effect = CurseOfBlindness(duration)  
 
+        elif effect_name == "CurseOfRot":
+            new_effect = CurseOfRot(duration)
+
         elif effect_name == "CurseOfWeakness":
             new_effect = CurseOfWeakness(duration)
 
         elif effect_name == "BlessingOfStrength":
             new_effect = BlessingOfStrength(duration)
+
+        elif effect_name == "BlessingOfFortitude":
+            new_effect = BlessingOfFortitude(duration)
+
+        elif effect_name == "BlessingOfBloodlust":
+            new_effect = BlessingOfBloodlust(duration)
 
         elif effect_name == "BlessingOfAgility":
             new_effect = BlessingOfAgility(duration)

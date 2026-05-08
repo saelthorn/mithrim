@@ -344,6 +344,7 @@ class ThrowKnife(Ability):
         super().__init__("Throw Knife", "Hurl a throwing knife at a foe.", cost=0, cooldown=2)
         self.range = 6  # Range in tiles
         self.damage_dice = 1  # 1d4
+        self.is_bonus_action = True  # This ability can be used as a bonus action
 
     def use(self, user, game_instance):
         # Check if user has a throwing knife in inventory or equipped
@@ -525,7 +526,7 @@ class ThrowKnife(Ability):
             game_instance.floating_texts.append(damage_text)
 
             if not target_monster.alive:
-                xp_gained = target_monster.die(game_instance)
+                xp_gained = target_monster.die(game_instance, killer=user)
                 user.gain_xp(xp_gained, game_instance)
         else:
             miss_messages = [
@@ -684,7 +685,7 @@ class FireBolt(Ability):
             game_instance.floating_texts.append(damage_text)
 
             if not target_monster.alive:
-                xp_gained = target_monster.die(game_instance)
+                xp_gained = target_monster.die(game_instance, killer=user)
                 user.gain_xp(xp_gained, game_instance)  # Use 'user' (player) here
             return True  # Successfully used ability
 
@@ -916,7 +917,7 @@ class Fireball(Ability):
                     # Check if the entity is dead and award XP
                     if not entity.alive:
                         if isinstance(entity, Monster):
-                            xp_gained = entity.die(game_instance)  # Pass game_instance to the die method
+                            xp_gained = entity.die(game_instance, killer=user)  # Pass game_instance to the die method
                             user.gain_xp(xp_gained, game_instance)  # Award XP to the player
                             game_instance.message_log.add_message(f"You gain {xp_gained} XP!", (100, 255, 100))  # Log the XP gained
 
@@ -1320,7 +1321,7 @@ class RayOfFrost(Ability):
             game_instance.floating_texts.append(damage_text)
 
             if not target_monster.alive:
-                xp_gained = target_monster.die(game_instance)
+                xp_gained = target_monster.die(game_instance, killer=user)
                 user.gain_xp(xp_gained, game_instance)  # Use 'user' (player) here
             return True  # Successfully used ability
 
@@ -1820,7 +1821,7 @@ class SacredFlame(Ability):
         game_instance.message_log.add_message(f"{target.name} has {target.hp}/{target.max_hp} HP", (255, 255, 0))
 
         if not target.alive:
-            xp_gained = target.die(game_instance)
+            xp_gained = target.die(game_instance, killer=user)
             user.gain_xp(xp_gained, game_instance)
         return True
     
