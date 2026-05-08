@@ -204,6 +204,30 @@ class PowerAttack(Ability):
 
         print(f"[DEBUG] {self.name} scaled: extra_damage_dice = {PowerAttackBuff.base_extra_damage_dice} at player level {player_level}")
 
+class Parry(Ability):
+    def __init__(self):
+        super().__init__("Parry", "Focus on defense, increasing your chance to block incoming attacks for 3 turns.", cooldown=15)
+        self.base_ac_bonus = 3
+        self.ac_bonus = self.base_ac_bonus
+        self.duration = 3
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+        
+        # Apply the ParryBuff to the user with the current AC bonus.
+        user.add_status_effect("ParryBuff", self.duration, game_instance=game_instance, source=self)
+        
+        game_instance.message_log.add_message(f"{user.name} takes a defensive stance, gaining +{self.ac_bonus} AC!", (100, 255, 100))
+        
+        # Parry does NOT enter targeting mode. It just applies a buff.
+        # The player's turn should end after using this ability.
+        return True # Indicate successful use and end turn
+    
+    def scale_with_level(self, player_level):
+        additional_ac = (player_level - 1) // 4  # +1 AC every 4 levels
+        self.ac_bonus = self.base_ac_bonus + additional_ac
+        print(f"[DEBUG] {self.name} scaled: ac_bonus = {self.ac_bonus} at player level {player_level}")
 
 class PreciseStrike(Ability):
     def __init__(self):

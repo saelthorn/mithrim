@@ -1,8 +1,8 @@
 import random
 from core. game import GameState
 from core.inventory import Inventory
-from core.abilities import SecondWind, SpiritualWeapon, DivineStrike, HealingWord, SummonCelestial, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp, PreciseStrike, PrepTime, CureWounds, SacredFlame
-from core.status_effects import StatusEffect, DivineStrikeBuff, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
+from core.abilities import Parry, SecondWind, SpiritualWeapon, DivineStrike, HealingWord, SummonCelestial, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp, PreciseStrike, PrepTime, CureWounds, SacredFlame
+from core.status_effects import ParryBuff, StatusEffect, DivineStrikeBuff, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
 from items.items import torch, Food, Potion, throwing_knife, bread, green_apple, iron_long_sword, steel_mace, chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, spell_book, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
@@ -364,7 +364,15 @@ class Player: # This is our base class for playable characters
             base_ac += self.equipped_off_hand.defense_bonus  # Add off-hand defense bonus if it's a shield
 
         for effect in self.active_status_effects:
-            if isinstance(effect, FleetFooted):
+            if isinstance(effect, ParryBuff):
+                base_ac += effect.ac_bonus
+            elif isinstance(effect, GuardBuff):
+                base_ac += effect.ac_bonus
+            elif isinstance(effect, EvasionBuff):
+                base_ac += effect.dodge_bonus
+            elif isinstance(effect, FleetFooted):
+                base_ac += effect.ac_bonus
+            elif isinstance(effect, BlessingOfAgility):
                 base_ac += effect.ac_bonus
 
         return base_ac
@@ -979,6 +987,10 @@ class Player: # This is our base class for playable characters
             guard_bonus = getattr(source, 'ac_bonus', 5)
             new_effect = GuardBuff(duration, ac_bonus=guard_bonus, source=source)
         
+        elif effect_name == "ParryBuff":
+            parry_bonus = getattr(source, 'ac_bonus', 3)
+            new_effect = ParryBuff(duration, ac_bonus=parry_bonus, source=source)
+
         elif effect_name == "Torchlight":
             new_effect = Torchlight(duration)
         
@@ -1128,6 +1140,7 @@ class Fighter(Player):
         # Fighter abilities
         self.abilities["power_attack"] = PowerAttack() 
         self.abilities["precise_strike"] = PreciseStrike()
+        self.abilities["parry"] = Parry()
         self.abilities["second_wind"] = SecondWind()
         self.abilities["action_surge"] = ActionSurge()
         self.update_throw_knife_ability()

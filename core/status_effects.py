@@ -111,7 +111,6 @@ class DivineStrikeBuff(StatusEffect):
     base_extra_damage_dice = 1
     base_damage_modifier = 10 
 
-
     def __init__(self, duration=2): # Typically lasts for 2 turns (the next attack)
         super().__init__("Divine Strike Buff", duration)
         self.damage_modifier = self.base_attack_bonus_modifier
@@ -238,6 +237,22 @@ class GuardBuff(StatusEffect):
     def on_end(self, target, game_instance):
         super().on_end(target, game_instance)
         game_instance.message_log.add_message(f"{target.name}'s guard falters.", (150, 150, 150))
+
+
+class ParryBuff(StatusEffect):
+    def __init__(self, duration=10, ac_bonus=3, source=None): # Lasts for 10 turns
+        super().__init__("Parry", duration, source)
+        self.ac_bonus = ac_bonus
+
+    def apply_effect(self, target, game_instance):
+        """This effect modifies the player's AC directly when active."""
+        if self.turns_left == self.duration: # Only log when first applied
+            game_instance.message_log.add_message(f"{target.name} is ready to parry incoming attacks!", (0, 255, 255))
+
+    def on_end(self, target, game_instance):
+        """Called when the buff expires."""
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message(f"{target.name}'s parry readiness fades.", (150, 150, 150))
 
 
 class Torchlight(StatusEffect):
