@@ -1,5 +1,6 @@
 import random
 from entities.base_entity import NPC # Reusing NPC as a base for simplicity
+from entities.dungeon_npcs import DungeonHealer, DungeonMerchant
 from core.status_effects import Poisoned, AcidBurned, Burning
 from core.pathfinding import astar
 from core import game
@@ -199,6 +200,8 @@ class Imp(SummonedEntity):
         for entity in game_instance.entities:
             if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
                 continue
+            if isinstance(entity, (DungeonHealer, DungeonMerchant)):
+                continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = abs(self.x - entity.x) + abs(self.y - entity.y)
                 if distance == 1:  # Adjacent (melee range)
@@ -217,6 +220,8 @@ class Imp(SummonedEntity):
         enemies_in_range = []
         for entity in game_instance.entities:
             if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
+                continue
+            if isinstance(entity, (DungeonHealer, DungeonMerchant)):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = abs(self.x - entity.x) + abs(self.y - entity.y)
@@ -402,6 +407,8 @@ class Celestial(SummonedEntity):
         for entity in game_instance.entities:
             if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
                 continue
+            if isinstance(entity, (DungeonHealer, DungeonMerchant)):
+                continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = abs(self.x - entity.x) + abs(self.y - entity.y)
                 if distance == 1:  # Adjacent (melee range)
@@ -418,6 +425,8 @@ class Celestial(SummonedEntity):
         enemies_in_range = []
         for entity in game_instance.entities:
             if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
+                continue
+            if isinstance(entity, (DungeonHealer, DungeonMerchant)):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = abs(self.x - entity.x) + abs(self.y - entity.y)
@@ -602,6 +611,8 @@ class SpiritualWeaponEntity(SummonedEntity):
         for entity in game_instance.entities:
             if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
                 continue
+            if isinstance(entity, (DungeonHealer, DungeonMerchant)):
+                continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = abs(self.x - entity.x) + abs(self.y - entity.y)
                 if distance == 1:  # Adjacent (melee range)
@@ -615,6 +626,8 @@ class SpiritualWeaponEntity(SummonedEntity):
         enemies_in_range = []
         for entity in game_instance.entities:
             if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
+                continue
+            if isinstance(entity, (DungeonHealer, DungeonMerchant)):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = abs(self.x - entity.x) + abs(self.y - entity.y)
@@ -705,7 +718,7 @@ class SpiritualWeaponEntity(SummonedEntity):
         if self in game_instance.turn_order:
             game_instance.turn_order.remove(self)
         if self.owner and hasattr(self.owner, 'abilities'):
-            summon_ability = self.owner.abilities.get("summon_celestial")
+            summon_ability = self.owner.abilities.get("spiritual_weapon")
             if summon_ability and summon_ability.current_cooldown == 0:
                 summon_ability.current_cooldown = summon_ability.cooldown
         game_instance.update_fov()

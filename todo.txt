@@ -21,9 +21,6 @@ To do:
      - Add + modifiers to equipments and items
      - More visual updates
      - Sanity feature
-     - More Altar Curses and Buffs
-     - Increase the chance of Clerics get buffs from Altars
-     - Fix Minor Spent Altar Bug
      
      Not Prio - Add Companions
 

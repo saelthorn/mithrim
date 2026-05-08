@@ -1037,25 +1037,27 @@ class Player: # This is our base class for playable characters
             # Call apply_effect for continuous effects (like poison damage)
             effect.apply_effect(self, game_instance)
             
-            effect.tick_down()
-            if effect.turns_left <= 0:
-                effects_to_remove.append(effect)
+            # Only tick down effects that manage their own duration
+            # ActionSurgeEffect and Hidden use player counters as source of truth
+            if not isinstance(effect, (ActionSurgeEffect, Hidden)):
+                effect.tick_down()
+                if effect.turns_left <= 0:
+                    effects_to_remove.append(effect)
 
-        # Special handling for ActionSurgeEffect to sync with the real counter
+        # Sync ActionSurgeEffect with player's extra_turns counter (source of truth)
         if action_surge_effect:
-            # The displayed duration is the number of *extra* turns plus the current one.
-            visual_duration = self.extra_turns + 1
+            visual_duration = self.extra_turns 
             action_surge_effect.turns_left = visual_duration
-            action_surge_effect.name = f"Action Surge ({self.extra_turns} left)"
+            action_surge_effect.name = f"Action Surge"
 
             if self.extra_turns <= 0:
-                # If the counter is empty, remove the effect.
                 effects_to_remove.append(action_surge_effect)
 
+        # Sync Hidden with player's hidden_turns counter (source of truth)
         if hidden_buff:
-            visual_duration = self.hidden_turns + 1
+            visual_duration = self.hidden_turns 
             hidden_buff.turns_left = visual_duration
-            hidden_buff.name = f"Hidden turns ({self.hidden_turns} left)"
+            hidden_buff.name = f"Hidden turns"
 
             if self.hidden_turns <= 0:
                 effects_to_remove.append(hidden_buff)   

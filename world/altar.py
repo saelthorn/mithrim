@@ -23,7 +23,6 @@ class Altar:
             return 'already_used'
             
         self.activated = True
-        self.color = (100, 100, 100)  # Gray out after use
         
         spent_altar_tile = game_instance.game_map.tiles [self.y][self.x]
         #spent_altar_tile.destructible = True
