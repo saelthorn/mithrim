@@ -167,6 +167,8 @@ def setup_tile_mapping():
         'pn': (9 * CELL_DIM, 2 * CELL_DIM), # Wood Plank (Junk)
         'th': (10 * CELL_DIM,2 * CELL_DIM), # Torch (Item)
         'tt': (7 * CELL_DIM, 2 * CELL_DIM), # Thieves' Tools
+        'spb': (13 * CELL_DIM, 2 * CELL_DIM), # Spellbook (Off-hand Item)
+        'hsy': (12 * CELL_DIM, 2 * CELL_DIM), # Holy Symbol (Accessory)
         '!': (0 * CELL_DIM, 13 * CELL_DIM), # Potions
 
         # Food Characters

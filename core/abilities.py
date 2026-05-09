@@ -1078,7 +1078,7 @@ class MistyStep(Ability):
 
 class DetectMagic(Ability):
     def __init__(self):
-        super().__init__("Detect Magic", "Activate magical detection to spot hidden magical traps and mimics in a 6-tile radius each turn.", cost=0, cooldown=50)
+        super().__init__("Detect Magic", "Activate magical detection to spot hidden magical traps and mimics in a 6-tile radius each turn.", cost=0, cooldown=26)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):  # Handles cooldown check

@@ -2126,7 +2126,7 @@ class Game:
         d20_roll = random.randint(1, 20)
         skill_check_total = d20_roll + athletics_bonus
         self.message_log.add_message(
-            f"You roll d20 to attempt to smash the {target_tile.name} (DC {destruction_dc}): [{d20_roll}] + [{athletics_bonus}] (Athletics Bonus) = {skill_check_total}",
+            f"Athletics Check: Rolled {d20_roll} + {athletics_bonus} = {skill_check_total} against DC {destruction_dc}.",
             (200, 200, 255)
         )
         
@@ -3584,10 +3584,14 @@ class Game:
         target_surface.blit(character_surface, (left_column_width + 30, 20))  # Position it in the right column
 
         # Display equipped items as graphics
-        equipped_weapon, equipped_armor, equipped_off_hand = self.player.get_equipped_items()
+        equipped_weapon, equipped_armor, equipped_off_hand, equipped_accessory1, equipped_accessory2 = self.player.get_equipped_items()
+
+
         weapon_name = equipped_weapon.name if equipped_weapon else "None"
         armor_name = equipped_armor.name if equipped_armor else "None"
         off_hand_name = equipped_off_hand.name if equipped_off_hand else "None"
+        accessory_one_name = equipped_accessory1.name if equipped_accessory1 else "None"
+        accessory_two_name = equipped_accessory2.name if equipped_accessory2 else "None"
 
 
         self._draw_text(target_surface, self.font_info, f"Name: {self.player.name}", (255, 255, 255), left_column_width + 30, 100)
@@ -3604,6 +3608,11 @@ class Game:
         self._draw_text(target_surface, self.font_info, f"Equipped Armor: {armor_name}", (255, 255, 255), left_column_width + 30, 280)
         # Draw equipped off-hand icon
         self._draw_text(target_surface, self.font_info, f"Equipped Off-Hand: {off_hand_name}", (255, 255, 255), left_column_width + 30, 300)
+        # Draw equipped accessory icon #1
+        self._draw_text(target_surface, self.font_info, f"Equipped Accessory: {accessory_one_name}", (255, 255, 255), left_column_width + 30, 320)
+        # Draw equipped accessory icon #2
+        self._draw_text(target_surface, self.font_info, f"Equipped Accessory: {accessory_two_name}", (255, 255, 255), left_column_width + 30, 340)
+
             
 
 
@@ -3748,10 +3757,14 @@ class Game:
         equipped_weapon_name = self.player.equipped_weapon.name if self.player.equipped_weapon else "None"
         equipped_off_hand_name = self.player.equipped_off_hand.name if self.player.equipped_off_hand else "None"
         equipped_armor_name = self.player.equipped_armor.name if self.player.equipped_armor else "None"
+        equipped_accessory1_name = self.player.equipped_accessory1.name if self.player.equipped_accessory1 else "None"
+        equipped_accessory2_name = self.player.equipped_accessory2.name if self.player.equipped_accessory2 else "None"
 
         current_y_right = draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_info, f"Weapon: {equipped_weapon_name}", (255, 255, 255), right_column_x, current_y_right, column_width)
         current_y_right = draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_info, f"Armor: {equipped_armor_name}", (255, 255, 255), right_column_x, current_y_right, column_width)
         current_y_right = draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_info, f"Offhand: {equipped_off_hand_name}", (255, 255, 255), right_column_x, current_y_right, column_width)
+        current_y_right = draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_info, f"Accessory 1: {equipped_accessory1_name}", (255, 255, 255), right_column_x, current_y_right, column_width)
+        current_y_right = draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_info, f"Accessory 2: {equipped_accessory2_name}", (255, 255, 255), right_column_x, current_y_right, column_width)
         current_y_right += 15
 
         self._draw_text(target_surface, self.inventory_font_section, "STATUS EFFECTS", (240, 240, 240), right_column_x, current_y_right)

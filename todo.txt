@@ -6,7 +6,7 @@ If there's only one way in and no way out, it's a tomb. Yours.
 
 
 UI to add/fix:
-     - Recolor everything (especially the inventory)
+     - Inventory Rework
 
 
 Map changes:
@@ -22,6 +22,11 @@ To do:
      - More visual updates
      - Sanity feature
      - Add More Equipments
+        - Accessory slots /
+        - Boots x
+        - Helmets x
+        - Cloaks x
+
      
      Not Prio - Add Companions
 

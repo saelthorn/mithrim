@@ -111,6 +111,20 @@ class OffHand(Item):
         # Implement specific use logic for off-hand items if needed
         pass
 
+class Accessory(Item):
+    def __init__(self, name, char, color, description, price, ac_bonus=0, attack_bonus=0, damage_bonus=0, hp_bonus=0, skill_bonus=None, category=None):
+        super().__init__(name, char, color, description, price)
+        self.ac_bonus = ac_bonus  # Bonus to armor class
+        self.attack_bonus = attack_bonus  # Bonus to attack rolls
+        self.damage_bonus = damage_bonus  # Bonus to damage
+        self.hp_bonus = hp_bonus  # Bonus to max HP
+        self.skill_bonus = skill_bonus  # Dict like {"investigation": 2} for skill bonuses
+        self.category = category
+
+    def use(self, user, game_instance):
+        """Define how the item is used, if applicable."""
+        pass
+
 class Tools(Item):
     """An item that can be used in certain situations"""
     def __init__(self, name, char, color, price, description=""):
@@ -317,6 +331,17 @@ spell_book = OffHand(
     category="spellbook"
 )
 
+holy_symbol = Accessory(
+    name="Holy Symbol",
+    char="hsy",
+    color=(255, 255, 0),
+    description="A sacred symbol of great power.",
+    ac_bonus=0,
+    attack_bonus=0,
+    price=40,
+    category="holy_symbol",
+)
+
 iron_dagger = OffHand(
     name="Iron Dagger",
     char="dgr", # Using same char as other weapons for now
@@ -394,7 +419,7 @@ bronze_short_sword = Weapon(
     char="bss",
     color=(150, 150, 150),
     description="An old bronze shortsword.",
-    damage_dice="1d4",
+    damage_dice="1d6",
     damage_modifier=0,
     attack_bonus=0,
     price = 5,
@@ -407,7 +432,7 @@ iron_long_sword = Weapon(
     char="lns",
     color=(150, 150, 150),
     description="A adventurer's sword.",
-    damage_dice="1d6",
+    damage_dice="1d8",
     damage_modifier=0,
     attack_bonus=1,
     price = 15,
@@ -419,7 +444,7 @@ steel_long_sword = Weapon(
     char="sls",
     color=(150, 150, 150),
     description="A steel longsword.",
-    damage_dice="1d6",
+    damage_dice="1d8",
     damage_modifier=1,
     attack_bonus=2,
     price = 25,
@@ -444,7 +469,7 @@ steel_battle_axe = Weapon(
     char="sba",
     color=(150, 150, 150),
     description="Steel battle axe.",
-    damage_dice="1d6",
+    damage_dice="1d12",
     damage_modifier=1,
     attack_bonus=0,
     price = 15,
@@ -456,7 +481,7 @@ dwarven_battle_axe = Weapon(
     char="dba",
     color=(150, 150, 150),
     description="A dwarven battle tested axe.",
-    damage_dice="1d8",
+    damage_dice="1d12",
     damage_modifier=1,
     attack_bonus=3,
     price = 30,
@@ -469,7 +494,7 @@ pole_arm = Weapon(
     char="pla",
     color=(150, 150, 150),
     description="A battle tested axe.",
-    damage_dice="1d6",
+    damage_dice="1d10",
     damage_modifier=1,
     attack_bonus=2,
     price = 25,
@@ -518,7 +543,7 @@ steel_rapier = Weapon(
     char="srp",
     color=(175, 175, 175),
     description="Steel rapier.",
-    damage_dice="1d6",
+    damage_dice="1d8",
     damage_modifier=1,
     attack_bonus=0,
     price=20,
@@ -530,10 +555,10 @@ duelists_rapier = Weapon(
     char="dlr",
     color=(175, 175, 175),
     description="A duelists rapier.",
-    damage_dice="2d6",
+    damage_dice="2d8",
     damage_modifier=2,
     attack_bonus=1,
-    price=40,
+    price=60,
     category="rapier"
 )
 
@@ -542,7 +567,7 @@ iron_hammer = OffHand(
     char="irh",
     color=(175, 175, 175),
     description="A iron hammer.",
-    damage_dice="1d6",
+    damage_dice="1d8",
     damage_modifier=1,
     attack_bonus=0,
     price=15,
@@ -567,7 +592,7 @@ steel_maul = Weapon(
     char="mul",
     color=(175, 175, 175),
     description="A steel maul.",
-    damage_dice="1d8",
+    damage_dice="2d6",
     damage_modifier=2,
     attack_bonus=1,
     price=30,
@@ -592,7 +617,7 @@ dwarven_flail = Weapon(
     char="dwf",
     color=(200, 200, 200),
     description="A dwarven flail.",
-    damage_dice="1d6",
+    damage_dice="1d8",
     damage_modifier=2,
     attack_bonus=1,
     price=35,
@@ -604,7 +629,7 @@ flameheart_flail = Weapon(
     char="fhf",
     color=(200, 200, 200),
     description="A flameheart flail.",
-    damage_dice="1d6",
+    damage_dice="1d8",
     damage_modifier=4,
     attack_bonus=2,
     price=50,

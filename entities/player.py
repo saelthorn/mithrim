@@ -3,7 +3,7 @@ from core. game import GameState
 from core.inventory import Inventory
 from core.abilities import Parry, SecondWind, SpiritualWeapon, DivineStrike, HealingWord, SummonCelestial, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp, PreciseStrike, PrepTime, CureWounds, SacredFlame
 from core.status_effects import BlessingOfBloodlust, BlessingOfFortitude, CurseOfRot, ParryBuff, StatusEffect, DivineStrikeBuff, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins, SpotTrapsEffect, DetectMagicEffect
-from items.items import torch, Food, Potion, throwing_knife, bread, green_apple, iron_long_sword, steel_mace, chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, spell_book, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
+from items.items import torch, Food, Potion, holy_symbol, throwing_knife, bread, green_apple, iron_long_sword, steel_mace, chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, spell_book, Item, CampfireKit, Weapon, Armor, OffHand, Accessory, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
 from core.floating_text import FloatingText
@@ -79,6 +79,8 @@ class Player: # This is our base class for playable characters
         self.equipped_weapon = None
         self.equipped_off_hand = None
         self.equipped_armor = None
+        self.equipped_accessory1 = None
+        self.equipped_accessory2 = None
 
         self.starting_equipment = None 
         
@@ -193,8 +195,8 @@ class Player: # This is our base class for playable characters
                     self.quick_bar[slot_key] = None
                     game_instance.message_log.add_message(f"{item.name} consumed from Quick Bar slot '{slot_key}'.", (100, 255, 100))
                 return True
-            # If not consumable, try to equip it (Weapon, Armor, OffHand)
-            elif isinstance(item, (Weapon, Armor, OffHand)):
+            # If not consumable, try to equip it (Weapon, Armor, OffHand, Accessory)
+            elif isinstance(item, (Weapon, Armor, OffHand, Accessory)):
                 # Determine what is currently equipped of this type
                 currently_equipped = None
                 if isinstance(item, Weapon):
@@ -203,6 +205,12 @@ class Player: # This is our base class for playable characters
                     currently_equipped = self.equipped_armor
                 elif isinstance(item, OffHand):
                     currently_equipped = self.equipped_off_hand
+                elif isinstance(item, Accessory):
+                    # For accessories, we need to find which slot it's in
+                    if self.equipped_accessory1 == item:
+                        currently_equipped = self.equipped_accessory1
+                    elif self.equipped_accessory2 == item:
+                        currently_equipped = self.equipped_accessory2
 
                 if self.equip_item(item, game_instance, from_quick_bar=True):
                     # Swap the previously equipped item (if any) into the quick bar slot
@@ -885,6 +893,32 @@ class Player: # This is our base class for playable characters
 
             return True
 
+        elif isinstance(item, Accessory):
+            # Determine which accessory slot to use
+            if self.equipped_accessory1 is None:
+                slot = 1
+                self.equipped_accessory1 = item
+            elif self.equipped_accessory2 is None:
+                slot = 2
+                self.equipped_accessory2 = item
+            else:
+                game_instance.message_log.add_message("You already have two accessories equipped. Unequip one first.", (255, 100, 100))
+                return False
+
+            if not from_quick_bar:
+                self.inventory.remove_item(item)
+            game_instance.message_log.add_message(f"You equip {item.name} in accessory slot {slot}.", (0, 255, 0))
+
+            # Apply accessory bonuses
+            if item.ac_bonus:
+                self.armor_class += item.ac_bonus
+            if item.hp_bonus:
+                self.max_hp += item.hp_bonus
+                self.hp += item.hp_bonus  # Also heal for the bonus
+            # Other bonuses can be applied here as needed
+
+            return True
+
     def unequip_item(self, item, game_instance, remove_from_inventory=False):
         if isinstance(item, Weapon):
             if self.equipped_weapon == item:
@@ -928,11 +962,57 @@ class Player: # This is our base class for playable characters
                 self.update_guard_ability()
                 return True
 
+        elif isinstance(item, Armor):
+            if self.equipped_armor == item:
+                if remove_from_inventory:
+                    if self.inventory.remove_item(item):
+                        game_instance.message_log.add_message(f"{item.name} removed from inventory.", (150, 150, 150))
+                else:
+                    self.inventory.add_item(item)
+                    game_instance.message_log.add_message(f"You unequip {item.name}.", (150, 150, 150))
+                self.equipped_armor = None
+                self.armor_class = self._calculate_ac()
+                return True
+
+        elif isinstance(item, Accessory):
+            if self.equipped_accessory1 == item:
+                if remove_from_inventory:
+                    if self.inventory.remove_item(item):
+                        game_instance.message_log.add_message(f"{item.name} removed from inventory.", (150, 150, 150))
+                else:
+                    self.inventory.add_item(item)
+                    game_instance.message_log.add_message(f"You unequip {item.name}.", (150, 150, 150))
+                # Remove accessory bonuses
+                if item.ac_bonus:
+                    self.armor_class -= item.ac_bonus
+                if item.hp_bonus:
+                    self.max_hp -= item.hp_bonus
+                    if self.hp > self.max_hp:
+                        self.hp = self.max_hp
+                self.equipped_accessory1 = None
+                return True
+            elif self.equipped_accessory2 == item:
+                if remove_from_inventory:
+                    if self.inventory.remove_item(item):
+                        game_instance.message_log.add_message(f"{item.name} removed from inventory.", (150, 150, 150))
+                else:
+                    self.inventory.add_item(item)
+                    game_instance.message_log.add_message(f"You unequip {item.name}.", (150, 150, 150))
+                # Remove accessory bonuses
+                if item.ac_bonus:
+                    self.armor_class -= item.ac_bonus
+                if item.hp_bonus:
+                    self.max_hp -= item.hp_bonus
+                    if self.hp > self.max_hp:
+                        self.hp = self.max_hp
+                self.equipped_accessory2 = None
+                return True
+
 
 
     def get_equipped_items(self):
-        """Returns a tuple of equipped weapon and armor."""
-        return self.equipped_weapon, self.equipped_armor, self.equipped_off_hand
+        """Returns a tuple of equipped weapon, armor, off-hand, and accessories."""
+        return self.equipped_weapon, self.equipped_armor, self.equipped_off_hand, self.equipped_accessory1, self.equipped_accessory2
 
     def add_status_effect(self, effect_name, duration, game_instance, source=None):
         """Adds a status effect to the player."""
@@ -1247,6 +1327,8 @@ class Wizard(Player):
         self.primary_stat = 'intelligence'  # Set primary stat for Fighter 
 
         # Set starting equipment
+        self.inventory.add_item(holy_symbol)
+        self.inventory.add_item(spell_book)
         self.inventory.add_item(bread)
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
@@ -1318,6 +1400,7 @@ class Cleric(Player):
         self.equipped_weapon = steel_mace
         self.equipped_off_hand = kite_shield
         self.equipped_armor = chainmail_armor
+        self.equipped_accessory1 = holy_symbol
         
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
         # These calculations MUST happen
