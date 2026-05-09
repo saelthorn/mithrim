@@ -66,48 +66,16 @@ class Ability:
 class SpotTrapsAbility(Ability):
     def __init__(self):
         # Cooldown: e.g., 10 turns. Cost: 0 for now, could be stamina later.
-        super().__init__("Spot Traps", "Actively search for hidden traps in a 5-tile radius.", cost=0, cooldown=3)
+        super().__init__("Spot Traps", "Activate trap detection to spot hidden traps in a 4-tile radius each turn.", cost=0, cooldown=3)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance): # Handles cooldown check
             return False
         
-        game_instance.message_log.add_message(f"{user.name} actively searches for traps...", (100, 255, 255))
+        game_instance.message_log.add_message(f"{user.name} activates trap detection!", (100, 255, 255))
         
-        # Check for traps in a 5 tile radius
-        adjacent_traps = []
-        radius = 4
-        for dx in range(-radius, radius + 1):
-            for dy in range(-radius, radius + 1):
-                if dx == 0 and dy == 0:
-                    continue  # Skip self
-                check_x = user.x + dx
-                check_y = user.y + dy
-                if 0 <= check_x < game_instance.game_map.width and 0 <= check_y < game_instance.game_map.height:
-                    tile = game_instance.game_map.tiles[check_y][check_x]
-                    if isinstance(tile, TrapTile) and tile.trap_instance.is_hidden:
-                        adjacent_traps.append(tile)
-        
-        if adjacent_traps:
-            # Perform an Intelligence (Investigation) check
-            investigation_bonus = user.get_ability_modifier(user.intelligence)
-            if "investigation" in user.skill_proficiencies:
-                investigation_bonus += user.proficiency_bonus
-            d20_roll = random.randint(1, 20)
-            investigation_check_total = d20_roll + investigation_bonus
-            
-            found_any = False
-            for trap_tile in adjacent_traps:
-                if investigation_check_total >= trap_tile.trap_instance.detection_dc:
-                    trap_tile.trap_instance.reveal(game_instance, trap_tile.x, trap_tile.y)
-                    game_instance.message_log.add_message(f"You successfully find a hidden {trap_tile.trap_instance.name}!", (0, 255, 255))
-                    found_any = True
-                # Else: The message for failing to find *any* traps is handled below.
-            
-            if not found_any:
-                game_instance.message_log.add_message(f"You fail to find any traps nearby.", (150, 150, 150))
-        else:
-            game_instance.message_log.add_message("You don't see any traps nearby.", (150, 150, 150))
+        # Apply the SpotTrapsEffect status effect for 10 turns
+        user.add_status_effect("SpotTrapsEffect", duration=10, game_instance=game_instance)
         
         return True # Indicate successful use and end turn
 
@@ -1110,34 +1078,17 @@ class MistyStep(Ability):
 
 class DetectMagic(Ability):
     def __init__(self):
-        super().__init__("Detect Magic", "Detects hidden traps within a 4-tile radius.", cost=0, cooldown=3)
+        super().__init__("Detect Magic", "Activate magical detection to spot hidden magical traps and mimics in a 6-tile radius each turn.", cost=0, cooldown=50)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):  # Handles cooldown check
             return False
-
-        game_instance.message_log.add_message(f"{user.name} casts Detect Magic...", (100, 255, 255))
-
-        # Check for hidden traps within 4-tile radius
-        detected_traps = []
-        for dx in range(-3, 5):
-            for dy in range(-3, 5):
-                if dx == 0 and dy == 0:
-                    continue  # Skip self
-                check_x = user.x + dx
-                check_y = user.y + dy
-                if 0 <= check_x < game_instance.game_map.width and 0 <= check_y < game_instance.game_map.height:
-                    tile = game_instance.game_map.tiles[check_y][check_x]
-                    if isinstance(tile, TrapTile) and tile.trap_instance.is_hidden:
-                        detected_traps.append(tile)
-
-        if detected_traps:
-            for trap_tile in detected_traps:
-                trap_tile.trap_instance.reveal(game_instance, trap_tile.x, trap_tile.y)
-                game_instance.message_log.add_message(f"You detect a hidden {trap_tile.trap_instance.name}!", (0, 255, 255))
-        else:
-            game_instance.message_log.add_message("No traps detected nearby.", (150, 150, 150))
-
+        
+        game_instance.message_log.add_message(f"{user.name} casts Detect Magic!", (100, 255, 255))
+        
+        # Apply the DetectMagicEffect status effect for 10 turns
+        user.add_status_effect("DetectMagicEffect", duration=10, game_instance=game_instance)
+        
         return True  # Indicate successful use and end turn
 
 

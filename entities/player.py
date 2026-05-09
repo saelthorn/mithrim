@@ -2,7 +2,7 @@ import random
 from core. game import GameState
 from core.inventory import Inventory
 from core.abilities import Parry, SecondWind, SpiritualWeapon, DivineStrike, HealingWord, SummonCelestial, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp, PreciseStrike, PrepTime, CureWounds, SacredFlame
-from core.status_effects import BlessingOfBloodlust, BlessingOfFortitude, CurseOfRot, ParryBuff, StatusEffect, DivineStrikeBuff, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
+from core.status_effects import BlessingOfBloodlust, BlessingOfFortitude, CurseOfRot, ParryBuff, StatusEffect, DivineStrikeBuff, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins, SpotTrapsEffect, DetectMagicEffect
 from items.items import torch, Food, Potion, throwing_knife, bread, green_apple, iron_long_sword, steel_mace, chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, spell_book, Item, CampfireKit, Weapon, Armor, OffHand, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
@@ -33,7 +33,7 @@ class Player: # This is our base class for playable characters
         self.gold = 50
 
         # Player-specific attributes
-        self.level = 20
+        self.level = 1
         self.current_xp = 0
         self.xp_to_next_level = 2700 # Base XP to level up
 
@@ -561,7 +561,7 @@ class Player: # This is our base class for playable characters
                 ability.current_cooldown = 0  # Reset cooldown for each ability
         
             # Increase ambush chance (e.g., from 20% to 50%)
-            if random.random() < 0.2:  # 20% chance for ambush
+            if random.random() < 0.3:  # 30% chance for ambush
                 ambush_msgs = [
                     "The fire flickers... shadows shift — an ambush!",
                     "Rustling breaks the quiet — danger approaches!",
@@ -1008,6 +1008,12 @@ class Player: # This is our base class for playable characters
         
         elif effect_name == "Hidden":
             new_effect = Hidden(duration)
+
+        elif effect_name == "SpotTrapsEffect":
+            new_effect = SpotTrapsEffect(duration)
+
+        elif effect_name == "DetectMagicEffect":
+            new_effect = DetectMagicEffect(duration)
 
         if new_effect:
             for existing_effect in self.active_status_effects:

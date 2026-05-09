@@ -417,5 +417,108 @@ class CurseOfBlindness(StatusEffect):
         if self.original_darkvision is not None:
             target.darkvision_radius = self.original_darkvision
         super().on_end(target, game_instance)
-        game_instance.message_log.add_message("Your vision returns to normal.", (150, 150, 150))  
+        game_instance.message_log.add_message("Your vision returns to normal.", (150, 150, 150))
+
+
+class SpotTrapsEffect(StatusEffect):
+    def __init__(self, duration=10):
+        super().__init__("Spot Traps", duration)
+        self.detection_radius = 4
+
+    def apply_effect(self, target, game_instance):
+        """Automatically spot traps in a 4-tile radius each turn."""
+        from world.tile import TrapTile
+        import random
+
+        adjacent_traps = []
+        radius = self.detection_radius
+        
+        for dx in range(-radius, radius + 1):
+            for dy in range(-radius, radius + 1):
+                if dx == 0 and dy == 0:
+                    continue  # Skip self
+                check_x = target.x + dx
+                check_y = target.y + dy
+                if 0 <= check_x < game_instance.game_map.width and 0 <= check_y < game_instance.game_map.height:
+                    tile = game_instance.game_map.tiles[check_y][check_x]
+                    if isinstance(tile, TrapTile) and tile.trap_instance.is_hidden:
+                        adjacent_traps.append(tile)
+        
+        if adjacent_traps:
+            # Perform an Intelligence (Investigation) check
+            investigation_bonus = target.get_ability_modifier(target.intelligence)
+            if "investigation" in target.skill_proficiencies:
+                investigation_bonus += target.proficiency_bonus
+            d20_roll = random.randint(1, 20)
+            investigation_check_total = d20_roll + investigation_bonus
+            
+            found_any = False
+            for trap_tile in adjacent_traps:
+                if investigation_check_total >= trap_tile.trap_instance.detection_dc:
+                    trap_tile.trap_instance.reveal(game_instance, trap_tile.x, trap_tile.y)
+                    game_instance.message_log.add_message(f"You spot a hidden {trap_tile.trap_instance.name}!", (0, 255, 255))
+                    found_any = True
+    
+    def on_end(self, target, game_instance):
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message(f"{target.name}'s trap detection fades.", (150, 150, 150))
+
+
+class DetectMagicEffect(StatusEffect):
+    def __init__(self, duration=10):
+        super().__init__("Detect Magic", duration)
+        self.detection_radius = 6
+
+    def apply_effect(self, target, game_instance):
+        """Automatically detect magical things in a 6-tile radius each turn."""
+        from world.tile import TrapTile, MimicTile
+        import random
+
+        detected_items = []
+        radius = self.detection_radius
+        
+        for dx in range(-radius, radius + 1):
+            for dy in range(-radius, radius + 1):
+                if dx == 0 and dy == 0:
+                    continue  # Skip self
+                check_x = target.x + dx
+                check_y = target.y + dy
+                if 0 <= check_x < game_instance.game_map.width and 0 <= check_y < game_instance.game_map.height:
+                    tile = game_instance.game_map.tiles[check_y][check_x]
+                    if isinstance(tile, TrapTile) and tile.trap_instance.is_hidden:
+                        detected_items.append(tile)
+                    elif isinstance(tile, MimicTile) and tile.mimic_entity.disguised:
+                        detected_items.append(tile)
+        
+        if detected_items:
+            # Perform an Intelligence (Arcana) check
+            arcana_bonus = target.get_ability_modifier(target.intelligence)
+            if "arcana" in target.skill_proficiencies:
+                arcana_bonus += target.proficiency_bonus
+            d20_roll = random.randint(1, 20)
+            arcana_check_total = d20_roll + arcana_bonus
+            
+            found_any = False
+            for item in detected_items:
+                if isinstance(item, TrapTile):
+                    game_instance.message_log.add_message(f"Arcana Check: Rolled {d20_roll} + {arcana_bonus} = {arcana_check_total} against DC.", (160, 40, 160))
+
+                    detection_dc = item.trap_instance.detection_dc
+                    if arcana_check_total >= detection_dc:
+                        item.trap_instance.reveal(game_instance, item.x, item.y)
+                        game_instance.message_log.add_message(f"You detect a hidden {item.trap_instance.name}!", (0, 255, 255))
+                        found_any = True
+                elif isinstance(item, MimicTile):
+                    game_instance.message_log.add_message(f"Arcana Check: Rolled {d20_roll} + {arcana_bonus} = {arcana_check_total} against DC.", (160, 40, 160))
+
+                    # Assume a fixed DC for mimics, or get from mimic_entity
+                    detection_dc = 15  # Or getattr(item.mimic_entity, 'detection_dc', 15)
+                    if arcana_check_total >= detection_dc:
+                        item.mimic_entity.disguised = False
+                        game_instance.message_log.add_message(f"You detect a hidden mimic!", (0, 255, 255))
+                        found_any = True
+    
+    def on_end(self, target, game_instance):
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message(f"{target.name}'s magical detection fades.", (150, 150, 150))
 
