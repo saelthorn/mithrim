@@ -371,7 +371,7 @@ class Game:
         # No need to call self.camera.update here, as render will do it.
 
 
-    def _recalculate_dimensions(self):
+    def _recalculate_dimensions(self, is_zoom_only=False):
         """Recalculate all dynamic dimensions based on current screen size."""
         config.SCREEN_WIDTH, config.SCREEN_HEIGHT = self.screen.get_size()
         
@@ -410,18 +410,39 @@ class Game:
             self.message_log.rect.width = config.GAME_AREA_WIDTH
             self.message_log.rect.height = config.MESSAGE_LOG_HEIGHT
             
-            new_font_size = int(config.MESSAGE_LOG_FONT_BASE_SIZE * config.TARGET_EFFECTIVE_TILE_SCALE)
-            if new_font_size < 8: new_font_size = 8 
-            self.message_log.font = pygame.font.SysFont('consolas', new_font_size)
-            
-            self.message_log.line_height = self.message_log.font.get_linesize()
-            self.message_log.max_lines = self.message_log.rect.height // self.message_log.line_height
+            # Only recalculate message log font on window resize, not on game zoom
+            if not is_zoom_only:
+                new_font_size = int(config.MESSAGE_LOG_FONT_BASE_SIZE * config.MESSAGE_LOG_FONT_SCALE_FACTOR)
+                if new_font_size < 8: new_font_size = 8 
+                self.message_log.font = pygame.font.SysFont('consolas', new_font_size)
+                
+                self.message_log.line_height = self.message_log.font.get_linesize()
+                self.message_log.max_lines = self.message_log.rect.height // self.message_log.line_height
         
         graphics.setup_tile_mapping() 
         self._init_fonts() 
 
         # Recalculate minimap dimensions and surface
         self._recalculate_minimap_dimensions()
+
+    def change_zoom(self, zoom_delta):
+        """Adjust zoom level while keeping the game camera within bounds."""
+        new_zoom = config.TARGET_EFFECTIVE_TILE_SCALE + zoom_delta
+        new_zoom = max(config.MIN_ZOOM_SCALE, min(config.MAX_ZOOM_SCALE, new_zoom))
+        if new_zoom == config.TARGET_EFFECTIVE_TILE_SCALE:
+            return
+
+        config.TARGET_EFFECTIVE_TILE_SCALE = new_zoom
+        self._recalculate_dimensions(is_zoom_only=True)
+
+        if self.camera is not None and hasattr(self, "game_map") and self.game_map is not None:
+            self.camera.x = max(0.0, min(self.camera.x, float(self.game_map.width - self.camera.viewport_width)))
+            self.camera.y = max(0.0, min(self.camera.y, float(self.game_map.height - self.camera.viewport_height)))
+            self.camera.target_x = max(0.0, min(self.camera.target_x, float(self.game_map.width - self.camera.viewport_width)))
+            self.camera.target_y = max(0.0, min(self.camera.target_y, float(self.game_map.height - self.camera.viewport_height)))
+
+        if hasattr(self, "message_log") and self.message_log is not None:
+            self.message_log.add_message(f"Zoom {'in' if zoom_delta > 0 else 'out'}: {new_zoom:.1f}x", (200, 200, 255))
 
 
     def _recalculate_minimap_dimensions(self):
@@ -1163,15 +1184,38 @@ class Game:
                 self._recalculate_dimensions()
                 self.render()            
 
-            # NEW: Handle mouse wheel scrolling for message log
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if self.message_log.rect.collidepoint(event.pos): # Check if mouse is over message log
-                    if event.button == 4: # Scroll up
+            # NEW: Handle mouse wheel scrolling for message log and game zoom
+            if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.MOUSEWHEEL:
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    pos = event.pos
+                    wheel_delta = 0
+                    if event.button == 4:
+                        wheel_delta = 1
+                    elif event.button == 5:
+                        wheel_delta = -1
+                else:
+                    pos = pygame.mouse.get_pos()
+                    wheel_delta = event.y
+
+                message_log_hit = self.message_log.rect.collidepoint(pos)
+                game_area_hit = (0 <= pos[0] < config.GAME_AREA_WIDTH and
+                                 0 <= pos[1] < config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT)
+
+                if message_log_hit:
+                    if wheel_delta > 0:
                         self.message_log.scroll_up()
-                        return True # Consume event
-                    elif event.button == 5: # Scroll down
+                        return True
+                    elif wheel_delta < 0:
                         self.message_log.scroll_down()
-                        return True # Consume event
+                        return True
+
+                if game_area_hit and self.game_state in (GameState.DUNGEON, GameState.TAVERN, GameState.TARGETING):
+                    if wheel_delta > 0:
+                        self.change_zoom(config.ZOOM_STEP)
+                        return True
+                    elif wheel_delta < 0:
+                        self.change_zoom(-config.ZOOM_STEP)
+                        return True
 
             if event.type == pygame.KEYDOWN:
 
@@ -2496,7 +2540,7 @@ class Game:
                 self.player.active_status_effects.remove(hidden_buff)
                 hidden_buff.on_end(self.player, self)
 
-        else:
+        if not hit_successful:
             miss_messages = [
                 f"Your attack {attack_roll_total} misses the {target.name} (AC {target.armor_class})!",
                 f"You swing wildly and miss the {target.name} (AC {target.armor_class})!",
