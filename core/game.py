@@ -1780,8 +1780,8 @@ class Game:
         """Checks if there's an interactable item (like a Potion or Chest) at the given coordinates."""
         for item in self.game_map.items_on_ground:
             # Check for any Item (including Potion, Weapon, Armor, Tools)
-            # Exclude Mimic if it's disguised, as it's handled separately by MimicTile
-            if item.x == x and item.y == y and not (isinstance(item, Mimic) and item.disguised):
+            # Exclude monsters, as they are not items
+            if item.x == x and item.y == y and not isinstance(item, Monster):
                 return item
         return None
 
@@ -1794,7 +1794,7 @@ class Game:
 
     def handle_item_pickup(self):
         """Check for items at player's position and pick them up."""
-        items_at_player_pos = [item for item in self.game_map.items_on_ground if item.x == self.player.x and item.y == self.player.y]
+        items_at_player_pos = [item for item in self.game_map.items_on_ground if item.x == self.player.x and item.y == self.player.y and not isinstance(item, Monster)]
         if items_at_player_pos:
             item_to_pick_up = items_at_player_pos[0]
             # Ensure it's not a Chest, as Chests are handled by their own 'open' method
@@ -2101,7 +2101,7 @@ class Game:
             target_tile = self.game_map.tiles[new_y][new_x]
             if isinstance(target_tile, MimicTile):
                 mimic_entity = target_tile.mimic_entity
-                if mimic_entity.disguised:
+                if mimic_entity.disguised or mimic_entity not in self.entities:
                     mimic_entity.reveal(self)
                     return True
                 else:

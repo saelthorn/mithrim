@@ -1,5 +1,6 @@
 import random
 from items.items import torch # Ensure torch item is imported here if not already
+from world.tile import MimicTile
 
 
 class StatusEffect:
@@ -497,24 +498,21 @@ class DetectMagicEffect(StatusEffect):
                 arcana_bonus += target.proficiency_bonus
             d20_roll = random.randint(1, 20)
             arcana_check_total = d20_roll + arcana_bonus
+            game_instance.message_log.add_message(f"Arcana Check: Rolled {d20_roll} + {arcana_bonus} = {arcana_check_total} against DC.", (160, 40, 160))
             
             found_any = False
             for item in detected_items:
                 if isinstance(item, TrapTile):
-                    game_instance.message_log.add_message(f"Arcana Check: Rolled {d20_roll} + {arcana_bonus} = {arcana_check_total} against DC.", (160, 40, 160))
-
                     detection_dc = item.trap_instance.detection_dc
                     if arcana_check_total >= detection_dc:
                         item.trap_instance.reveal(game_instance, item.x, item.y)
                         game_instance.message_log.add_message(f"You detect a hidden {item.trap_instance.name}!", (0, 255, 255))
                         found_any = True
                 elif isinstance(item, MimicTile):
-                    game_instance.message_log.add_message(f"Arcana Check: Rolled {d20_roll} + {arcana_bonus} = {arcana_check_total} against DC.", (160, 40, 160))
-
                     # Assume a fixed DC for mimics, or get from mimic_entity
                     detection_dc = 15  # Or getattr(item.mimic_entity, 'detection_dc', 15)
                     if arcana_check_total >= detection_dc:
-                        item.mimic_entity.disguised = False
+                        item.mimic_entity.reveal(game_instance)
                         game_instance.message_log.add_message(f"You detect a hidden mimic!", (0, 255, 255))
                         found_any = True
     

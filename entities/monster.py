@@ -1,6 +1,7 @@
 import random
 from core.pathfinding import astar
 from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff, BlessingOfAgility, GuardBuff, ParryBuff
+from world.water_features import is_water_tile
 
 from items.items import (
     Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
@@ -825,6 +826,9 @@ class Monster:
 
         # Finally, check that all tiles in new footprint are walkable (after destruction)
         for (tx, ty) in new_footprint:
+            tile = game_map.tiles[ty][tx]
+            if is_water_tile(tile) and not self.can_swim:
+                return False
             if not game_map.is_walkable(tx, ty):
                 return False
 
@@ -1063,6 +1067,9 @@ class Monster:
         if size <= 1:
             if not (0 <= target_x < game_map.width and 0 <= target_y < game_map.height):
                 return False
+            tile = game_map.tiles[target_y][target_x]
+            if is_water_tile(tile) and not self.can_swim:
+                return False
             if not game_map.is_walkable(target_x, target_y):
                 return False
             for entity in entities:
@@ -1082,6 +1089,9 @@ class Monster:
                 tile_x = target_x + offset_x
                 tile_y = target_y + offset_y
                 if not (0 <= tile_x < game_map.width and 0 <= tile_y < game_map.height):
+                    return False
+                tile = game_map.tiles[tile_y][tile_x]
+                if is_water_tile(tile) and not self.can_swim:
                     return False
                 if not game_map.is_walkable(tile_x, tile_y):
                     return False
@@ -1167,6 +1177,9 @@ class Mimic(Monster):
             game_instance.message_log.add_message("The object suddenly sprouts teeth and eyes! It's a MIMIC!", (255, 0, 0))
             game_instance.message_log.add_message("Prepare for battle!", (255, 100, 100))
             print(f"DEBUG: Mimic at ({self.x},{self.y}) revealed. New char: {self.char}, color: {self.color}")
+            # Activate the mimic so it can take turns immediately after reveal
+            self.is_active = True
+            self.ai_state = AI_State.CHASING
             # Mimic immediately attacks the player if adjacent after revealing
             if self.is_adjacent_to(game_instance.player):
                 self.attack(game_instance.player, game_instance)
