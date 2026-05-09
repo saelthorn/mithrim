@@ -344,7 +344,7 @@ class BlessingOfFortitude(StatusEffect):
 class BlessingOfBloodlust(StatusEffect):
     def __init__(self, duration=50):
         super().__init__("Blessing of Bloodlust", duration)
-        self.hp_restore_on_kill = 5 # Restores 5 HP on kill
+        self.hp_restore_on_kill = 10 # Restores 10 HP on kill
     
     def apply_effect(self, target, game_instance):
         # The HP restoration is handled in the player's attack logic when an enemy is killed

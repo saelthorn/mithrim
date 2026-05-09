@@ -22,6 +22,7 @@ pressure_plate = Tile(blocked=False, char='_', color=(200, 180, 50), name="Press
 # Dungeon Decorations
 dungeon_floor_two = Tile(blocked=False, char='.2', color=(200, 180, 50), name="Dungeon Floor Two")
 dungeon_floor_three = Tile(blocked=False, char='.3', color=(200, 180, 50), name="Dungeon Floor Three")
+dungeon_floor_four = Tile(blocked=False, char='.4', color=(200, 180, 50), name="Dungeon Floor Four")
 dungeon_grass = Tile(blocked=False, char='`', color=(0, 160, 20), name="Dungeon Grass")
 dungeon_grass_two = Tile(blocked=False, char='`2', color=(0, 160, 20), name="Dungeon Grass Two")
 rubble = Tile(blocked=False, char='%', color=(150, 150, 150), name="Rubble")

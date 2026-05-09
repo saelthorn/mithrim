@@ -69,8 +69,8 @@ class Altar:
                     "type": "blessing", 
                     "name": "BlessingOfBloodlust",
                     "display_name": "Blessing of Bloodlust",
-                    "description": "Killing an enemy restores small HP for 150 turns",
-                    "duration": 150
+                    "description": "Killing an enemy restores small HP for 200 turns",
+                    "duration": 200
                 }
             else:  # agility
                 self.effect = {
@@ -136,7 +136,7 @@ class Altar:
 
         elif self.effect["name"] == "BlessingOfFortitude":
             player.add_status_effect("BlessingOfFortitude", self.effect["duration"], game_instance=game_instance)
-            game_instance.message_log.add_message(f"{self.effect['display_name']}: +10 max HP for {self.effect['duration']} turns!", (0, 255, 0))
+            game_instance.message_log.add_message(f"{self.effect['display_name']}: +20 max HP for {self.effect['duration']} turns!", (0, 255, 0))
 
         elif self.effect["name"] == "BlessingOfBloodlust":
             player.add_status_effect("BlessingOfBloodlust", self.effect["duration"], game_instance=game_instance)

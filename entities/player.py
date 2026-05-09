@@ -720,7 +720,7 @@ class Player: # This is our base class for playable characters
     def has_spell_book_equipped(self):
         return (
             self.equipped_off_hand is not None and
-            getattr(self.equipped_off_hand, 'category', '').lower() == 'spellbook'
+            (getattr(self.equipped_off_hand, 'category', None) or '').lower() == 'spellbook'
         )
 
     def update_spellbook_abilities(self):
@@ -734,7 +734,7 @@ class Player: # This is our base class for playable characters
     def has_shield_equipped(self):
         return (
             self.equipped_off_hand is not None and
-            getattr(self.equipped_off_hand, 'category', '').lower() == 'shield'
+            (getattr(self.equipped_off_hand, 'category', None) or '').lower() == 'shield'
         )
 
     def update_guard_ability(self):
@@ -1127,6 +1127,7 @@ class Fighter(Player):
         self.inventory.add_item(throwing_knife)
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
+        self.inventory.add_item(torch)
 
         self.equipped_weapon = iron_short_sword
         self.equipped_off_hand = round_shield

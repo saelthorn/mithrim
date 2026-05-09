@@ -291,14 +291,14 @@ class Imp(SummonedEntity):
         target_ac = getattr(target, 'armor_class', 10)
 
         # Show the attack roll
-        game_instance.message_log.add_message(f"The imp rolls a d20: [{d20_roll}] + [{attack_bonus}] (Attack Bonus) = {attack_total} vs AC {target_ac}!", (255, 150, 150))
+        game_instance.message_log.add_message(f"The imp rolls a d20: [{d20_roll}] + [{attack_bonus}] (Attack Bonus) = {attack_total} vs AC {target_ac}!", (255, 120, 120))
 
         if attack_total >= target_ac:
-            game_instance.message_log.add_message(f"The imp's sting hits {target.name}!", (255, 100, 100))
+            game_instance.message_log.add_message(f"The imp's sting hits {target.name}!", (220, 100, 100))
 
             damage_roll = random.randint(1, 4) 
             damage_dealt = target.take_damage(damage_roll, game_instance, damage_type="piercing") + self.attack_power
-            game_instance.message_log.add_message(f"The imp rolls a 1d4: [{damage_roll}] + [{self.attack_power}] (Attack Power) = {damage_dealt} damage!", (255, 150, 150))
+            game_instance.message_log.add_message(f"The imp rolls a 1d4: [{damage_roll}] + [{self.attack_power}] (Attack Power) = {damage_dealt} damage!", (255, 120, 120))
             game_instance.message_log.add_message(f"The imp stings {target.name} for {damage_dealt} damage!", (255, 100, 100))
             game_instance.message_log.add_message(f"{target.name} has {getattr(target, 'hp', 'unknown')}/{getattr(target, 'max_hp', 'unknown')} HP.", (255, 120, 120))
             

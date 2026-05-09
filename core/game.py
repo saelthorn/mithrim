@@ -1838,11 +1838,19 @@ class Game:
             action_taken_in_menu = False
         elif key == pygame.K_q: # New key for quick bar slot 'q'
             if self.player.equip_to_quick_bar(self.selected_inventory_item, 'q', self):
+                self.player.update_throw_knife_ability()
+                self.player.update_spellbook_abilities()
+                self.player.update_thieves_tools_ability()
+                self.player.update_guard_ability()
                 action_taken_in_menu = False
             else:
                 self.message_log.add_message(f"Cannot equip {self.selected_inventory_item.name} to Quick Bar (Q).", (255, 100, 100))
-        elif key == pygame.K_f: # New key for quick bar slot 'e'
+        elif key == pygame.K_f: # New key for quick bar slot 'f'
             if self.player.equip_to_quick_bar(self.selected_inventory_item, 'f', self):
+                self.player.update_throw_knife_ability()
+                self.player.update_spellbook_abilities()
+                self.player.update_thieves_tools_ability()
+                self.player.update_guard_ability()
                 action_taken_in_menu = False
             else:
                 self.message_log.add_message(f"Cannot equip {self.selected_inventory_item.name} to Quick Bar (F).", (255, 100, 100))

@@ -10,7 +10,7 @@ UI to add/fix:
 
 
 Map changes:
-     - Add rivers or something
+     - Better rivers or something
      - Make sure the dungeon exit(stairs down) is far from the dungeon entrance(stairs up) 
      - Add locked doors
      - Add locked chests
@@ -21,6 +21,7 @@ To do:
      - Add + modifiers to equipments and items
      - More visual updates
      - Sanity feature
+     - Add More Equipments
      
      Not Prio - Add Companions
 
