@@ -18,7 +18,7 @@ Map changes:
 
 
 To do:
-     - Add + modifiers to equipments and items
+     - Add more encounters
      - More visual updates
      - Sanity feature
      - Add More Equipments

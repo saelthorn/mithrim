@@ -1913,7 +1913,7 @@ class Wererat(Monster):
 class Wolf(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'WF', 'Wolf', (112, 128, 144))
-        self.can_swim = True
+        self.can_swim = False
         self.hp = 11
         self.max_hp = 11
         self.attack_bonus = 2

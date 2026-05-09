@@ -1966,6 +1966,11 @@ class Game:
             return False
 
         elif self.game_state == GameState.DUNGEON:
+            # Prevent out-of-bounds movement before accessing the tile grid.
+            if not (0 <= new_x < self.game_map.width and 0 <= new_y < self.game_map.height):
+                self.message_log.add_message("You can't move there.", (255, 150, 0))
+                return False
+
             # --- Step 1: Identify potential targets at the new position ---
             target_at_new_pos = self.get_target_at(new_x, new_y)          
             
