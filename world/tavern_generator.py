@@ -36,7 +36,7 @@ def generate_tavern(game_map, player):
         '{': tavern_crate,
         '}': tavern_barrel,
         '#': wall,
-        ' ': floor,
+        ' ': tavern_floor,
         '?': tavern_kitchen_floor,
         '+': door,
         '=': bar_counter,

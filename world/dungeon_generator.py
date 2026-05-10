@@ -1,7 +1,7 @@
 import random
 from random import randint, choice
 from world import tile
-from world.tile import stairs_down, stairs_up, dungeon_door, bones, torch, crate, barrel, wall, floor, dungeon_grass, dungeon_grass_two, dungeon_floor_two, dungeon_floor_three, dungeon_floor_four, rubble, cob_web, mushroom, fresh_bones, dungeon_pillar, MimicTile, TrapTile
+from world.tile import stairs_down, stairs_up, dungeon_door, bones, torch, crate, barrel, wall, floor, dungeon_grass, dungeon_grass_two, dungeon_floor_two, dungeon_floor_three, dungeon_floor_four, dungeon_floor_five, dungeon_floor_six, rubble, cob_web, mushroom, fresh_bones, dungeon_pillar, MimicTile, TrapTile
 from items.items import Chest, generate_random_loot
 from entities.monster import Mimic
 from world.altar import Altar
@@ -23,26 +23,30 @@ class RectRoom:
             self.x1 <= other.x2 and self.x2 >= other.x1 and
             self.y1 <= other.y1 and self.y2 >= other.y1
         )
+    
+def get_floor_tile(x, y):
+    if random.random() < 0.2:  # 20% chance for a variant
+        return random.choice([tile.dungeon_floor_two, tile.dungeon_floor_three, tile.dungeon_floor_four, tile.dungeon_floor_five, tile.dungeon_floor_six, tile.bones, tile.mushroom, tile.cob_web])
+    return tile.floor
 
 def dig_room(game_map, room):
     for y in range(room.y1 + 1, room.y2):
         for x in range(room.x1 + 1, room.x2):
-            game_map.tiles[y][x] = tile.floor
+            game_map.tiles[y][x] = get_floor_tile(x, y)
 
 def dig_tunnel_x(game_map, x1, x2, y):
     for x in range(min(x1, x2), max(x1, x2) + 1):
-        game_map.tiles[y][x] = tile.floor
+        game_map.tiles[y][x] = get_floor_tile(x, y)
 
 def dig_tunnel_y(game_map, y1, y2, x):
     for y in range(min(y1, y2), max(y1, y2) + 1):
-        game_map.tiles[y][x] = tile.floor
-
-def generate_dungeon(game_map, level_number, max_rooms=14, room_min_size=5, room_max_size=14):
+        game_map.tiles[y][x] = get_floor_tile(x, y)
+def generate_dungeon(game_map, level_number, max_rooms=14, room_min_size=5, room_max_size=12):
     rooms = []
     stairs_positions = {}
     
-    floor_decoration_tiles = [crate, barrel, bones, dungeon_grass, cob_web, rubble, mushroom, fresh_bones, dungeon_grass_two, dungeon_floor_two, dungeon_floor_three, dungeon_floor_four] 
-    floor_decoration_chance = 0.14  # Ensure this is defined
+    floor_decoration_tiles = [crate, barrel, bones, dungeon_grass, cob_web, rubble, mushroom, fresh_bones, dungeon_grass_two, dungeon_floor_two, dungeon_floor_three, dungeon_floor_four, dungeon_floor_five, dungeon_floor_six ] 
+    floor_decoration_chance = 0.12  # Ensure this is defined
     torch_light_sources = []
 
     # Trap Definitions and Chance

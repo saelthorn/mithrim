@@ -81,6 +81,8 @@ def setup_tile_mapping():
         '.2': (8 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Two
         '.3': (9 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Three
         '.4': (7 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Four
+        '.5': (12 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Five 
+        '.6': (13 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Six 
         '`2': (10 * CELL_DIM, 4 * CELL_DIM), # Dungeon Grass Two
         '~': (11 * CELL_DIM, 4 * CELL_DIM),  # River (Water) - FIXED: Keep this
         '≈': (11 * CELL_DIM, 4 * CELL_DIM),  # Lake (Water) - FIXED: Distinct position (adjust if your tileset has it elsewhere)

@@ -53,7 +53,7 @@ from items.items import (
 )
 
 from core.pathfinding import astar
-from world.tile import floor, MimicTile, TrapTile
+from world.tile import floor, dungeon_floor_two, dungeon_floor_three, dungeon_floor_four, MimicTile, TrapTile
 from world.bloodstain import Bloodstain
 from world.altar import Altar
 from world.water_features import river, lake, is_water_tile # NEW: Import water tiles and helper
@@ -532,7 +532,7 @@ class Game:
         if hasattr(self, "game_map") and hasattr(self.game_map, "items_on_ground"):
             self.game_map.items_on_ground.clear() 
 
-        self.game_map = GameMap(60, 50)
+        self.game_map = GameMap(70, 50)
         self.fov = FOV(self.game_map)
         
         rooms, self.stairs_positions, self.torch_light_sources = generate_dungeon(self.game_map, level_number)
@@ -814,7 +814,7 @@ class Game:
                         break
 
 
-                is_decorative_tile = self.game_map.tiles[item_y][item_x] != floor                    
+                # is_decorative_tile = self.game_map.tiles[item_y][item_x] != floor                    
                 # NEW: Check if the spot is a water tile
                 is_water = is_water_tile(self.game_map.tiles[item_y][item_x])
 
