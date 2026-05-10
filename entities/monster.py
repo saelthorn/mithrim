@@ -272,13 +272,34 @@ class Monster:
         if move_y != 0:
             potential_moves.append((0, move_y))       # Vertical away
     
+        # Track summons whose reach the monster is leaving
+        adjacent_summons = []
+        for entity in game.entities:
+            if not hasattr(entity, 'owner') or entity.owner != player:
+                continue
+            if not getattr(entity, 'alive', False) or not getattr(entity, 'blocks_movement', False):
+                continue
+            # Simple adjacency for single-tile summons
+            if max(abs(self.x - entity.x), abs(self.y - entity.y)) == 1:
+                adjacent_summons.append(entity)
+
         for check_dx, check_dy in potential_moves:
             new_x, new_y = self.x + check_dx, self.y + check_dy
-    
+
             # Check footprint clearance instead of just single tile
             if self.can_occupy_position(new_x, new_y, game_map, game.entities, exclusions=[self]):
                 self.x, self.y = new_x, new_y
                 game.update_fov()  # Update FOV after movement
+
+                # Opportunity attacks from summons that lost adjacency
+                for summon in adjacent_summons:
+                    if not getattr(summon, 'alive', False):
+                        continue
+                    still_adjacent = max(abs(self.x - summon.x), abs(self.y - summon.y)) == 1
+                    if not still_adjacent and hasattr(summon, 'opportunity_attack'):
+                        summon.opportunity_attack(self, game)
+                        if not self.alive:
+                            return True
                 return True  # Successfully fled one step
     
         return False  # Could not find a valid tile to flee to
@@ -827,7 +848,7 @@ class Monster:
         # Finally, check that all tiles in new footprint are walkable (after destruction)
         for (tx, ty) in new_footprint:
             tile = game_map.tiles[ty][tx]
-            if is_water_tile(tile) and not self.can_swim:
+            if self.footprint_size == 1 and is_water_tile(tile) and not self.can_swim:
                 return False
             if not game_map.is_walkable(tx, ty):
                 return False
@@ -1068,7 +1089,7 @@ class Monster:
             if not (0 <= target_x < game_map.width and 0 <= target_y < game_map.height):
                 return False
             tile = game_map.tiles[target_y][target_x]
-            if is_water_tile(tile) and not self.can_swim:
+            if self.footprint_size == 1 and is_water_tile(tile) and not self.can_swim:
                 return False
             if not game_map.is_walkable(target_x, target_y):
                 return False
@@ -1091,7 +1112,7 @@ class Monster:
                 if not (0 <= tile_x < game_map.width and 0 <= tile_y < game_map.height):
                     return False
                 tile = game_map.tiles[tile_y][tile_x]
-                if is_water_tile(tile) and not self.can_swim:
+                if self.footprint_size == 1 and is_water_tile(tile) and not self.can_swim:
                     return False
                 if not game_map.is_walkable(tile_x, tile_y):
                     return False
@@ -2243,6 +2264,7 @@ class Arasta(Monster):
         self.detection_range = 10
         self.is_intelligent = True  # Scheming, divine hatred
         self.footprint_size = 4
+        self.can_swim = True
 
         # Legendary Resistance (3/day) – auto succeed a failed saving throw
         # self.legendary_resistances = 3

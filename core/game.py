@@ -251,8 +251,9 @@ class Game:
 
     # Boss schedule: every 5th floor, ordered list
     BOSS_FLOORS = [
-        (3, 'Troll'),
-        (5, 'Owlbear'),
+        (1, 'Beholder'),
+        (3, 'Owlbear'),
+        (5, 'Gauth'),
         (7, 'AlphaGrick'),
         (10, 'DeathSlaad'),
         (12, 'MindFlayer'),
@@ -531,7 +532,7 @@ class Game:
         if hasattr(self, "game_map") and hasattr(self.game_map, "items_on_ground"):
             self.game_map.items_on_ground.clear() 
 
-        self.game_map = GameMap(70, 40)
+        self.game_map = GameMap(60, 50)
         self.fov = FOV(self.game_map)
         
         rooms, self.stairs_positions, self.torch_light_sources = generate_dungeon(self.game_map, level_number)

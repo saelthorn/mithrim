@@ -37,7 +37,7 @@ def dig_tunnel_y(game_map, y1, y2, x):
     for y in range(min(y1, y2), max(y1, y2) + 1):
         game_map.tiles[y][x] = tile.floor
 
-def generate_dungeon(game_map, level_number, max_rooms=15, room_min_size=6, room_max_size=14):
+def generate_dungeon(game_map, level_number, max_rooms=14, room_min_size=5, room_max_size=14):
     rooms = []
     stairs_positions = {}
     
@@ -88,10 +88,20 @@ def generate_dungeon(game_map, level_number, max_rooms=15, room_min_size=6, room
         rooms.append(RectRoom(game_map.width // 2 - 2, game_map.height // 2 - 2, 5, 5))
         dig_room(game_map, rooms[0])
 
+    # Determine stairs rooms: stairs_up in first room, stairs_down in farthest room
+    stairs_up_room = rooms[0]
+    if len(rooms) > 1:
+        def distance(r1, r2):
+            c1 = r1.center()
+            c2 = r2.center()
+            return ((c1[0] - c2[0])**2 + (c1[1] - c2[1])**2)**0.5
+        stairs_down_room = max(rooms[1:], key=lambda r: distance(stairs_up_room, r))
+    else:
+        stairs_down_room = rooms[0]
+
     # --- Place Stairs (Guaranteed Placement) ---
-    # Place stairs_down in the last room generated
+    # Place stairs_down in the farthest room
     if rooms:
-        stairs_down_room = rooms[-1]
         stairs_x, stairs_y = stairs_down_room.center()
         
         found_stairs_down_spot = False
@@ -110,10 +120,10 @@ def generate_dungeon(game_map, level_number, max_rooms=15, room_min_size=6, room
         
         if not found_stairs_down_spot:
             # Emergency fallback for stairs_down
-            player_start_x, player_start_y = rooms[0].center()
-            game_map.tiles[player_start_y][player_start_x] = stairs_down
-            stairs_positions['down'] = (player_start_x, player_start_y)
-            game_map.items_on_ground = [item for item in game_map.items_on_ground if not (item.x == player_start_x and item.y == player_start_y)]
+            stairs_down_fallback_x, stairs_down_fallback_y = stairs_down_room.center()
+            game_map.tiles[stairs_down_fallback_y][stairs_down_fallback_x] = stairs_down
+            stairs_positions['down'] = (stairs_down_fallback_x, stairs_down_fallback_y)
+            game_map.items_on_ground = [item for item in game_map.items_on_ground if not (item.x == stairs_down_fallback_x and item.y == stairs_down_fallback_y)]
 
     # Place stairs_up in the first room generated (player's spawn room)
     if rooms:
@@ -169,12 +179,9 @@ def generate_dungeon(game_map, level_number, max_rooms=15, room_min_size=6, room
 
     # --- Populate Rooms with Decorations, Torches, Chests/Mimics AND TRAPS ---
     for room_index, room in enumerate(rooms):
-        # Skip the room where stairs are placed for item/decoration spawning
-        if len(rooms) > 1: 
-            if 'down' in stairs_positions and room.center() == stairs_positions['down']:
-                continue 
-            if 'up' in stairs_positions and room.center() == stairs_positions['up']:
-                continue
+        # Skip the rooms where stairs are placed for item/decoration spawning
+        if room == stairs_up_room or room == stairs_down_room:
+            continue
         
         # First pass: Place floor decorations and TRAPS
         for ry in range(room.y1 + 1, room.y2):
@@ -185,7 +192,7 @@ def generate_dungeon(game_map, level_number, max_rooms=15, room_min_size=6, room
                 if 'up' in stairs_positions and (rx, ry) == stairs_positions['up']:
                     continue
                 # Skip if this spot is a water tile
-                if game_map.tiles[ry][rx] in [river, lake, sewer_water]:
+                if game_map.tiles[ry][rx] in [lake, sewer_water]:
                     continue
                 
                 if game_map.tiles[ry][rx] == floor: # Only place on floor tiles
@@ -221,7 +228,7 @@ def generate_dungeon(game_map, level_number, max_rooms=15, room_min_size=6, room
             continue # Skip if stairs_down are at the center of this room
         if 'up' in stairs_positions and (chest_spawn_x, chest_spawn_y) == stairs_positions['up']:
             continue # Skip if stairs_up are at the center of this room
-        if game_map.tiles[chest_spawn_y][chest_spawn_x] in [river, lake, sewer_water]: # Skip if water tile
+        if game_map.tiles[chest_spawn_y][chest_spawn_x] in [lake, sewer_water]: # Skip if water tile
             continue
 
         if random.random() < 0.2: # Increased overall chest spawn chance to 50%

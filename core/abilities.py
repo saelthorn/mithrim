@@ -170,7 +170,6 @@ class PowerAttack(Ability):
         additional_dice = (player_level - 1) // 4
         PowerAttackBuff.base_extra_damage_dice = 1 + additional_dice
 
-        print(f"[DEBUG] {self.name} scaled: extra_damage_dice = {PowerAttackBuff.base_extra_damage_dice} at player level {player_level}")
 
 class Parry(Ability):
     def __init__(self):
@@ -195,7 +194,6 @@ class Parry(Ability):
     def scale_with_level(self, player_level):
         additional_ac = (player_level - 1) // 4  # +1 AC every 4 levels
         self.ac_bonus = self.base_ac_bonus + additional_ac
-        print(f"[DEBUG] {self.name} scaled: ac_bonus = {self.ac_bonus} at player level {player_level}")
 
 class PreciseStrike(Ability):
     def __init__(self):
@@ -222,8 +220,7 @@ class PreciseStrike(Ability):
         additional_bonus = (player_level - 1) // 4
         PreciseStrikeBuff.base_attack_bonus_modifier = 5 + additional_bonus
 
-        print(f"[DEBUG] {self.name} scaled: attack_bonus_modifier = {PreciseStrikeBuff.base_attack_bonus_modifier} at player level {player_level}")
-
+ 
 
 class PrepTime(Ability):
     def __init__(self):
@@ -252,8 +249,7 @@ class PrepTime(Ability):
         FleetFooted.base_ac_bonus = 2 + additional_defense_bonus
         AppliedToxins.base_poison_damage_dice = 1 + additional_attack_bonus
 
-        print(f"[DEBUG] {self.name} scaled: attack_power_modifier = {Prepared.base_attack_power_modifier}, ac_bonus = {FleetFooted.base_ac_bonus}, poison_damage_dice = {AppliedToxins.base_poison_damage_dice} at player level {player_level}")
-
+   
 
 class Guard(Ability):
     def __init__(self):
@@ -278,7 +274,6 @@ class Guard(Ability):
     def scale_with_level(self, player_level):
         additional_ac = (player_level - 1) // 4  # +1 AC every 4 levels
         self.ac_bonus = self.base_ac_bonus + additional_ac
-        print(f"[DEBUG] {self.name} scaled: ac_bonus = {self.ac_bonus} at player level {player_level}")
 
 
 class CunningActionDash(Ability):
@@ -787,7 +782,6 @@ class FireBolt(Ability):
         """
         additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
         self.damage_dice = 1 + additional_dice
-        print(f"[DEBUG] {self.name} scaled: damage_dice = {self.damage_dice} at player level {player_level}") 
 
 
 class Fireball(Ability):
@@ -1028,7 +1022,6 @@ class Fireball(Ability):
         """
         additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
         self.damage_dice = 8 + additional_dice
-        print(f"[DEBUG] {self.name} scaled: damage_dice = {self.damage_dice} at player level {player_level}") 
 
 
 class MistyStep(Ability):
@@ -1406,8 +1399,7 @@ class RayOfFrost(Ability):
         """
         additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
         self.damage_dice = 1 + additional_dice
-
-        print(f"[DEBUG] {self.name} scaled: damage_dice = {self.damage_dice} at player level {player_level}")        
+ 
 
 
 class ActionSurge(Ability):
@@ -1437,7 +1429,6 @@ class ActionSurge(Ability):
         self.cooldown = max(10, 20 - cooldown_reduction)  # Minimum cooldown of 10 turns
         self.extra_turns = 2 + (player_level - 1) // 10  # Gain an extra turn every 10 levels
 
-        print(f"[DEBUG] {self.name} scaled: cooldown = {self.cooldown}, extra_turns = {self.extra_turns} at player level {player_level}")
 
     
 
@@ -1467,7 +1458,6 @@ class CunningActionHide(Ability):
         cooldown_reduction = (player_level - 2) // 5 # One less turn of cooldown every 5 levels
         self.cooldown = max(15, 39 - cooldown_reduction) # Minimum cooldown of 15 turns
 
-        print(f"[DEBUG] {self.name} scaled: cooldown = {self.cooldown} at player level {player_level}")
 
 
 class SummonImp(Ability):
@@ -1614,7 +1604,6 @@ class CureWounds(Ability):
         additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
         self.healing_dice = 1 + additional_dice
 
-        print(f"[DEBUG] {self.name} scaled: healing_dice = {self.healing_dice} at player level {player_level}")
 
 
 class HealingWord(Ability):
@@ -1688,7 +1677,6 @@ class HealingWord(Ability):
         additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
         self.healing_dice = 1 + additional_dice
 
-        print(f"[DEBUG] {self.name} scaled: healing_dice = {self.healing_dice} at player level {player_level}")
 
 
 class SacredFlame(Ability):
@@ -1784,7 +1772,6 @@ class SacredFlame(Ability):
         additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
         self.damage_dice = 1 + additional_dice
 
-        print(f"[DEBUG] {self.name} scaled: damage_dice = {self.damage_dice} at player level {player_level}")
 
 
 class SummonCelestial(Ability):
@@ -1878,7 +1865,6 @@ class DivineStrike(Ability):
         additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
         DivineStrikeBuff.base_extra_damage_dice = 1 + additional_dice
 
-        print(f"[DEBUG] {self.name} scaled: extra_damage_dice = {DivineStrikeBuff.base_extra_damage_dice} at player level {player_level}")
 
 
 class SpiritualWeapon(Ability):
@@ -1942,5 +1928,3 @@ class SpiritualWeapon(Ability):
         """
         additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
         self.damage_dice = 1 + additional_dice
-
-        print(f"[DEBUG] {self.name} scaled: damage_dice = {self.damage_dice} at player level {player_level}")

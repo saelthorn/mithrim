@@ -53,6 +53,16 @@ class SummonedEntity(NPC):
             game_instance.turn_order.remove(self)
         game_instance.update_fov() # Update FOV if it was a light source or blocking sight
 
+    def opportunity_attack(self, target, game_instance):
+        """Perform an opportunity attack when a target leaves melee reach."""
+        if not self.alive:
+            return False
+        if hasattr(self, 'attack_enemy'):
+            game_instance.message_log.add_message(f"{self.name} strikes as {target.name} tries to flee!", self.color)
+            self.attack_enemy(target, game_instance)
+            return True
+        return False
+
 
 class MageHandEntity(SummonedEntity):
     """

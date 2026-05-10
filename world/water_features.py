@@ -6,7 +6,7 @@ river = Tile(blocked=False, char='~', color=(0, 100, 200), block_sight=False, na
 lake = Tile(blocked=False, char='≈', color=(0, 80, 180), block_sight=False, name="Lake")
 sewer_water = Tile(blocked=False, char='~', color=(25, 75, 150), block_sight=False, name="Sewer Water")  # Slightly different color for sewers
 
-def generate_water_features(game_map, rooms, water_spawn_chance=0.4):
+def generate_water_features(game_map, rooms, water_spawn_chance=0.6):
     """
     Generate rivers, lakes, or sewer hallways in the dungeon with a given spawn chance.
     Returns a list of water tiles created.
@@ -18,9 +18,9 @@ def generate_water_features(game_map, rooms, water_spawn_chance=0.4):
     
     # Determine water feature type (40% river, 30% lake, 30% sewer hallway)
     rand = random.random()
-    if rand < 0.4:
+    if rand < 0.05:
         water_tiles.extend(_generate_river(game_map, rooms))
-    elif rand < 0.7:
+    elif rand < 0.3:
         water_tiles.extend(_generate_lake(game_map, rooms))
     else:
         water_tiles.extend(_generate_sewer_hallway(game_map, rooms))
@@ -176,8 +176,8 @@ def _generate_sewer_hallway(game_map, rooms):
     from world.tile import floor, wall  # Local import to avoid circular import
     sewer_tiles = []
 
-    if len(rooms) < 2:
-        return sewer_tiles  # Need at least 2 rooms for a hallway
+    if len(rooms) < 3:
+        return sewer_tiles  # Need at least 3 rooms for a sewer hallway
 
     room1, room2 = random.sample(rooms, 2)
 
