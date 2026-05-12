@@ -97,6 +97,7 @@ class Player: # This is our base class for playable characters
         self.hunger_threshold = 25  # Increase threshold for hunger warnings
         self.turns_since_last_hunger_decrease = 0 
 
+        self.spell_bonus = 0  # Bonus to spell attack rolls and save DCs
         self.attack_power = 0  # Base attack power
         self.attack_bonus = 0  
 
@@ -280,8 +281,24 @@ class Player: # This is our base class for playable characters
     
 
     def get_ability_modifier(self, score):
-        return (score - 10) // 2
+        return (score - 10) // 2 # Standard D&D 5e ability modifier calculation
     
+    def get_spell_modifier(self):
+        """Calculate spell attack modifier and save DC based on the highest of INT, WIS, or CHA."""
+        spellcasting_ability = max(
+            [("INT", self.intelligence), ("WIS", self.wisdom), ("CHA", self.charisma)],
+            key=lambda x: x[1]
+        )[0]  # Get the ability name with the highest score
+
+        if spellcasting_ability == "INT":
+            return self.get_ability_modifier(self.intelligence)
+        elif spellcasting_ability == "WIS":
+            return self.get_ability_modifier(self.wisdom)
+        elif spellcasting_ability == "CHA":
+            return self.get_ability_modifier(self.charisma)
+        else:
+            return 0  # Fallback, should never happen
+
     def update_attack_power(self):
         """Recalculate the attack power based on the primary stat and equipped items."""
         # Base attack power from primary stat
@@ -1355,6 +1372,7 @@ class Wizard(Player):
         # Wizard's primary attack stat is Intelligence (for spells) or Dexterity (for weapons)
         # For basic weapon attacks, let's use Dexterity for now.
         # For spell attack rolls, it would be Intelligence.
+        self.spell_bonus = self.get_spell_modifier() + self.proficiency_bonus
         self.attack_power = self.get_ability_modifier(self.dexterity) + self.equipped_weapon.damage_modifier
         self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus + self.equipped_weapon.attack_bonus
         
@@ -1418,6 +1436,7 @@ class Cleric(Player):
         # Cleric's primary attack stat is Wisdom (for spells) or Strength (for weapons)
         # For basic weapon attacks, let's use Strength for now.
         # For spell attack rolls, it would be Wisdom.
+        self.spell_bonus = self.get_spell_modifier() + self.proficiency_bonus
         self.attack_power = self.get_ability_modifier(self.strength) + self.equipped_weapon.damage_modifier
         self.attack_bonus = self.get_ability_modifier(self.strength) + self.proficiency_bonus
 
@@ -1479,7 +1498,8 @@ class Sorcerer(Player):
         # Sorcerer's primary attack stat is Charisma (for spells) or Dexterity (for weapons)
         # For basic weapon attacks, let's use Dexterity for now.
         # For spell attack rolls, it would be Charisma.
-        self.attack_power = self.get_ability_modifier(self.dexterity) + self.equipped
+        self.spell_bonus = self.get_spell_modifier() + self.proficiency_bonus
+        self.attack_power = self.get_ability_modifier(self.dexterity) + self.equipped_weapon.damage_modifier
         self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus
 
         # Sorcerer abilities

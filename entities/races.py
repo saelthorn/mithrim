@@ -188,7 +188,7 @@ class Dragonborn(Race):
         super().__init__(
             name="Dragonborn",
             description="Dragonborn are proud, honorable warriors with draconic ancestry.",
-            darkvision_radius=0,
+            darkvision_radius=5,
             damage_resistances=["Elemental damage based on draconic ancestry"],
             skill_proficiencies=["Intimidation", "Athletics"],
             weapon_proficiencies=["Simple weapons", "Martial weapons"],

@@ -617,11 +617,11 @@ class FireBolt(Ability):
             return False  # Invalid target, do not consume a turn
 
         # Fire Bolt damage calculation (example: 1d10)
-        # Use self.damage_dice for the number of d10s
-        damage_rolls = [random.randint(1, 10) for _ in range(self.damage_dice)]
+        # Use self.damage_dice for the number of d10s, and add user's spell bonus
+        damage_rolls = [random.randint(1, 10) for _ in range(self.damage_dice)] + [user.spell_bonus]
         total_damage = sum(damage_rolls)
 
-        game_instance.message_log.add_message(f"You roll {self.damage_dice}d10 for damage: {damage_rolls} = {total_damage}", (255, 100, 0))
+        game_instance.message_log.add_message(f"You roll {self.damage_dice}d10 for damage: {damage_rolls} + {user.spell_bonus} (Spell Bonus) = {total_damage}", (255, 100, 0))
 
         if target_monster and isinstance(target_monster, Monster):
             # Check if the target is specifically a Mimic
@@ -845,11 +845,11 @@ class Fireball(Ability):
 
         # Calculate the damage
         # Use self.damage_dice for the number of d6s
-        damage_rolls = [random.randint(1, 6) for _ in range(self.damage_dice)]  # Roll Xd6
+        damage_rolls = [random.randint(1, 6) for _ in range(self.damage_dice)] + [user.spell_bonus]  # Roll Xd6
         total_damage = sum(damage_rolls)
 
         # Notify the player of the damage
-        game_instance.message_log.add_message(f"{user.name} casts Fireball and rolls {self.damage_dice}d6 {damage_rolls}.", (255, 165, 0))
+        game_instance.message_log.add_message(f"You cast Fireball and rolls {self.damage_dice}d6 {damage_rolls} + {user.spell_bonus} (Spell Bonus).", (255, 165, 0))
         game_instance.message_log.add_message(f"Fireball deals {total_damage} fire damage!", (255, 165, 0))
 
         # Apply damage to all entities in the area of effect
@@ -1235,10 +1235,10 @@ class RayOfFrost(Ability):
 
         # Ray of Frost damage calculation (Xd8 cold damage)
         # Use self.damage_dice for the number of d8s
-        damage_rolls = [random.randint(1, 8) for _ in range(self.damage_dice)]
+        damage_rolls = [random.randint(1, 8) for _ in range(self.damage_dice)] + [user.spell_bonus]  
         total_damage = sum(damage_rolls)
 
-        game_instance.message_log.add_message(f"You roll {self.damage_dice}d8 for damage: {damage_rolls} = {total_damage}", (0, 255, 255))
+        game_instance.message_log.add_message(f"You roll {self.damage_dice}d8 for damage: {damage_rolls} + {user.spell_bonus} (Spell Bonus) = {total_damage}", (0, 255, 255))
 
         if target_monster and isinstance(target_monster, Monster):
             # Check if the target is specifically a Mimic
@@ -1580,7 +1580,7 @@ class CureWounds(Ability):
             game_instance.message_log.add_message("Cure Wounds can only be cast on yourself or a friendly ally.", (255, 150, 0))
             return False
 
-        heal_rolls = [random.randint(1, 8) for _ in range(self.healing_dice)]
+        heal_rolls = [random.randint(1, 8) for _ in range(self.healing_dice)] + [user.spell_bonus]
         total_heal = sum(heal_rolls)
         old_hp = getattr(target, 'hp', 0)
 
@@ -1591,7 +1591,7 @@ class CureWounds(Ability):
             healed_amount = target.hp - old_hp
 
         game_instance.message_log.add_message(f"You cast Cure Wounds on {target.name}", (0, 255, 0))
-        game_instance.message_log.add_message(f"You roll {self.healing_dice}d8 for healing: {heal_rolls} = {total_heal}", (0, 255, 0))
+        game_instance.message_log.add_message(f"You roll {self.healing_dice}d8 for healing: {heal_rolls} + {user.spell_bonus} (Spell Bonus) = {total_heal}", (0, 255, 0))
         game_instance.message_log.add_message(f"Healed for {healed_amount} HP.", (0, 255, 0))
         game_instance.floating_texts.append(FloatingText(target.x, target.y, f"{healed_amount}", (0, 255, 0)))
         return True
@@ -1652,7 +1652,7 @@ class HealingWord(Ability):
             game_instance.message_log.add_message("Healing Word can only be cast on yourself or a friendly ally.", (255, 150, 0))
             return False
 
-        heal_rolls = [random.randint(1, 4) for _ in range(self.healing_dice)]
+        heal_rolls = [random.randint(1, 4) for _ in range(self.healing_dice)] + [user.spell_bonus]
         total_heal = sum(heal_rolls)
         old_hp = getattr(target, 'hp', 0)
 
@@ -1665,7 +1665,7 @@ class HealingWord(Ability):
         game_instance.floating_texts.append(FloatingText(target.x, target.y, f"{healed_amount}", (0, 255, 0)))
 
         game_instance.message_log.add_message(f"You cast Healing Word on {target.name}", (0, 255, 0))
-        game_instance.message_log.add_message(f"You roll {self.healing_dice}d4 for healing: {heal_rolls} = {total_heal}", (0, 255, 0))
+        game_instance.message_log.add_message(f"You roll {self.healing_dice}d4 for healing: {heal_rolls} + {user.spell_bonus} (Spell Bonus) = {total_heal}", (0, 255, 0))
         game_instance.message_log.add_message(f"Healed for {healed_amount} HP", (0, 255, 0))
         return True
 
@@ -1723,7 +1723,7 @@ class SacredFlame(Ability):
             game_instance.message_log.add_message("Sacred Flame can only be cast on an enemy.", (255, 150, 0))
             return False
 
-        damage_rolls = [random.randint(1, 8) for _ in range(self.damage_dice)]
+        damage_rolls = [random.randint(1, 8) for _ in range(self.damage_dice)] + [user.spell_bonus]
         total_damage = sum(damage_rolls)
 
         # All targets must roll a Dexterity saving throw (DC 10)
@@ -1745,7 +1745,7 @@ class SacredFlame(Ability):
         else:
             game_instance.message_log.add_message(f"{target.name} fails the Dexterity saving throw (rolled {save_roll}, DC {dc})! Full damage applies.", (255, 255, 0))
 
-        game_instance.message_log.add_message(f"You roll {self.damage_dice}d8 for damage: {damage_rolls} = {total_damage}", (255, 100, 0))
+        game_instance.message_log.add_message(f"You roll {self.damage_dice}d8 for damage: {damage_rolls} + {user.spell_bonus} (Spell Bonus) = {total_damage}", (255, 100, 0))
 
         damage_dealt = target.take_damage(total_damage, game_instance, damage_type='radiant')
 

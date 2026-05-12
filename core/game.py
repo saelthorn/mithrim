@@ -354,7 +354,8 @@ class Game:
         self.player.max_hp = self.player._calculate_max_hp()
         self.player.hp = self.player.max_hp
         self.player.armor_class = self.player._calculate_ac()
-        
+
+        self.player.spell_bonus = self.player.get_spell_modifier() + self.player.proficiency_bonus
         self.player.attack_power = self.player.get_ability_modifier(self.player.dexterity) + self.player.equipped_weapon.damage_modifier
         self.player.attack_bonus = self.player.get_ability_modifier(self.player.dexterity) + self.player.proficiency_bonus + self.player.equipped_weapon.attack_bonus
         
@@ -2056,10 +2057,10 @@ class Game:
                     
                     if passive_perception_score >= target_tile_obj.trap_instance.detection_dc:
                         target_tile_obj.trap_instance.reveal(self, new_x, new_y)
-                        self.message_log.add_message(f"You notice a hidden {target_tile_obj.trap_instance.name}!", (0, 255, 255))
+                        self.message_log.add_message(f"Perception Check: You notice a hidden {target_tile_obj.trap_instance.name}!", (0, 255, 255))
                         return True # Action taken (noticed trap)
                     else:
-                        self.message_log.add_message(f"You fail to notice anything unusual.", (150, 150, 150))
+                        self.message_log.add_message(f"Perception Check: You fail to notice anything unusual.", (150, 150, 150))
                         # Fall through to movement logic below, which will trigger the trap.
                
                 original_player_x, original_player_y = self.player.x, self.player.y
@@ -3619,8 +3620,9 @@ class Game:
         self._draw_text(target_surface, self.font_info, f"Gold: {self.player.gold}", (255, 215, 0), left_column_width + 30, 120)
         self._draw_text(target_surface, self.font_info, f"AC: {self.player.armor_class}", (255, 255, 255), left_column_width + 30, 160)
         self._draw_text(target_surface, self.font_info, f"Proficiency Bonus: +{self.player.proficiency_bonus}", (255, 255, 255), left_column_width + 30, 180)
-        self._draw_text(target_surface, self.font_info, f"Attack Power: +{self.player.attack_power}", (255, 255, 255), left_column_width + 30, 200)
-        self._draw_text(target_surface, self.font_info, f"Attack Bonus: +{self.player.attack_bonus}", (255, 255, 255), left_column_width + 30, 220)
+        self._draw_text(target_surface, self.font_info, f"Spell Bonus: +{self.player.spell_bonus}", (255, 255, 255), left_column_width + 30, 200)
+        self._draw_text(target_surface, self.font_info, f"Attack Power: +{self.player.attack_power}", (255, 255, 255), left_column_width + 30, 220)
+        self._draw_text(target_surface, self.font_info, f"Attack Bonus: +{self.player.attack_bonus}", (255, 255, 255), left_column_width + 30, 240)
 
 
         # Draw equipped weapon icon
@@ -3766,6 +3768,8 @@ class Game:
         self._draw_text(target_surface, self.inventory_font_info, f"AC: {self.player.armor_class}", (255, 255, 255), right_column_x, current_y_right)
         current_y_right += self.inventory_font_info.get_linesize() + 5
         self._draw_text(target_surface, self.inventory_font_info, f"Proficiency Bonus: +{self.player.proficiency_bonus}", (255, 255, 255), right_column_x, current_y_right)
+        current_y_right += self.inventory_font_info.get_linesize() + 5
+        self._draw_text(target_surface, self.inventory_font_info, f"Spell Bonus: +{self.player.spell_bonus}", (255, 255, 255), right_column_x, current_y_right)
         current_y_right += self.inventory_font_info.get_linesize() + 5
         self._draw_text(target_surface, self.inventory_font_info, f"Attack Power: +{self.player.attack_power}", (255, 255, 255), right_column_x, current_y_right)
         current_y_right += self.inventory_font_info.get_linesize() + 5
