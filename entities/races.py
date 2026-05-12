@@ -183,3 +183,38 @@ class Tiefling(Race):
                 (150, 200, 255)
             )
 
+class Dragonborn(Race):
+    def __init__(self):
+        super().__init__(
+            name="Dragonborn",
+            description="Dragonborn are proud, honorable warriors with draconic ancestry.",
+            darkvision_radius=0,
+            damage_resistances=["Elemental damage based on draconic ancestry"],
+            skill_proficiencies=["Intimidation", "Athletics"],
+            weapon_proficiencies=["Simple weapons", "Martial weapons"],
+            armor_proficiencies=["Light armor", "Medium armor"]
+            )
+    
+    def apply_traits(self, player_instance, game_instance):
+        super().apply_traits(player_instance, game_instance) # Call base method for logging
+        player_instance.strength += 2
+        player_instance.charisma += 1
+        
+        game_instance.message_log.add_message(
+            f"{player_instance.name} gains +2 Strength and +1 Charisma from being a Dragonborn.",
+            (200, 200, 255)
+        )
+        game_instance.message_log.add_message(
+            f"{player_instance.name} gains resistance to elemental damage based on their draconic ancestry.",
+            (150, 200, 255)
+        )
+        if self.weapon_proficiencies:
+            game_instance.message_log.add_message(
+                f"{player_instance.name} is proficient with: {', '.join(self.weapon_proficiencies)}.",
+                (150, 200, 255)
+            )
+        if self.armor_proficiencies:
+            game_instance.message_log.add_message(
+                f"{player_instance.name} is proficient with {', '.join(self.armor_proficiencies)} armor.",
+                (150, 200, 255)
+            )

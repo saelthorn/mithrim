@@ -38,7 +38,7 @@ from entities.monster import (
 from entities.base_entity import NPC
 from entities.tavern_npcs import create_tavern_npcs, NPC, Merchant
 from entities.dungeon_npcs import DungeonHealer, DungeonMerchant
-from entities.races import Human, HillDwarf, DrowElf, Tiefling 
+from entities.races import Human, HillDwarf, DrowElf, Tiefling, Dragonborn
 from entities.summons import MageHandEntity, SummonedEntity
 from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
 from core.message_log import MessageBox
@@ -180,7 +180,7 @@ class Game:
 
         # Character creation specific variables
         # UPDATED: Add DrowElf to available races
-        self.available_races = [Human(), HillDwarf(), DrowElf(), Tiefling()]
+        self.available_races = [Human(), HillDwarf(), DrowElf(), Tiefling(), Dragonborn()]
         self.selected_race_index = 0 
         self.character_name = "Shadowblade" # Default name, could be input later
         self.character_class = Rogue # Available classes: Fighter, Rogue, Wizard, Cleric
@@ -209,6 +209,12 @@ class Game:
             ("Tiefling", "Rogue"): ('TR', (200, 0, 0)),   # Dark Red for Tiefling Rogue
             ("Tiefling", "Wizard"): ('TW', (255, 0, 0)),  # Bright Red for Tiefling Wizard
             ("Tiefling", "Cleric"): ('TC', (255, 255, 0)),   # Yellow for Tiefling Cleric
+
+            # Dragonborn mappings (NEW)
+            ("Dragonborn", "Fighter"): ('DBF', (100, 0, 0)), # Red for Dragonborn Fighter
+            ("Dragonborn", "Rogue"): ('DBR', (0, 150, 0)),   # Dark Red for Dragonborn Rogue
+            ("Dragonborn", "Wizard"): ('DBW', (0, 255, 0)),  # Bright Red for Dragonborn Wizard
+            ("Dragonborn", "Cleric"): ('DBC', (255, 255, 0)),   # Yellow for Dragonborn Cleric
         }
 
         # Class selection
@@ -3538,6 +3544,15 @@ class Game:
                 "armor_proficiencies": ["Light", "Medium", "Shields"],
                 "weapon_proficiencies": ["Simple"],
                 "starting_equipment": ["A mace", "Scale mail", "A light crossbow and 20 bolts", "A priest's pack", "A shield emblazoned with the symbol of their deity"]
+            },
+            "Sorcerer": {
+                "description": "A spellcaster who draws on inherent magic from a powerful bloodline. Sorcerers have a limited number of spells but can cast them with great flexibility.",
+                "hit_die": "1d6",
+                "primary_ability": "Charisma",
+                "saving_throws": ["Constitution", "Charisma"],
+                "armor_proficiencies": ["None"],
+                "weapon_proficiencies": ["Daggers", "Darts", "Slings", "Quarterstaffs", "Light crossbows"],
+                "starting_equipment": ["A quarterstaff", "A component pouch", "A scholar's pack", "A spellbook"]
             }
         }
         # Return specific details for the class, or a generic message if not found

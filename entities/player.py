@@ -1431,3 +1431,60 @@ class Cleric(Player):
         self.update_throw_knife_ability()
         self.update_guard_ability()
         self._scale_all_abilities()  # Scale abilities after adding them
+
+class Sorcerer(Player):
+    def __init__(self, x, y, char, name, color):
+        super().__init__(x, y, char, name, color)
+        self.class_name = "Sorcerer"
+        self.hit_die = 6
+
+        self.strength = 8
+        self.dexterity = 12
+        self.constitution = 13
+        self.intelligence = 14
+        self.wisdom = 10
+        self.charisma = 15
+
+        self.saving_throw_proficiencies = {
+            "CHA": True, "CON": True,
+            "STR": False, "DEX": False, 
+            "INT": False, "WIS": False,
+        }
+
+        self.primary_stat = 'charisma'  # Set primary stat for Sorcerer 
+
+        # Set starting equipment
+        self.inventory.add_item(bread)
+        self.inventory.add_item(bread)
+        self.inventory.add_item(lesser_healing_potion)
+        self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
+
+        self.equipped_weapon = oak_staff
+        self.equipped_off_hand = spell_book
+        self.equipped_armor = robes
+        
+        # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
+        # These calculations MUST happen
+        self.max_hp = self._calculate_max_hp()
+        self.hp = self.max_hp
+        self.armor_class = self._calculate_ac()
+
+        # Class-specific weapon and armor proficiencies
+        self.class_weapon_proficiencies = ["dagger", "quarterstaff", "orb"]  # Sorcerers typically use these
+        self.class_armor_proficiencies = ["light"]  # Sorcerers can wear light armor
+
+        self.weapon_proficiencies = self.class_weapon_proficiencies.copy()
+        self.armor_proficiencies = self.class_armor_proficiencies.copy()
+
+        # Sorcerer's primary attack stat is Charisma (for spells) or Dexterity (for weapons)
+        # For basic weapon attacks, let's use Dexterity for now.
+        # For spell attack rolls, it would be Charisma.
+        self.attack_power = self.get_ability_modifier(self.dexterity) + self.equipped
+        self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus
+
+        # Sorcerer abilities
+        self.abilities["fire_bolt"] = FireBolt()
+        self.abilities["ray_of_frost"] = RayOfFrost()
+        self.abilities["misty_step"] = MistyStep()
+        self.abilities["mage_hand"] = MageHand()
+        self.abilities["detect_magic"] = DetectMagic()

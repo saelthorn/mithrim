@@ -58,6 +58,11 @@ def setup_tile_mapping():
         'TW': (2 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Wizard
         'TC': (3 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Cleric
 
+        'DBF': (0 * CELL_DIM, 11 * CELL_DIM),  # Dragonborn Fighter
+        'DBR': (1 * CELL_DIM, 11 * CELL_DIM),  # Dragonborn Rogue
+        'DBW': (2 * CELL_DIM, 11 * CELL_DIM),  # Dragonborn Wizard
+        'DBC': (3 * CELL_DIM, 11 * CELL_DIM),  # Dragonborn Cleric
+
 
         # Map Tiles
         'bl': (11 * CELL_DIM, 2 * CELL_DIM),# Bloodstain
