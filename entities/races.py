@@ -67,7 +67,7 @@ class HillDwarf(Race):
         super().__init__(
             name="Hill Dwarf",
             description="Hill Dwarves are known for their resilience and toughness.",
-            darkvision_radius=8,
+            darkvision_radius=6,
             damage_resistances=["Poison"],
             skill_proficiencies=["History", "Stonecunning"],
             weapon_proficiencies=["Battleaxes", "Handaxes", "Warhammers"],
@@ -108,7 +108,7 @@ class DrowElf(Race):
         super().__init__(
             name="Drow Elf",
             description="Drow Elves are known for their agility and magical affinity.",
-            darkvision_radius=12,
+            darkvision_radius=10,
             damage_resistances=["Magic"],
             skill_proficiencies=["Stealth", "Perception"],
             weapon_proficiencies=["Rapiers", "Hand crossbows"],
@@ -146,7 +146,7 @@ class Tiefling(Race):
         super().__init__(
             name="Tiefling",
             description="Tieflings are known for their infernal heritage and magical abilities.",
-            darkvision_radius=10,
+            darkvision_radius=8,
             damage_resistances=["Fire"],
             skill_proficiencies=["Intimidation", "Arcana"],
             weapon_proficiencies=["Simple weapons"],

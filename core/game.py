@@ -169,6 +169,7 @@ class Game:
         self.message_log.add_message("Welcome to the dungeon!", (100, 255, 255))
         
         self.floating_texts = []  # Initialize floating texts list
+        self.lit_wall_torches = set()  # (x, y) positions of wall torches the player has lit
 
         # REMOVED: Player creation moved to character_creation_start
         self.player = None 
@@ -538,7 +539,8 @@ class Game:
         self.current_level = level_number
         self.max_level_reached = max(self.max_level_reached, level_number)
         if hasattr(self, "game_map") and hasattr(self.game_map, "items_on_ground"):
-            self.game_map.items_on_ground.clear() 
+            self.game_map.items_on_ground.clear()
+        self.lit_wall_torches = set()  # Reset lit torches for the new level 
 
         self.game_map = GameMap(70, 50)
         self.fov = FOV(self.game_map)
@@ -899,6 +901,50 @@ class Game:
                         return entity  # Return the NPC if adjacent
         return None  # No NPC found
 
+    def try_light_wall_torch(self):
+        """
+        If the player is adjacent to a wall torch tile and has the 'Torchlight'
+        (has_torchlight) status effect, light that torch so it emits light.
+        Returns True if a torch was successfully lit, False otherwise.
+        """
+        from world.tile import torch as torch_tile
+
+        has_torchlight = any(
+            effect.name == "Torchlight" for effect in self.player.active_status_effects
+        )
+        if not has_torchlight:
+            self.message_log.add_message(
+                "You need a light source (Torchlight effect) to ignite the torch.",
+                (150, 150, 150)
+            )
+            return False
+
+        adjacents = [
+            (self.player.x + dx, self.player.y + dy)
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        ]
+
+        for tx, ty in adjacents:
+            if not (0 <= tx < self.game_map.width and 0 <= ty < self.game_map.height):
+                continue
+            tile_at = self.game_map.tiles[ty][tx]
+            # Match torch tile by char and name (avoids importing the singleton object)
+            if tile_at.char == 'i' and tile_at.name == "Torch":
+                if (tx, ty) in self.lit_wall_torches:
+                    self.message_log.add_message("That torch is already burning.", (255, 165, 0))
+                    return False
+                # Light it up
+                self.lit_wall_torches.add((tx, ty))
+                self.update_fov()
+                self.message_log.add_message(
+                    "You touch your flame to the wall torch — it roars to life!",
+                    (255, 165, 0)
+                )
+                return True
+
+        self.message_log.add_message("No torch to light nearby.", (150, 150, 150))
+        return False
+
     def check_stairs_interaction(self):
         if self.game_state == GameState.DUNGEON:
             player_pos = (self.player.x, self.player.y)
@@ -948,8 +994,8 @@ class Game:
             torch_bonus = 2
 
         LIGHT_PRIORITY = {
-            'player': 3,
-            'torch': 2,
+            'torch': 3,
+            'player': 2,
             'darkvision': 1
         }
 
@@ -986,6 +1032,34 @@ class Game:
                 else:
                     # Replace only if torchlight has higher priority
                     if LIGHT_PRIORITY[source] > LIGHT_PRIORITY.get(existing_source, 0):
+                        self.fov.visible_sources[(x, y)] = source
+                        self.fov.explored.add((x, y))
+
+        # Emit light from each lit wall torch (player-activated via 'F' key).
+        # Torches sit on wall tiles, so casting FOV from the torch position itself
+        # traps the light inside the wall.  Instead, find every open floor tile
+        # adjacent to the torch and cast from there — the union of those passes
+        # is the light that fans out into the room.
+        WALL_TORCH_RADIUS = 4  # how far a lit wall torch illuminates
+        for (wx, wy) in getattr(self, 'lit_wall_torches', set()):
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                ox, oy = wx + dx, wy + dy
+                if not (0 <= ox < self.game_map.width and 0 <= oy < self.game_map.height):
+                    continue
+                if self.game_map.tiles[oy][ox].blocked:
+                    continue  # skip neighbours that are also walls
+                wall_torch_fov = FOV(self.game_map)
+                wall_torch_fov.compute_fov(
+                    ox, oy,
+                    radius=WALL_TORCH_RADIUS,
+                    light_source_type='torch'
+                )
+                for (x, y), source in wall_torch_fov.visible_sources.items():
+                    existing = self.fov.visible_sources.get((x, y))
+                    if existing is None:
+                        self.fov.visible_sources[(x, y)] = source
+                        self.fov.explored.add((x, y))
+                    elif LIGHT_PRIORITY[source] > LIGHT_PRIORITY.get(existing, 0):
                         self.fov.visible_sources[(x, y)] = source
                         self.fov.explored.add((x, y))
 
@@ -1341,7 +1415,19 @@ class Game:
 
                 # --- Trade Interaction --- 
                 if self.game_state in GameState.DUNGEON:
-                    if event.key == pygame.K_f:  
+                    if event.key == pygame.K_f:
+                        # --- Wall torch lighting (takes priority over NPC / quick-bar) ---
+                        adjacent_has_torch = any(
+                            (0 <= self.player.x + dx < self.game_map.width and
+                             0 <= self.player.y + dy < self.game_map.height and
+                             self.game_map.tiles[self.player.y + dy][self.player.x + dx].char == 'i' and
+                             self.game_map.tiles[self.player.y + dy][self.player.x + dx].name == "Torch")
+                            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]
+                        )
+                        if adjacent_has_torch:
+                            self.try_light_wall_torch()
+                            return True  # Consume event regardless (don't fall to quick-bar)
+
                         merchant = self.check_dungeon_npc_interaction()  # Check for adjacent NPC
                         if isinstance(merchant, DungeonMerchant):
                             merchant.offer_trade(self.player, self)  # Call the trade method for the Merchant
@@ -3052,19 +3138,19 @@ class Game:
 
                 tile = self.game_map.tiles[y][x]      
 
-                # Set color tint based on visibility (applies to all tiles, including water)
+                # Set color tint based on visibility (applies to all tiles, including water) change FOV
                 render_color_tint = None
                 if visibility_type == 'player':
                     if has_torchlight:
                         render_color_tint = (240, 240, 240, 255)
                     else:
-                        render_color_tint = (140, 140, 140, 255)  
+                        render_color_tint = (100, 100, 100, 255)  
                 elif visibility_type == 'torch':
                     render_color_tint = (180, 180, 180, 255)
                 elif visibility_type == 'darkvision':
-                    render_color_tint = (100, 100, 100, 255)
-                elif visibility_type == 'explored':
                     render_color_tint = (40, 40, 40, 255)
+                elif visibility_type == 'explored':
+                    render_color_tint = (20, 20, 20, 255)
                 elif visibility_type == 'unexplored':
                     # For unexplored, draw nothing (black/invisible)
                     continue
@@ -3137,7 +3223,7 @@ class Game:
                         if has_torchlight:
                             entity_color_tint = (240, 240, 240, 255)  # Dimmer tint when torchlight active
                         else:
-                            entity_color_tint = (180, 180, 180, 255)  
+                            entity_color_tint = (160, 160, 160, 255)  
                     elif visibility_type == 'torch':
                         entity_color_tint = (180, 180, 180, 255)
                     elif visibility_type == 'darkvision':
@@ -4130,4 +4216,3 @@ class Game:
 
         # Blit minimap surface directly to screen every frame
         self.screen.blit(self.minimap_surface, self.minimap_rect.topleft)
-

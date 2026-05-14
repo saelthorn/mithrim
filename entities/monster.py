@@ -2263,7 +2263,7 @@ class Arasta(Monster):
         self.damage_modifier = 6
         self.detection_range = 10
         self.is_intelligent = True  # Scheming, divine hatred
-        self.footprint_size = 4
+        self.footprint_size = 3
         self.can_swim = True
 
         # Legendary Resistance (3/day) – auto succeed a failed saving throw

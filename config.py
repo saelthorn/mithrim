@@ -56,7 +56,7 @@ MIN_GAME_AREA_TILES_HEIGHT = 8 # Ensure at least 18 tiles high are always shown
 # This determines the "base" zoom level. E.g., 2 means each 12px tile will try to be 24px.
 # A value of 1 means each 12px tile will try to be 12px (most zoomed out, smallest tiles).
 # A value of 3 means each 12px tile will try to be 36px (more zoomed in, larger tiles).
-TARGET_EFFECTIVE_TILE_SCALE = 3.0 # <--- ADD THIS LINE
+TARGET_EFFECTIVE_TILE_SCALE = 2.5 # <--- ADD THIS LINE
 MIN_ZOOM_SCALE = 1.0
 MAX_ZOOM_SCALE = 3.0
 ZOOM_STEP = 0.5

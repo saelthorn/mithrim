@@ -32,7 +32,7 @@ cob_web = Tile(blocked=True, char='x', color=(200, 200, 200), block_sight=False,
 mushroom = Tile(blocked=False, char='*', color=(255, 0, 255), name="Mushroom")
 fresh_bones = Tile(blocked=False, char='fb', color=(200, 200, 180), name="Fresh Bones")
 bones = Tile(blocked=False, char=';', color=(200, 200, 180), name="Bones")
-torch = Tile(blocked=True, char='i', color=(255, 165, 0), block_sight=False, name="Torch")
+torch = Tile(blocked=True, char='i', color=(255, 165, 0), block_sight=True, name="Torch")
 
 # Static Crate and Barrel (using distinct chars)
 crate = Tile(blocked=True, char='k', color=(139, 69, 19), block_sight=False, destructible=True, name="Crate") # <--- CHANGED char to 'k'
