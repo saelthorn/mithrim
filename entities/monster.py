@@ -2357,3 +2357,29 @@ class Imp(Monster):
             "WIS": False,
             "CHA": False,
         }
+
+
+class Wraith(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'WRT', 'Wraith', (0, 0, 0))  # Shadowy, incorporeal undead
+
+        self.hp = 67
+        self.max_hp = 67
+        self.attack_bonus = 5
+        self.armor_class = 13
+        self.base_xp = 1800
+        self.monster_die_type = 8   # Life Drain attack (1d8+2)
+        self.num_damage_dice = 1
+        self.damage_modifier = 2
+        self.detection_range = 8
+        self.is_intelligent = False  # Malevolent spirit, not strategic
+        self.can_fly = True
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,   # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }

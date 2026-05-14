@@ -132,9 +132,6 @@ def generate_dungeon(game_map, level_number, max_rooms=14, room_min_size=5, room
     # Place stairs_up in the first room generated (player's spawn room)
     if rooms:
 
-        cx, cy = rooms[1].center()  # Second room
-        game_map.tiles[cy][cx] = river
-        print(f"DEBUG: Forced river tile at ({cx}, {cy})")    
             
         stairs_up_room = rooms[0]
         stairs_x, stairs_y = stairs_up_room.center()

@@ -157,6 +157,7 @@ def setup_tile_mapping():
         'ID': (11 * CELL_DIM, 7 * CELL_DIM), # Intellect Devourer
         'IM': (11 * CELL_DIM, 8 * CELL_DIM),  # Imp
         'AG': (11 * CELL_DIM, 9 * CELL_DIM),  # Alpha Grick 
+        'WRT': (12 * CELL_DIM, 7 * CELL_DIM), # Wraith
 
 
 

@@ -31,7 +31,8 @@ from entities.monster import (
     LizardfolkArcher, GiantSpider, Beholder, LargeOoze, RedDragon,
     Owlbear, Demogorgon, Grick, GibberingMouther, MindFlayer, Minotaur,
     Wererat, Wolf, Yochlol, Drider, RedSlaad, DeathSlaad, MyconidSprout,
-    MyconidAdult, Mezzoloth, Gauth, Arasta, AlphaGrick, IntellectDevourer, Imp
+    MyconidAdult, Mezzoloth, Gauth, Arasta, AlphaGrick, IntellectDevourer, 
+    Imp, Wraith
 
 )
 
@@ -284,11 +285,11 @@ class Game:
         (12, 13): [Troll, Orc, GiantSpider, LargeOoze, Minotaur, GibberingMouther],
 
         # 👁️ Late-mid bosses and horrors (CR 7 – CR 10)
-        (14, 15): [LargeOoze, GiantSpider, GibberingMouther, Gauth],
-        (16, 16): [Drider, Mezzoloth],
+        (14, 15): [LargeOoze, GiantSpider, GibberingMouther, Gauth, Wraith],
+        (16, 16): [Drider, Mezzoloth, Wraith],
 
         # 🔥 High level threats (CR 11 – CR 15)
-        (17, 17): [Yochlol, RedSlaad, LargeOoze, AlphaGrick],
+        (17, 17): [Yochlol, RedSlaad, LargeOoze, AlphaGrick, Wraith],
         (18, 18): [Beholder, MindFlayer, LargeOoze, DeathSlaad, Gauth],
 
         # 🕷️ Endgame / campaign bosses (CR 20+)
@@ -3057,13 +3058,13 @@ class Game:
                     if has_torchlight:
                         render_color_tint = (240, 240, 240, 255)
                     else:
-                        render_color_tint = (160, 160, 160, 255)  
+                        render_color_tint = (140, 140, 140, 255)  
                 elif visibility_type == 'torch':
                     render_color_tint = (180, 180, 180, 255)
                 elif visibility_type == 'darkvision':
-                    render_color_tint = (120, 120, 120, 255)
+                    render_color_tint = (100, 100, 100, 255)
                 elif visibility_type == 'explored':
-                    render_color_tint = (60, 60, 60, 255)
+                    render_color_tint = (40, 40, 40, 255)
                 elif visibility_type == 'unexplored':
                     # For unexplored, draw nothing (black/invisible)
                     continue
@@ -3140,9 +3141,9 @@ class Game:
                     elif visibility_type == 'torch':
                         entity_color_tint = (180, 180, 180, 255)
                     elif visibility_type == 'darkvision':
-                        entity_color_tint = (120, 120, 120, 255)
+                        entity_color_tint = (80, 80, 80, 255)
                     elif visibility_type == 'explored':
-                        entity_color_tint = (60, 60, 60, 255)
+                        entity_color_tint = (40, 40, 40, 255)
                     elif visibility_type == 'unexplored':
                         entity_color_tint = (20, 20, 20, 255)
     
