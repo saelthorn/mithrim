@@ -1,5 +1,7 @@
 # Mithrim
 
+<img width="1621" height="985" alt="mithrim_bg" src="https://github.com/user-attachments/assets/aa4b1c03-84a8-4b92-9981-03bcaeea1d2e" />
+
 **Mithrim** is a turn-based roguelike game **heavily inspired by Dungeons & Dragons 5th Edition**.
 You create a character, explore procedurally generated dungeons, fight monsters, interact with NPCs, and uncover treasures — all with a ruleset and gameplay flow rooted in D\&D mechanics.
 
