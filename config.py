@@ -9,7 +9,7 @@ UI_PANEL_WIDTH_RATIO = 0.19 # UI panel takes 19% of screen width
 
 
 # Message log height as a ratio of the total screen height
-MESSAGE_LOG_HEIGHT_RATIO = 0.26 # Increased to 25% for a taller box
+MESSAGE_LOG_HEIGHT_RATIO = 0.25  # Log is now a transparent overlay; no space reserved
 
 
 # Set TILE_SIZE to match your tileset's individual tile size (e.g., 12x12)
@@ -49,7 +49,7 @@ INTERNAL_GAME_AREA_PIXEL_HEIGHT = INTERNAL_GAME_AREA_HEIGHT_TILES * TILE_SIZE
 
 # --- Minimum number of tiles to display (for dynamic scaling) ---
 MIN_GAME_AREA_TILES_WIDTH = 18  # Ensure at least 20 tiles wide are always shown
-MIN_GAME_AREA_TILES_HEIGHT = 8 # Ensure at least 18 tiles high are always shown
+MIN_GAME_AREA_TILES_HEIGHT = 12 # Ensure at least 18 tiles high are always shown
 
 
 # --- Target effective tile scale for dynamic scaling ---

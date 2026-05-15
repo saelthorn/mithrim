@@ -19,6 +19,7 @@ class GameState:
 
 
 from core.fov import FOV
+from core.ui_sidebar import draw_sidebar
 from world.map import GameMap
 from world.dungeon_generator import generate_dungeon
 from world.tavern_generator import generate_tavern
@@ -71,7 +72,7 @@ class Camera:
     def __init__(self, screen_width, screen_height, tile_size, message_log_height):
         self.tile_size = tile_size
         self.viewport_width = screen_width // tile_size
-        self.viewport_height = (screen_height - message_log_height) // tile_size - 2
+        self.viewport_height = screen_height // tile_size - 2
         
         # Initialize x and y as floats
         self.x = 0.0
@@ -88,10 +89,11 @@ class Camera:
         target_x_float = float(desired_target_x)
         target_y_float = float(desired_target_y)
 
-        # Calculate the ideal camera position (center of viewport)
-        # These should also be floats
+        # Calculate the ideal camera position.
+        # Player is centered horizontally, but shifted up by 30% of the viewport
+        # so the message log overlay at the bottom doesn't obscure the action.
         ideal_camera_center_x = target_x_float - (self.viewport_width / 2.0)
-        ideal_camera_center_y = target_y_float - (self.viewport_height / 2.0)
+        ideal_camera_center_y = target_y_float - (self.viewport_height * 0.38)
 
         # Apply linear interpolation (LERP)
         self.x += (ideal_camera_center_x - self.x) * self.smoothing_factor
@@ -155,9 +157,9 @@ class Game:
         self.player_bonus_action_used = False
         self.message_log = MessageBox(
             0,
-            config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT,
+            config.SCREEN_HEIGHT - int(config.SCREEN_HEIGHT * 0.26),
             config.GAME_AREA_WIDTH,
-            config.MESSAGE_LOG_HEIGHT
+            int(config.SCREEN_HEIGHT * 0.26)
         )
         self._recalculate_dimensions()
 
@@ -394,7 +396,8 @@ class Game:
             effective_tile_pixel_size = 1
 
         new_internal_width_tiles = max(config.MIN_GAME_AREA_TILES_WIDTH, config.GAME_AREA_WIDTH // effective_tile_pixel_size)
-        new_internal_height_tiles = max(config.MIN_GAME_AREA_TILES_HEIGHT, (config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT) // effective_tile_pixel_size)
+        # Game area uses full screen height — message log overlays on top as transparent
+        new_internal_height_tiles = max(config.MIN_GAME_AREA_TILES_HEIGHT, config.SCREEN_HEIGHT // effective_tile_pixel_size)
         
         config.INTERNAL_GAME_AREA_WIDTH_TILES = new_internal_width_tiles
         config.INTERNAL_GAME_AREA_HEIGHT_TILES = new_internal_height_tiles
@@ -404,11 +407,11 @@ class Game:
         
         self.internal_surface = pygame.Surface((config.INTERNAL_GAME_AREA_PIXEL_WIDTH, config.INTERNAL_GAME_AREA_PIXEL_HEIGHT)).convert_alpha()
         
-        self.inventory_ui_surface = pygame.Surface((config.GAME_AREA_WIDTH, config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT)).convert_alpha()
+        self.inventory_ui_surface = pygame.Surface((config.GAME_AREA_WIDTH, config.SCREEN_HEIGHT)).convert_alpha()
         self.inventory_ui_surface.fill((0,0,0,0))
 
         if self.camera is None:
-            self.camera = Camera(config.GAME_AREA_WIDTH, config.SCREEN_HEIGHT, config.TILE_SIZE, config.MESSAGE_LOG_HEIGHT)
+            self.camera = Camera(config.GAME_AREA_WIDTH, config.SCREEN_HEIGHT, config.TILE_SIZE, 0)
         
         self.camera.tile_size = config.TILE_SIZE 
         self.camera.viewport_width = config.INTERNAL_GAME_AREA_WIDTH_TILES
@@ -1282,7 +1285,7 @@ class Game:
 
                 message_log_hit = self.message_log.rect.collidepoint(pos)
                 game_area_hit = (0 <= pos[0] < config.GAME_AREA_WIDTH and
-                                 0 <= pos[1] < config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT)
+                                 0 <= pos[1] < config.SCREEN_HEIGHT)
 
                 if message_log_hit:
                     if wheel_delta > 0:
@@ -3025,7 +3028,7 @@ class Game:
 
             # Scale and blit the internal game area surface to the main screen
             available_width = config.GAME_AREA_WIDTH
-            available_height = config.SCREEN_HEIGHT - config.MESSAGE_LOG_HEIGHT
+            available_height = config.SCREEN_HEIGHT  # log is a transparent overlay
 
             scale_to_fit_width = available_width / config.INTERNAL_GAME_AREA_PIXEL_WIDTH
             scale_to_fit_height = available_height / config.INTERNAL_GAME_AREA_PIXEL_HEIGHT
@@ -3920,251 +3923,7 @@ class Game:
         return lines
 
     def draw_ui(self):
-        ui_panel_rect = pygame.Rect(config.GAME_AREA_WIDTH, 0, config.UI_PANEL_WIDTH, config.SCREEN_HEIGHT)
-        pygame.draw.rect(self.screen, (20, 20, 20), ui_panel_rect)
-        
-        pygame.draw.rect(self.screen, (50, 50, 50), ui_panel_rect, 2)
-
-        panel_offset_x = config.GAME_AREA_WIDTH + 15
-        panel_right_edge = config.SCREEN_WIDTH - 15
-        available_text_width = panel_right_edge - panel_offset_x
-        
-        current_y = 15
-        
-        font_header = self.font_header
-        font_section = self.font_section
-        font_info = self.font_info
-        font_small = self.font_small
-
-        def draw_wrapped_and_update_y(surface, font, text, color, x, y_start):
-            wrapped_lines = self._wrap_text(text, font, available_text_width)
-            y_offset = y_start
-            for line in wrapped_lines:
-                self._draw_text(surface, font, line, color, x, y_offset)
-                y_offset += font.get_linesize() + 2
-            return y_offset
-
-        def draw_centered_header(surface, font, text, color, y_pos):
-            text_surface = font.render(text, True, color)
-            text_rect = text_surface.get_rect(centerx=ui_panel_rect.centerx, y=y_pos)
-            surface.blit(text_surface, text_rect)
-
-        section_bg_color = (25, 25, 25)
-        separator_color = (70, 70, 70)
-        separator_thickness = 2
-
-        draw_centered_header(self.screen, font_header, "PLAYER", (240, 240, 240), current_y)
-        current_y += font_header.get_linesize() + 10
-        self._draw_text(self.screen, font_info, f"Name: {self.player.name}", (255, 255, 255), panel_offset_x, current_y)
-        current_y += font_info.get_linesize() + 5   
-        self._draw_text(self.screen, font_info, f"Level: {self.player.level}", (255, 255, 255), panel_offset_x, current_y)
-        current_y += font_info.get_linesize() + 5
-        self._draw_text(self.screen, font_info, f"XP: {self.player.current_xp}/{self.player.xp_to_next_level}", (255, 255, 255), panel_offset_x, current_y)
-        current_y += font_info.get_linesize() + 15            
-        self._draw_text(self.screen, font_info, f"Gold: {self.player.gold}", (255, 215, 0), panel_offset_x, current_y)
-        current_y += font_info.get_linesize() + 5
-        pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
-        current_y += 15
-
-        draw_centered_header(self.screen, font_header, "VITALS", (240, 240, 240), current_y)
-        current_y += font_header.get_linesize() + 10
-        
-        hp_color = (255, 0, 0) if self.player.hp < self.player.max_hp // 3 else (255, 255, 0) if self.player.hp < self.player.max_hp * 2 // 3 else (0, 255, 0)
-        self._draw_text(self.screen, font_info, f"HP: {self.player.hp}/{self.player.max_hp}", hp_color, panel_offset_x, current_y)
-        current_y += font_info.get_linesize() + 5
-
-        hunger_color = (0, 255, 0) if self.player.hunger > 50 else (255, 255, 0) if self.player.hunger > 20 else (255, 0, 0)
-        self._draw_text(self.screen, self.font_info, f"Hunger: {self.player.hunger}/100", hunger_color, panel_offset_x, current_y)
-        current_y += self.font_info.get_linesize() + 5 
-        current_y += 15                      
-
-        # Add a section for Quick Bar
-        pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
-        current_y += 15
-        draw_centered_header(self.screen, font_header, "QUICK BAR", (240, 240, 240), current_y)
-        current_y += font_header.get_linesize() + 10
-        # Display 'Q' slot
-        q_item = self.player.quick_bar.get('q')
-        q_text = f"Q: {q_item.name}" if q_item else "Q: Empty"
-        q_color = q_item.color if q_item else (150, 150, 150)
-        current_y = draw_wrapped_and_update_y(self.screen, font_info, q_text, q_color, panel_offset_x, current_y)
-        current_y += 5
-        # Display 'F' slot
-        f_item = self.player.quick_bar.get('f')
-        f_text = f"F: {f_item.name}" if f_item else "F: Empty"
-        f_color = f_item.color if f_item else (150, 150, 150)
-        current_y = draw_wrapped_and_update_y(self.screen, font_info, f_text, f_color, panel_offset_x, current_y)
-        current_y += 10
-
-        pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
-        current_y += 15
-        
-        draw_centered_header(self.screen, font_header, "ABILITIES", (240, 240, 240), current_y)
-        current_y += font_header.get_linesize() + 10
-        
-        if not self.player.abilities:
-            self._draw_text(self.screen, font_info, "None", (150, 150, 150), panel_offset_x, current_y)
-            current_y += font_info.get_linesize() + 5
-        else:
-            abilities_list = list(self.player.abilities.values())
-            for i, ability in enumerate(abilities_list):
-                cooldown_text = f" (CD: {ability.current_cooldown})" if ability.current_cooldown > 0 else ""
-                ability_color = (100, 255, 255) if ability.current_cooldown == 0 else (255, 150, 0)
-
-                ability_display_text = f"{i+1}. {ability.name}{cooldown_text}"
-                current_y = draw_wrapped_and_update_y(self.screen, font_info, ability_display_text, ability_color, panel_offset_x, current_y)
-                current_y += 5
-        current_y += 10
-        
-        pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
-        current_y += 15
-        
-        ''''
-        draw_centered_header(self.screen, self.font_header, "ATTRIBUTES & SAVES", (240, 240, 240), current_y)
-        current_y += self.font_header.get_linesize() + 10
-
-        def format_ability_and_save(name, score, modifier, save_bonus, save_proficient):
-            mod_str = f"+{modifier}" if modifier >= 0 else str(modifier)
-            save_bonus_str = f"+{save_bonus}" if save_bonus >= 0 else str(save_bonus)
-            prof_char = "*" if save_proficient else ""
-            return f"{name}: {score} ({mod_str}) | Save: {save_bonus_str}{prof_char}"
-
-        attributes_data = [
-            ("STR", self.player.strength, self.player.get_ability_modifier(self.player.strength),
-             self.player.get_saving_throw_bonus("STR"), self.player.saving_throw_proficiencies["STR"]),
-            ("DEX", self.player.dexterity, self.player.get_ability_modifier(self.player.dexterity),
-             self.player.get_saving_throw_bonus("DEX"), self.player.saving_throw_proficiencies["DEX"]),
-            ("CON", self.player.constitution, self.player.get_ability_modifier(self.player.constitution),
-             self.player.get_saving_throw_bonus("CON"), self.player.saving_throw_proficiencies["CON"]),
-            ("INT", self.player.intelligence, self.player.get_ability_modifier(self.player.intelligence),
-             self.player.get_saving_throw_bonus("INT"), self.player.saving_throw_proficiencies["INT"]),
-            ("WIS", self.player.wisdom, self.player.get_ability_modifier(self.player.wisdom),
-             self.player.get_saving_throw_bonus("WIS"), self.player.saving_throw_proficiencies["WIS"]),
-            ("CHA", self.player.charisma, self.player.get_ability_modifier(self.player.charisma),
-             self.player.get_saving_throw_bonus("CHA"), self.player.saving_throw_proficiencies["CHA"]),
-        ]
-
-        for attr_name, score, mod, save_bonus, save_prof in attributes_data:
-            line_text = format_ability_and_save(attr_name, score, mod, save_bonus, save_prof)
-            current_y = draw_wrapped_and_update_y(self.screen, self.font_info, line_text, (255, 255, 255), panel_offset_x, current_y)
-            current_y += 2
-        
-        current_y += 10
-        pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
-        current_y += 15
-        '''
-        '''        
-        draw_centered_header(self.screen, font_header, "INVENTORY", (240, 240, 240), current_y)
-        current_y += self.font_header.get_linesize() + 10
-        inventory_count = len(self.player.inventory.items)
-        inventory_capacity = self.player.inventory.capacity
-        self._draw_text(self.screen, self.font_info, f"Items: {inventory_count}/{inventory_capacity}", (255, 255, 255), panel_offset_x, current_y)
-        current_y += self.font_info.get_linesize() + 5
-        
-        max_items_to_show = 3
-        for i, item in enumerate(self.player.inventory.items[:max_items_to_show]):
-            current_y = draw_wrapped_and_update_y(self.screen, font_small, f"- {item.name}", item.color, panel_offset_x + 10, current_y)
-        if inventory_count > max_items_to_show:
-            current_y = draw_wrapped_and_update_y(self.screen, font_small, f"...and {inventory_count - max_items_to_show} more", (150, 150, 150), panel_offset_x + 10, current_y)
-        current_y += 10
-        pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
-        current_y += 15
-        '''
-
-        draw_centered_header(self.screen, font_header, "EFFECTS", (240, 240, 240), current_y)
-        current_y += font_header.get_linesize() + 10
-        if not self.player.active_status_effects:
-            self._draw_text(self.screen, font_info, "None", (150, 150, 150), panel_offset_x, current_y)
-            current_y += font_info.get_linesize() + 5
-        else:
-            for effect in self.player.active_status_effects:
-                current_y = draw_wrapped_and_update_y(self.screen, font_info, f"{effect.name} ({effect.turns_left})", (255, 100, 0), panel_offset_x, current_y)
-                current_y += 2
-        current_y += 10
-        pygame.draw.line(self.screen, separator_color, (panel_offset_x - 5, current_y), (panel_right_edge + 5, current_y), separator_thickness)
-        current_y += 15
-        
-        draw_centered_header(self.screen, font_header, "STATUS", (240, 240, 240), current_y)
-        current_y += font_header.get_linesize() + 10
-        if self.game_state == GameState.TAVERN:
-            current_y = draw_wrapped_and_update_y(self.screen, font_info, "Location: The Prancing Pony Tavern", (150, 200, 255), panel_offset_x, current_y)
-        else:
-            current_y = draw_wrapped_and_update_y(self.screen, font_info, f"Dungeon Level: {self.current_level}", (150, 200, 255), panel_offset_x, current_y)
-            current_y = draw_wrapped_and_update_y(self.screen, font_info, f"Position: ({self.player.x}, {self.player.y})", (150, 150, 150), panel_offset_x, current_y)
-            current = self.get_current_entity()
-            if current:
-                turn_color = (255, 255, 255) if current == self.player else (255, 100, 100)
-                current_y = draw_wrapped_and_update_y(self.screen, font_info, f"Turn: {current.name}", turn_color, panel_offset_x, current_y)
-        current_y += 10
-        current_y += 15
-       
-        current_y += font_header.get_linesize() + 10
-        max_controls_y = config.SCREEN_HEIGHT - 20
-        controls_list = []
-        if self.game_state == GameState.TAVERN:
-            if self.check_tavern_door_interaction():
-                controls_list.append("Move onto door (+) to enter dungeon")
-            npc = self.check_npc_interaction()
-            if npc:
-                controls_list.append(f"F: Talk to {npc.name}")
-            controls_list.extend([
-                "Arrow keys/hjkl: Move",
-                "F: Talk to NPCs",
-                "I: Open Inventory",
-                "C: Open Character Sheet"
-            ])
-        elif self.game_state == GameState.DUNGEON:
-            stairs_dir = self.check_stairs_interaction()
-            if stairs_dir:
-                controls_list.append(f"Move onto {'<' if stairs_dir == 'up' else '>'} to {'ascend' if stairs_dir == 'up' else 'descend'}")
-            dungeon_npc = self.check_dungeon_npc_interaction()
-            if dungeon_npc:
-                controls_list.append(f"F: Talk to {dungeon_npc.name}")
-            else:
-                controls_list.append("SPACE: Attack/Pickup")
-            controls_list.extend([
-                "Arrow keys/WSAD: Move",
-                "1-9: Use Abilities",
-                "I: Open Inventory",
-                "C: Open Character Sheet",
-                "Q/F: Use Quick Bar Item",
-            ])
-        elif self.game_state == GameState.INVENTORY:
-            controls_list.extend([
-                "I: Close Inventory",
-                "C: Open Character Sheet",
-                "1-9/0: Select Item",
-                "Enter: Use/Equip Selected Item",
-            ])
-        elif self.game_state == GameState.INVENTORY_MENU:
-            controls_list.extend([
-                "U: Use Item",
-                "E: Equip Item",
-                "D: Drop Item",
-                "C: Cancel",
-            ])
-        elif self.game_state == GameState.CHARACTER_MENU:
-            controls_list.extend([
-                "C: Close Character Menu",
-                "I: Open Inventory",
-            ])
-        elif self.game_state == GameState.TRADE:
-            controls_list.extend([
-                "Type: 'sell <item name>' or 'buy <item name>'",
-                "Type: 'sell all weapons' or 'sell all armor'",
-            ])
-        elif self.game_state == GameState.TARGETING:
-            controls_list.extend([
-                "Arrow keys/WSAD: Move Targeting Reticle",
-                "Enter: Confirm Target",
-                "Esc: Cancel Targeting"
-            ])
-        for control in controls_list:
-            if current_y + font_small.get_linesize() < max_controls_y:
-                current_y = draw_wrapped_and_update_y(self.screen, font_small, control, (150, 150, 150), panel_offset_x, current_y)
-            else:
-                break
-
+        draw_sidebar(self)
 
     def draw_minimap(self):
         # Always redraw minimap surface fully every frame
