@@ -33,7 +33,7 @@ class Player: # This is our base class for playable characters
         self.gold = 50
 
         # Player-specific attributes
-        self.level = 99
+        self.level = 3
         self.current_xp = 0
         self.xp_to_next_level = 2700 # Base XP to level up
 

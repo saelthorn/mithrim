@@ -1395,7 +1395,7 @@ class SkeletonArcher(Monster):
         self.num_damage_dice = 1
         self.is_ranged = True
         self.ranged_attack_bonus = 2  # Base ranged attack bonus
-        self.range = 5  # Max range for ranged attacks
+        self.range = 4  # Max range for ranged attacks
         self.ranged_die_type = 6  # Base die type for ranged attacks
         self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
         self.is_intelligent = False # Not intelligent enough to flee
@@ -1574,7 +1574,7 @@ class LizardfolkArcher(Monster):
         self.num_damage_dice = 1
         self.is_ranged = True
         self.ranged_attack_bonus = 2  # Base ranged attack bonus
-        self.range = 5  # Max range for ranged attacks
+        self.range = 4  # Max range for ranged attacks
         self.ranged_die_type = 8  # Base die type for ranged attacks
         self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
         self.is_intelligent = True # Intelligent enough to flee
@@ -1630,7 +1630,7 @@ class Beholder(Monster):
         self.num_damage_dice = 4
         self.is_ranged = True
         self.ranged_attack_bonus = 2  # Base ranged attack bonus
-        self.range = 6  # Max range for ranged attacks
+        self.range = 5  # Max range for ranged attacks
         self.ranged_die_type = 8  # Base die type for ranged attacks
         self.ranged_num_dice = 4  # Number of damage dice for ranged attacks
         self.footprint_size = 2
@@ -1865,7 +1865,7 @@ class MindFlayer(Monster):
         self.damage_modifier = 4
         self.is_ranged = True
         self.ranged_attack_bonus = 7  # Base ranged attack bonus
-        self.range = 5  # Max range for ranged attacks
+        self.range = 4  # Max range for ranged attacks
         self.ranged_die_type = 10  # Base die type for ranged attacks
         self.ranged_num_dice = 2  # Number of damage dice for ranged attacks
         # self.psionic_blast_dc = 15
@@ -2188,7 +2188,7 @@ class Gauth(Monster):
         self.damage_modifier = 2
         self.detection_range = 8
         self.is_intelligent = True  # Scheming, paranoid
-        self.range = 4  # Max range for ranged attacks
+        self.range = 3  # Max range for ranged attacks
         self.is_ranged = True
         self.ranged_attack_bonus = 5  # Base ranged attack bonus
         self.ranged_die_type = 8  # Base die type for ranged attacks

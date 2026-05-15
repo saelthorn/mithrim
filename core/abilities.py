@@ -618,8 +618,8 @@ class FireBolt(Ability):
 
         # Fire Bolt damage calculation (example: 1d10)
         # Use self.damage_dice for the number of d10s, and add user's spell bonus
-        damage_rolls = [random.randint(1, 10) for _ in range(self.damage_dice)] + [user.spell_bonus]
-        total_damage = sum(damage_rolls)
+        damage_rolls = [random.randint(1, 10) for _ in range(self.damage_dice)] 
+        total_damage = sum(damage_rolls) + user.spell_bonus  
 
         game_instance.message_log.add_message(f"You roll {self.damage_dice}d10 for damage: {damage_rolls} + {user.spell_bonus} (Spell Bonus) = {total_damage}", (255, 100, 0))
 
@@ -845,8 +845,8 @@ class Fireball(Ability):
 
         # Calculate the damage
         # Use self.damage_dice for the number of d6s
-        damage_rolls = [random.randint(1, 6) for _ in range(self.damage_dice)] + [user.spell_bonus]  # Roll Xd6
-        total_damage = sum(damage_rolls)
+        damage_rolls = [random.randint(1, 6) for _ in range(self.damage_dice)] 
+        total_damage = sum(damage_rolls) + user.spell_bonus
 
         # Notify the player of the damage
         game_instance.message_log.add_message(f"You cast Fireball and rolls {self.damage_dice}d6 {damage_rolls} + {user.spell_bonus} (Spell Bonus).", (255, 165, 0))
@@ -1235,8 +1235,8 @@ class RayOfFrost(Ability):
 
         # Ray of Frost damage calculation (Xd8 cold damage)
         # Use self.damage_dice for the number of d8s
-        damage_rolls = [random.randint(1, 8) for _ in range(self.damage_dice)] + [user.spell_bonus]  
-        total_damage = sum(damage_rolls)
+        damage_rolls = [random.randint(1, 8) for _ in range(self.damage_dice)]   
+        total_damage = sum(damage_rolls) + user.spell_bonus
 
         game_instance.message_log.add_message(f"You roll {self.damage_dice}d8 for damage: {damage_rolls} + {user.spell_bonus} (Spell Bonus) = {total_damage}", (0, 255, 255))
 
@@ -1580,8 +1580,8 @@ class CureWounds(Ability):
             game_instance.message_log.add_message("Cure Wounds can only be cast on yourself or a friendly ally.", (255, 150, 0))
             return False
 
-        heal_rolls = [random.randint(1, 8) for _ in range(self.healing_dice)] + [user.spell_bonus]
-        total_heal = sum(heal_rolls)
+        heal_rolls = [random.randint(1, 8) for _ in range(self.healing_dice)] 
+        total_heal = sum(heal_rolls) + user.spell_bonus
         old_hp = getattr(target, 'hp', 0)
 
         if hasattr(target, 'heal'):
@@ -1652,8 +1652,8 @@ class HealingWord(Ability):
             game_instance.message_log.add_message("Healing Word can only be cast on yourself or a friendly ally.", (255, 150, 0))
             return False
 
-        heal_rolls = [random.randint(1, 4) for _ in range(self.healing_dice)] + [user.spell_bonus]
-        total_heal = sum(heal_rolls)
+        heal_rolls = [random.randint(1, 4) for _ in range(self.healing_dice)] 
+        total_heal = sum(heal_rolls) + user.spell_bonus
         old_hp = getattr(target, 'hp', 0)
 
         if hasattr(target, 'heal'):
@@ -1723,8 +1723,8 @@ class SacredFlame(Ability):
             game_instance.message_log.add_message("Sacred Flame can only be cast on an enemy.", (255, 150, 0))
             return False
 
-        damage_rolls = [random.randint(1, 8) for _ in range(self.damage_dice)] + [user.spell_bonus]
-        total_damage = sum(damage_rolls)
+        damage_rolls = [random.randint(1, 8) for _ in range(self.damage_dice)] 
+        total_damage = sum(damage_rolls) + user.spell_bonus
 
         # All targets must roll a Dexterity saving throw (DC 10)
         dex_modifier = 0

@@ -261,8 +261,8 @@ class Game:
 
     # Boss schedule: every 5th floor, ordered list
     BOSS_FLOORS = [
-        (1, 'Beholder'),
-        (3, 'Owlbear'),
+        (1, 'LizardfolkArcher'),
+        (3, 'Ooze'),
         (5, 'Gauth'),
         (7, 'AlphaGrick'),
         (10, 'DeathSlaad'),
@@ -276,11 +276,11 @@ class Game:
     MONSTER_SPAWN_TIERS = {
         # 🌱 Early dungeon fodder (CR 1/8 – CR 1/4)
         (1, 2): [Goblin, Wolf, Imp, GiantRat, MyconidSprout],
-        (3, 4): [Goblin, GoblinArcher, GiantRat, GiantSpider, Wererat, Wolf, MyconidSprout, IntellectDevourer, Imp],
-        (5, 5): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf, MyconidAdult, IntellectDevourer],
+        (3, 4): [Goblin, GoblinArcher, GiantRat, IntellectDevourer, Wererat, Wolf, MyconidSprout, Imp],
+        (5, 5): [Goblin, GoblinArcher, Lizardfolk, LizardfolkArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf, MyconidAdult, IntellectDevourer],
 
         # ⚔️ Early-mid dangers (CR 1/2 – CR 2)
-        (6, 7): [Skeleton, SkeletonArcher, Orc, Grick, Ooze],
+        (6, 7): [Lizardfolk, LizardfolkArcher, Skeleton, SkeletonArcher, Orc, Grick, Ooze],
         (8, 9): [Lizardfolk, LizardfolkArcher, GiantSpider, Wererat, MyconidAdult],
 
         # 🛡️ Mid-game threats (CR 3 – CR 6)
@@ -689,6 +689,9 @@ class Game:
                     boss_name = next((name for (f, name) in self.BOSS_FLOORS if f == level_number), None)
                     # Map names to classes (fallback to Demogorgon if missing)
                     name_to_cls = {
+                        'Ooze': Ooze,
+                        'LizardfolkArcher': LizardfolkArcher,  # Example of a non-boss that could be added to the schedule
+                        'MyconidAdult': MyconidAdult,
                         'Troll': Troll,  # TODO: replace with GoblinKing class when available
                         'Owlbear': Owlbear,
                         'Beholder': Beholder,
@@ -994,7 +997,7 @@ class Game:
         has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)    
         
         if has_torchlight:
-            torch_bonus = 2
+            torch_bonus = 1
 
         LIGHT_PRIORITY = {
             'torch': 3,
@@ -1043,7 +1046,7 @@ class Game:
         # traps the light inside the wall.  Instead, find every open floor tile
         # adjacent to the torch and cast from there — the union of those passes
         # is the light that fans out into the room.
-        WALL_TORCH_RADIUS = 4  # how far a lit wall torch illuminates
+        WALL_TORCH_RADIUS = 3  # how far a lit wall torch illuminates
         for (wx, wy) in getattr(self, 'lit_wall_torches', set()):
             for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                 ox, oy = wx + dx, wy + dy
@@ -2978,9 +2981,9 @@ class Game:
                             elif visibility_type == 'torch':
                                 altar_color_tint = (180, 180, 180, 255)
                             elif visibility_type == 'darkvision':
-                                altar_color_tint = (120, 120, 120, 255)
+                                altar_color_tint = (40, 40, 40, 255)
                             elif visibility_type == 'explored':
-                                altar_color_tint = (60, 60, 60, 255)
+                                altar_color_tint = (20, 20, 20, 255)
                             else:
                                 continue  # Don't render if not visible
                             
@@ -3147,7 +3150,7 @@ class Game:
                     if has_torchlight:
                         render_color_tint = (240, 240, 240, 255)
                     else:
-                        render_color_tint = (100, 100, 100, 255)  
+                        render_color_tint = (140, 140, 140, 255)  
                 elif visibility_type == 'torch':
                     render_color_tint = (180, 180, 180, 255)
                 elif visibility_type == 'darkvision':
@@ -3376,9 +3379,9 @@ class Game:
                     elif visibility_type == 'torch':
                         item_color_tint = (180, 180, 180, 255)
                     elif visibility_type == 'darkvision':
-                        item_color_tint = (120, 120, 120, 255)
+                        item_color_tint = (40, 40, 40, 255)
                     elif visibility_type == 'explored':
-                        item_color_tint = (60, 60, 60, 255)
+                        item_color_tint = (20, 20, 20, 255)
                     elif visibility_type == 'unexplored':
                         item_color_tint = (20, 20, 20, 255)
                     

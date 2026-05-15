@@ -24,6 +24,8 @@ To do:
         - Boots x
         - Helmets x
         - Cloaks x
+     - Add Elemental Tiles
+     - Highlight Spells
 
      
      Not Prio - Add Companions

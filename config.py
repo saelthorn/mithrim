@@ -9,7 +9,7 @@ UI_PANEL_WIDTH_RATIO = 0.19 # UI panel takes 19% of screen width
 
 
 # Message log height as a ratio of the total screen height
-MESSAGE_LOG_HEIGHT_RATIO = 0.25  # Log is now a transparent overlay; no space reserved
+MESSAGE_LOG_HEIGHT_RATIO = 0.24  # Log is now a transparent overlay; no space reserved
 
 
 # Set TILE_SIZE to match your tileset's individual tile size (e.g., 12x12)
