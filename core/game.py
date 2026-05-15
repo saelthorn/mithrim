@@ -45,7 +45,11 @@ from entities.races import Human, HillDwarf, DrowElf, Tiefling, Dragonborn
 from entities.summons import MageHandEntity, SummonedEntity
 from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
 from core.message_log import MessageBox
-from core.status_effects import ParryBuff, PowerAttackBuff, DivineStrikeBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
+
+from core.status_effects import (
+    ParryBuff, PowerAttackBuff, DivineStrikeBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness, 
+    PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
+)
 
 from items.items import (
     Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 

@@ -28,7 +28,7 @@ _ORANGE      = (176,  96,  42)  # ember glow
 # ── Font helpers ─────────────────────────────────────────────────────────────
 def _f(size, bold=False):
     try:    return pygame.font.SysFont("consolas", size, bold=bold)
-    except: return pygame.font.Font(None, size + 2)
+    except: return pygame.font.Font(None, size + 20)
 
 def _blit(surf, font, text, color, x, y):
     surf.blit(font.render(str(text), True, color), (x, y))
@@ -67,7 +67,7 @@ def _section_label(surf, font, label, x, y, w):
     pygame.draw.line(surf, _BORDER, (x, y + h + 3), (x + w, y + h + 3), 1)
     return y + h + 9
 
-def _stat_box(surf, font_big, font_small, label, score, modifier, x, y, size=52):
+def _stat_box(surf, font_big, font_small, label, score, modifier, x, y, size=50):
     pygame.draw.rect(surf, _BG_PANEL, (x, y, size, size), border_radius=4)
     pygame.draw.rect(surf, _BORDER_LT, (x, y, size, size), 1, border_radius=4)
     circ_r  = 11
@@ -99,7 +99,7 @@ def _save_row(surf, font, label, bonus, proficient, x, y, w):
 def render_inventory_screen(game):
     surf = game.inventory_ui_surface
     surf.fill((0, 0, 0, 0))
-    p   = game.player
+    player   = game.player
     SW  = surf.get_width() 
     SH  = surf.get_height()
     PAD = 12
@@ -108,10 +108,10 @@ def render_inventory_screen(game):
     R_X = L_W + PAD * 2
     R_W = SW - R_X - PAD
 
-    fHdr  = _f(17, bold=True)
-    fSec  = _f(14, bold=True)
-    fInfo = _f(13)
-    fSm   = _f(12)
+    fHdr  = _f(18, bold=True)
+    fSec  = _f(16, bold=True)
+    fInfo = _f(14)
+    fSm   = _f(14)
     ROW_H = fInfo.get_linesize() + 8
 
     # panels
@@ -126,16 +126,16 @@ def render_inventory_screen(game):
     y  = PAD + 10
     lx = PAD * 2
     _blit(surf, fHdr, "INVENTORY", _TEXT_BRIGHT, lx, y)
-    cap_s = fSm.render(f"{len(p.inventory.items)}/{p.inventory.capacity}", True, _GOLD)
+    cap_s = fSm.render(f"{len(player.inventory.items)}/{player.inventory.capacity}", True, _GOLD)
     surf.blit(cap_s, (left_rect.right - cap_s.get_width() - 8, y + 2))
     y += fHdr.get_linesize() + 4
     y  = _divider(surf, lx, y, L_W - PAD * 3)
 
     # item rows
-    if not p.inventory.items:
+    if not player.inventory.items:
         _blit(surf, fSm, "— empty —", _TEXT_DIM, lx, y + 10)
     else:
-        for i, item in enumerate(p.inventory.items):
+        for i, item in enumerate(player.inventory.items):
             selected = (i == game.selected_inventory_index)
             row_rect = pygame.Rect(lx - 4, y, L_W - PAD * 2, ROW_H)
             if selected:
@@ -165,7 +165,7 @@ def render_inventory_screen(game):
     ry = _section_label(surf, fSec, "EQUIPPED", rx, ry, rw)
 
     equipped_weapon, equipped_armor, equipped_off_hand, \
-        equipped_acc1, equipped_acc2 = p.get_equipped_items()
+        equipped_acc1, equipped_acc2 = player.get_equipped_items()
 
     for slot_label, item in [
         ("Weapon",   equipped_weapon),
@@ -187,14 +187,14 @@ def render_inventory_screen(game):
     ry += 8
     ry = _section_label(surf, fSec, "STATS", rx, ry, rw)
 
-    hp_pct = p.hp / p.max_hp if p.max_hp else 0
+    hp_pct = player.hp / player.max_hp if player.max_hp else 0
     hp_col = _RED if hp_pct < 0.33 else _GOLD if hp_pct < 0.66 else _GREEN
     for label, val, col in [
-        ("HP",       f"{p.hp}/{p.max_hp}", hp_col),
-        ("AC",       p.armor_class,        _CYAN),
-        ("Atk Bon",  f"+{p.attack_bonus}", _TEXT_NORMAL),
-        ("Atk Pow",  f"+{p.attack_power}", _TEXT_NORMAL),
-        ("Gold",     f"{p.gold} gp",       _GOLD),
+        ("HP",       f"{player.hp}/{player.max_hp}", hp_col),
+        ("AC",       player.armor_class,        _CYAN),
+        ("Atk Bon",  f"+{player.attack_bonus}", _TEXT_NORMAL),
+        ("Atk Pow",  f"+{player.attack_power}", _TEXT_NORMAL),
+        ("Gold",     f"{player.gold} gp",       _GOLD),
     ]:
         _blit(surf, fSm, label, _TEXT_DIM, rx, ry)
         vs = fInfo.render(str(val), True, col)
@@ -217,9 +217,9 @@ def render_inventory_menu_popup(game):
     if not game.selected_inventory_item:
         return
     item  = game.selected_inventory_item
-    fSec  = _f(14, bold=True) 
-    fInfo = _f(13)
-    fSm   = _f(12)
+    fSec  = _f(16, bold=True) 
+    fInfo = _f(14)
+    fSm   = _f(14)
     PW, PH = 240, 200
     surf   = game.inventory_ui_surface
     px = surf.get_width()  // 2 - PW // 2
@@ -259,16 +259,16 @@ def render_inventory_menu_popup(game):
 def render_character_menu(game):
     surf = game.inventory_ui_surface
     surf.fill((0, 0, 0, 0))
-    p  = game.player
+    player = game.player
     SW = surf.get_width()
     SH = surf.get_height()
     PAD  = 12
 
-    fHdr = _f(17, bold=True)
-    fSec = _f(13, bold=True)
-    fN   = _f(13)
-    fSm  = _f(11)
-    fBig = _f(17, bold=True)
+    fHdr = _f(20, bold=True)
+    fSec = _f(16, bold=True)
+    fN   = _f(14)
+    fSm  = _f(14)
+    fBig = _f(18, bold=True)
 
     # background
     pygame.draw.rect(surf, _BG, (0, 0, SW, SH))
@@ -296,14 +296,14 @@ def render_character_menu(game):
     y1 = content_y + 8
     y1 = _section_label(surf, fSec, "IDENTITY", col1_x, y1, col_w)
 
-    race_name = getattr(p.race, "name", "Unknown") if hasattr(p, "race") else "Unknown"
+    race_name = getattr(player.race, "name", "Unknown") if hasattr(player, "race") else "Unknown"
     for label, val in [
-        ("Name",  p.name),
-        ("Class", getattr(p, "class_name", "?")),
+        ("Name",  player.name),
+        ("Class", getattr(player, "class_name", "?")),
         ("Race",  race_name),
-        ("Level", p.level),
-        ("XP",    f"{p.current_xp} / {p.xp_to_next_level}"),
-        ("Gold",  f"{p.gold} gp"),
+        ("Level", player.level),
+        ("XP",    f"{player.current_xp} / {player.xp_to_next_level}"),
+        ("Gold",  f"{player.gold} gp"),
     ]:
         _blit(surf, fSm, label, _TEXT_DIM, col1_x, y1)
         vs = fN.render(str(val), True, _TEXT_BRIGHT)
@@ -320,12 +320,12 @@ def render_character_menu(game):
     rw   = 3 * BOX + 2 * GAP
     bx0  = col1_x + (col_w - rw) // 2
     attrs = [
-        ("STR", p.strength,     p.get_ability_modifier(p.strength)),
-        ("DEX", p.dexterity,    p.get_ability_modifier(p.dexterity)),
-        ("CON", p.constitution, p.get_ability_modifier(p.constitution)),
-        ("INT", p.intelligence, p.get_ability_modifier(p.intelligence)),
-        ("WIS", p.wisdom,       p.get_ability_modifier(p.wisdom)),
-        ("CHA", p.charisma,     p.get_ability_modifier(p.charisma)),
+        ("STR", player.strength,     player.get_ability_modifier(player.strength)),
+        ("DEX", player.dexterity,    player.get_ability_modifier(player.dexterity)),
+        ("CON", player.constitution, player.get_ability_modifier(player.constitution)),
+        ("INT", player.intelligence, player.get_ability_modifier(player.intelligence)),
+        ("WIS", player.wisdom,       player.get_ability_modifier(player.wisdom)),
+        ("CHA", player.charisma,     player.get_ability_modifier(player.charisma)),
     ]
     for row in range(2):
         for col in range(3):
@@ -339,25 +339,25 @@ def render_character_menu(game):
     y2 = content_y + 8
     y2 = _section_label(surf, fSec, "COMBAT", col2_x, y2, col_w)
 
-    hp_pct = p.hp / p.max_hp if p.max_hp else 0
+    hp_pct = player.hp / player.max_hp if player.max_hp else 0
     hp_col = _RED if hp_pct < 0.33 else _GOLD if hp_pct < 0.66 else _GREEN
     bar_h  = 14
     pygame.draw.rect(surf, (30, 30, 40), (col2_x, y2, col_w, bar_h), border_radius=3)
     fw = max(0, int(col_w * hp_pct))
     if fw: pygame.draw.rect(surf, hp_col, (col2_x, y2, fw, bar_h), border_radius=3)
     pygame.draw.rect(surf, _BORDER_LT, (col2_x, y2, col_w, bar_h), 1, border_radius=3)
-    hp_s = fSm.render(f"HP  {p.hp}/{p.max_hp}", True, _TEXT_BRIGHT)
+    hp_s = fSm.render(f"HP  {player.hp}/{player.max_hp}", True, _TEXT_BRIGHT)
     surf.blit(hp_s, (col2_x + col_w // 2 - hp_s.get_width() // 2,
                      y2 + bar_h // 2 - hp_s.get_height() // 2))
     y2 += bar_h + 8
 
     for label, val in [
-        ("Armor Class",       p.armor_class),
-        ("Initiative",        f"+{p.get_ability_modifier(p.dexterity)}"),
-        ("Proficiency Bonus", f"+{p.proficiency_bonus}"),
-        ("Attack Bonus",      f"+{p.attack_bonus}"),
-        ("Attack Power",      f"+{p.attack_power}"),
-        ("Spell Bonus",       f"+{p.spell_bonus}"),
+        ("Armor Class",       player.armor_class),
+        ("Initiative",        f"+{player.get_ability_modifier(player.dexterity)}"),
+        ("Proficiency Bonus", f"+{player.proficiency_bonus}"),
+        ("Attack Bonus",      f"+{player.attack_bonus}"),
+        ("Attack Power",      f"+{player.attack_power}"),
+        ("Spell Bonus",       f"+{player.spell_bonus}"),
     ]:
         _blit(surf, fSm, label, _TEXT_DIM, col2_x, y2)
         vs = fN.render(str(val), True, _CYAN)
@@ -367,20 +367,20 @@ def render_character_menu(game):
     y2 += 8
     y2 = _section_label(surf, fSec, "SAVING THROWS", col2_x, y2, col_w)
     for name, bonus, prof in [
-        ("Strength",     p.get_saving_throw_bonus("STR"), p.saving_throw_proficiencies["STR"]),
-        ("Dexterity",    p.get_saving_throw_bonus("DEX"), p.saving_throw_proficiencies["DEX"]),
-        ("Constitution", p.get_saving_throw_bonus("CON"), p.saving_throw_proficiencies["CON"]),
-        ("Intelligence", p.get_saving_throw_bonus("INT"), p.saving_throw_proficiencies["INT"]),
-        ("Wisdom",       p.get_saving_throw_bonus("WIS"), p.saving_throw_proficiencies["WIS"]),
-        ("Charisma",     p.get_saving_throw_bonus("CHA"), p.saving_throw_proficiencies["CHA"]),
+        ("Strength",     player.get_saving_throw_bonus("STR"), player.saving_throw_proficiencies["STR"]),
+        ("Dexterity",    player.get_saving_throw_bonus("DEX"), player.saving_throw_proficiencies["DEX"]),
+        ("Constitution", player.get_saving_throw_bonus("CON"), player.saving_throw_proficiencies["CON"]),
+        ("Intelligence", player.get_saving_throw_bonus("INT"), player.saving_throw_proficiencies["INT"]),
+        ("Wisdom",       player.get_saving_throw_bonus("WIS"), player.saving_throw_proficiencies["WIS"]),
+        ("Charisma",     player.get_saving_throw_bonus("CHA"), player.saving_throw_proficiencies["CHA"]),
     ]:
         y2 = _save_row(surf, fSm, name, bonus, prof, col2_x, y2, col_w)
 
     y2 += 8
     y2 = _section_label(surf, fSec, "PROFICIENCIES", col2_x, y2, col_w)
-    all_profs = (getattr(p, "skill_proficiencies", []) +
-                 getattr(p, "weapon_proficiencies", []) +
-                 getattr(p, "armor_proficiencies", []))
+    all_profs = (getattr(player, "skill_proficiencies", []) +
+                 getattr(player, "weapon_proficiencies", []) +
+                 getattr(player, "armor_proficiencies", []))
     if all_profs:
         y2 = _blit_wrap(surf, fSm, ", ".join(all_profs), _TEXT_NORMAL, col2_x, y2, col_w)
     else:
@@ -391,7 +391,7 @@ def render_character_menu(game):
     y3 = _section_label(surf, fSec, "EQUIPMENT", col3_x, y3, col_w)
 
     equipped_weapon, equipped_armor, equipped_off_hand, \
-        equipped_acc1, equipped_acc2 = p.get_equipped_items()
+        equipped_acc1, equipped_acc2 = player.get_equipped_items()
 
     for slot_label, item in [
         ("Weapon",   equipped_weapon),
@@ -412,7 +412,7 @@ def render_character_menu(game):
 
     y3 += 8
     y3 = _section_label(surf, fSec, "STATUS EFFECTS", col3_x, y3, col_w)
-    effects = getattr(p, "active_status_effects", [])
+    effects = getattr(player, "active_status_effects", [])
     if not effects:
         _blit(surf, fSm, "None", _TEXT_DIM, col3_x, y3)
         y3 += fSm.get_linesize() + 4
@@ -429,7 +429,7 @@ def render_character_menu(game):
 
     y3 += 4
     y3 = _section_label(surf, fSec, "DAMAGE RESISTANCES", col3_x, y3, col_w)
-    resistances = getattr(p, "damage_resistances", [])
+    resistances = getattr(player, "damage_resistances", [])
     if resistances:
         _blit_wrap(surf, fSm, ", ".join(resistances), _GREEN, col3_x, y3, col_w)
     else:

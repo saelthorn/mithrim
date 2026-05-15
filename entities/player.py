@@ -1,9 +1,28 @@
 import random
 from core. game import GameState
 from core.inventory import Inventory
-from core.abilities import Parry, SecondWind, SpiritualWeapon, DivineStrike, HealingWord, SummonCelestial, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp, PreciseStrike, PrepTime, CureWounds, SacredFlame
-from core.status_effects import BlessingOfBloodlust, BlessingOfFortitude, CurseOfRot, ParryBuff, StatusEffect, DivineStrikeBuff, Poisoned, AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins, SpotTrapsEffect, DetectMagicEffect
-from items.items import torch, Food, Potion, holy_symbol, throwing_knife, bread, green_apple, iron_long_sword, steel_mace, chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, spell_book, Item, CampfireKit, Weapon, Armor, OffHand, Accessory, WEAPON_CATEGORIES, ARMOR_CATEGORIES
+
+from core.abilities import (
+    Parry, SecondWind, SpiritualWeapon, DivineStrike, HealingWord, SummonCelestial, PowerAttack, CunningActionDash, 
+    Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, 
+    ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp, PreciseStrike, PrepTime, CureWounds, SacredFlame
+)
+
+from core.status_effects import (
+    BlessingOfBloodlust, BlessingOfFortitude, CurseOfRot, ParryBuff, StatusEffect, DivineStrikeBuff, Poisoned, 
+    AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, 
+    CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff, PreciseStrikeBuff, Prepared, 
+    FleetFooted, AppliedToxins, SpotTrapsEffect, DetectMagicEffect
+)
+
+from items.items import ( 
+    torch, Food, Potion, holy_symbol, throwing_knife, bread, green_apple, iron_long_sword, steel_mace, 
+    chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, 
+    half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, 
+    greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, spell_book, staff_of_magi, 
+    Item, CampfireKit, Weapon, Armor, OffHand, Accessory, WEAPON_CATEGORIES, ARMOR_CATEGORIES
+)
+
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
 from core.floating_text import FloatingText
@@ -34,7 +53,7 @@ class Player: # This is our base class for playable characters
 
         # Player-specific attributes
         self.level = 3
-        self.current_xp = 0
+        self.current_xp = 2600
         self.xp_to_next_level = 2700 # Base XP to level up
 
         # --- D&D 5e Ability Scores (Base values, will be overridden by subclasses) ---
@@ -303,31 +322,37 @@ class Player: # This is our base class for playable characters
         """Recalculate the attack power based on the primary stat and equipped items."""
         # Base attack power from primary stat
         base_attack_power = self.get_ability_modifier(self.dexterity)
+        base_spell_bonus = self.get_spell_modifier() 
     
         # Initialize attack power and attack bonus
         self.attack_power = base_attack_power
         self.attack_bonus = base_attack_power + self.proficiency_bonus  # Base attack bonus
+        self.spell_bonus = base_spell_bonus 
     
         # Check if a main weapon is equipped
         if self.equipped_weapon:
             self.attack_power += self.equipped_weapon.damage_modifier  # Add weapon's damage modifier
             self.attack_bonus += self.equipped_weapon.attack_bonus  # Add weapon's attack bonus
+            self.spell_bonus += self.equipped_weapon.spell_bonus  # Add weapon's spell bonus
 
             self.attack_bonus += self.weapon_proficiency_penalty
             self.attack_power += self.weapon_proficiency_penalty
+            self.spell_bonus += self.weapon_proficiency_penalty
     
         # Check if an off-hand weapon is equipped
         if self.equipped_off_hand:
             # Off-hand weapons typically do not get the proficiency bonus
             self.attack_power += self.equipped_off_hand.damage_modifier  # Add off-hand weapon's damage modifier
             self.attack_bonus += self.equipped_off_hand.attack_bonus  # Add off-hand weapon's attack bonus
+            self.spell_bonus += self.equipped_off_hand.spell_bonus  # Add off-hand weapon's spell bonus
             
             self.attack_bonus += self.weapon_proficiency_penalty
             self.attack_power += self.weapon_proficiency_penalty
+            self.spell_bonus += self.weapon_proficiency_penalty
 
         print(f"Updated Attack Power: {self.attack_power}")  # Debugging output
         print(f"Updated Attack Bonus: {self.attack_bonus}")  # Debugging output
-    
+        print(f"Updated Spell Bonus: {self.spell_bonus}")  # Debugging output
 
 
     def get_saving_throw_bonus(self, ability_name):
@@ -452,7 +477,7 @@ class Player: # This is our base class for playable characters
 
     def level_up(self, game_instance=None):
         self.level += 1
-        self.current_xp -= self.xp_to_next_level
+        self.current_xp = self.current_xp
         self.xp_to_next_level = int(self.xp_to_next_level * 1.35) # XP curve
 
         if self.level in [5, 9, 13, 17]:
@@ -993,9 +1018,7 @@ class Player: # This is our base class for playable characters
                 self.update_attack_power()
                 self.update_throw_knife_ability()
                 self.update_spellbook_abilities()
-                self.update_thieves_tools_ability()
                 self.update_guard_ability()
-                self.update_holy_symbol_abilities()
                 return True
 
         elif isinstance(item, Armor):
@@ -1363,7 +1386,7 @@ class Wizard(Player):
         self.primary_stat = 'intelligence'  # Set primary stat for Fighter 
 
         # Set starting equipment
-        self.inventory.add_item(holy_symbol)
+        self.inventory.add_item(staff_of_magi)
         self.inventory.add_item(spell_book)
         self.inventory.add_item(bread)
         self.inventory.add_item(bread)
@@ -1457,7 +1480,7 @@ class Cleric(Player):
         # For spell attack rolls, it would be Wisdom.
         self.spell_bonus = self.get_spell_modifier() + self.proficiency_bonus
         self.attack_power = self.get_ability_modifier(self.strength) + self.equipped_weapon.damage_modifier
-        self.attack_bonus = self.get_ability_modifier(self.strength) + self.proficiency_bonus
+        self.attack_bonus = self.get_ability_modifier(self.strength) + self.proficiency_bonus + self.equipped_weapon.attack_bonus
 
         # Cleric abilities
         self.abilities["cure_wounds"] = CureWounds()
@@ -1518,7 +1541,7 @@ class Sorcerer(Player):
         # For spell attack rolls, it would be Charisma.
         self.spell_bonus = self.get_spell_modifier() + self.proficiency_bonus
         self.attack_power = self.get_ability_modifier(self.dexterity) + self.equipped_weapon.damage_modifier
-        self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus
+        self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus + self.equipped_weapon.attack_bonus
 
         # Sorcerer abilities
         self.abilities["fire_bolt"] = FireBolt()

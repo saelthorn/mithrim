@@ -7,8 +7,11 @@ from entities.monster import Monster, Mimic
 from entities.summons import MageHandEntity, Imp, Celestial, SpiritualWeaponEntity
 from entities.base_entity import NPC
 from core.floating_text import FloatingText
-from items.items import Potion, Food, OffHand, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, torch, wood_plank, throwing_knife # NEW: Import for potion drop
 
+from items.items import ( 
+    Potion, Food, OffHand, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, 
+    torch, wood_plank, throwing_knife # NEW: Import for potion drop
+)
 
 class Ability:
     def __init__(self, name, description, cost=0, cooldown=0):

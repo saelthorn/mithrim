@@ -80,11 +80,12 @@ class Food(Item):
 
 class Weapon(Item):
     """An item that can be equipped for combat."""
-    def __init__(self, name, char, color, description, damage_dice, damage_modifier, price, attack_bonus=0, is_two_handed=False, category=None):
+    def __init__(self, name, char, color, description, damage_dice, damage_modifier, price, attack_bonus=0, spell_bonus=0, is_two_handed=False, category=None):
         super().__init__(name, char, color, description, price)
         self.damage_dice = damage_dice # e.g., "1d6", "2d4"
         self.damage_modifier = damage_modifier
         self.attack_bonus = attack_bonus # Bonus to hit
+        self.spell_bonus = spell_bonus
         self.is_two_handed = is_two_handed
         self.category = category
 
@@ -97,14 +98,15 @@ class Armor(Item):
         self.category = category
 
 class OffHand(Item):
-    def __init__(self, name, char, color, description, price, defense_bonus=0, attack_bonus=0, damage_dice=None, damage_modifier=0, category=None, remaining_duration=250):
+    def __init__(self, name, char, color, description, price, defense_bonus=0, attack_bonus=0, spell_bonus=0, damage_dice=None, damage_modifier=0, category=None, remaining_duration=250):
         super().__init__(name, char, color, description, price)
         self.defense_bonus = defense_bonus  # Bonus to armor class if it's a shield
         self.attack_bonus = attack_bonus  # Bonus to attack rolls if it's a weapon
+        self.spell_bonus = spell_bonus  # Bonus to spell attacks if it's a magic item
         self.damage_dice = damage_dice  # Damage dice for one-handed weapons (e.g., "1d6")
         self.damage_modifier = damage_modifier  # Additional damage modifier
         self.category = category
-        self.remaining_duration = remaining_duration
+        self.remaining_duration = remaining_duration # For items like torch that have limited duration when equipped
 
     def use(self, user, game_instance):
         """Define how the item is used, if applicable."""
@@ -510,6 +512,7 @@ oak_staff = Weapon(
     damage_dice="1d6",
     damage_modifier=0,
     attack_bonus=1,
+    spell_bonus=1,
     price = 20,
     category="quarterstaff"
 )
@@ -522,6 +525,7 @@ apprentices_staff = Weapon(
     damage_dice="1d6",
     damage_modifier=2,
     attack_bonus=1,
+    spell_bonus=2,
     price = 30,
     category="quarterstaff"
 )
@@ -534,6 +538,7 @@ staff_of_magi = Weapon(
     damage_dice="1d6",
     damage_modifier=4,
     attack_bonus=1,
+    spell_bonus=3,
     price = 50,
     category="quarterstaff"
 )

@@ -165,7 +165,7 @@ def draw_sidebar(game) -> None:
     check_npc_interaction(), check_dungeon_npc_interaction().
     """
     screen = game.screen
-    p      = game.player
+    player = game.player
 
     PAD   = 10                               # inner horizontal padding
     x0    = config.GAME_AREA_WIDTH + PAD     # left edge of text content
@@ -183,10 +183,10 @@ def draw_sidebar(game) -> None:
                      (config.GAME_AREA_WIDTH, config.SCREEN_HEIGHT), 1)
 
     # ── Fonts (built fresh; cheap because SysFont caches) ─────────────
-    fH  = _font(16, bold=True)   # section header
-    fN  = _font(14)              # normal info
-    fSm = _font(12)              # small / dim
-    fKy = _font(13, bold=True)   # key badges
+    fH  = _font(18, bold=True)   # section header
+    fN  = _font(16)              # normal info
+    fSm = _font(14)              # small / dim
+    fKy = _font(12, bold=True)   # key badges
 
     y = 10
 
@@ -196,19 +196,19 @@ def draw_sidebar(game) -> None:
     y = _section_header(screen, fH, "PLAYER", x0, y, W)
 
     # Name + class on one line, level right-aligned
-    name_str  = p.name
-    class_str = getattr(p, "class_name", "")
-    lvl_str   = f"Lv {p.level}"
+    name_str  = player.name
+    class_str = getattr(player, "class_name", "")
+    lvl_str   = f"Lv {player.level}"
     _txt(screen, fN, f"{name_str}  ·  {class_str}", _TEXT_NORMAL, x0, y)
     lv_s = fN.render(lvl_str, True, _CYAN)
     screen.blit(lv_s, (x1 - lv_s.get_width(), y))
     y += fN.get_linesize() + 4
 
     # XP bar
-    y = _xp_bar(screen, x0, y, W, p.current_xp, p.xp_to_next_level, fSm)
+    y = _xp_bar(screen, x0, y, W, player.current_xp, player.xp_to_next_level, fSm)
 
     # Gold
-    g_s = fN.render(f"◆ {p.gold} gp", True, _GOLD)
+    g_s = fN.render(f"◆ {player.gold} gp", True, _GOLD)
     screen.blit(g_s, (x0, y))
     y += fN.get_linesize() + 12
 
@@ -220,16 +220,16 @@ def draw_sidebar(game) -> None:
     bar_h = 16
 
     # HP color by threshold
-    hp_pct = p.hp / p.max_hp if p.max_hp > 0 else 0
+    hp_pct = player.hp / player.max_hp if player.max_hp > 0 else 0
     hp_col = _RED_LO if hp_pct < 0.33 else _YEL_MID if hp_pct < 0.66 else _GRN_HI
 
     _fill_bar(screen, x0, y, W, bar_h,
-              p.hp, p.max_hp, hp_col,
-              text=f"HP  {p.hp} / {p.max_hp}", font=fSm)
+              player.hp, player.max_hp, hp_col,
+              text=f"HP  {player.hp} / {player.max_hp}", font=fSm)
     y += bar_h + 5
 
     # Hunger color by threshold
-    hun = getattr(p, "hunger", 100)
+    hun = getattr(player, "hunger", 100)
     hun_col = _RED_LO if hun < 20 else _YEL_MID if hun < 50 else _GRN_HI
     _fill_bar(screen, x0, y, W, bar_h,
               hun, 100, hun_col,
@@ -244,9 +244,9 @@ def draw_sidebar(game) -> None:
     slot_w = (W - 4) // 2
     slot_h = 36
     _quick_slot(screen, fKy, fSm, x0,           y, slot_w, slot_h,
-                "q", p.quick_bar.get("q"))
+                "q", player.quick_bar.get("q"))
     _quick_slot(screen, fKy, fSm, x0 + slot_w + 4, y, slot_w, slot_h,
-                "f", p.quick_bar.get("f"))
+                "f", player.quick_bar.get("f"))
     y += slot_h + 12
 
     # ════════════════════════════════════════════════════════════════════
@@ -254,7 +254,7 @@ def draw_sidebar(game) -> None:
     # ════════════════════════════════════════════════════════════════════
     y = _section_header(screen, fH, "ABILITIES", x0, y, W)
 
-    abilities = list(p.abilities.values()) if p.abilities else []
+    abilities = list(player.abilities.values()) if player.abilities else []
     if not abilities:
         _txt(screen, fSm, "none", _TEXT_DIM, x0, y)
         y += fSm.get_linesize() + 5
@@ -268,7 +268,7 @@ def draw_sidebar(game) -> None:
     # ════════════════════════════════════════════════════════════════════
     y = _section_header(screen, fH, "EFFECTS", x0, y, W)
 
-    effects = getattr(p, "active_status_effects", [])
+    effects = getattr(player, "active_status_effects", [])
     if not effects:
         _txt(screen, fSm, "none", _TEXT_DIM, x0, y)
         y += fSm.get_linesize() + 5
@@ -299,8 +299,8 @@ def draw_sidebar(game) -> None:
         y += fSm.get_linesize() + 3
         current_ent = game.get_current_entity()
         if current_ent:
-            turn_color = _GRN_HI if current_ent == p else _RED_LO
-            turn_label = "Your turn" if current_ent == p else f"{current_ent.name}'s turn"
+            turn_color = _GRN_HI if current_ent == player else _RED_LO
+            turn_label = "Your turn" if current_ent == player else f"{current_ent.name}'s turn"
             _txt(screen, fSm, turn_label, turn_color, x0, y)
             y += fSm.get_linesize() + 3
     y += 10
