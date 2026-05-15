@@ -1,20 +1,3 @@
-"""
-ui_sidebar.py  —  drop-in replacement for Game.draw_ui()
-----------------------------------------------------------------
-Paste this file anywhere in your project, then in game.py replace:
-
-    from core.message_log import MessageBox
-
-with also importing this module, and replace the draw_ui method body
-with a call to:
-
-    draw_sidebar(self)
-
-Or simply copy the `draw_sidebar` function body back into your
-Game.draw_ui() method — both work identically.
-----------------------------------------------------------------
-"""
-
 import pygame
 import config
 

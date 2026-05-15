@@ -1,18 +1,3 @@
-"""
-ui_screens.py  —  drop-in replacements for:
-    Game.render_inventory_screen()
-    Game.render_inventory_menu_popup()
-    Game.render_character_menu()
-
-In game.py add at the top:
-    from core.ui_screens import render_inventory_screen, render_inventory_menu_popup, render_character_menu
-
-Then replace each method body:
-    def render_inventory_screen(self):   render_inventory_screen(self)
-    def render_inventory_menu_popup(self): render_inventory_menu_popup(self)
-    def render_character_menu(self):     render_character_menu(self)
-"""
-
 import pygame
 from items.items import CampfireKit
 

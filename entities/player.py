@@ -768,6 +768,21 @@ class Player: # This is our base class for playable characters
         else:
             self.abilities.pop("guard", None)
 
+    def has_holy_symbol_equipped(self):
+        return (
+            self.equipped_accessory1 is not None and (getattr(self.equipped_accessory1, 'category', None) or '').lower() == 'holy_symbol'
+        ) or (
+            self.equipped_accessory2 is not None and (getattr(self.equipped_accessory2, 'category', None) or '').lower() == 'holy_symbol'
+        )
+    
+    def update_holy_symbol_abilities(self):
+        if self.class_name == "Cleric" and self.has_holy_symbol_equipped():
+            self.add_scaled_ability("summon_celestial", SummonCelestial())
+            self.add_scaled_ability("spiritual_weapon", SpiritualWeapon())
+        else:
+            self.abilities.pop("summon_celestial", None)
+            self.abilities.pop("spiritual_weapon", None)
+
     def equip_item(self, item, game_instance, from_quick_bar=False):
         if isinstance(item, Weapon):
             # Check if the weapon is two-handed
@@ -934,6 +949,9 @@ class Player: # This is our base class for playable characters
                 self.hp += item.hp_bonus  # Also heal for the bonus
             # Other bonuses can be applied here as needed
 
+
+            self.update_holy_symbol_abilities()
+
             return True
 
     def unequip_item(self, item, game_instance, remove_from_inventory=False):
@@ -977,6 +995,7 @@ class Player: # This is our base class for playable characters
                 self.update_spellbook_abilities()
                 self.update_thieves_tools_ability()
                 self.update_guard_ability()
+                self.update_holy_symbol_abilities()
                 return True
 
         elif isinstance(item, Armor):
@@ -1413,12 +1432,12 @@ class Cleric(Player):
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
-        #self.inventory.add_item(holy_symbol)
+        self.inventory.add_item(holy_symbol)
 
         self.equipped_weapon = steel_mace
         self.equipped_off_hand = kite_shield
         self.equipped_armor = chainmail_armor
-        self.equipped_accessory1 = holy_symbol
+        #self.equipped_accessory1 = holy_symbol
         
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
         # These calculations MUST happen
@@ -1445,10 +1464,9 @@ class Cleric(Player):
         self.abilities["sacred_flame"] = SacredFlame()
         self.abilities["healing_word"] = HealingWord()
         self.abilities["divine_strike"] = DivineStrike()
-        self.abilities["spiritual_weapon"] = SpiritualWeapon()
-        self.abilities["summon_celestial"] = SummonCelestial()
         self.update_throw_knife_ability()
         self.update_guard_ability()
+        self.update_holy_symbol_abilities()
         self._scale_all_abilities()  # Scale abilities after adding them
 
 class Sorcerer(Player):

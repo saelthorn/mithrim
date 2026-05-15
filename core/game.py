@@ -1910,6 +1910,7 @@ class Game:
                 self.player.update_spellbook_abilities()
                 self.player.update_thieves_tools_ability()
                 self.player.update_guard_ability()
+                self.player.update_holy_symbol_abilities()
                 self.update_fov() # Update FOV to reflect item removal
                 return True
             else:
@@ -1974,6 +1975,7 @@ class Game:
             self.player.update_spellbook_abilities()
             self.player.update_thieves_tools_ability()
             self.player.update_guard_ability()
+            self.player.update_holy_symbol_abilities()
             self.selected_inventory_item.x = self.player.x
             self.selected_inventory_item.y = self.player.y
             self.game_map.items_on_ground.append(self.selected_inventory_item)
@@ -1988,6 +1990,7 @@ class Game:
                 self.player.update_spellbook_abilities()
                 self.player.update_thieves_tools_ability()
                 self.player.update_guard_ability()
+                self.player.update_holy_symbol_abilities()
                 action_taken_in_menu = False
             else:
                 self.message_log.add_message(f"Cannot equip {self.selected_inventory_item.name} to Quick Bar (Q).", (255, 100, 100))
@@ -1997,6 +2000,7 @@ class Game:
                 self.player.update_spellbook_abilities()
                 self.player.update_thieves_tools_ability()
                 self.player.update_guard_ability()
+                self.player.update_holy_symbol_abilities()
                 action_taken_in_menu = False
             else:
                 self.message_log.add_message(f"Cannot equip {self.selected_inventory_item.name} to Quick Bar (F).", (255, 100, 100))
