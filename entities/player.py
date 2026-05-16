@@ -20,7 +20,7 @@ from items.items import (
     chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, 
     half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, 
     greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, spell_book, staff_of_magi, 
-    Item, CampfireKit, Weapon, Armor, OffHand, Accessory, WEAPON_CATEGORIES, ARMOR_CATEGORIES
+    scale_mail_armor, sturdy_quarterstaff, Item, CampfireKit, Weapon, Armor, OffHand, Accessory, WEAPON_CATEGORIES, ARMOR_CATEGORIES
 )
 
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
@@ -1273,6 +1273,7 @@ class Fighter(Player):
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(torch)
+        self.inventory.add_item(torch)
 
         self.equipped_weapon = iron_short_sword
         self.equipped_off_hand = round_shield
@@ -1333,6 +1334,8 @@ class Rogue(Player):
         self.inventory.add_item(throwing_knife)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
+        self.inventory.add_item(torch)
+        self.inventory.add_item(torch)
 
         self.equipped_weapon = iron_short_sword
         self.equipped_off_hand = iron_dagger
@@ -1386,16 +1389,15 @@ class Wizard(Player):
         self.primary_stat = 'intelligence'  # Set primary stat for Fighter 
 
         # Set starting equipment
-        self.inventory.add_item(staff_of_magi)
-        self.inventory.add_item(spell_book)
         self.inventory.add_item(bread)
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
-        self.inventory.add_item(glass_orb)
+        self.inventory.add_item(torch)
+        self.inventory.add_item(torch)
 
         self.equipped_weapon = oak_staff
-        self.equipped_off_hand = spell_book
+        self.equipped_off_hand = glass_orb
         self.equipped_armor = robes
         
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
@@ -1455,11 +1457,12 @@ class Cleric(Player):
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
-        self.inventory.add_item(holy_symbol)
+        self.inventory.add_item(torch)
+        self.inventory.add_item(torch)
 
         self.equipped_weapon = steel_mace
         self.equipped_off_hand = kite_shield
-        self.equipped_armor = chainmail_armor
+        self.equipped_armor = scale_mail_armor
         #self.equipped_accessory1 = holy_symbol
         
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
@@ -1518,6 +1521,8 @@ class Sorcerer(Player):
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
+        self.inventory.add_item(torch)
+        self.inventory.add_item(torch)
 
         self.equipped_weapon = oak_staff
         self.equipped_off_hand = spell_book

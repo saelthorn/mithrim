@@ -314,7 +314,7 @@ def generate_dungeon(game_map, level_number, max_rooms=14, room_min_size=5, room
                 # Props
                 if random.random() < prop_chance:
                     # Small chance for a mimic disguised as a crate/barrel (level 4+)
-                    if level_number >= 4 and random.random() < 0.1:
+                    if level_number >= 4 and random.random() < 0.02:
                         base = random.choice([crate, barrel])
                         disguise_char = 'K' if base is crate else 'B'
                         display_char  = 'k' if base is crate else 'b'

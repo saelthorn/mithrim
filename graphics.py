@@ -185,10 +185,12 @@ def setup_tile_mapping():
         'frg': (13 * CELL_DIM, 1 * CELL_DIM), # Fromage
         'brd': (14 * CELL_DIM, 1 * CELL_DIM), # Bread
         'msm': (15 * CELL_DIM, 1 * CELL_DIM), # Mushroom
+        'crt': (16 * CELL_DIM, 1 * CELL_DIM), # Carrot
 
         # Armors and Robes
         'pda': (1 * CELL_DIM, 13 * CELL_DIM),  # Leather Armor
         'sla': (1 * CELL_DIM, 14 * CELL_DIM),  # Studded Leather Armor
+        'sma': (1 * CELL_DIM, 15 * CELL_DIM),  # Scale Mail Armor
 
         'cha': (2 * CELL_DIM, 13 * CELL_DIM),  # Chainmail Armor
         'hpa': (2 * CELL_DIM, 14 * CELL_DIM),  # Half Plate Armor
@@ -220,8 +222,8 @@ def setup_tile_mapping():
 
         'oas': (7 * CELL_DIM, 13 * CELL_DIM),  # Oak Staff
         'aps': (7 * CELL_DIM, 14 * CELL_DIM),  # Apprentice's Staff
-        'qts': (7 * CELL_DIM, 15 * CELL_DIM),  # Quarterstaff
         'som': (7 * CELL_DIM, 15 * CELL_DIM),  # Staff of Magi
+        'qts': (7 * CELL_DIM, 16 * CELL_DIM),  # Sturdy Quarterstaff
 
         'srp': (9 * CELL_DIM, 13 * CELL_DIM),  # Steel Rapier
         'dlr': (9 * CELL_DIM, 14 * CELL_DIM),  # Duelists Rapier

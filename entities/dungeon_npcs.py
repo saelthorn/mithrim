@@ -1,7 +1,13 @@
 import random
 
 from core.game import GameState
-from items.items import torch, throwing_knife, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, full_plate_armor, robes_of_protection, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, CampfireKit, Food, Weapon, Armor, OffHand
+from items.items import (
+    torch, throwing_knife, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, 
+    carrot, spell_book, holy_symbol, full_plate_armor, robes_of_protection, adamantine_long_sword, staff_of_magi, 
+    duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, 
+    CampfireKit, Food, Weapon, Armor, OffHand
+)
+
 from entities.base_entity import NPC
 
 class DungeonHealer(NPC):
@@ -52,6 +58,7 @@ class DungeonMerchant(NPC):
             greater_healing_potion,
             meat,
             bread,
+            carrot,
             fromage,
             torch,
             throwing_knife,
@@ -67,7 +74,13 @@ class DungeonMerchant(NPC):
             (robes_of_protection, 0.45),
             (dwarven_battle_axe, 0.4),
             (dragonsbane_warhammer, 0.4),
-            # Add more tavern-specific items and chances if desired
+            (spell_book, 0.25),
+            (holy_symbol, 0.25),
+            (carrot, 0.3),
+            (mushroom, 0.3),
+            (green_apple, 0.3),
+            (bread, 0.3),
+            (meat, 0.3),
         ]
 
         self.items_for_sale = []

@@ -552,6 +552,19 @@ staff_of_magi = Weapon(
     category="quarterstaff"
 )
 
+sturdy_quarterstaff = Weapon(
+    name="Sturdy Quarterstaff",
+    char="qst",
+    color=(139, 69, 19),
+    description="A sturdy wooden staff.",
+    damage_dice="1d6",
+    damage_modifier=2,
+    attack_bonus=3,
+    spell_bonus=0,
+    price = 20,
+    category="quarterstaff"
+)
+
 steel_rapier = Weapon(
     name="Steel Rapier",
     char="srp",
@@ -730,6 +743,16 @@ half_plate_armor = Armor(
     description="A half plate armor.",
     ac_bonus=4,
     price=30,
+    category="medium"
+)
+
+scale_mail_armor = Armor(
+    name="Scale Mail Armor",
+    char="sma",
+    color=(175, 175, 175),
+    description="A scale mail armor.",
+    ac_bonus=3,
+    price=25,
     category="medium"
 )
 
