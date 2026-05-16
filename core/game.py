@@ -45,11 +45,7 @@ from entities.races import Human, HillDwarf, DrowElf, Tiefling, Dragonborn
 from entities.summons import MageHandEntity, SummonedEntity
 from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
 from core.message_log import MessageBox
-
-from core.status_effects import (
-    ParryBuff, PowerAttackBuff, DivineStrikeBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness, 
-    PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
-)
+from core.status_effects import ParryBuff, PowerAttackBuff, DivineStrikeBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
 
 from items.items import (
     Potion, Weapon, Armor, Chest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
@@ -239,7 +235,8 @@ class Game:
         self.minimap_needs_redraw = True # Flag to redraw minimap only when needed
 
         self.dirty_rects = [] # New list to store dirty rectangles
-        self._equip_slot_rects = {}  # Set by render_inventory_screen each frame
+        self._equip_slot_rects = {}     # Set by render_inventory_screen each frame
+        self._inventory_slot_rects = {}  # Set by render_inventory_screen each frame
 
         self.menu_open = None
 
@@ -267,8 +264,8 @@ class Game:
 
     # Boss schedule: every 5th floor, ordered list
     BOSS_FLOORS = [
-        (1, 'LizardfolkArcher'),
-        (3, 'Ooze'),
+        (1, 'Beholder'),
+        (3, 'Owlbear'),
         (5, 'Gauth'),
         (7, 'AlphaGrick'),
         (10, 'DeathSlaad'),
@@ -282,11 +279,11 @@ class Game:
     MONSTER_SPAWN_TIERS = {
         # 🌱 Early dungeon fodder (CR 1/8 – CR 1/4)
         (1, 2): [Goblin, Wolf, Imp, GiantRat, MyconidSprout],
-        (3, 4): [Goblin, GoblinArcher, GiantRat, IntellectDevourer, Wererat, Wolf, MyconidSprout, Imp],
-        (5, 5): [Goblin, GoblinArcher, Lizardfolk, LizardfolkArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf, MyconidAdult, IntellectDevourer],
+        (3, 4): [Goblin, GoblinArcher, GiantRat, GiantSpider, Wererat, Wolf, MyconidSprout, IntellectDevourer, Imp],
+        (5, 5): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf, MyconidAdult, IntellectDevourer],
 
         # ⚔️ Early-mid dangers (CR 1/2 – CR 2)
-        (6, 7): [Lizardfolk, LizardfolkArcher, Skeleton, SkeletonArcher, Orc, Grick, Ooze],
+        (6, 7): [Skeleton, SkeletonArcher, Orc, Grick, Ooze],
         (8, 9): [Lizardfolk, LizardfolkArcher, GiantSpider, Wererat, MyconidAdult],
 
         # 🛡️ Mid-game threats (CR 3 – CR 6)
@@ -1312,23 +1309,32 @@ class Game:
                         self.change_zoom(-config.ZOOM_STEP)
                         return True
 
-                # Left-click on an equipment slot → unequip back to inventory
-                if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
-                        and self.game_state == GameState.INVENTORY
-                        and hasattr(self, '_equip_slot_rects')):
-                    for slot_key, rect in self._equip_slot_rects.items():
-                        if rect.collidepoint(pos):
-                            self._unequip_slot(slot_key)
-                            return True
+                # Inventory mouse handling
+                if (event.type == pygame.MOUSEBUTTONDOWN
+                        and self.game_state == GameState.INVENTORY):
 
-                # Left-click on an equipment slot in the inventory menu → equip selected item
-                if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
-                        and self.game_state == GameState.INVENTORY_MENU
-                        and hasattr(self, '_equip_slot_rects') and self.selected_inventory_item):
-                    for slot_key, rect in self._equip_slot_rects.items():
-                        if rect.collidepoint(pos):
-                            self._equip_slot(slot_key)
-                            return True
+                    # Left-click on equipment slot → unequip to inventory
+                    if event.button == 1 and hasattr(self, '_equip_slot_rects'):
+                        for slot_key, rect in self._equip_slot_rects.items():
+                            if rect.collidepoint(pos):
+                                self._unequip_slot(slot_key)
+                                return True
+
+                    # Left-click on inventory grid slot → equip item immediately
+                    # Right-click on inventory grid slot → open action popup
+                    if event.button in (1, 3) and hasattr(self, '_inventory_slot_rects'):
+                        for idx, rect in self._inventory_slot_rects.items():
+                            if rect.collidepoint(pos):
+                                items = self.player.inventory.items
+                                if idx < len(items):
+                                    self.selected_inventory_index = idx
+                                    clicked_item = items[idx]
+                                    if event.button == 1:  # left-click → equip
+                                        self.player.equip_item(clicked_item, self)
+                                    else:  # right-click → action popup
+                                        self.selected_inventory_item = clicked_item
+                                        self.game_state = GameState.INVENTORY_MENU
+                                return True
 
             if event.type == pygame.KEYDOWN:
 
@@ -3353,13 +3359,13 @@ class Game:
                     visibility_type = self.fov.get_visibility_type(bloodstain.x, bloodstain.y)
                     color_tint = None
                     if visibility_type == 'player':
-                        color_tint = (255, 0, 0, 150) # Slightly transparent red
+                        color_tint = (235, 0, 0, 150) # Slightly transparent red
                     elif visibility_type == 'torch':
-                        color_tint = (200, 0, 0, 120)
+                        color_tint = (185, 0, 0, 120)
                     elif visibility_type == 'darkvision':
-                        color_tint = (150, 0, 0, 100)
+                        color_tint = (72, 0, 0, 100)
                     elif visibility_type == 'explored':
-                        color_tint = (100, 0, 0, 80) # Very dim in explored areas
+                        color_tint = (36, 0, 0, 80) # Very dim in explored areas
                     else: # Unexplored, don't draw
                         continue
                     # Draw a semi-transparent red square or a specific bloodstain character
@@ -3744,23 +3750,7 @@ class Game:
             return
         self.player.unequip_item(item, self)
 
-    def _equip_slot(self, slot_key):
-        """Equip the given item to the given slot key using the player's own equip_item method."""
-        slot_map = {
-            "weapon":   "equipped_weapon",
-            "armor":    "equipped_armor",
-            "off_hand": "equipped_off_hand",
-            "acc1":     "equipped_accessory1",
-            "acc2":     "equipped_accessory2",
-        }
-        attr = slot_map.get(slot_key)
-        if not attr:
-            return
-        item_to_equip = getattr(self.player, attr, None)
-        if item_to_equip is not None:
-            self.message_log.add_message("Unequip current item from that slot first.", (150, 150, 150))
-            return
-        self.player.equip_item(item_to_equip, self)
+
 
 
     def draw_ui(self):

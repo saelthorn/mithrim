@@ -411,7 +411,7 @@ class Player: # This is our base class for playable characters
         if self.equipped_armor:
             base_ac += self.equipped_armor.ac_bonus  # Add armor bonus
         if self.equipped_off_hand:  # Check if an off-hand item is equipped
-            base_ac += self.equipped_off_hand.defense_bonus  # Add off-hand defense bonus if it's a shield
+            base_ac += self.equipped_off_hand.ac_bonus  # Add off-hand defense bonus if it's a shield
 
         for effect in self.active_status_effects:
             if isinstance(effect, ParryBuff):
@@ -1003,6 +1003,7 @@ class Player: # This is our base class for playable characters
                 else:
                     self.inventory.add_item(item)
                     game_instance.message_log.add_message(f"You unequip {item.name}.", (150, 150, 150))
+              
                 # If unequipping a torch, save remaining duration and remove Torchlight effect
                 if item.name.lower() == "torch":
                     torchlight_effect = None
@@ -1015,6 +1016,8 @@ class Player: # This is our base class for playable characters
                         self.active_status_effects.remove(torchlight_effect)
                         game_instance.message_log.add_message(f"{self.name}'s torchlight fades but the glow lingers in the torch.", (255, 165, 0))
                 self.equipped_off_hand = None
+                self.armor_class = self._calculate_ac()  
+                
                 self.update_attack_power()
                 self.update_throw_knife_ability()
                 self.update_spellbook_abilities()

@@ -98,9 +98,9 @@ class Armor(Item):
         self.category = category
 
 class OffHand(Item):
-    def __init__(self, name, char, color, description, price, defense_bonus=0, attack_bonus=0, spell_bonus=0, damage_dice=None, damage_modifier=0, category=None, remaining_duration=250):
+    def __init__(self, name, char, color, description, price, ac_bonus=0, attack_bonus=0, spell_bonus=0, damage_dice=None, damage_modifier=0, category=None, remaining_duration=250):
         super().__init__(name, char, color, description, price)
-        self.defense_bonus = defense_bonus  # Bonus to armor class if it's a shield
+        self.ac_bonus = ac_bonus  # Bonus to armor class if it's a shield
         self.attack_bonus = attack_bonus  # Bonus to attack rolls if it's a weapon
         self.spell_bonus = spell_bonus  # Bonus to spell attacks if it's a magic item
         self.damage_dice = damage_dice  # Damage dice for one-handed weapons (e.g., "1d6")
@@ -336,7 +336,7 @@ spell_book = OffHand(
     char="spb",
     color=(120, 0, 220),
     description="A wizard's spell book that enables advanced spellcasting.",
-    defense_bonus=0,
+    ac_bonus=0,
     attack_bonus=0,
     price=50,
     category="spellbook"
@@ -680,7 +680,7 @@ round_shield = OffHand(
     char="rsh",
     color=(175, 175, 175),
     description="A round shield.",
-    defense_bonus=1, # Adds 1 to base AC
+    ac_bonus=2,
     price=15,
     category="shield"
 
@@ -691,7 +691,7 @@ kite_shield = OffHand(
     char="ksh",
     color=(175, 175, 175),
     description="A kite shield.",
-    defense_bonus=2, 
+    ac_bonus=3, 
     price=35,
     category="shield"
 )
@@ -701,7 +701,7 @@ tower_shield = OffHand(
     char="tsh",
     color=(175, 175, 175),
     description="A tower shield.",
-    defense_bonus=3, 
+    ac_bonus=4, 
     price=50,
     category="shield"
 )

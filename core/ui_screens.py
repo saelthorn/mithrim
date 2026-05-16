@@ -39,7 +39,7 @@ _WHITE       = (214, 206, 194)  # aged ivory
 SLOT_SIZE    = 87   # px — each inventory cell
 SLOT_GAP     = 4    # px — gap between cells
 SPRITE_PAD   = 6    # px — padding inside each cell around the sprite
-COLS         = 7    # inventory grid columns
+COLS         = 5    # inventory grid columns
 
 
 # ── Font helpers ──────────────────────────────────────────────────────────────
@@ -158,8 +158,8 @@ def _item_stats(item):
         rows += [("AC Bonus", f"+{item.ac_bonus}"),
                  ("Category", item.category or "—")]
     elif isinstance(item, OffHand):
-        if item.defense_bonus:
-            rows.append(("Defense", f"+{item.defense_bonus}"))
+        if item.ac_bonus:
+            rows.append(("Defense", f"+{item.ac_bonus}"))
         if item.damage_dice:
             rows += [("Damage", item.damage_dice),
                      ("Dmg Mod", f"+{item.damage_modifier}"),
@@ -329,8 +329,9 @@ def render_inventory_screen(game):
     doll_x   = grid_x + GRID_W + PAD
     detail_x = doll_x + DOLL_W + PAD
 
-    # Reset equip slot rects so mouse handler can update them each frame based on current layout. Also inventory slot rects (for inventory menu popup).
+    # Reset slot rect dicts so mouse handler can detect clicks each frame
     game._equip_slot_rects = {}
+    game._inventory_slot_rects = {}
 
     # panel backgrounds
     for px2, pw in ((grid_x, GRID_W), (doll_x, DOLL_W), (detail_x, DETAIL_W)):
@@ -364,16 +365,15 @@ def render_inventory_screen(game):
         cx   = gx0 + col * cell
         cy   = y   + row * cell
         _draw_slot(surf, item, cx, cy, selected=(i == sel_idx))
+        game._inventory_slot_rects[i] = pygame.Rect(cx, cy, SLOT_SIZE, SLOT_SIZE)
 
         # slot number (bottom-right corner)
         badge = fXs.render(str((i + 1) % 10), True, _TEXT_DIM)
         surf.blit(badge, (cx + SLOT_SIZE - badge.get_width() - 2,
                            cy + SLOT_SIZE - badge.get_height() - 1))
-        
-    
 
     # hints at bottom of grid
-    hints = ["Up/Down  navigate", "Enter  select"]
+    hints = ["WASD / arrows  navigate", "Left-click  equip", "Right-click  options"]
     hy = PAD + SH - PAD * 2 - len(hints) * (fXs.get_linesize() + 3) - 6
     for h in hints:
         hs = fXs.render(h, True, _TEXT_DIM)
@@ -439,7 +439,7 @@ def render_inventory_screen(game):
     game._equip_slot_rects["acc2"]     = pygame.Rect(acc2_x, bot_y, EQ, EQ)
 
     # Quick stats block
-    qs_y = bot_y + EQ + fXs.get_linesize() + 20
+    qs_y = bot_y + EQ + fXs.get_linesize() + 18
     pygame.draw.line(surf, _BORDER, (doll_x + 6, qs_y - 6),
                      (doll_x + DOLL_W - 6, qs_y - 6), 1)
 
