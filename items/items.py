@@ -307,7 +307,7 @@ torch = OffHand(
     damage_modifier=1,
     attack_bonus=0,
     price=10,
-    remaining_duration=250
+    remaining_duration=350
 )
 
 throwing_knife = OffHand(

@@ -257,7 +257,7 @@ class ParryBuff(StatusEffect):
 
 
 class Torchlight(StatusEffect):
-    def __init__(self, duration=250):
+    def __init__(self, duration=350):
         super().__init__("Torchlight", duration)
 
     def apply_effect(self, target, game_instance):

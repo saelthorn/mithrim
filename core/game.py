@@ -3009,13 +3009,13 @@ class Game:
 
                             # Set color tint based on visibility
                             if visibility_type == 'player':
-                                altar_color_tint = (240, 240, 240, 255)
+                                altar_color_tint = (115, 102, 92, 255)
                             elif visibility_type == 'torch':
-                                altar_color_tint = (180, 180, 180, 255)
+                                altar_color_tint = (255, 170, 82, 255)
                             elif visibility_type == 'darkvision':
-                                altar_color_tint = (120, 120, 120, 255)
+                                altar_color_tint = (72, 78, 86, 255)
                             elif visibility_type == 'explored':
-                                altar_color_tint = (60, 60, 60, 255)
+                                altar_color_tint = (36, 30, 34, 255)
                             else:
                                 continue  # Don't render if not visible
                             
@@ -3180,17 +3180,17 @@ class Game:
                 render_color_tint = None
                 if visibility_type == 'player':
                     if has_torchlight:
-                        render_color_tint = (240, 240, 240, 255)
+                        render_color_tint = (235, 185, 95, 255)
                     else:
-                        render_color_tint = (100, 100, 100, 255)  
+                        render_color_tint = (115, 102, 92, 255)
                 elif visibility_type == 'torch':
-                    render_color_tint = (180, 180, 180, 255)
+                    render_color_tint = (255, 170, 82, 255)
                 elif visibility_type == 'darkvision':
-                    render_color_tint = (40, 40, 40, 255)
+                    render_color_tint = (72, 78, 86, 255)
                 elif visibility_type == 'explored':
-                    render_color_tint = (20, 20, 20, 255)
+                    render_color_tint = (36, 30, 34, 255)
                 elif visibility_type == 'unexplored':
-                    # For unexplored, draw nothing (black/invisible)
+                    render_color_tint = (8, 6, 8, 255)  # Very dark tint for unexplored, but still render the tile
                     continue
                 else:
                     continue  # Don't render if truly invisible
@@ -3259,17 +3259,17 @@ class Game:
                     entity_color_tint = None
                     if visibility_type == 'player':
                         if has_torchlight:
-                            entity_color_tint = (240, 240, 240, 255)  # Dimmer tint when torchlight active
+                            entity_color_tint = (235, 185, 95, 255)  # Dimmer tint when torchlight active
                         else:
-                            entity_color_tint = (160, 160, 160, 255)  
+                            entity_color_tint = (115, 102, 92, 255)
                     elif visibility_type == 'torch':
-                        entity_color_tint = (180, 180, 180, 255)
+                        entity_color_tint = (255, 170, 82, 255)
                     elif visibility_type == 'darkvision':
-                        entity_color_tint = (80, 80, 80, 255)
+                        entity_color_tint = (72, 78, 86, 255)
                     elif visibility_type == 'explored':
-                        entity_color_tint = (40, 40, 40, 255)
+                        entity_color_tint = (36, 30, 34, 255)
                     elif visibility_type == 'unexplored':
-                        entity_color_tint = (20, 20, 20, 255)
+                        entity_color_tint = (8, 6, 8, 255)
     
                     footprint_size = getattr(entity, 'footprint_size', 1)
                     tile_size_override = config.TILE_SIZE * footprint_size if footprint_size > 1 else None
@@ -3405,17 +3405,17 @@ class Game:
                     item_color_tint = None
                     if visibility_type == 'player':
                         if has_torchlight:
-                            item_color_tint = (240, 240, 240, 255)  # Dimmer tint when torchlight active
+                            item_color_tint = (235, 185, 95, 255)  # Dimmer tint when torchlight active
                         else:
-                            item_color_tint = (160, 160, 160, 255)  
+                            item_color_tint = (115, 102, 92, 255)  
                     elif visibility_type == 'torch':
-                        item_color_tint = (180, 180, 180, 255)
+                        item_color_tint = (255, 170, 82, 255)
                     elif visibility_type == 'darkvision':
-                        item_color_tint = (120, 120, 120, 255)
+                        item_color_tint = (72, 78, 86, 255)
                     elif visibility_type == 'explored':
-                        item_color_tint = (60, 60, 60, 255)
+                        item_color_tint = (36, 30, 34, 255)
                     elif visibility_type == 'unexplored':
-                        item_color_tint = (20, 20, 20, 255)
+                        item_color_tint = (8, 6, 8, 255) 
                     
                     # Always draw floor under items, as map rendering might have drawn a decorative tile
                     # --- MODIFIED: Pass float draw_x, draw_y to graphics.draw_tile ---
