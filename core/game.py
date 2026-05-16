@@ -239,6 +239,7 @@ class Game:
         self.minimap_needs_redraw = True # Flag to redraw minimap only when needed
 
         self.dirty_rects = [] # New list to store dirty rectangles
+        self._equip_slot_rects = {}  # Set by render_inventory_screen each frame
 
         self.menu_open = None
 
@@ -1311,6 +1312,24 @@ class Game:
                         self.change_zoom(-config.ZOOM_STEP)
                         return True
 
+                # Left-click on an equipment slot → unequip back to inventory
+                if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                        and self.game_state == GameState.INVENTORY
+                        and hasattr(self, '_equip_slot_rects')):
+                    for slot_key, rect in self._equip_slot_rects.items():
+                        if rect.collidepoint(pos):
+                            self._unequip_slot(slot_key)
+                            return True
+
+                # Left-click on an equipment slot in the inventory menu → equip selected item
+                if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                        and self.game_state == GameState.INVENTORY_MENU
+                        and hasattr(self, '_equip_slot_rects') and self.selected_inventory_item):
+                    for slot_key, rect in self._equip_slot_rects.items():
+                        if rect.collidepoint(pos):
+                            self._equip_slot(slot_key)
+                            return True
+
             if event.type == pygame.KEYDOWN:
 
                 # --- Trade Interaction ---
@@ -1407,21 +1426,25 @@ class Game:
 
                     # --- Inventory Navigation ---
                     if self.game_state == GameState.INVENTORY:
-                        if event.key in (pygame.K_UP, pygame.K_w):  # Up arrow or W key
-                            if self.player.inventory.items:  # Check if there are items in inventory
-                                self.selected_inventory_index = (self.selected_inventory_index - 1) % len(self.player.inventory.items)
-                        elif event.key in (pygame.K_DOWN, pygame.K_s):  # Down arrow or S key
-                            if self.player.inventory.items:  # Check if there are items in inventory
-                                self.selected_inventory_index = (self.selected_inventory_index + 1) % len(self.player.inventory.items)
-                        elif event.key == pygame.K_RETURN:  # Enter key to select item
-                            if self.player.inventory.items:
-                                # Ensure the index is within bounds
-                                if 0 <= self.selected_inventory_index < len(self.player.inventory.items):
-                                    self.selected_inventory_item = self.player.inventory.items[self.selected_inventory_index]
-                                    self.game_state = GameState.INVENTORY_MENU
-                                    self.message_log.add_message(f"Selected: {self.selected_inventory_item.name}", self.selected_inventory_item.color)
-                                else:
-                                    self.message_log.add_message("Invalid item selection.", (255, 0, 0))  # Log an error message
+                        GRID_COLS = 5  # Must match COLS in ui_screens.py
+                        n = len(self.player.inventory.items)
+                        if n > 0:
+                            idx = self.selected_inventory_index
+                            if event.key in (pygame.K_LEFT, pygame.K_a):
+                                self.selected_inventory_index = (idx - 1) % n
+                            elif event.key in (pygame.K_RIGHT, pygame.K_d):
+                                self.selected_inventory_index = (idx + 1) % n
+                            elif event.key in (pygame.K_UP, pygame.K_w):
+                                new_idx = idx - GRID_COLS
+                                self.selected_inventory_index = new_idx if new_idx >= 0 else idx
+                            elif event.key in (pygame.K_DOWN, pygame.K_s):
+                                new_idx = idx + GRID_COLS
+                                self.selected_inventory_index = new_idx if new_idx < n else idx
+                        if event.key == pygame.K_RETURN:
+                            if 0 <= self.selected_inventory_index < n:
+                                self.selected_inventory_item = self.player.inventory.items[self.selected_inventory_index]
+                                self.game_state = GameState.INVENTORY_MENU
+                                self.message_log.add_message(f"Selected: {self.selected_inventory_item.name}", self.selected_inventory_item.color)
                         return True  # Consume event
 
                 # --- Trade Interaction --- 
@@ -2990,9 +3013,9 @@ class Game:
                             elif visibility_type == 'torch':
                                 altar_color_tint = (180, 180, 180, 255)
                             elif visibility_type == 'darkvision':
-                                altar_color_tint = (40, 40, 40, 255)
+                                altar_color_tint = (120, 120, 120, 255)
                             elif visibility_type == 'explored':
-                                altar_color_tint = (20, 20, 20, 255)
+                                altar_color_tint = (60, 60, 60, 255)
                             else:
                                 continue  # Don't render if not visible
                             
@@ -3159,7 +3182,7 @@ class Game:
                     if has_torchlight:
                         render_color_tint = (240, 240, 240, 255)
                     else:
-                        render_color_tint = (140, 140, 140, 255)  
+                        render_color_tint = (100, 100, 100, 255)  
                 elif visibility_type == 'torch':
                     render_color_tint = (180, 180, 180, 255)
                 elif visibility_type == 'darkvision':
@@ -3388,9 +3411,9 @@ class Game:
                     elif visibility_type == 'torch':
                         item_color_tint = (180, 180, 180, 255)
                     elif visibility_type == 'darkvision':
-                        item_color_tint = (40, 40, 40, 255)
+                        item_color_tint = (120, 120, 120, 255)
                     elif visibility_type == 'explored':
-                        item_color_tint = (20, 20, 20, 255)
+                        item_color_tint = (60, 60, 60, 255)
                     elif visibility_type == 'unexplored':
                         item_color_tint = (20, 20, 20, 255)
                     
@@ -3702,6 +3725,43 @@ class Game:
         if current_line:
             lines.append(' '.join(current_line))
         return lines
+
+    def _unequip_slot(self, slot_key):
+        """Unequip item from the given slot key using the player's own unequip_item method."""
+        slot_map = {
+            "weapon":   "equipped_weapon",
+            "armor":    "equipped_armor",
+            "off_hand": "equipped_off_hand",
+            "acc1":     "equipped_accessory1",
+            "acc2":     "equipped_accessory2",
+        }
+        attr = slot_map.get(slot_key)
+        if not attr:
+            return
+        item = getattr(self.player, attr, None)
+        if item is None:
+            self.message_log.add_message("Nothing equipped in that slot.", (150, 150, 150))
+            return
+        self.player.unequip_item(item, self)
+
+    def _equip_slot(self, slot_key):
+        """Equip the given item to the given slot key using the player's own equip_item method."""
+        slot_map = {
+            "weapon":   "equipped_weapon",
+            "armor":    "equipped_armor",
+            "off_hand": "equipped_off_hand",
+            "acc1":     "equipped_accessory1",
+            "acc2":     "equipped_accessory2",
+        }
+        attr = slot_map.get(slot_key)
+        if not attr:
+            return
+        item_to_equip = getattr(self.player, attr, None)
+        if item_to_equip is not None:
+            self.message_log.add_message("Unequip current item from that slot first.", (150, 150, 150))
+            return
+        self.player.equip_item(item_to_equip, self)
+
 
     def draw_ui(self):
         draw_sidebar(self)
