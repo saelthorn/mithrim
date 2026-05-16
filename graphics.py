@@ -221,6 +221,7 @@ def setup_tile_mapping():
         'oas': (7 * CELL_DIM, 13 * CELL_DIM),  # Oak Staff
         'aps': (7 * CELL_DIM, 14 * CELL_DIM),  # Apprentice's Staff
         'qts': (7 * CELL_DIM, 15 * CELL_DIM),  # Quarterstaff
+        'som': (7 * CELL_DIM, 15 * CELL_DIM),  # Staff of Magi
 
         'srp': (9 * CELL_DIM, 13 * CELL_DIM),  # Steel Rapier
         'dlr': (9 * CELL_DIM, 14 * CELL_DIM),  # Duelists Rapier
