@@ -248,6 +248,15 @@ meat = Food(
     color=(255, 0, 0)
 )
 
+carrot = Food(
+    name="Carrot",
+    description="A crunchy vegetable that has a sweet and earthy flavor.",
+    healing_value=15,
+    price=5,
+    char="crt",
+    color=(143, 188, 143)
+)
+
 green_apple = Food(
     name="Green Apple",
     description="A fruit that has sweet and tarty taste.",
@@ -374,7 +383,7 @@ glass_orb = OffHand(
     color=(200, 200, 200),
     description="A glass orb.",
     damage_dice="1d4",
-    damage_modifier=1,
+    spell_bonus=1,
     attack_bonus=1,
     price=20,
     category="orb"
@@ -386,9 +395,9 @@ orb_of_chaos = OffHand(
     color=(200, 200, 200),
     description="An orb that brings chaos.",
     damage_dice="1d4",
-    damage_modifier=2,
+    spell_bonus=3,
     attack_bonus=4,
-    price=20,
+    price=40,
     category="orb"
 )
 
