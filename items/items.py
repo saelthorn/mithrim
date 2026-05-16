@@ -803,7 +803,8 @@ def generate_random_loot(level_number):
         lesser_healing_potion, greater_healing_potion, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor,
         robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, 
         apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail,
-        round_shield, kite_shield, tower_shield, torch
+        round_shield, kite_shield, tower_shield, torch, throwing_knife, spell_book, holy_symbol, flameheart_short_sword, 
+        flameheart_flail, scale_mail_armor, full_plate_armor, robes_of_protection, 
     ]
 
     # Add 1-3 random items

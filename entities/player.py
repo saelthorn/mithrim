@@ -741,11 +741,11 @@ class Player: # This is our base class for playable characters
 
     def update_thieves_tools_ability(self):
         if self.has_thieves_tools():
-            self.add_scaled_ability("spot_traps", SpotTrapsAbility())
-            self.add_scaled_ability("disarm_traps", DisarmTrapsAbility())
+            self.add_scaled_ability("Spot Traps", SpotTrapsAbility())
+            self.add_scaled_ability("Disarm Traps", DisarmTrapsAbility())
         else:
-            self.abilities.pop("spot_traps", None)
-            self.abilities.pop("disarm_traps", None)
+            self.abilities.pop("Spot Traps", None)
+            self.abilities.pop("Disarm Traps", None)
 
     def add_scaled_ability(self, key, ability):
         self.abilities[key] = ability
@@ -763,9 +763,9 @@ class Player: # This is our base class for playable characters
 
     def update_throw_knife_ability(self):
         if self.has_throwing_knife():
-            self.add_scaled_ability("throw_knife", ThrowKnife())
+            self.add_scaled_ability("Throwing Knife", ThrowKnife())
         else:
-            self.abilities.pop("throw_knife", None)
+            self.abilities.pop("Throwing Knife", None)
 
     def has_spell_book_equipped(self):
         return (
@@ -775,11 +775,11 @@ class Player: # This is our base class for playable characters
 
     def update_spellbook_abilities(self):
         if self.class_name == "Wizard" and self.has_spell_book_equipped():
-            self.add_scaled_ability("fireball", Fireball())
-            self.add_scaled_ability("summon_imp", SummonImp())
+            self.add_scaled_ability("Fireball", Fireball())
+            self.add_scaled_ability("Summon Imp", SummonImp())
         else:
-            self.abilities.pop("fireball", None)
-            self.abilities.pop("summon_imp", None)
+            self.abilities.pop("Fireball", None)
+            self.abilities.pop("Summon Imp", None)
 
     def has_shield_equipped(self):
         return (
@@ -789,9 +789,9 @@ class Player: # This is our base class for playable characters
 
     def update_guard_ability(self):
         if self.class_name in ["Fighter", "Cleric"] and self.has_shield_equipped():
-            self.add_scaled_ability("guard", Guard())
+            self.add_scaled_ability("Guard", Guard())
         else:
-            self.abilities.pop("guard", None)
+            self.abilities.pop("Guard", None)
 
     def has_holy_symbol_equipped(self):
         return (
@@ -802,11 +802,11 @@ class Player: # This is our base class for playable characters
     
     def update_holy_symbol_abilities(self):
         if self.class_name == "Cleric" and self.has_holy_symbol_equipped():
-            self.add_scaled_ability("summon_celestial", SummonCelestial())
-            self.add_scaled_ability("spiritual_weapon", SpiritualWeapon())
+            self.add_scaled_ability("Summons Celestial", SummonCelestial())
+            self.add_scaled_ability("Spiritual Weapon", SpiritualWeapon())
         else:
-            self.abilities.pop("summon_celestial", None)
-            self.abilities.pop("spiritual_weapon", None)
+            self.abilities.pop("Summons Celestial", None)
+            self.abilities.pop("Spiritual Weapon", None)
 
     def equip_item(self, item, game_instance, from_quick_bar=False):
         if isinstance(item, Weapon):
@@ -1017,7 +1017,7 @@ class Player: # This is our base class for playable characters
                         game_instance.message_log.add_message(f"{self.name}'s torchlight fades but the glow lingers in the torch.", (255, 165, 0))
                 self.equipped_off_hand = None
                 self.armor_class = self._calculate_ac()  
-                
+
                 self.update_attack_power()
                 self.update_throw_knife_ability()
                 self.update_spellbook_abilities()
@@ -1299,11 +1299,11 @@ class Fighter(Player):
         self.attack_bonus = self.get_ability_modifier(self.strength) + self.proficiency_bonus + self.equipped_weapon.attack_bonus     
 
         # Fighter abilities
-        self.abilities["power_attack"] = PowerAttack() 
-        self.abilities["precise_strike"] = PreciseStrike()
-        self.abilities["parry"] = Parry()
-        self.abilities["second_wind"] = SecondWind()
-        self.abilities["action_surge"] = ActionSurge()
+        self.abilities["Power Attack"] = PowerAttack() 
+        self.abilities["Precise Strike"] = PreciseStrike()
+        self.abilities["Parry"] = Parry()
+        self.abilities["Second Wind"] = SecondWind()
+        self.abilities["Action Surge"] = ActionSurge()
         self.update_throw_knife_ability()
         self.update_guard_ability()
         self._scale_all_abilities()  # Scale abilities after adding them
@@ -1361,10 +1361,10 @@ class Rogue(Player):
         self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus + self.equipped_weapon.attack_bonus
 
         # Rogue abilities
-        self.abilities["cunning_action"] = CunningActionDash()
-        self.abilities["evasion"] = Evasion()
-        self.abilities["cunning_action_hide"] = CunningActionHide()
-        self.abilities["prep_time"] = PrepTime()
+        self.abilities["Cunning Action"] = CunningActionDash()
+        self.abilities["Evasion"] = Evasion()
+        self.abilities["Cunning Action: Hide"] = CunningActionHide()
+        self.abilities["Prep Time"] = PrepTime()
         self.update_throw_knife_ability()
         self.update_thieves_tools_ability()
         self._scale_all_abilities()  # Scale abilities after adding them
@@ -1397,7 +1397,7 @@ class Wizard(Player):
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
         self.inventory.add_item(torch)
-        self.inventory.add_item(torch)
+        self.inventory.add_item(spell_book)
 
         self.equipped_weapon = oak_staff
         self.equipped_off_hand = glass_orb
@@ -1425,11 +1425,11 @@ class Wizard(Player):
         
         # Wizard abilities (e.g., Spellcasting - will be complex)
         # self.abilities["spellcasting"] = Spellcasting()
-        self.abilities["fire_bolt"] = FireBolt()
-        self.abilities["ray_of_frost"] = RayOfFrost()
-        self.abilities["misty_step"] = MistyStep()
-        self.abilities["mage_hand"] = MageHand()
-        self.abilities["detect_magic"] = DetectMagic()
+        self.abilities["Fire Bolt"] = FireBolt()
+        self.abilities["Ray of Frost"] = RayOfFrost()
+        self.abilities["Misty Step"] = MistyStep()
+        self.abilities["Mage Hand"] = MageHand()
+        self.abilities["Detect Magic"] = DetectMagic()
         self.update_spellbook_abilities()
         self.update_throw_knife_ability()
         self._scale_all_abilities()  # Scale abilities after adding them
@@ -1489,10 +1489,10 @@ class Cleric(Player):
         self.attack_bonus = self.get_ability_modifier(self.strength) + self.proficiency_bonus + self.equipped_weapon.attack_bonus
 
         # Cleric abilities
-        self.abilities["cure_wounds"] = CureWounds()
-        self.abilities["sacred_flame"] = SacredFlame()
-        self.abilities["healing_word"] = HealingWord()
-        self.abilities["divine_strike"] = DivineStrike()
+        self.abilities["Cure Wounds"] = CureWounds()
+        self.abilities["Sacred Flame"] = SacredFlame()
+        self.abilities["Healing Word"] = HealingWord()
+        self.abilities["Divine Strike"] = DivineStrike()
         self.update_throw_knife_ability()
         self.update_guard_ability()
         self.update_holy_symbol_abilities()
@@ -1552,8 +1552,8 @@ class Sorcerer(Player):
         self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus + self.equipped_weapon.attack_bonus
 
         # Sorcerer abilities
-        self.abilities["fire_bolt"] = FireBolt()
-        self.abilities["ray_of_frost"] = RayOfFrost()
-        self.abilities["misty_step"] = MistyStep()
-        self.abilities["mage_hand"] = MageHand()
-        self.abilities["detect_magic"] = DetectMagic()
+        self.abilities["Fire Bolt"] = FireBolt()
+        self.abilities["Ray of Frost"] = RayOfFrost()
+        self.abilities["Misty Step"] = MistyStep()
+        self.abilities["Mage Hand"] = MageHand()
+        self.abilities["Detect Magic"] = DetectMagic()

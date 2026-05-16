@@ -314,10 +314,10 @@ def render_inventory_screen(game):
     SH = surf.get_height()
 
     PAD  = 12
-    fHdr = _f(18, bold=True)
-    fSec = _f(16, bold=True)
+    fHdr = _f(16, bold=True)
+    fSec = _f(18, bold=True)
     fSm  = _f(14)
-    fXs  = _f(12)
+    fXs  = _f(14)
 
     # ── Column layout ────────────────────────────────────────────────────
     # Left: item grid  |  Center: paper-doll  |  Right: detail card
@@ -383,7 +383,7 @@ def render_inventory_screen(game):
     # ── CENTER: paper-doll ───────────────────────────────────────────────
     dy      = PAD + 10
     doll_cx = doll_x + DOLL_W // 2
-    _blit_center(surf, fHdr, "EQUIPPED", _TEXT_BRIGHT, doll_cx, dy)
+    _blit_center(surf, fHdr, "EQUIPPED", _TEXT_BRIGHT, doll_cx, dy) 
     dy += fHdr.get_linesize() + 6
     pygame.draw.line(surf, _BORDER, (doll_x + 6, dy), (doll_x + DOLL_W - 6, dy), 1)
     dy += 10
@@ -395,23 +395,23 @@ def render_inventory_screen(game):
     EQ_GAP = 8
 
     # Player avatar — large, centered
-    AVATAR_SIZE = 72
+    AVATAR_SIZE = 100
     avatar = _get_sprite(player.char, AVATAR_SIZE)
     # tint avatar with player color
     av_tinted = avatar.copy()
     av_x = doll_cx - AVATAR_SIZE // 2
     av_y = dy + EQ + EQ_GAP * 2
-    surf.blit(av_tinted, (av_x, av_y))
+    surf.blit(av_tinted, (av_x, av_y)) 
 
     # Avatar border
     pygame.draw.rect(surf, _BORDER_LT,
                      (av_x - 4, av_y - 4, AVATAR_SIZE + 8, AVATAR_SIZE + 8),
                      1, border_radius=5)
     # Name under avatar
-    ns = fSm.render(player.name, True, player.color)
-    surf.blit(ns, (doll_cx - ns.get_width() // 2, av_y + AVATAR_SIZE + 4))
+    ns = fXs.render(player.name, True, player.color) 
+    surf.blit(ns, (doll_cx - ns.get_width() // 2, av_y + AVATAR_SIZE + 10))
     cs = fXs.render(f"Lv {player.level}  {getattr(player, 'class_name', '')}", True, _TEXT_DIM)
-    surf.blit(cs, (doll_cx - cs.get_width() // 2, av_y + AVATAR_SIZE + 4 + fSm.get_linesize() + 2))
+    surf.blit(cs, (doll_cx - cs.get_width() // 2, av_y + AVATAR_SIZE + 10 + fSm.get_linesize() + 2)) 
 
     # Equipment slots arranged around the avatar:
     #   Weapon (top-left) | Armor (top-right)
@@ -440,14 +440,11 @@ def render_inventory_screen(game):
 
     # Quick stats block
     qs_y = bot_y + EQ + fXs.get_linesize() + 18
-    pygame.draw.line(surf, _BORDER, (doll_x + 6, qs_y - 6),
-                     (doll_x + DOLL_W - 6, qs_y - 6), 1)
-
     hp_pct = player.hp / player.max_hp if player.max_hp else 0
     hp_col = _RED if hp_pct < 0.33 else _GOLD if hp_pct < 0.66 else _GREEN
     bar_w  = DOLL_W - PAD * 4
-    bar_h  = 12
-    bx     = doll_x + PAD * 2
+    bar_h  = 14
+    bx     = doll_x + PAD * 2 
     pygame.draw.rect(surf, (30, 30, 40), (bx, qs_y, bar_w, bar_h), border_radius=3)
     fw = max(0, int(bar_w * hp_pct))
     if fw: pygame.draw.rect(surf, hp_col, (bx, qs_y, fw, bar_h), border_radius=3)
@@ -455,7 +452,7 @@ def render_inventory_screen(game):
     hp_lbl = fXs.render(f"HP  {player.hp}/{player.max_hp}", True, _TEXT_BRIGHT)
     surf.blit(hp_lbl, (bx + bar_w // 2 - hp_lbl.get_width() // 2,
                        qs_y + bar_h // 2 - hp_lbl.get_height() // 2))
-    qs_y += bar_h + 6
+    qs_y += bar_h + 12
 
     for label, val, col in [
         ("AC",       player.armor_class,        _CYAN),
@@ -469,16 +466,16 @@ def render_inventory_screen(game):
         surf.blit(vs, (bx + bar_w - vs.get_width(), qs_y))
         qs_y += fXs.get_linesize() + 4
 
-    qs_y = bot_y + EQ + fXs.get_linesize() + 140
+    qs_y += bar_h + 4
     pygame.draw.line(surf, _BORDER, (doll_x + 6, qs_y - 6),
                      (doll_x + DOLL_W - 6, qs_y - 6), 1)
 
     fHdr = _f(19, bold=True)
     fSm  = _f(12)
     fBig = _f(17, bold=True)
-    content_y = PAD + 440    
+    content_y = PAD + 500
     col_w     = DOLL_W - PAD * 2
-    col1_x    = PAD * 4 + GRID_W    
+    col1_x    = PAD * 3 + GRID_W    
     y1 = content_y + 6
     BOX  = 60; GAP = 6
     bx0  = col1_x + (col_w - (3 * BOX + 2 * GAP)) // 2
@@ -564,11 +561,11 @@ def render_character_menu(game):
     SH = surf.get_height()
     PAD  = 14
 
-    fHdr = _f(19, bold=True)
-    fSec = _f(16, bold=True)
-    fN   = _f(14)
-    fSm  = _f(12)
-    fBig = _f(17, bold=True)
+    fHdr = _f(20, bold=True)
+    fSec = _f(18, bold=True)
+    fN   = _f(16)
+    fSm  = _f(14)
+    fBig = _f(16, bold=True)
 
     pygame.draw.rect(surf, _BG, (0, 0, SW, SH))
     pygame.draw.rect(surf, _BORDER, (PAD, PAD, SW - PAD*2, SH - PAD*2), 1, border_radius=4)
@@ -580,8 +577,8 @@ def render_character_menu(game):
 
     content_y = PAD + 44
     content_h = SH - content_y - PAD
-    col_w     = (SW - PAD * 4) // 3
-    col1_x    = PAD * 2
+    col_w     = (SW - PAD * 6) // 3
+    col1_x    = PAD * 2.15
     col2_x    = col1_x + col_w + PAD
     col3_x    = col2_x + col_w + PAD
 
@@ -722,3 +719,14 @@ def render_character_menu(game):
 
     hint = fSm.render("C  close   |   I  inventory", True, _TEXT_DIM)
     surf.blit(hint, (SW // 2 - hint.get_width() // 2, SH - PAD - hint.get_height()))
+
+    y3 += 32
+    y3 = _section_label(surf, fSec, "ABILITIES", col3_x, y3, col_w)
+
+    # List all Abilities of the player (Spells, Class Features, Racial Traits, etc.)
+
+    all_profs = (getattr(player, "abilities", []))
+    if all_profs:
+        _blit_wrap(surf, fSm, ", ".join(all_profs), _TEXT_NORMAL, col3_x, y3, col_w)
+    else:
+        _blit(surf, fSm, "None", _TEXT_DIM, col3_x, y3)
