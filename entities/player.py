@@ -788,8 +788,8 @@ class Player: # This is our base class for playable characters
 
     def has_spell_book_equipped(self):
         return (
-            self.equipped_off_hand is not None and
-            (getattr(self.equipped_off_hand, 'category', None) or '').lower() == 'spellbook'
+            self.equipped_focus is not None and
+            (getattr(self.equipped_focus, 'category', None) or '').lower() == 'spellbook'
         )
 
     def update_spellbook_abilities(self):
@@ -813,11 +813,11 @@ class Player: # This is our base class for playable characters
             self.abilities.pop("Guard", None)
 
     def has_holy_symbol_equipped(self):
+        print(f"Debug: Focus Item Check")
         return (
-            self.equipped_accessory1 is not None and (getattr(self.equipped_accessory1, 'category', None) or '').lower() == 'holy_symbol'
-        ) or (
-            self.equipped_accessory2 is not None and (getattr(self.equipped_accessory2, 'category', None) or '').lower() == 'holy_symbol'
-        )
+            self.equipped_focus is not None and 
+            (getattr(self.equipped_focus, 'category', None) or '').lower() == 'holy symbol'
+        ) 
     
     def update_holy_symbol_abilities(self):
         if self.class_name == "Cleric" and self.has_holy_symbol_equipped():
@@ -1072,7 +1072,6 @@ class Player: # This is our base class for playable characters
                 self.max_hp += item.hp_bonus
                 self.hp += item.hp_bonus  # Also heal for the bonus
 
-            self.update_holy_symbol_abilities()
             return True
 
         elif isinstance(item, Helmet):
@@ -1131,6 +1130,8 @@ class Player: # This is our base class for playable characters
             if item.wisdom_bonus:
                 self.wisdom += item.wisdom_bonus
             self.update_attack_power()
+            self.update_holy_symbol_abilities()
+            self.update_spellbook_abilities()
             game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
             return True
 
@@ -1206,7 +1207,6 @@ class Player: # This is our base class for playable characters
                     if self.hp > self.max_hp:
                         self.hp = self.max_hp
                 self.equipped_accessory1 = None
-                self.update_holy_symbol_abilities()
                 return True
             elif self.equipped_accessory2 == item:
                 if remove_from_inventory:
@@ -1266,6 +1266,8 @@ class Player: # This is our base class for playable characters
                     self.wisdom -= item.wisdom_bonus
                 self.equipped_focus = None
                 self.update_attack_power()
+                self.update_holy_symbol_abilities()
+                self.update_spellbook_abilities()
                 return True
 
 
@@ -1600,6 +1602,7 @@ class Wizard(Player):
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
         self.inventory.add_item(torch)
+        self.inventory.add_item(spell_book)
 
         self.equipped_weapon = oak_staff
         self.equipped_off_hand = glass_orb
@@ -1665,6 +1668,7 @@ class Cleric(Player):
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
         self.inventory.add_item(torch)
+        self.inventory.add_item(holy_symbol)
 
         self.equipped_weapon = steel_mace
         self.equipped_off_hand = kite_shield

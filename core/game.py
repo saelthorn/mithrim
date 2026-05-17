@@ -3439,83 +3439,221 @@ class Game:
 
    
     def render_character_creation_screen(self):
-        # Use the main screen surface for drawing
-        target_surface = self.screen  # Change to self.screen to cover the entire window
-        target_surface.fill((0, 0, 0, 200))  # Fill with a semi-transparent black to create a modal effect
+        surf = self.screen
+        SW, SH = surf.get_width(), surf.get_height()
 
-        # Draw a background box for the menu
-        menu_width = int(target_surface.get_width() * 0.9)  # Make it wider to accommodate two columns
-        menu_height = int(target_surface.get_height() * 0.8)
-        menu_x = (target_surface.get_width() - menu_width) // 2
-        menu_y = (target_surface.get_height() - menu_height) // 2
-        menu_rect = pygame.Rect(menu_x, menu_y, menu_width, menu_height)
-        pygame.draw.rect(target_surface, (30, 30, 30), menu_rect)
-        pygame.draw.rect(target_surface, (100, 100, 100), menu_rect, 2)
+        _BG     = (10,   8,  10)   # abyss black
+        _PANEL  = (18,  14,  18)   # obsidian stone
 
-        title_text = "CHOOSE YOUR RACE"
-        title_surface = self.inventory_font_header.render(title_text, True, (240, 240, 240))
-        title_rect = title_surface.get_rect(center=(menu_rect.centerx, menu_y + self.inventory_font_header.get_linesize() // 2 + 10))
-        target_surface.blit(title_surface, title_rect)
+        _BORDER = (52,  42,  46)   # dark iron border
 
-        # Define column positions
-        left_column_x = menu_x + 20
-        right_column_x = menu_x + menu_width // 2 + 20  # Start right column after half width + padding
-        column_width = menu_width // 2 - 40  # Adjust for padding on both sides
+        _GOLD   = (164, 124,  52)  # tarnished relic gold
+        _ACCENT = (96,  38,  38)   # dried blood crimson
 
-        current_y_left = title_rect.bottom + 30
-        line_spacing = self.inventory_font_info.get_linesize() + 8
+        _DIM    = (112, 102,  96)  # dusty parchment
+        _NORMAL = (188, 178, 168)  # aged bone
+        _BRIGHT = (232, 224, 210)  # candlelit ivory
 
-        # Left Column: Race Choices
-        self._draw_text(target_surface, self.inventory_font_section, "Races:", (255, 255, 0), left_column_x, current_y_left)
-        current_y_left += self.inventory_font_section.get_linesize() + 10
+        _GREEN  = (74, 122,  76)   # swamp herb green
+        _CYAN   = (72, 132, 136)   # spectral teal
+        _RED    = (148,  42,  42)  # coagulated blood
+
+        def _ff(sz, bold=False):
+            try:    return pygame.font.SysFont("consolas", sz, bold=bold)
+            except: return pygame.font.Font(None, sz + 2)
+
+        fTitle = _ff(22, bold=True)
+        fSec   = _ff(18, bold=True)
+        fN     = _ff(16)
+        fSm    = _ff(14)
+
+        surf.fill(_BG)
+
+        PAD = 20
+        panel = pygame.Rect(PAD, PAD, SW - PAD*2, SH - PAD*2)
+        pygame.draw.rect(surf, _PANEL, panel, border_radius=8)
+        pygame.draw.rect(surf, _BORDER, panel, 1, border_radius=8)
+
+        title_bar = pygame.Rect(PAD, PAD, SW - PAD*2, 42)
+        pygame.draw.rect(surf, (22, 18, 28), title_bar, border_radius=8)
+        pygame.draw.rect(surf, _ACCENT, title_bar, 1, border_radius=8)
+        ts = fTitle.render("CHOOSE YOUR RACE", True, _GOLD)
+        surf.blit(ts, (SW // 2 - ts.get_width() // 2, PAD + 10))
+
+        content_y = PAD + 52
+        content_h = SH - content_y - PAD - 36
+
+        COL_PAD = 10
+        col_w   = (SW - PAD*2 - COL_PAD*4) // 3
+        col1_x  = PAD + COL_PAD
+        col2_x  = col1_x + col_w + COL_PAD
+        col3_x  = col2_x + col_w + COL_PAD
+
+        for cx in (col1_x, col2_x, col3_x):
+            r = pygame.Rect(cx - 4, content_y, col_w + 8, content_h)
+            pygame.draw.rect(surf, (20, 18, 26), r, border_radius=6)
+            pygame.draw.rect(surf, _BORDER, r, 1, border_radius=6)
+
+        selected_race      = self.available_races[self.selected_race_index]
+        selected_class_cls = self.available_classes[self.selected_class_index]
+        race_str   = selected_race.name.replace(" ", "")
+        class_str  = selected_class_cls.__name__
+        player_char, player_color = self.race_class_visuals.get(
+            (race_str, class_str), ('@', (200, 200, 200))
+        )
+
+        # ── COLUMN 1: Race list ──────────────────────────────────────────────
+        y1 = content_y + 10
+        pygame.draw.rect(surf, _ACCENT, (col1_x, y1 + 2, 3, fSec.get_linesize() - 2))
+        surf.blit(fSec.render("RACES", True, _BRIGHT), (col1_x + 8, y1))
+        pygame.draw.line(surf, _BORDER, (col1_x, y1 + fSec.get_linesize() + 3),
+                         (col1_x + col_w, y1 + fSec.get_linesize() + 3), 1)
+        y1 += fSec.get_linesize() + 10
 
         for i, race in enumerate(self.available_races):
-            race_text = f"{i + 1}. {race.name}"
-            color = (255, 255, 0) if i == self.selected_race_index else (200, 200, 200)
-            self._draw_text(target_surface, self.inventory_font_section, race_text, color, left_column_x, current_y_left)
-            current_y_left += line_spacing
+            sel    = (i == self.selected_race_index)
+            row_h  = fN.get_linesize() + 10
+            row_r  = pygame.Rect(col1_x - 2, y1, col_w + 4, row_h)
+            if sel:
+                pygame.draw.rect(surf, (28, 38, 55), row_r, border_radius=4)
+                pygame.draw.rect(surf, _ACCENT, row_r, 1, border_radius=4)
+                pygame.draw.rect(surf, _GOLD, (col1_x - 2, y1 + 4, 3, row_h - 8))
+            rs  = fN.render(race.name, True, _GOLD if sel else _NORMAL)
+            surf.blit(rs, (col1_x + 10, y1 + row_h // 2 - rs.get_height() // 2))
+            if race.darkvision_radius > 0:
+                dv = fSm.render(f"Darkvision {race.darkvision_radius}", True, _CYAN)
+                surf.blit(dv, (col1_x + col_w - dv.get_width() - 6,
+                               y1 + row_h // 2 - dv.get_height() // 2))
+            y1 += row_h + 4
 
-        # Right Column: Race Information
-        current_y_right = title_rect.bottom + 30
-        selected_race = self.available_races[self.selected_race_index]
+        # ── COLUMN 2: Character doll ─────────────────────────────────────────
+        cx2 = col2_x + col_w // 2
+        y2  = content_y + 18
 
-        self._draw_text(target_surface, self.inventory_font_section, f"{selected_race.name} Details:", (240, 240, 240), right_column_x, current_y_right)
-        current_y_right += self.inventory_font_section.get_linesize() + 10
+        pygame.draw.rect(surf, _ACCENT, (col2_x, y2 + 2, 3, fSec.get_linesize() - 2))
+        surf.blit(fSec.render("PREVIEW", True, _BRIGHT), (col2_x + 8, y2))
+        pygame.draw.line(surf, _BORDER, (col2_x, y2 + fSec.get_linesize() + 3),
+                         (col2_x + col_w, y2 + fSec.get_linesize() + 3), 1)
+        y2 += fSec.get_linesize() + 14
 
-        # Description
-        current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, selected_race.description, (150, 150, 150), right_column_x, current_y_right, column_width)
-        current_y_right += 10
+        AVATAR = 96
+        try:
+            base   = graphics.get_tile_surface(player_char)
+            avatar = pygame.transform.scale(base, (AVATAR, AVATAR)) if base else None
+        except Exception:
+            avatar = None
 
-        # Traits
-        self._draw_text(target_surface, self.inventory_font_info, "Traits:", (200, 200, 255), right_column_x, current_y_right)
-        current_y_right += self.inventory_font_info.get_linesize() + 5
+        av_x = cx2 - AVATAR // 2
+        av_y = y2
+        r2, g2, b2 = player_color
 
-        if selected_race.darkvision_radius > 0:
-            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Darkvision: {selected_race.darkvision_radius} tiles.", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
-            current_y_right += self.inventory_font_small.get_linesize() + 2
+        glow_s = pygame.Surface((AVATAR + 16, AVATAR + 16), pygame.SRCALPHA)
+        pygame.draw.rect(glow_s, (r2, g2, b2, 40), (0, 0, AVATAR+16, AVATAR+16), border_radius=10)
+        pygame.draw.rect(glow_s, (r2, g2, b2, 100), (0, 0, AVATAR+16, AVATAR+16), 2, border_radius=10)
+        surf.blit(glow_s, (av_x - 8, av_y - 8))
+
+        if avatar:
+            tinted = avatar.copy()
+            surf.blit(tinted, (av_x, av_y))
+        else:
+            pygame.draw.rect(surf, player_color, (av_x, av_y, AVATAR, AVATAR), border_radius=6)
+
+        pygame.draw.rect(surf, _BORDER, (av_x - 3, av_y - 3, AVATAR + 6, AVATAR + 6), 1, border_radius=7)
+        y2 += AVATAR + 12
+
+        lbl = fN.render(f"{selected_race.name}  ·  {class_str}", True, player_color)
+        surf.blit(lbl, (cx2 - lbl.get_width() // 2, y2))
+        y2 += fN.get_linesize() + 14
+
+        hit_die_map  = {"Fighter": 10, "Rogue": 8, "Wizard": 6, "Cleric": 8}
+        hit_die      = hit_die_map.get(class_str, 8)
+        est_hp       = hit_die + 2
+        BAR_W = col_w - 20
+        BAR_H = 10
+        bx    = col2_x + 10
+
+        def _mini_bar(label, val, max_val, fc, yy):
+            ls3 = fSm.render(label, True, _DIM)
+            surf.blit(ls3, (bx, yy))
+            yy += ls3.get_height() + 3
+            pygame.draw.rect(surf, (30, 30, 40), (bx, yy, BAR_W, BAR_H), border_radius=3)
+            fw = max(0, int(BAR_W * min(val / max_val, 1.0)))
+            if fw: pygame.draw.rect(surf, fc, (bx, yy, fw, BAR_H), border_radius=3)
+            pygame.draw.rect(surf, _BORDER, (bx, yy, BAR_W, BAR_H), 1, border_radius=3)
+            vs3 = fSm.render(str(val), True, _BRIGHT)
+            surf.blit(vs3, (bx + BAR_W//2 - vs3.get_width()//2, yy + BAR_H//2 - vs3.get_height()//2))
+            return yy + BAR_H + 8
+
+        hp_col = _RED if est_hp < 7 else (_GOLD if est_hp < 10 else _GREEN)
+        y2 = _mini_bar(f"Est. HP  (d{hit_die})", est_hp, 14, hp_col, y2)
+        y2 = _mini_bar("Base AC", 10, 20, _CYAN, y2)
 
         if selected_race.damage_resistances:
-            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Damage Resistances: {', '.join(selected_race.damage_resistances)}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
-            current_y_right += self.inventory_font_small.get_linesize() + 2
+            rs3 = fSm.render("Resist: " + ", ".join(selected_race.damage_resistances), True, _GREEN)
+            surf.blit(rs3, (cx2 - rs3.get_width()//2, y2))
+            y2 += rs3.get_height() + 4
+        if selected_race.darkvision_radius > 0:
+            dv2 = fSm.render(f"Darkvision  {selected_race.darkvision_radius} tiles", True, _CYAN)
+            surf.blit(dv2, (cx2 - dv2.get_width()//2, y2))
 
+        # ── COLUMN 3: Race details ────────────────────────────────────────────
+        y3 = content_y + 10
+
+        def _hdr3(label, yy):
+            pygame.draw.rect(surf, _ACCENT, (col3_x, yy + 2, 3, fSec.get_linesize() - 2))
+            surf.blit(fSec.render(label, True, _BRIGHT), (col3_x + 8, yy))
+            pygame.draw.line(surf, _BORDER, (col3_x, yy + fSec.get_linesize() + 3),
+                             (col3_x + col_w, yy + fSec.get_linesize() + 3), 1)
+            return yy + fSec.get_linesize() + 10
+
+        def _wrap3(text, color, yy):
+            words = text.split()
+            lines2, cur = [], []
+            for w in words:
+                test = " ".join(cur + [w])
+                if fSm.size(test)[0] <= col_w - 8:
+                    cur.append(w)
+                else:
+                    if cur: lines2.append(" ".join(cur))
+                    cur = [w]
+            if cur: lines2.append(" ".join(cur))
+            for line in lines2:
+                surf.blit(fSm.render(line, True, color), (col3_x + 4, yy))
+                yy += fSm.get_linesize() + 2
+            return yy + 4
+
+        def _trait(label, value, color, yy):
+            surf.blit(fSm.render(label, True, _DIM), (col3_x + 4, yy))
+            vs4 = fSm.render(str(value), True, color)
+            surf.blit(vs4, (col3_x + col_w - vs4.get_width() - 4, yy))
+            pygame.draw.line(surf, _BORDER,
+                             (col3_x + 4, yy + fSm.get_linesize() + 2),
+                             (col3_x + col_w - 4, yy + fSm.get_linesize() + 2), 1)
+            return yy + fSm.get_linesize() + 6
+
+        y3 = _hdr3(f"{selected_race.name.upper()}  DETAILS", y3)
+        y3 = _wrap3(selected_race.description, _NORMAL, y3)
+        y3 += 6
+        y3 = _hdr3("TRAITS", y3)
+        if selected_race.darkvision_radius > 0:
+            y3 = _trait("Darkvision", f"{selected_race.darkvision_radius} tiles", _CYAN, y3)
+        if selected_race.damage_resistances:
+            y3 = _trait("Resistances", ", ".join(selected_race.damage_resistances), _GREEN, y3)
         if selected_race.skill_proficiencies:
-            # Use the wrapped text method for skill proficiencies
-            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Skill Proficiencies: {', '.join(selected_race.skill_proficiencies)}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
-            current_y_right += self.inventory_font_small.get_linesize() + 2
-
+            y3 = _trait("Skill Prof.", ", ".join(selected_race.skill_proficiencies), _NORMAL, y3)
         if selected_race.weapon_proficiencies:
-            # Use the wrapped text method for weapon proficiencies
-            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Weapon Proficiencies: {', '.join(selected_race.weapon_proficiencies)}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
-            current_y_right += self.inventory_font_small.get_linesize() + 2
-
+            y3 = _trait("Weapon Prof.", ", ".join(selected_race.weapon_proficiencies), _NORMAL, y3)
         if selected_race.armor_proficiencies:
-            self._draw_text(target_surface, self.inventory_font_small, f"- Armor Proficiencies: {', '.join(selected_race.armor_proficiencies)}", (255, 255, 255), right_column_x + 10, current_y_right)
-            current_y_right += self.inventory_font_small.get_linesize() + 2
+            y3 = _trait("Armor Prof.", ", ".join(selected_race.armor_proficiencies), _NORMAL, y3)
+        if not any([selected_race.darkvision_radius, selected_race.damage_resistances,
+                    selected_race.skill_proficiencies, selected_race.weapon_proficiencies,
+                    selected_race.armor_proficiencies]):
+            surf.blit(fSm.render("No special traits.", True, _DIM), (col3_x + 4, y3))
 
-        # Instructions (at the bottom, centered)
-        instructions_y = menu_rect.bottom - (self.inventory_font_small.get_linesize() * 2) - 20
-        self._draw_text(target_surface, self.inventory_font_small, "Use UP/DOWN arrows to select.", (150, 150, 150), menu_rect.centerx - self.inventory_font_small.size("Use UP/DOWN arrows to select.")[0] // 2, instructions_y)
-        self._draw_text(target_surface, self.inventory_font_small, "Press ENTER to confirm.", (150, 150, 150), menu_rect.centerx - self.inventory_font_small.size("Press ENTER to confirm.")[0] // 2, instructions_y + self.inventory_font_small.get_linesize() + 5)
+        # ── Instructions ─────────────────────────────────────────────────────
+        iy = SH - PAD - fSm.get_linesize() - 8
+        inst = fSm.render("W / S  or  UP / DOWN  navigate      Enter  confirm", True, _DIM)
+        surf.blit(inst, (SW // 2 - inst.get_width() // 2, iy))
 
     def _draw_wrapped_and_update_y_menu(self, surface, font, text, color, x, y_start, max_width):
         """Wraps text and draws it on the surface, updating the y position."""
@@ -3545,95 +3683,251 @@ class Game:
 
 
     def render_class_selection_screen(self):
-        # Use the main screen surface for drawing
-        target_surface = self.screen  # Change to self.screen to cover the entire window
-        target_surface.fill((0, 0, 0, 200))  # Fill with a semi-transparent black to create a modal effect
+        surf = self.screen
+        SW, SH = surf.get_width(), surf.get_height()
 
-        # Draw a background box for the menu
-        menu_width = int(target_surface.get_width() * 0.9)  # Make it wider
-        menu_height = int(target_surface.get_height() * 0.8)
-        menu_x = (target_surface.get_width() - menu_width) // 2
-        menu_y = (target_surface.get_height() - menu_height) // 2
-        menu_rect = pygame.Rect(menu_x, menu_y, menu_width, menu_height)
-        pygame.draw.rect(target_surface, (30, 30, 30), menu_rect)
-        pygame.draw.rect(target_surface, (100, 100, 100), menu_rect, 2)
+        _BG     = (10,   8,  10)   # abyss black
+        _PANEL  = (18,  14,  18)   # obsidian stone
 
-        title_text = "CHOOSE YOUR CLASS"
-        title_surface = self.inventory_font_header.render(title_text, True, (240, 240, 240))
-        title_rect = title_surface.get_rect(center=(menu_rect.centerx, menu_y + self.inventory_font_header.get_linesize() // 2 + 10))
-        target_surface.blit(title_surface, title_rect)
+        _BORDER = (52,  42,  46)   # dark iron
 
-        # Define column positions
-        left_column_x = menu_x + 20
-        right_column_x = menu_x + menu_width // 2 + 20
-        column_width = menu_width // 2 - 40
+        _GOLD   = (164, 124,  52)  # tarnished relic gold
+        _ACCENT = (96,  38,  38)   # dried blood crimson
 
-        current_y_left = title_rect.bottom + 30
-        line_spacing = self.inventory_font_info.get_linesize() + 8
+        _DIM    = (112, 102,  96)  # dusty parchment
+        _NORMAL = (188, 178, 168)  # aged bone
+        _BRIGHT = (232, 224, 210)  # candlelit ivory
 
-        # Left Column: Class Choices
-        self._draw_text(target_surface, self.inventory_font_section, "Classes:", (255, 255, 0), left_column_x, current_y_left)
-        current_y_left += self.inventory_font_section.get_linesize() + 10
+        _GREEN  = (74, 122,  76)   # swamp herb green
+        _CYAN   = (72, 132, 136)   # spectral teal
+        _RED    = (148,  42,  42)  # coagulated blood
 
-        for i, class_constructor in enumerate(self.available_classes):
-            class_name = class_constructor.__name__  # Get the class name string
-            class_text = f"{i + 1}. {class_name}"
-            color = (255, 255, 0) if i == self.selected_class_index else (200, 200, 200)
-            self._draw_text(target_surface, self.inventory_font_section, class_text, color, left_column_x, current_y_left)
-            current_y_left += line_spacing
+        _ORANGE = (176,  96,  42)  # ember flame
 
-        # Right Column: Class Information
-        current_y_right = title_rect.bottom + 30
-        selected_class_constructor = self.available_classes[self.selected_class_index]
-        selected_class_name = selected_class_constructor.__name__
+        def _ff(sz, bold=False):
+            try:    return pygame.font.SysFont("consolas", sz, bold=bold)
+            except: return pygame.font.Font(None, sz + 2)
 
-        self._draw_text(target_surface, self.inventory_font_section, f"{selected_class_name} Details:", (240, 240, 240), right_column_x, current_y_right)
-        current_y_right += self.inventory_font_section.get_linesize() + 10
+        fTitle = _ff(22, bold=True)
+        fSec   = _ff(18, bold=True)
+        fN     = _ff(16)
+        fSm    = _ff(14)
 
-        # Get class-specific description and traits
-        class_info = self._get_class_details(selected_class_constructor)
+        surf.fill(_BG)
 
-        # Description
-        current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, class_info["description"], (150, 150, 150), right_column_x, current_y_right, column_width)
-        current_y_right += 10
+        PAD = 20
+        panel = pygame.Rect(PAD, PAD, SW - PAD*2, SH - PAD*2)
+        pygame.draw.rect(surf, _PANEL, panel, border_radius=8)
+        pygame.draw.rect(surf, _BORDER, panel, 1, border_radius=8)
 
-        # Key Features
-        self._draw_text(target_surface, self.inventory_font_info, "Key Features:", (200, 200, 255), right_column_x, current_y_right)
-        current_y_right += self.inventory_font_info.get_linesize() + 5
+        title_bar = pygame.Rect(PAD, PAD, SW - PAD*2, 42)
+        pygame.draw.rect(surf, (22, 18, 28), title_bar, border_radius=8)
+        pygame.draw.rect(surf, _ACCENT, title_bar, 1, border_radius=8)
+        ts = fTitle.render("CHOOSE YOUR CLASS", True, _GOLD)
+        surf.blit(ts, (SW // 2 - ts.get_width() // 2, PAD + 10))
 
-        # Hit Die
-        current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Hit Die: {class_info['hit_die']}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
-        current_y_right += self.inventory_font_small.get_linesize() + 2
+        content_y = PAD + 52
+        content_h = SH - content_y - PAD - 36
 
-        # Primary Ability
-        current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Primary Ability: {class_info['primary_ability']}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
-        current_y_right += self.inventory_font_small.get_linesize() + 2
+        COL_PAD = 10
+        col_w   = (SW - PAD*2 - COL_PAD*4) // 3
+        col1_x  = PAD + COL_PAD
+        col2_x  = col1_x + col_w + COL_PAD
+        col3_x  = col2_x + col_w + COL_PAD
 
-        # Saving Throw Proficiencies
-        if class_info['saving_throws']:
-            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Saving Throws: {', '.join(class_info['saving_throws'])}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
-            current_y_right += self.inventory_font_small.get_linesize() + 2
+        for cx in (col1_x, col2_x, col3_x):
+            r = pygame.Rect(cx - 4, content_y, col_w + 8, content_h)
+            pygame.draw.rect(surf, (20, 18, 26), r, border_radius=6)
+            pygame.draw.rect(surf, _BORDER, r, 1, border_radius=6)
 
-        # Armor Proficiencies
-        if class_info['armor_proficiencies']:
-            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Armor Proficiencies: {', '.join(class_info['armor_proficiencies'])}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
-            current_y_right += self.inventory_font_small.get_linesize() + 2
+        selected_race      = self.available_races[self.selected_race_index]
+        selected_class_cls = self.available_classes[self.selected_class_index]
+        race_str   = selected_race.name.replace(" ", "")
+        class_str  = selected_class_cls.__name__
+        player_char, player_color = self.race_class_visuals.get(
+            (race_str, class_str), ('@', (200, 200, 200))
+        )
+        class_info = self._get_class_details(selected_class_cls)
 
-        # Weapon Proficiencies
-        if class_info['weapon_proficiencies']:
-            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Weapon Proficiencies: {', '.join(class_info['weapon_proficiencies'])}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
-            current_y_right += self.inventory_font_small.get_linesize() + 2
+        # class colour theme per class
+        class_color_map = {
+            "Fighter": (180,  80,  80),
+            "Rogue":   ( 80, 160,  80),
+            "Wizard":  ( 80, 130, 220),
+            "Cleric":  (220, 200,  60),
+        }
+        class_color = class_color_map.get(class_str, _GOLD)
 
-        # Starting Equipment
-        if class_info['starting_equipment']:
-            current_y_right = self._draw_wrapped_and_update_y_menu(target_surface, self.inventory_font_small, f"- Starting Equipment: {', '.join(class_info['starting_equipment'])}", (255, 255, 255), right_column_x + 10, current_y_right, column_width)
-            current_y_right += self.inventory_font_small.get_linesize() + 2
+        # ── COLUMN 1: Class list ─────────────────────────────────────────────
+        y1 = content_y + 10
+        pygame.draw.rect(surf, _ACCENT, (col1_x, y1 + 2, 3, fSec.get_linesize() - 2))
+        surf.blit(fSec.render("CLASSES", True, _BRIGHT), (col1_x + 8, y1))
+        pygame.draw.line(surf, _BORDER, (col1_x, y1 + fSec.get_linesize() + 3),
+                         (col1_x + col_w, y1 + fSec.get_linesize() + 3), 1)
+        y1 += fSec.get_linesize() + 10
 
-        # Instructions (at the bottom, centered)
-        instructions_y = menu_rect.bottom - (self.inventory_font_small.get_linesize() * 2) - 20
-        self._draw_text(target_surface, self.inventory_font_small, "Use UP/DOWN arrows to select.", (150, 150, 150), menu_rect.centerx - self.inventory_font_small.size("Use UP/DOWN arrows to select.")[0] // 2, instructions_y)
-        self._draw_text(target_surface, self.inventory_font_small, "Press ENTER to confirm.", (150, 150, 150), menu_rect.centerx - self.inventory_font_small.size("Press ENTER to confirm.")[0] // 2, instructions_y + self.inventory_font_small.get_linesize() + 5)
+        hit_die_map  = {"Fighter": 10, "Rogue": 8, "Wizard": 6, "Cleric": 8}
+        for i, cls in enumerate(self.available_classes):
+            sel   = (i == self.selected_class_index)
+            cname = cls.__name__
+            row_h = fN.get_linesize() + 10
+            row_r = pygame.Rect(col1_x - 2, y1, col_w + 4, row_h)
+            ccol  = class_color_map.get(cname, _GOLD)
+            if sel:
+                pygame.draw.rect(surf, (28, 38, 55), row_r, border_radius=4)
+                pygame.draw.rect(surf, _ACCENT, row_r, 1, border_radius=4)
+                pygame.draw.rect(surf, ccol, (col1_x - 2, y1 + 4, 3, row_h - 8))
+            ns = fN.render(cname, True, ccol if sel else _NORMAL)
+            surf.blit(ns, (col1_x + 10, y1 + row_h // 2 - ns.get_height() // 2))
+            hd = fSm.render(f"d{hit_die_map.get(cname, 8)}", True, _DIM)
+            surf.blit(hd, (col1_x + col_w - hd.get_width() - 6,
+                           y1 + row_h // 2 - hd.get_height() // 2))
+            y1 += row_h + 4
 
+        # ── COLUMN 2: Character doll ─────────────────────────────────────────
+        cx2 = col2_x + col_w // 2
+        y2  = content_y + 18
+
+        pygame.draw.rect(surf, _ACCENT, (col2_x, y2 + 2, 3, fSec.get_linesize() - 2))
+        surf.blit(fSec.render("PREVIEW", True, _BRIGHT), (col2_x + 8, y2))
+        pygame.draw.line(surf, _BORDER, (col2_x, y2 + fSec.get_linesize() + 3),
+                         (col2_x + col_w, y2 + fSec.get_linesize() + 3), 1)
+        y2 += fSec.get_linesize() + 14
+
+        AVATAR = 96
+        try:
+            base   = graphics.get_tile_surface(player_char)
+            avatar = pygame.transform.scale(base, (AVATAR, AVATAR)) if base else None
+        except Exception:
+            avatar = None
+
+        av_x = cx2 - AVATAR // 2
+        av_y = y2
+        r2, g2, b2 = player_color
+
+        glow_s = pygame.Surface((AVATAR + 16, AVATAR + 16), pygame.SRCALPHA)
+        pygame.draw.rect(glow_s, (r2, g2, b2, 40), (0, 0, AVATAR+16, AVATAR+16), border_radius=10)
+        pygame.draw.rect(glow_s, (r2, g2, b2, 100), (0, 0, AVATAR+16, AVATAR+16), 2, border_radius=10)
+        surf.blit(glow_s, (av_x - 8, av_y - 8))
+
+        if avatar:
+            tinted = avatar.copy()
+            surf.blit(tinted, (av_x, av_y))
+        else:
+            pygame.draw.rect(surf, player_color, (av_x, av_y, AVATAR, AVATAR), border_radius=6)
+
+        pygame.draw.rect(surf, _BORDER, (av_x - 3, av_y - 3, AVATAR + 6, AVATAR + 6), 1, border_radius=7)
+        y2 += AVATAR + 10
+
+        # race · class label in class colour
+        lbl = fN.render(f"{selected_race.name}  ·  {class_str}", True, class_color)
+        surf.blit(lbl, (cx2 - lbl.get_width() // 2, y2))
+        y2 += fN.get_linesize() + 12
+
+        # starting weapon/armor icons
+        icon_chars = {
+            "Fighter": ["shs", "rsh"],
+            "Rogue":   ["dgr", "pda"],
+            "Wizard":  ["spb", "!"],
+            "Cleric":  ["shs", "cha"],
+        }
+        icons = icon_chars.get(class_str, [])
+        ICON  = 36
+        ix    = cx2 - (len(icons) * (ICON + 6)) // 2
+        for ic in icons:
+            try:
+                base2 = graphics.get_tile_surface(ic)
+                if base2:
+                    s2 = pygame.transform.scale(base2, (ICON, ICON))
+                    surf.blit(s2, (ix, y2))
+            except Exception:
+                pass
+            pygame.draw.rect(surf, _BORDER, (ix - 2, y2 - 2, ICON + 4, ICON + 4), 1, border_radius=3)
+            ix += ICON + 8
+        y2 += ICON + 10
+
+        # stat bars
+        est_hp = hit_die_map.get(class_str, 8) + 2
+        BAR_W  = col_w - 20
+        BAR_H  = 10
+        bx     = col2_x + 10
+
+        def _mini_bar(label, val, max_val, fc, yy):
+            surf.blit(fSm.render(label, True, _DIM), (bx, yy))
+            yy += fSm.get_linesize() + 3
+            pygame.draw.rect(surf, (30, 30, 40), (bx, yy, BAR_W, BAR_H), border_radius=3)
+            fw = max(0, int(BAR_W * min(val / max_val, 1.0)))
+            if fw: pygame.draw.rect(surf, fc, (bx, yy, fw, BAR_H), border_radius=3)
+            pygame.draw.rect(surf, _BORDER, (bx, yy, BAR_W, BAR_H), 1, border_radius=3)
+            vs3 = fSm.render(str(val), True, _BRIGHT)
+            surf.blit(vs3, (bx + BAR_W//2 - vs3.get_width()//2, yy + BAR_H//2 - vs3.get_height()//2))
+            return yy + BAR_H + 8
+
+        hp_col = _RED if est_hp < 7 else (_GOLD if est_hp < 10 else _GREEN)
+        y2 = _mini_bar(f"Est. HP  ({class_info['hit_die']})", est_hp, 14, hp_col, y2)
+        y2 = _mini_bar("Primary Ability", 1, 1, class_color, y2)
+        # primary ability label
+        pa = fSm.render(class_info["primary_ability"], True, class_color)
+        surf.blit(pa, (cx2 - pa.get_width() // 2, y2))
+
+        # ── COLUMN 3: Class details ───────────────────────────────────────────
+        y3 = content_y + 10
+
+        def _hdr3(label, yy):
+            pygame.draw.rect(surf, _ACCENT, (col3_x, yy + 2, 3, fSec.get_linesize() - 2))
+            surf.blit(fSec.render(label, True, _BRIGHT), (col3_x + 8, yy))
+            pygame.draw.line(surf, _BORDER, (col3_x, yy + fSec.get_linesize() + 3),
+                             (col3_x + col_w, yy + fSec.get_linesize() + 3), 1)
+            return yy + fSec.get_linesize() + 10
+
+        def _wrap3(text, color, yy):
+            words = text.split()
+            lines2, cur = [], []
+            for w in words:
+                test = " ".join(cur + [w])
+                if fSm.size(test)[0] <= col_w - 8:
+                    cur.append(w)
+                else:
+                    if cur: lines2.append(" ".join(cur))
+                    cur = [w]
+            if cur: lines2.append(" ".join(cur))
+            for line in lines2:
+                surf.blit(fSm.render(line, True, color), (col3_x + 4, yy))
+                yy += fSm.get_linesize() + 2
+            return yy + 4
+
+        def _row3(label, value, color, yy):
+            surf.blit(fSm.render(label, True, _DIM), (col3_x + 4, yy))
+            vs4 = fSm.render(str(value), True, color)
+            surf.blit(vs4, (col3_x + col_w - vs4.get_width() - 4, yy))
+            pygame.draw.line(surf, _BORDER,
+                             (col3_x + 4, yy + fSm.get_linesize() + 2),
+                             (col3_x + col_w - 4, yy + fSm.get_linesize() + 2), 1)
+            return yy + fSm.get_linesize() + 6
+
+        y3 = _hdr3(f"{class_str.upper()}  DETAILS", y3)
+        y3 = _wrap3(class_info["description"], _NORMAL, y3)
+        y3 += 6
+        y3 = _hdr3("KEY FEATURES", y3)
+        y3 = _row3("Hit Die",          class_info["hit_die"],          class_color, y3)
+        y3 = _row3("Primary Ability",  class_info["primary_ability"],  class_color, y3)
+        if class_info["saving_throws"]:
+            y3 = _row3("Saving Throws", ", ".join(class_info["saving_throws"]), _NORMAL, y3)
+        if class_info["armor_proficiencies"]:
+            y3 = _row3("Armor Prof.",   ", ".join(class_info["armor_proficiencies"]), _NORMAL, y3)
+        if class_info["weapon_proficiencies"]:
+            y3 = _row3("Weapon Prof.",  ", ".join(class_info["weapon_proficiencies"]), _NORMAL, y3)
+
+        if class_info.get("starting_equipment"):
+            y3 += 4
+            y3 = _hdr3("STARTING GEAR", y3)
+            for eq_item in class_info["starting_equipment"]:
+                y3 = _wrap3(f"· {eq_item}", _DIM, y3)
+
+        # ── Instructions ─────────────────────────────────────────────────────
+        iy = SH - PAD - fSm.get_linesize() - 8
+        inst = fSm.render("W / S  or  UP / DOWN  navigate      Enter  confirm", True, _DIM)
+        surf.blit(inst, (SW // 2 - inst.get_width() // 2, iy))
 
     def _get_class_details(self, class_constructor):
         """
