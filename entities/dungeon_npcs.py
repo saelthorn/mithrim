@@ -4,8 +4,10 @@ from core.game import GameState
 from items.items import (
     torch, throwing_knife, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, 
     carrot, spell_book, holy_symbol, full_plate_armor, robes_of_protection, adamantine_long_sword, staff_of_magi, 
-    duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, 
-    CampfireKit, Food, Weapon, Armor, OffHand
+    duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, scale_mail_armor, 
+    sturdy_quarterstaff, leather_cap, iron_helmet, steel_helmet, hood_of_shadows, great_helm, mages_circlet, leather_boots, 
+    iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,
+    CampfireKit, Food, Weapon, Helmet, Armor, Boots, OffHand
 )
 
 from entities.base_entity import NPC
@@ -68,6 +70,19 @@ class DungeonMerchant(NPC):
             (duelists_rapier, 0.5),
             (staff_of_magi, 0.4),
             (full_plate_armor, 0.45),
+            (scale_mail_armor, 0.4),
+            (sturdy_quarterstaff, 0.4),
+            (iron_helmet, 0.4),
+            (leather_cap, 0.4),
+            (steel_helmet, 0.4),
+            (hood_of_shadows, 0.4),
+            (great_helm, 0.4),
+            (mages_circlet, 0.4),
+            (leather_boots, 0.4),
+            (iron_greaves, 0.4),
+            (boots_of_speed, 0.4),
+            (boots_of_stealth, 0.4),
+            (dwarven_stompers, 0.4),
             (adamantine_long_sword, 0.45),
             (flameheart_flail, 0.45),
             (flameheart_short_sword, 0.4),
@@ -209,9 +224,9 @@ class DungeonMerchant(NPC):
             player.update_spellbook_abilities()
             player.update_guard_ability()
             return f"You sold {len(weapons)} weapon(s) for {total_gold} gold!"
-        
-        if item_name == "all armor":
-            armor_items = [item for item in player.inventory.items if isinstance(item, Armor)]
+
+        if item_name == "all armors":
+            armor_items = [item for item in player.inventory.items if isinstance(item, (Helmet, Armor, Boots))]
             if not armor_items:
                 return "You don't have any armor to sell."
             total_gold = 0
@@ -222,6 +237,7 @@ class DungeonMerchant(NPC):
             player.gold += total_gold
             player.update_throw_knife_ability()
             player.update_spellbook_abilities()
+            player.update_holy_symbol_abilities()
             player.update_guard_ability()
             return f"You sold {len(armor_items)} armor item(s) for {total_gold} gold!"
         
@@ -233,6 +249,7 @@ class DungeonMerchant(NPC):
                 self.items_for_sale.append(item)  # Add the item back to the merchant's inventory
                 player.update_throw_knife_ability()
                 player.update_spellbook_abilities()
+                player.update_holy_symbol_abilities()
                 player.update_guard_ability()
                 return f"You sold {item.name}!"
         return "Item not found in your inventory."

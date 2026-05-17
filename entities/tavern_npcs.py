@@ -6,7 +6,8 @@ from items.items import (
     torch, throwing_knife, lesser_healing_potion, kite_shield, greater_healing_potion, apprentices_staff, half_plate_armor, 
     meat, green_apple, fromage, bread, carrot, spell_book, holy_symbol, mushroom, silver_dagger, iron_short_sword, adamantine_long_sword, staff_of_magi, 
     duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, 
-    chainmail_armor, robes, CampfireKit, Food, Weapon, Armor, OffHand
+    chainmail_armor, robes, scale_mail_armor, sturdy_quarterstaff, leather_cap, iron_helmet, steel_helmet, hood_of_shadows, great_helm, mages_circlet, leather_boots, 
+    iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,CampfireKit, Food, Weapon, Helmet, Armor, Boots, OffHand
 )
 
 from entities.dungeon_npcs import DungeonHealer 
@@ -61,6 +62,8 @@ class Merchant(NPC):
             (silver_dagger, 0.5),
             (steel_long_sword, 0.4),
             (half_plate_armor, 0.45),
+            (scale_mail_armor, 0.4),
+            (sturdy_quarterstaff, 0.4),
             (apprentices_staff, 0.45),
             (kite_shield, 0.4),
             (greater_healing_potion, 0.3),
@@ -201,8 +204,8 @@ class Merchant(NPC):
             player.update_guard_ability()
             return f"You sold {len(weapons)} weapon(s) for {total_gold} gold!"
         
-        if item_name == "all armor":
-            armor_items = [item for item in player.inventory.items if isinstance(item, Armor)]
+        if item_name == "all armors":
+            armor_items = [item for item in player.inventory.items if isinstance(item, (Helmet, Armor, Boots))]
             if not armor_items:
                 return "You don't have any armor to sell."
             total_gold = 0

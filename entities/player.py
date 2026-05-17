@@ -878,6 +878,44 @@ class Player: # This is our base class for playable characters
             game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
             return True
 
+        elif isinstance(item, Helmet):
+            if self.equipped_helmet:
+                if not from_quick_bar:
+                    self.inventory.add_item(self.equipped_helmet)
+                game_instance.message_log.add_message(f"You unequip {self.equipped_helmet.name}.", (150, 150, 150))
+
+            if not from_quick_bar:
+                self.inventory.remove_item(item)
+            self.equipped_helmet = item
+
+            # Check for armor proficiency based on categories
+            proficiency_penalty = 0
+            standardized_helmet_name = item.name.lower().replace(" ", "")
+
+            # Check if the player is proficient with the armor category
+            armor_category = None
+            for category, armors in ARMOR_CATEGORIES.items():
+                if standardized_helmet_name in [a.lower().replace(" ", "") for a in armors]:
+                    armor_category = category
+                    break
+                
+            # Check proficiency
+            if armor_category is None:
+                proficiency_penalty = -4  # No category found
+                game_instance.message_log.add_message(f"You are not proficient with {item.name}. Armor rolls will be penalized by {proficiency_penalty}.", (255, 100, 100))
+            else:
+                if armor_category not in self.armor_proficiencies and armor_category not in self.class_armor_proficiencies:
+                    proficiency_penalty = -4  # Example penalty for non-proficiency
+                    game_instance.message_log.add_message(f"You are not proficient with {item.name}. Armor rolls will be penalized by {proficiency_penalty}.", (255, 100, 100))
+                else:
+                    game_instance.message_log.add_message(f"You are proficient with {item.name}.", (100, 255, 100))
+
+
+            self.armor_class = self._calculate_ac() + proficiency_penalty  # Apply penalty to AC
+
+            game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
+            return True
+
         elif isinstance(item, Armor):
             if self.equipped_armor:
                 if not from_quick_bar:
@@ -915,6 +953,45 @@ class Player: # This is our base class for playable characters
 
             game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
             return True
+        
+        elif isinstance(item, Boots):
+            if self.equipped_boots:
+                if not from_quick_bar:
+                    self.inventory.add_item(self.equipped_boots)
+                game_instance.message_log.add_message(f"You unequip {self.equipped_boots.name}.", (150, 150, 150))
+
+            if not from_quick_bar:
+                self.inventory.remove_item(item)
+            self.equipped_boots = item
+
+            # Check for armor proficiency based on categories
+            proficiency_penalty = 0
+            standardized_boots_name = item.name.lower().replace(" ", "")
+
+            # Check if the player is proficient with the armor category
+            armor_category = None
+            for category, armors in ARMOR_CATEGORIES.items():
+                if standardized_boots_name in [a.lower().replace(" ", "") for a in armors]:
+                    armor_category = category
+                    break
+                
+            # Check proficiency
+            if armor_category is None:
+                proficiency_penalty = -4  # No category found
+                game_instance.message_log.add_message(f"You are not proficient with {item.name}. Armor rolls will be penalized by {proficiency_penalty}.", (255, 100, 100))
+            else:
+                if armor_category not in self.armor_proficiencies and armor_category not in self.class_armor_proficiencies:
+                    proficiency_penalty = -4  # Example penalty for non-proficiency
+                    game_instance.message_log.add_message(f"You are not proficient with {item.name}. Armor rolls will be penalized by {proficiency_penalty}.", (255, 100, 100))
+                else:
+                    game_instance.message_log.add_message(f"You are proficient with {item.name}.", (100, 255, 100))
+
+
+            self.armor_class = self._calculate_ac() + proficiency_penalty  # Apply penalty to AC
+
+            game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
+            return True
+
 
         elif isinstance(item, OffHand):  # Handle off-hand items
             # Check if a two-handed weapon is already equipped
@@ -1452,6 +1529,8 @@ class Rogue(Player):
         self.inventory.add_item(throwing_knife)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
+        self.inventory.add_item(dwarven_stompers)
+        self.inventory.add_item(great_helm)
         self.inventory.add_item(torch)
 
         self.equipped_weapon = iron_short_sword
