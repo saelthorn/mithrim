@@ -127,6 +127,40 @@ class Accessory(Item):
         """Define how the item is used, if applicable."""
         pass
 
+class Helmet(Item):
+    """A helmet that can be equipped for defense and stat bonuses."""
+    def __init__(self, name, char, color, description, ac_bonus=0, price=10,
+                 perception_bonus=0, intelligence_bonus=0, category=None):
+        super().__init__(name, char, color, description, price)
+        self.ac_bonus          = ac_bonus
+        self.perception_bonus  = perception_bonus   # bonus to passive perception
+        self.intelligence_bonus = intelligence_bonus # flat INT bonus while equipped
+        self.category          = category
+
+
+class Boots(Item):
+    """Boots that can be equipped for movement and stat bonuses."""
+    def __init__(self, name, char, color, description, ac_bonus=0, price=10,
+                 speed_bonus=0, stealth_bonus=0, dexterity_bonus=0, category=None):
+        super().__init__(name, char, color, description, price)
+        self.ac_bonus       = ac_bonus
+        self.speed_bonus    = speed_bonus     # reserved for future movement speed
+        self.stealth_bonus  = stealth_bonus   # bonus to stealth checks
+        self.dexterity_bonus = dexterity_bonus  # flat DEX bonus while equipped
+        self.category       = category
+
+
+class FocusItem(Item):
+    """An arcane or divine focus that boosts spell attack rolls and save DCs."""
+    def __init__(self, name, char, color, description, spell_bonus=0, price=10,
+                 intelligence_bonus=0, wisdom_bonus=0, category=None):
+        super().__init__(name, char, color, description, price)
+        self.spell_bonus       = spell_bonus        # added to spell_bonus stat
+        self.intelligence_bonus = intelligence_bonus
+        self.wisdom_bonus       = wisdom_bonus
+        self.category          = category
+
+
 class Tools(Item):
     """An item that can be used in certain situations"""
     def __init__(self, name, char, color, price, description=""):
@@ -668,9 +702,9 @@ flameheart_flail = Weapon(
 
 
 ARMOR_CATEGORIES = {
-    "Light": ["Padded Armor", "Studded Leather Armor", "Robes", "Robes of Protection"],
-    "Medium": ["Chainmail Armor", "Half Plate Armor"],
-    "Heavy": ["Full Plate Armor"],
+    "Light": ["Padded Armor", "Studded Leather Armor", "Robes", "Robes of Protection", "Leather Cap", "Mage's Circlet", "Hood of Shadows", "Leather Boots", "Boots of Stealth", "Boots of Speed"],
+    "Medium": ["Chainmail Armor", "Half Plate Armor", "Scale Mail Armor", "Iron Helmet", "Steel Helmet", "Iron Greaves"],
+    "Heavy": ["Full Plate Armor", "Great Helm", "Dwarven Stompers"],
 
     "Shield": ["Round Shield", "Kite Shield", "Tower Shield"]
 }
@@ -786,6 +820,157 @@ robes_of_protection = Armor(
     category="Light"
 )
 
+# ── Helmets ──────────────────────────────────────────────────────────────────
+leather_cap = Helmet(
+    name="Leather Cap",
+    char="lc",
+    color=(139, 100, 60),
+    description="A simple leather cap. Provides minimal protection.",
+    ac_bonus=0,
+    perception_bonus=1,
+    price=8,
+    category="Light"
+)
+
+iron_helmet = Helmet(
+    name="Iron Helmet",
+    char="ih",
+    color=(160, 160, 160),
+    description="A solid iron helmet. Protects the head from blows.",
+    ac_bonus=1,
+    price=20,
+    category="Medium"
+)
+
+steel_helmet = Helmet(
+    name="Steel Helmet",
+    char="sh",
+    color=(180, 180, 190),
+    description="A well-crafted steel helmet.",
+    ac_bonus=2,
+    price=35,
+    category="Medium"
+)
+
+great_helm = Helmet(
+    name="Great Helm",
+    char="gh",
+    color=(200, 200, 210),
+    description="A full great helm. Heavy but excellent protection.",
+    ac_bonus=3,
+    price=55,
+    category="Heavy"
+)
+
+mages_circlet = Helmet(
+    name="Mage's Circlet",
+    char="mc",
+    color=(120, 80, 200),
+    description="An enchanted circlet that sharpens the mind.",
+    ac_bonus=0,
+    intelligence_bonus=2,
+    price=60,
+    category="Light"
+)
+
+hood_of_shadows = Helmet(
+    name="Hood of Shadows",
+    char="hs",
+    color=(50, 50, 70),
+    description="A dark hood that aids in concealment.",
+    ac_bonus=0,
+    perception_bonus=2,
+    price=45,
+    category="Light"
+)
+
+# ── Boots ─────────────────────────────────────────────────────────────────────
+leather_boots = Boots(
+    name="Leather Boots",
+    char="lb",
+    color=(139, 100, 60),
+    description="Simple leather boots. Light and comfortable.",
+    ac_bonus=0,
+    price=10,
+    category="Light"
+)
+
+iron_greaves = Boots(
+    name="Iron Greaves",
+    char="ig",
+    color=(160, 160, 160),
+    description="Iron leg guards. Heavy but protective.",
+    ac_bonus=1,
+    price=25,
+    category="Medium"
+)
+
+boots_of_speed = Boots(
+    name="Boots of Speed",
+    char="bs",
+    color=(80, 180, 220),
+    description="Enchanted boots that make your steps lighter and quicker.",
+    ac_bonus=1,
+    speed_bonus=1,
+    dexterity_bonus=1,
+    price=70,
+    category="Light"
+)
+
+boots_of_stealth = Boots(
+    name="Boots of Stealth",
+    char="bst",
+    color=(40, 40, 55),
+    description="Soft-soled boots that muffle your footsteps.",
+    ac_bonus=0,
+    stealth_bonus=3,
+    price=50,
+    category="Light"
+)
+
+dwarven_stompers = Boots(
+    name="Dwarven Stompers",
+    char="ds",
+    color=(120, 80, 40),
+    description="Thick dwarven-forged boots. Built to last forever.",
+    ac_bonus=2,
+    price=45,
+    category="Heavy"
+)
+
+# ── Focus Items ───────────────────────────────────────────────────────────────
+arcane_focus = FocusItem(
+    name="Arcane Focus",
+    char="af",
+    color=(100, 80, 200),
+    description="A crystal orb attuned to arcane energies. Boosts spell potency.",
+    spell_bonus=2,
+    price=40,
+    category="Arcane"
+)
+
+divine_focus = FocusItem(
+    name="Divine Focus",
+    char="df",
+    color=(220, 200, 80),
+    description="A holy relic that channels divine power.",
+    spell_bonus=2,
+    wisdom_bonus=1,
+    price=45,
+    category="Divine"
+)
+
+runed_tome = FocusItem(
+    name="Runed Tome",
+    char="rt",
+    color=(60, 120, 180),
+    description="A tome covered in runes. Greatly amplifies magical ability.",
+    spell_bonus=3,
+    intelligence_bonus=1,
+    price=75,
+    category="Arcane"
+)
+
 thieves_tools = Tools(
     name="Thieves' Tools",
     char="tt",
@@ -804,7 +989,10 @@ def generate_random_loot(level_number):
         robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, 
         apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail,
         round_shield, kite_shield, tower_shield, torch, throwing_knife, spell_book, holy_symbol, flameheart_short_sword, 
-        flameheart_flail, scale_mail_armor, full_plate_armor, robes_of_protection, 
+        flameheart_flail, scale_mail_armor, full_plate_armor, robes_of_protection,
+        leather_cap, iron_helmet, steel_helmet, great_helm, mages_circlet, hood_of_shadows,
+        leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,
+        arcane_focus, divine_focus, runed_tome,
     ]
 
     # Add 1-3 random items

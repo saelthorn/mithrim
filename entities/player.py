@@ -20,7 +20,8 @@ from items.items import (
     chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, 
     half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, 
     greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, spell_book, staff_of_magi, 
-    scale_mail_armor, sturdy_quarterstaff, Item, CampfireKit, Weapon, Armor, OffHand, Accessory, WEAPON_CATEGORIES, ARMOR_CATEGORIES
+    scale_mail_armor, sturdy_quarterstaff, Item, CampfireKit, Weapon, Armor, OffHand, Accessory,
+    Helmet, Boots, FocusItem, WEAPON_CATEGORIES, ARMOR_CATEGORIES, 
 )
 
 from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
@@ -100,6 +101,9 @@ class Player: # This is our base class for playable characters
         self.equipped_armor = None
         self.equipped_accessory1 = None
         self.equipped_accessory2 = None
+        self.equipped_helmet = None
+        self.equipped_boots  = None
+        self.equipped_focus  = None
 
         self.starting_equipment = None 
         
@@ -350,6 +354,10 @@ class Player: # This is our base class for playable characters
             self.attack_power += self.weapon_proficiency_penalty
             self.spell_bonus += self.weapon_proficiency_penalty
 
+        # Add focus item spell bonus
+        if self.equipped_focus:
+            self.spell_bonus += self.equipped_focus.spell_bonus
+
         print(f"Updated Attack Power: {self.attack_power}")  # Debugging output
         print(f"Updated Attack Bonus: {self.attack_bonus}")  # Debugging output
         print(f"Updated Spell Bonus: {self.spell_bonus}")  # Debugging output
@@ -405,13 +413,17 @@ class Player: # This is our base class for playable characters
         return max(1, max_hp) # Ensure HP is at least 1
 
     def _calculate_ac(self):
-        """Calculate the player's armor class based on equipped armor and off-hand items."""
-        base_ac = 10 + self.get_ability_modifier(self.dexterity)  # Base AC calculation
+        """Calculate the player's armor class based on all equipped items."""
+        base_ac = 10 + self.get_ability_modifier(self.dexterity)
 
         if self.equipped_armor:
-            base_ac += self.equipped_armor.ac_bonus  # Add armor bonus
-        if self.equipped_off_hand:  # Check if an off-hand item is equipped
-            base_ac += self.equipped_off_hand.ac_bonus  # Add off-hand defense bonus if it's a shield
+            base_ac += self.equipped_armor.ac_bonus
+        if self.equipped_off_hand:
+            base_ac += self.equipped_off_hand.ac_bonus
+        if self.equipped_helmet:
+            base_ac += self.equipped_helmet.ac_bonus
+        if self.equipped_boots:
+            base_ac += self.equipped_boots.ac_bonus
 
         for effect in self.active_status_effects:
             if isinstance(effect, ParryBuff):
@@ -972,11 +984,67 @@ class Player: # This is our base class for playable characters
             if item.hp_bonus:
                 self.max_hp += item.hp_bonus
                 self.hp += item.hp_bonus  # Also heal for the bonus
-            # Other bonuses can be applied here as needed
-
 
             self.update_holy_symbol_abilities()
+            return True
 
+        elif isinstance(item, Helmet):
+            if self.equipped_helmet:
+                if not from_quick_bar:
+                    self.inventory.add_item(self.equipped_helmet)
+                game_instance.message_log.add_message(f"You unequip {self.equipped_helmet.name}.", (150, 150, 150))
+                # Remove old helmet stat bonuses
+                self.intelligence += -self.equipped_helmet.intelligence_bonus
+            if not from_quick_bar:
+                self.inventory.remove_item(item)
+            self.equipped_helmet = item
+            # Apply new helmet stat bonuses
+            if item.intelligence_bonus:
+                self.intelligence += item.intelligence_bonus
+            self.armor_class = self._calculate_ac()
+            self.update_attack_power()
+            game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
+            return True
+
+        elif isinstance(item, Boots):
+            if self.equipped_boots:
+                if not from_quick_bar:
+                    self.inventory.add_item(self.equipped_boots)
+                game_instance.message_log.add_message(f"You unequip {self.equipped_boots.name}.", (150, 150, 150))
+                # Remove old boots stat bonuses
+                if self.equipped_boots.dexterity_bonus:
+                    self.dexterity -= self.equipped_boots.dexterity_bonus
+            if not from_quick_bar:
+                self.inventory.remove_item(item)
+            self.equipped_boots = item
+            # Apply new boots stat bonuses
+            if item.dexterity_bonus:
+                self.dexterity += item.dexterity_bonus
+            self.armor_class = self._calculate_ac()
+            self.update_attack_power()
+            game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
+            return True
+
+        elif isinstance(item, FocusItem):
+            if self.equipped_focus:
+                if not from_quick_bar:
+                    self.inventory.add_item(self.equipped_focus)
+                game_instance.message_log.add_message(f"You unequip {self.equipped_focus.name}.", (150, 150, 150))
+                # Remove old focus bonuses
+                if self.equipped_focus.intelligence_bonus:
+                    self.intelligence -= self.equipped_focus.intelligence_bonus
+                if self.equipped_focus.wisdom_bonus:
+                    self.wisdom -= self.equipped_focus.wisdom_bonus
+            if not from_quick_bar:
+                self.inventory.remove_item(item)
+            self.equipped_focus = item
+            # Apply new focus bonuses
+            if item.intelligence_bonus:
+                self.intelligence += item.intelligence_bonus
+            if item.wisdom_bonus:
+                self.wisdom += item.wisdom_bonus
+            self.update_attack_power()
+            game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
             return True
 
     def unequip_item(self, item, game_instance, remove_from_inventory=False):
@@ -1044,7 +1112,6 @@ class Player: # This is our base class for playable characters
                 else:
                     self.inventory.add_item(item)
                     game_instance.message_log.add_message(f"You unequip {item.name}.", (150, 150, 150))
-                # Remove accessory bonuses
                 if item.ac_bonus:
                     self.armor_class -= item.ac_bonus
                 if item.hp_bonus:
@@ -1052,6 +1119,7 @@ class Player: # This is our base class for playable characters
                     if self.hp > self.max_hp:
                         self.hp = self.max_hp
                 self.equipped_accessory1 = None
+                self.update_holy_symbol_abilities()
                 return True
             elif self.equipped_accessory2 == item:
                 if remove_from_inventory:
@@ -1060,7 +1128,6 @@ class Player: # This is our base class for playable characters
                 else:
                     self.inventory.add_item(item)
                     game_instance.message_log.add_message(f"You unequip {item.name}.", (150, 150, 150))
-                # Remove accessory bonuses
                 if item.ac_bonus:
                     self.armor_class -= item.ac_bonus
                 if item.hp_bonus:
@@ -1068,13 +1135,58 @@ class Player: # This is our base class for playable characters
                     if self.hp > self.max_hp:
                         self.hp = self.max_hp
                 self.equipped_accessory2 = None
+                self.update_holy_symbol_abilities()
+                return True
+
+        elif isinstance(item, Helmet):
+            if self.equipped_helmet == item:
+                if remove_from_inventory:
+                    self.inventory.remove_item(item)
+                else:
+                    self.inventory.add_item(item)
+                    game_instance.message_log.add_message(f"You unequip {item.name}.", (150, 150, 150))
+                if item.intelligence_bonus:
+                    self.intelligence -= item.intelligence_bonus
+                self.equipped_helmet = None
+                self.armor_class = self._calculate_ac()
+                self.update_attack_power()
+                return True
+
+        elif isinstance(item, Boots):
+            if self.equipped_boots == item:
+                if remove_from_inventory:
+                    self.inventory.remove_item(item)
+                else:
+                    self.inventory.add_item(item)
+                    game_instance.message_log.add_message(f"You unequip {item.name}.", (150, 150, 150))
+                if item.dexterity_bonus:
+                    self.dexterity -= item.dexterity_bonus
+                self.equipped_boots = None
+                self.armor_class = self._calculate_ac()
+                self.update_attack_power()
+                return True
+
+        elif isinstance(item, FocusItem):
+            if self.equipped_focus == item:
+                if remove_from_inventory:
+                    self.inventory.remove_item(item)
+                else:
+                    self.inventory.add_item(item)
+                    game_instance.message_log.add_message(f"You unequip {item.name}.", (150, 150, 150))
+                if item.intelligence_bonus:
+                    self.intelligence -= item.intelligence_bonus
+                if item.wisdom_bonus:
+                    self.wisdom -= item.wisdom_bonus
+                self.equipped_focus = None
+                self.update_attack_power()
                 return True
 
 
-
     def get_equipped_items(self):
-        """Returns a tuple of equipped weapon, armor, off-hand, and accessories."""
-        return self.equipped_weapon, self.equipped_armor, self.equipped_off_hand, self.equipped_accessory1, self.equipped_accessory2
+        """Returns a tuple of all equipped items."""
+        return (self.equipped_weapon, self.equipped_armor, self.equipped_off_hand,
+                self.equipped_accessory1, self.equipped_accessory2,
+                self.equipped_helmet, self.equipped_boots, self.equipped_focus)
 
     def add_status_effect(self, effect_name, duration, game_instance, source=None):
         """Adds a status effect to the player."""

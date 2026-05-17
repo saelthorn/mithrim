@@ -52,7 +52,11 @@ from items.items import (
     bread, mushroom, CampfireKit, torch, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, 
     iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, 
     apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail, 
-    round_shield, kite_shield, tower_shield
+    round_shield, kite_shield, tower_shield,
+    Helmet, Boots, FocusItem,
+    leather_cap, iron_helmet, steel_helmet, great_helm, mages_circlet, hood_of_shadows,
+    leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,
+    arcane_focus, divine_focus, runed_tome,
 )
 
 from core.pathfinding import astar
@@ -810,7 +814,10 @@ class Game:
             lesser_healing_potion, greater_healing_potion, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor,
             robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, 
             apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail,
-            round_shield, kite_shield, tower_shield, torch
+            round_shield, kite_shield, tower_shield, torch,
+            leather_cap, iron_helmet, steel_helmet, great_helm, mages_circlet, hood_of_shadows,
+            leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,
+            arcane_focus, divine_focus, runed_tome,
         ]
 
         item_spawn_chance = 0.5 + min(0.5, level_number * 0.02) # Scales from 30% to max 50% at level 10+
@@ -3740,6 +3747,9 @@ class Game:
             "off_hand": "equipped_off_hand",
             "acc1":     "equipped_accessory1",
             "acc2":     "equipped_accessory2",
+            "helmet":   "equipped_helmet",
+            "boots":    "equipped_boots",
+            "focus":    "equipped_focus",
         }
         attr = slot_map.get(slot_key)
         if not attr:

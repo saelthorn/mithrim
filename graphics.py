@@ -170,6 +170,26 @@ def setup_tile_mapping():
         'sw': (14 * CELL_DIM, 2 * CELL_DIM), # Spiritual Weapon (Skill)
         'CS': (12 * CELL_DIM, 8 * CELL_DIM), # Celestial Spirit (Skill)
 
+        # Helmets
+        'lc':  (0 * CELL_DIM, 17 * CELL_DIM),  # Leather Cap
+        'ih':  (1 * CELL_DIM, 17 * CELL_DIM),  # Iron Helmet
+        'sh':  (2 * CELL_DIM, 17 * CELL_DIM),  # Steel Helmet
+        'gh':  (3 * CELL_DIM, 17 * CELL_DIM),  # Great Helm
+        'mc':  (4 * CELL_DIM, 17 * CELL_DIM),  # Mage's Circlet
+        'hs':  (5 * CELL_DIM, 17 * CELL_DIM),  # Hood of Shadows
+
+        # Boots
+        'lb':  (0 * CELL_DIM, 18 * CELL_DIM),  # Leather Boots
+        'ig':  (1 * CELL_DIM, 18 * CELL_DIM),  # Iron Greaves
+        'bs':  (2 * CELL_DIM, 18 * CELL_DIM),  # Boots of Speed
+        'bst': (3 * CELL_DIM, 18 * CELL_DIM),  # Boots of Stealth
+        'ds':  (4 * CELL_DIM, 18 * CELL_DIM),  # Dwarven Stompers
+
+        # Focus Items
+        'af':  (0 * CELL_DIM, 19 * CELL_DIM),  # Arcane Focus
+        'df':  (1 * CELL_DIM, 19 * CELL_DIM),  # Divine Focus
+        'rt':  (2 * CELL_DIM, 19 * CELL_DIM),  # Runed Tome
+
         # Item Characters
         'cf': (8 * CELL_DIM, 2 * CELL_DIM), # Campfire 
         'pn': (9 * CELL_DIM, 2 * CELL_DIM), # Wood Plank (Junk)
@@ -296,4 +316,4 @@ def draw_tile(screen_surface, draw_x, draw_y, char, color_tint=None, tile_size=N
     # Blit directly using draw_x, draw_y (int if floats)
     blit_x = int(draw_x) if hasattr(draw_x, '__float__') else draw_x
     blit_y = int(draw_y) if hasattr(draw_y, '__float__') else draw_y
-    screen_surface.blit(tile_surface, (blit_x, blit_y))    
+    screen_surface.blit(tile_surface, (blit_x, blit_y))

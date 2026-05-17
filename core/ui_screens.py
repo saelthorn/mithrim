@@ -352,11 +352,13 @@ def render_inventory_screen(game):
     sel_idx  = game.selected_inventory_index
     sel_item = items[sel_idx] if 0 <= sel_idx < len(items) else None
 
-    # grid cells
+    # grid cells — always exactly COLS columns, slot size scales to fit
     grid_inner_w = GRID_W - PAD * 2
-    cell = SLOT_SIZE + SLOT_GAP
-    cols = max(1, grid_inner_w // cell)
-    gx0  = grid_x + PAD
+    cols         = COLS
+    slot_size    = (grid_inner_w - SLOT_GAP * (cols - 1)) // cols
+    slot_size    = max(32, slot_size)  # never smaller than 32px
+    cell         = slot_size + SLOT_GAP
+    gx0          = grid_x + PAD
 
     for i in range(player.inventory.capacity):
         item = items[i] if i < len(items) else None
@@ -364,13 +366,13 @@ def render_inventory_screen(game):
         row  = i // cols
         cx   = gx0 + col * cell
         cy   = y   + row * cell
-        _draw_slot(surf, item, cx, cy, selected=(i == sel_idx))
-        game._inventory_slot_rects[i] = pygame.Rect(cx, cy, SLOT_SIZE, SLOT_SIZE)
+        _draw_slot(surf, item, cx, cy, selected=(i == sel_idx), size=slot_size)
+        game._inventory_slot_rects[i] = pygame.Rect(cx, cy, slot_size, slot_size)
 
         # slot number (bottom-right corner)
         badge = fXs.render(str((i + 1) % 10), True, _TEXT_DIM)
-        surf.blit(badge, (cx + SLOT_SIZE - badge.get_width() - 2,
-                           cy + SLOT_SIZE - badge.get_height() - 1))
+        surf.blit(badge, (cx + slot_size - badge.get_width() - 2,
+                           cy + slot_size - badge.get_height() - 1))
 
     # hints at bottom of grid
     hints = ["WASD / arrows  navigate", "Left-click  equip", "Right-click  options"]
@@ -389,7 +391,8 @@ def render_inventory_screen(game):
     dy += 10
 
     equipped_weapon, equipped_armor, equipped_off_hand, \
-        equipped_acc1, equipped_acc2 = player.get_equipped_items()
+        equipped_acc1, equipped_acc2, \
+        equipped_helmet, equipped_boots, equipped_focus = player.get_equipped_items()
 
     EQ = 48   # equipment slot size
     EQ_GAP = 8
@@ -433,10 +436,19 @@ def render_inventory_screen(game):
     _draw_equip_slot(surf, equipped_acc1,     "Acc. 1",   right_x, mid_y, EQ, fXs)
     game._equip_slot_rects["acc1"]     = pygame.Rect(right_x, mid_y, EQ, EQ)
 
-    bot_y = av_y + AVATAR_SIZE + fSm.get_linesize() + fXs.get_linesize() + 16
+    bot_y  = av_y + AVATAR_SIZE + fSm.get_linesize() + fXs.get_linesize() + 16
     acc2_x = doll_cx - EQ // 2
     _draw_equip_slot(surf, equipped_acc2, "Acc. 2", acc2_x, bot_y, EQ, fXs)
-    game._equip_slot_rects["acc2"]     = pygame.Rect(acc2_x, bot_y, EQ, EQ)
+    game._equip_slot_rects["acc2"] = pygame.Rect(acc2_x, bot_y, EQ, EQ)
+
+    # Row 3: Helmet (left) | Focus (center) | Boots (right)
+    row3_y = bot_y + EQ + fXs.get_linesize() + EQ_GAP + 10
+    _draw_equip_slot(surf, equipped_helmet, "Helmet", left_x,  row3_y, EQ, fXs)
+    game._equip_slot_rects["helmet"] = pygame.Rect(left_x, row3_y, EQ, EQ)
+    _draw_equip_slot(surf, equipped_focus,  "Focus",  acc2_x, row3_y, EQ, fXs)
+    game._equip_slot_rects["focus"]  = pygame.Rect(acc2_x, row3_y, EQ, EQ)
+    _draw_equip_slot(surf, equipped_boots,  "Boots",  right_x, row3_y, EQ, fXs)
+    game._equip_slot_rects["boots"]  = pygame.Rect(right_x, row3_y, EQ, EQ)
 
     # Quick stats block
     qs_y = bot_y + EQ + fXs.get_linesize() + 18
@@ -677,13 +689,17 @@ def render_character_menu(game):
     y3 = content_y + 8
     y3 = _section_label(surf, fSec, "EQUIPMENT", col3_x, y3, col_w)
     equipped_weapon, equipped_armor, equipped_off_hand, \
-        equipped_acc1, equipped_acc2 = player.get_equipped_items()
+        equipped_acc1, equipped_acc2, \
+        equipped_helmet, equipped_boots, equipped_focus = player.get_equipped_items()
     for slot_label, item in [
         ("Weapon",   equipped_weapon),
         ("Armor",    equipped_armor),
         ("Off-hand", equipped_off_hand),
         ("Acc. 1",   equipped_acc1),
         ("Acc. 2",   equipped_acc2),
+        ("Helmet",   equipped_helmet),
+        ("Boots",    equipped_boots),
+        ("Focus",    equipped_focus),
     ]:
         _blit(surf, fSm, slot_label, _TEXT_DIM, col3_x, y3)
         val = item.name if item else "— empty —"
