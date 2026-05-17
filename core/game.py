@@ -56,7 +56,6 @@ from items.items import (
     Helmet, Boots, FocusItem,
     leather_cap, iron_helmet, steel_helmet, great_helm, mages_circlet, hood_of_shadows,
     leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,
-    arcane_focus, divine_focus, runed_tome,
 )
 
 from core.pathfinding import astar
@@ -817,7 +816,6 @@ class Game:
             round_shield, kite_shield, tower_shield, torch,
             leather_cap, iron_helmet, steel_helmet, great_helm, mages_circlet, hood_of_shadows,
             leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,
-            arcane_focus, divine_focus, runed_tome,
         ]
 
         item_spawn_chance = 0.5 + min(0.5, level_number * 0.02) # Scales from 30% to max 50% at level 10+

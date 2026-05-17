@@ -129,13 +129,14 @@ class Accessory(Item):
 
 class Helmet(Item):
     """A helmet that can be equipped for defense and stat bonuses."""
-    def __init__(self, name, char, color, description, ac_bonus=0, price=10,
+    def __init__(self, name, char, color, description, ac_bonus=0, spell_bonus=0, price=10,
                  perception_bonus=0, intelligence_bonus=0, category=None):
         super().__init__(name, char, color, description, price)
-        self.ac_bonus          = ac_bonus
-        self.perception_bonus  = perception_bonus   # bonus to passive perception
+        self.ac_bonus = ac_bonus
+        self.spell_bonus = spell_bonus
+        self.perception_bonus = perception_bonus   # bonus to passive perception
         self.intelligence_bonus = intelligence_bonus # flat INT bonus while equipped
-        self.category          = category
+        self.category = category
 
 
 class Boots(Item):
@@ -143,11 +144,11 @@ class Boots(Item):
     def __init__(self, name, char, color, description, ac_bonus=0, price=10,
                  speed_bonus=0, stealth_bonus=0, dexterity_bonus=0, category=None):
         super().__init__(name, char, color, description, price)
-        self.ac_bonus       = ac_bonus
-        self.speed_bonus    = speed_bonus     # reserved for future movement speed
-        self.stealth_bonus  = stealth_bonus   # bonus to stealth checks
+        self.ac_bonus = ac_bonus
+        self.speed_bonus = speed_bonus     # reserved for future movement speed
+        self.stealth_bonus = stealth_bonus   # bonus to stealth checks
         self.dexterity_bonus = dexterity_bonus  # flat DEX bonus while equipped
-        self.category       = category
+        self.category = category
 
 
 class FocusItem(Item):
@@ -155,10 +156,10 @@ class FocusItem(Item):
     def __init__(self, name, char, color, description, spell_bonus=0, price=10,
                  intelligence_bonus=0, wisdom_bonus=0, category=None):
         super().__init__(name, char, color, description, price)
-        self.spell_bonus       = spell_bonus        # added to spell_bonus stat
+        self.spell_bonus = spell_bonus        # added to spell_bonus stat
         self.intelligence_bonus = intelligence_bonus
-        self.wisdom_bonus       = wisdom_bonus
-        self.category          = category
+        self.wisdom_bonus = wisdom_bonus
+        self.category = category
 
 
 class Tools(Item):
@@ -273,6 +274,8 @@ greater_healing_potion = Potion(
     price = 20
 )
 
+
+
 meat = Food(
     name="Meat",
     description="A meat from unknown origin, chewy but full of taste.",
@@ -365,26 +368,28 @@ throwing_knife = OffHand(
     category="Dagger"
 )
 
-spell_book = OffHand(
+spell_book = FocusItem(
     name="Spell Book",
     char="spb",
     color=(120, 0, 220),
     description="A wizard's spell book that enables advanced spellcasting.",
-    ac_bonus=0,
-    attack_bonus=0,
+    spell_bonus=4,
+    #intelligence_bonus=2,
+
     price=50,
-    category="spellbook"
+    category="Spellbook"
 )
 
-holy_symbol = Accessory(
+holy_symbol = FocusItem(
     name="Holy Symbol",
     char="hsy",
     color=(255, 255, 0),
     description="A sacred symbol of great power.",
-    ac_bonus=0,
-    attack_bonus=0,
+    spell_bonus=4,
+    #wisdom_bonus=2,
+
     price=40,
-    category="holy_symbol",
+    category="Holy Symbol",
 )
 
 iron_dagger = OffHand(
@@ -827,7 +832,7 @@ leather_cap = Helmet(
     color=(139, 100, 60),
     description="A simple leather cap. Provides minimal protection.",
     ac_bonus=0,
-    perception_bonus=1,
+    #perception_bonus=1,
     price=8,
     category="Light"
 )
@@ -868,7 +873,7 @@ mages_circlet = Helmet(
     color=(120, 80, 200),
     description="An enchanted circlet that sharpens the mind.",
     ac_bonus=0,
-    intelligence_bonus=2,
+    spell_bonus=2,
     price=60,
     category="Light"
 )
@@ -878,8 +883,8 @@ hood_of_shadows = Helmet(
     char="hs",
     color=(50, 50, 70),
     description="A dark hood that aids in concealment.",
-    ac_bonus=0,
-    perception_bonus=2,
+    ac_bonus=2,
+    #perception_bonus=2,
     price=45,
     category="Light"
 )
@@ -911,8 +916,8 @@ boots_of_speed = Boots(
     color=(80, 180, 220),
     description="Enchanted boots that make your steps lighter and quicker.",
     ac_bonus=1,
-    speed_bonus=1,
-    dexterity_bonus=1,
+    #speed_bonus=1,
+    #dexterity_bonus=1,
     price=70,
     category="Light"
 )
@@ -923,7 +928,7 @@ boots_of_stealth = Boots(
     color=(40, 40, 55),
     description="Soft-soled boots that muffle your footsteps.",
     ac_bonus=0,
-    stealth_bonus=3,
+    #stealth_bonus=3,
     price=50,
     category="Light"
 )
@@ -939,37 +944,6 @@ dwarven_stompers = Boots(
 )
 
 # ── Focus Items ───────────────────────────────────────────────────────────────
-arcane_focus = FocusItem(
-    name="Arcane Focus",
-    char="af",
-    color=(100, 80, 200),
-    description="A crystal orb attuned to arcane energies. Boosts spell potency.",
-    spell_bonus=2,
-    price=40,
-    category="Arcane"
-)
-
-divine_focus = FocusItem(
-    name="Divine Focus",
-    char="df",
-    color=(220, 200, 80),
-    description="A holy relic that channels divine power.",
-    spell_bonus=2,
-    wisdom_bonus=1,
-    price=45,
-    category="Divine"
-)
-
-runed_tome = FocusItem(
-    name="Runed Tome",
-    char="rt",
-    color=(60, 120, 180),
-    description="A tome covered in runes. Greatly amplifies magical ability.",
-    spell_bonus=3,
-    intelligence_bonus=1,
-    price=75,
-    category="Arcane"
-)
 
 thieves_tools = Tools(
     name="Thieves' Tools",
@@ -992,7 +966,6 @@ def generate_random_loot(level_number):
         flameheart_flail, scale_mail_armor, full_plate_armor, robes_of_protection,
         leather_cap, iron_helmet, steel_helmet, great_helm, mages_circlet, hood_of_shadows,
         leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,
-        arcane_focus, divine_focus, runed_tome,
     ]
 
     # Add 1-3 random items

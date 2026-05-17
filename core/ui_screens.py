@@ -1,7 +1,7 @@
 import pygame
 import graphics
 import config
-from items.items import CampfireKit, Weapon, Armor, OffHand, Potion, Food, Accessory, Tools, Junk
+from items.items import CampfireKit, Weapon, Helmet, Armor, Boots, FocusItem, OffHand, Potion, Food, Accessory, Tools, Junk
 
 # ── Palette ──────────────────────────────────────────────────────────────────
 
@@ -154,9 +154,18 @@ def _item_stats(item):
                  ("Atk Bonus", f"+{item.attack_bonus}"),
                  ("Spell Bonus", f"+{item.spell_bonus}"),
                  ("Two-Handed", "Yes" if item.is_two_handed else "No")]
+    elif isinstance(item, Helmet):
+        rows += [("AC Bonus", f"+{item.ac_bonus}"),
+                 ("Category", item.category or "—")]
     elif isinstance(item, Armor):
         rows += [("AC Bonus", f"+{item.ac_bonus}"),
                  ("Category", item.category or "—")]
+    elif isinstance(item, Boots):
+        rows += [("AC Bonus", f"+{item.ac_bonus}"),
+                 ("Category", item.category or "—")]  
+    elif isinstance(item, FocusItem):
+        rows += [("Spell Bonus", f"+{item.spell_bonus}"),
+                 ("Category", item.category or "—")]  
     elif isinstance(item, OffHand):
         if item.ac_bonus:
             rows.append(("Defense", f"+{item.ac_bonus}"))
@@ -423,40 +432,39 @@ def render_inventory_screen(game):
 
     left_x  = doll_x + PAD
     right_x = doll_x + DOLL_W - PAD - EQ
-    top_y   = dy
+    top_y   = dy + 8
 
     _draw_equip_slot(surf, equipped_weapon,   "Weapon",   left_x,  top_y, EQ, fXs)
     game._equip_slot_rects["weapon"]   = pygame.Rect(left_x,  top_y, EQ, EQ)
-    _draw_equip_slot(surf, equipped_armor,    "Armor",    right_x, top_y, EQ, fXs)
-    game._equip_slot_rects["armor"]    = pygame.Rect(right_x, top_y, EQ, EQ)
+    _draw_equip_slot(surf, equipped_helmet, "Helmet", right_x,  top_y, EQ, fXs)
+    game._equip_slot_rects["helmet"] = pygame.Rect(right_x, top_y, EQ, EQ)
 
-    mid_y = av_y + (AVATAR_SIZE - EQ) // 2
+    mid_y = top_y + (AVATAR_SIZE - EQ) * 1.5
     _draw_equip_slot(surf, equipped_off_hand, "Off-hand", left_x,  mid_y, EQ, fXs)
     game._equip_slot_rects["off_hand"] = pygame.Rect(left_x,  mid_y, EQ, EQ)
-    _draw_equip_slot(surf, equipped_acc1,     "Acc. 1",   right_x, mid_y, EQ, fXs)
-    game._equip_slot_rects["acc1"]     = pygame.Rect(right_x, mid_y, EQ, EQ)
+    _draw_equip_slot(surf, equipped_armor,    "Armor",    right_x, mid_y, EQ, fXs)
+    game._equip_slot_rects["armor"]    = pygame.Rect(right_x, mid_y, EQ, EQ)
 
-    bot_y  = av_y + AVATAR_SIZE + fSm.get_linesize() + fXs.get_linesize() + 16
-    acc2_x = doll_cx - EQ // 2
-    _draw_equip_slot(surf, equipped_acc2, "Acc. 2", acc2_x, bot_y, EQ, fXs)
-    game._equip_slot_rects["acc2"] = pygame.Rect(acc2_x, bot_y, EQ, EQ)
+    bot_y  = mid_y + (AVATAR_SIZE - EQ) * 1.5
+    _draw_equip_slot(surf, equipped_focus,  "Focus",  left_x, bot_y, EQ, fXs)
+    game._equip_slot_rects["focus"]  = pygame.Rect(left_x, bot_y, EQ, EQ)
+    _draw_equip_slot(surf, equipped_boots,  "Boots",  right_x, bot_y, EQ, fXs)
+    game._equip_slot_rects["boots"]  = pygame.Rect(right_x, bot_y, EQ, EQ)
 
     # Row 3: Helmet (left) | Focus (center) | Boots (right)
-    row3_y = bot_y + EQ + fXs.get_linesize() + EQ_GAP + 10
-    _draw_equip_slot(surf, equipped_helmet, "Helmet", left_x,  row3_y, EQ, fXs)
-    game._equip_slot_rects["helmet"] = pygame.Rect(left_x, row3_y, EQ, EQ)
-    _draw_equip_slot(surf, equipped_focus,  "Focus",  acc2_x, row3_y, EQ, fXs)
-    game._equip_slot_rects["focus"]  = pygame.Rect(acc2_x, row3_y, EQ, EQ)
-    _draw_equip_slot(surf, equipped_boots,  "Boots",  right_x, row3_y, EQ, fXs)
-    game._equip_slot_rects["boots"]  = pygame.Rect(right_x, row3_y, EQ, EQ)
+    row3_y = bot_y + (AVATAR_SIZE - EQ) * 1.5
+    _draw_equip_slot(surf, equipped_acc1,     "Acc. 1",   left_x, row3_y, EQ, fXs)
+    game._equip_slot_rects["acc1"]     = pygame.Rect(left_x, row3_y, EQ, EQ)
+    _draw_equip_slot(surf, equipped_acc2, "Acc. 2", right_x, row3_y, EQ, fXs)
+    game._equip_slot_rects["acc2"] = pygame.Rect(right_x, row3_y, EQ, EQ)
 
     # Quick stats block
-    qs_y = bot_y + EQ + fXs.get_linesize() + 18
+    qs_y = row3_y + EQ + fXs.get_linesize() * 2
     hp_pct = player.hp / player.max_hp if player.max_hp else 0
     hp_col = _RED if hp_pct < 0.33 else _GOLD if hp_pct < 0.66 else _GREEN
     bar_w  = DOLL_W - PAD * 4
     bar_h  = 14
-    bx     = doll_x + PAD * 2 
+    bx     = doll_x + PAD * 2
     pygame.draw.rect(surf, (30, 30, 40), (bx, qs_y, bar_w, bar_h), border_radius=3)
     fw = max(0, int(bar_w * hp_pct))
     if fw: pygame.draw.rect(surf, hp_col, (bx, qs_y, fw, bar_h), border_radius=3)
@@ -478,34 +486,45 @@ def render_inventory_screen(game):
         surf.blit(vs, (bx + bar_w - vs.get_width(), qs_y))
         qs_y += fXs.get_linesize() + 4
 
-    qs_y += bar_h + 4
-    pygame.draw.line(surf, _BORDER, (doll_x + 6, qs_y - 6),
-                     (doll_x + DOLL_W - 6, qs_y - 6), 1)
+    # qs_y += bar_h + 4
+    # pygame.draw.line(surf, _BORDER, (doll_x + 6, qs_y - 6),
+    #                  (doll_x + DOLL_W - 6, qs_y - 6), 1)
 
-    fHdr = _f(19, bold=True)
-    fSm  = _f(12)
-    fBig = _f(17, bold=True)
-    content_y = PAD + 500
-    col_w     = DOLL_W - PAD * 2
-    col1_x    = PAD * 3 + GRID_W    
-    y1 = content_y + 6
-    BOX  = 60; GAP = 6
-    bx0  = col1_x + (col_w - (3 * BOX + 2 * GAP)) // 2
-    for row in range(2):
-        for col in range(3):
-            idx = row * 3 + col
-            attrs = [
-                ("STR", player.strength,     player.get_ability_modifier(player.strength)),
-                ("DEX", player.dexterity,    player.get_ability_modifier(player.dexterity)),
-                ("CON", player.constitution, player.get_ability_modifier(player.constitution)),
-                ("INT", player.intelligence, player.get_ability_modifier(player.intelligence)),
-                ("WIS", player.wisdom,       player.get_ability_modifier(player.wisdom)),
-                ("CHA", player.charisma,     player.get_ability_modifier(player.charisma)),
-            ]
-            if idx >= len(attrs): break
-            _stat_box(surf, fBig, fSm, attrs[idx][0], attrs[idx][1], attrs[idx][2],
-                      bx0 + col * (BOX + GAP),
-                      y1  + row * (BOX + fSm.get_linesize() + GAP + 6), BOX)    
+    qs_y += bar_h + 2
+    qs_y = _section_label(surf, fSec, "PROFICIENCIES", bx, qs_y, fw)
+    all_profs = (getattr(player, "skill_proficiencies", []) +
+                 getattr(player, "weapon_proficiencies", []) +
+                 getattr(player, "armor_proficiencies", []))
+    if all_profs:
+        _blit_wrap(surf, fSm, ", ".join(all_profs), _TEXT_NORMAL, bx, qs_y, fw)
+    else:
+        _blit(surf, fSm, "None", _TEXT_DIM, bx, qs_y)        
+
+
+    # fHdr = _f(19, bold=True)
+    # fSm  = _f(12)
+    # fBig = _f(17, bold=True)
+    # content_y = qs_y + (AVATAR_SIZE - EQ) // 2
+    # col_w     = DOLL_W - PAD * 2
+    # col1_x    = PAD * 3 + GRID_W    
+    # y1 = content_y + 6
+    # BOX  = 60; GAP = 6
+    # bx0  = col1_x + (col_w - (3 * BOX + 2 * GAP)) // 2
+    # for row in range(2):
+    #     for col in range(3):
+    #         idx = row * 3 + col
+    #         attrs = [
+    #             ("STR", player.strength,     player.get_ability_modifier(player.strength)),
+    #             ("DEX", player.dexterity,    player.get_ability_modifier(player.dexterity)),
+    #             ("CON", player.constitution, player.get_ability_modifier(player.constitution)),
+    #             ("INT", player.intelligence, player.get_ability_modifier(player.intelligence)),
+    #             ("WIS", player.wisdom,       player.get_ability_modifier(player.wisdom)),
+    #             ("CHA", player.charisma,     player.get_ability_modifier(player.charisma)),
+    #         ]
+    #         if idx >= len(attrs): break
+    #         _stat_box(surf, fBig, fSm, attrs[idx][0], attrs[idx][1], attrs[idx][2],
+    #                   bx0 + col * (BOX + GAP),
+    #                   y1  + row * (BOX + fSm.get_linesize() + GAP + 6), BOX)    
 
     # ── RIGHT: detail card ───────────────────────────────────────────────
     _draw_detail_card(surf, sel_item,
@@ -520,8 +539,8 @@ def render_inventory_menu_popup(game):
     if not game.selected_inventory_item:
         return
     item  = game.selected_inventory_item
-    fSec  = _f(16, bold=True)
-    fInfo = _f(14)
+    fSec  = _f(14, bold=True)
+    fInfo = _f(12)
     fSm   = _f(12)
     PW, PH = 230, 195
     surf   = game.inventory_ui_surface

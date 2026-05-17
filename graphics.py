@@ -68,8 +68,8 @@ def setup_tile_mapping():
         'bl': (11 * CELL_DIM, 2 * CELL_DIM),# Bloodstain
         '{': (0 * CELL_DIM, 6 * CELL_DIM),  # Tavern Crate
         '}': (2 * CELL_DIM, 6 * CELL_DIM),  # Tavern Barrel
-        ',': (2 * CELL_DIM, 16 * CELL_DIM), # Tavern Floor
-        '?': (1 * CELL_DIM, 16 * CELL_DIM), # Kitchen Tavern Floor
+        ',': (2 * CELL_DIM, 17 * CELL_DIM), # Tavern Floor
+        '?': (1 * CELL_DIM, 17 * CELL_DIM), # Kitchen Tavern Floor
         '.': (0 * CELL_DIM, 3 * CELL_DIM),  # Floor
         '#': (1 * CELL_DIM, 3 * CELL_DIM),  # Wall
         '>': (8 * CELL_DIM, 3 * CELL_DIM),  # Stairs Down
@@ -170,26 +170,6 @@ def setup_tile_mapping():
         'sw': (14 * CELL_DIM, 2 * CELL_DIM), # Spiritual Weapon (Skill)
         'CS': (12 * CELL_DIM, 8 * CELL_DIM), # Celestial Spirit (Skill)
 
-        # Helmets
-        'lc':  (0 * CELL_DIM, 17 * CELL_DIM),  # Leather Cap
-        'ih':  (1 * CELL_DIM, 17 * CELL_DIM),  # Iron Helmet
-        'sh':  (2 * CELL_DIM, 17 * CELL_DIM),  # Steel Helmet
-        'gh':  (3 * CELL_DIM, 17 * CELL_DIM),  # Great Helm
-        'mc':  (4 * CELL_DIM, 17 * CELL_DIM),  # Mage's Circlet
-        'hs':  (5 * CELL_DIM, 17 * CELL_DIM),  # Hood of Shadows
-
-        # Boots
-        'lb':  (0 * CELL_DIM, 18 * CELL_DIM),  # Leather Boots
-        'ig':  (1 * CELL_DIM, 18 * CELL_DIM),  # Iron Greaves
-        'bs':  (2 * CELL_DIM, 18 * CELL_DIM),  # Boots of Speed
-        'bst': (3 * CELL_DIM, 18 * CELL_DIM),  # Boots of Stealth
-        'ds':  (4 * CELL_DIM, 18 * CELL_DIM),  # Dwarven Stompers
-
-        # Focus Items
-        'af':  (0 * CELL_DIM, 19 * CELL_DIM),  # Arcane Focus
-        'df':  (1 * CELL_DIM, 19 * CELL_DIM),  # Divine Focus
-        'rt':  (2 * CELL_DIM, 19 * CELL_DIM),  # Runed Tome
-
         # Item Characters
         'cf': (8 * CELL_DIM, 2 * CELL_DIM), # Campfire 
         'pn': (9 * CELL_DIM, 2 * CELL_DIM), # Wood Plank (Junk)
@@ -222,6 +202,21 @@ def setup_tile_mapping():
         'rsh': (12 * CELL_DIM, 13 * CELL_DIM),  # Round Shield
         'ksh': (12 * CELL_DIM, 14 * CELL_DIM),  # Kite Shield
         'tsh': (12 * CELL_DIM, 15 * CELL_DIM),  # Tower Shield     
+
+        # Helmets
+        'lc':  (16 * CELL_DIM, 13 * CELL_DIM),  # Leather Cap
+        'ih':  (16 * CELL_DIM, 14 * CELL_DIM),  # Iron Helmet
+        'sh':  (16 * CELL_DIM, 15 * CELL_DIM),  # Steel Helmet
+        'hs':  (16 * CELL_DIM, 16 * CELL_DIM),  # Hood of Shadows
+        'gh':  (17 * CELL_DIM, 13 * CELL_DIM),  # Great Helm
+        'mc':  (17 * CELL_DIM, 14 * CELL_DIM),  # Mage's Circlet
+
+        # Boots
+        'lb':  (14 * CELL_DIM, 13 * CELL_DIM),  # Leather Boots
+        'ig':  (14 * CELL_DIM, 14 * CELL_DIM),  # Iron Greaves
+        'bst': (14 * CELL_DIM, 15 * CELL_DIM),  # Boots of Stealth
+        'bs':  (15 * CELL_DIM, 13 * CELL_DIM),  # Boots of Speed
+        'ds':  (15 * CELL_DIM, 14 * CELL_DIM),  # Dwarven Stompers
 
         # Weapons
         'dgr': (4 * CELL_DIM, 13 * CELL_DIM),  # Iron Dagger

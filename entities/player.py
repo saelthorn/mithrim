@@ -20,7 +20,9 @@ from items.items import (
     chainmail_armor, iron_short_sword, pole_arm, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, 
     half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, 
     greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, spell_book, staff_of_magi, 
-    scale_mail_armor, sturdy_quarterstaff, Item, CampfireKit, Weapon, Armor, OffHand, Accessory,
+    scale_mail_armor, sturdy_quarterstaff, leather_cap, iron_helmet, steel_helmet, hood_of_shadows, great_helm, 
+    mages_circlet, leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,
+    Item, CampfireKit, Weapon, Armor, OffHand, Accessory,
     Helmet, Boots, FocusItem, WEAPON_CATEGORIES, ARMOR_CATEGORIES, 
 )
 
@@ -1391,7 +1393,9 @@ class Fighter(Player):
 
         self.equipped_weapon = iron_short_sword
         self.equipped_off_hand = round_shield
+        self.equipped_helmet = iron_helmet
         self.equipped_armor = chainmail_armor
+        self.equipped_boots = leather_boots
        
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
         self.max_hp = self._calculate_max_hp()
@@ -1452,7 +1456,9 @@ class Rogue(Player):
 
         self.equipped_weapon = iron_short_sword
         self.equipped_off_hand = iron_dagger
+        self.equipped_helmet = leather_cap
         self.equipped_armor = padded_armor
+        self.equipped_boots = leather_boots
 
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
         self.max_hp = self._calculate_max_hp()
@@ -1510,7 +1516,9 @@ class Wizard(Player):
 
         self.equipped_weapon = oak_staff
         self.equipped_off_hand = glass_orb
+        self.equipped_helmet = mages_circlet
         self.equipped_armor = robes
+        self.equipped_boots = leather_boots
         
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
         # These calculations MUST happen AFTER race traits are applied.
@@ -1573,8 +1581,9 @@ class Cleric(Player):
 
         self.equipped_weapon = steel_mace
         self.equipped_off_hand = kite_shield
+        self.equipped_helmet = leather_cap
         self.equipped_armor = scale_mail_armor
-        #self.equipped_accessory1 = holy_symbol
+        self.equipped_boots = leather_boots
         
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
         # These calculations MUST happen
@@ -1636,7 +1645,9 @@ class Sorcerer(Player):
 
         self.equipped_weapon = oak_staff
         self.equipped_off_hand = spell_book
+        self.equipped_helmet = mages_circlet
         self.equipped_armor = robes
+        self.equipped_boots = leather_boots
         
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
         # These calculations MUST happen
