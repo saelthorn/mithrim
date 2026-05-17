@@ -427,6 +427,11 @@ class Player: # This is our base class for playable characters
         if self.equipped_boots:
             base_ac += self.equipped_boots.ac_bonus
 
+        # Apply persistent proficiency penalties per slot
+        base_ac += getattr(self, 'armor_penalty_helmet', 0)
+        base_ac += getattr(self, 'armor_penalty_armor', 0)
+        base_ac += getattr(self, 'armor_penalty_boots', 0)
+
         for effect in self.active_status_effects:
             if isinstance(effect, ParryBuff):
                 base_ac += effect.ac_bonus
@@ -911,7 +916,8 @@ class Player: # This is our base class for playable characters
                     game_instance.message_log.add_message(f"You are proficient with {item.name}.", (100, 255, 100))
 
 
-            self.armor_class = self._calculate_ac() + proficiency_penalty  # Apply penalty to AC
+            self.armor_penalty_helmet = proficiency_penalty
+            self.armor_class = self._calculate_ac()
 
             game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
             return True
@@ -949,7 +955,8 @@ class Player: # This is our base class for playable characters
                     game_instance.message_log.add_message(f"You are proficient with {item.name}.", (100, 255, 100))
 
 
-            self.armor_class = self._calculate_ac() + proficiency_penalty  # Apply penalty to AC
+            self.armor_penalty_armor = proficiency_penalty
+            self.armor_class = self._calculate_ac()
 
             game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
             return True
@@ -987,7 +994,8 @@ class Player: # This is our base class for playable characters
                     game_instance.message_log.add_message(f"You are proficient with {item.name}.", (100, 255, 100))
 
 
-            self.armor_class = self._calculate_ac() + proficiency_penalty  # Apply penalty to AC
+            self.armor_penalty_boots = proficiency_penalty
+            self.armor_class = self._calculate_ac()
 
             game_instance.message_log.add_message(f"You equip {item.name}.", (0, 255, 0))
             return True
@@ -1180,7 +1188,7 @@ class Player: # This is our base class for playable characters
                     self.inventory.add_item(item)
                     game_instance.message_log.add_message(f"You unequip {item.name}.", (150, 150, 150))
                 self.equipped_armor = None
-                self.armor_class = self._calculate_ac()
+                self.armor_class = 0
                 return True
 
         elif isinstance(item, Accessory):
@@ -1227,7 +1235,7 @@ class Player: # This is our base class for playable characters
                 if item.intelligence_bonus:
                     self.intelligence -= item.intelligence_bonus
                 self.equipped_helmet = None
-                self.armor_class = self._calculate_ac()
+                self.armor_class = 0
                 self.update_attack_power()
                 return True
 
@@ -1241,7 +1249,7 @@ class Player: # This is our base class for playable characters
                 if item.dexterity_bonus:
                     self.dexterity -= item.dexterity_bonus
                 self.equipped_boots = None
-                self.armor_class = self._calculate_ac()
+                self.armor_class = 0
                 self.update_attack_power()
                 return True
 
