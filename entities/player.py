@@ -1276,7 +1276,6 @@ class Fighter(Player):
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(torch)
-        self.inventory.add_item(torch)
 
         self.equipped_weapon = iron_short_sword
         self.equipped_off_hand = round_shield
@@ -1288,8 +1287,8 @@ class Fighter(Player):
         self.armor_class = self._calculate_ac()
 
         # Class-specific weapon and armor proficiencies
-        self.class_weapon_proficiencies = ["battleaxe", "handaxe", "light hammer", "warhammer", "hammer", "shortsword", "longsword", "dagger", "mace", "flail", "rapier", "polearm"]
-        self.class_armor_proficiencies = ["light", "medium", "heavy", "shield"]  # Fighters can wear all types of armor
+        self.class_weapon_proficiencies = ["Battleaxe", "Handaxe", "Light Hammer", "Warhammer", "Hammer", "Shortsword", "Longsword", "Dagger", "Mace", "Flail", "Rapier", "Polearm"]
+        self.class_armor_proficiencies = ["Light", "Medium", "Heavy", "Shield"]  # Fighters can wear all types of armor
 
         self.weapon_proficiencies = self.class_weapon_proficiencies.copy()
         self.armor_proficiencies = self.class_armor_proficiencies.copy()
@@ -1338,7 +1337,6 @@ class Rogue(Player):
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
         self.inventory.add_item(torch)
-        self.inventory.add_item(torch)
 
         self.equipped_weapon = iron_short_sword
         self.equipped_off_hand = iron_dagger
@@ -1350,8 +1348,8 @@ class Rogue(Player):
         self.armor_class = self._calculate_ac()
 
         # Class-specific weapon and armor proficiencies
-        self.class_weapon_proficiencies = ["dagger", "shortsword", "rapier", "hand crossbow"]
-        self.class_armor_proficiencies = ["light"]  # Rogues can wear light armor
+        self.class_weapon_proficiencies = ["Dagger", "Shortsword", "Rapier", "Hand Crossbow"]
+        self.class_armor_proficiencies = ["Light"]  # Rogues can wear light armor
         
         self.weapon_proficiencies = self.class_weapon_proficiencies.copy()
         self.armor_proficiencies = self.class_armor_proficiencies.copy()
@@ -1397,7 +1395,6 @@ class Wizard(Player):
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
         self.inventory.add_item(torch)
-        self.inventory.add_item(spell_book)
 
         self.equipped_weapon = oak_staff
         self.equipped_off_hand = glass_orb
@@ -1410,8 +1407,8 @@ class Wizard(Player):
         self.armor_class = self._calculate_ac()
 
         # Class-specific weapon and armor proficiencies
-        self.class_weapon_proficiencies = ["dagger", "quarterstaff", "orb"]  # Wizards typically use these
-        self.class_armor_proficiencies = ["light"]  # Wizards can wear light armor
+        self.class_weapon_proficiencies = ["Dagger", "Quarterstaff", "Orb"]  # Wizards typically use these
+        self.class_armor_proficiencies = ["Light"]  # Wizards can wear light armor
         
         self.weapon_proficiencies = self.class_weapon_proficiencies.copy()
         self.armor_proficiencies = self.class_armor_proficiencies.copy()
@@ -1461,7 +1458,6 @@ class Cleric(Player):
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
         self.inventory.add_item(torch)
-        self.inventory.add_item(torch)
 
         self.equipped_weapon = steel_mace
         self.equipped_off_hand = kite_shield
@@ -1475,8 +1471,8 @@ class Cleric(Player):
         self.armor_class = self._calculate_ac()
 
         # Class-specific weapon and armor proficiencies
-        self.class_weapon_proficiencies = ["mace", "warhammer", "flail", "quarterstaff", "light hammer"]  # Clerics typically use these
-        self.class_armor_proficiencies = ["light", "medium", "shield"]  # Clerics can wear light and medium armor, and use shields
+        self.class_weapon_proficiencies = ["Mace", "Warhammer", "Flail", "Quarterstaff", "Light Hammer"]  # Clerics typically use these
+        self.class_armor_proficiencies = ["Light", "Medium", "Shield"]  # Clerics can wear light and medium armor, and use shields
 
         self.weapon_proficiencies = self.class_weapon_proficiencies.copy()
         self.armor_proficiencies = self.class_armor_proficiencies.copy()
@@ -1524,7 +1520,6 @@ class Sorcerer(Player):
         self.inventory.add_item(bread)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
-        self.inventory.add_item(torch)
         self.inventory.add_item(torch)
 
         self.equipped_weapon = oak_staff

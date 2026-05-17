@@ -295,17 +295,17 @@ mushroom = Food(
 
 
 WEAPON_CATEGORIES = {
-    "dagger": ["Iron Dagger", "Silver Dagger"],
-    "orb": ["Glass Orb", "Orb of Chaos"],
-    "shortsword": ["Iron Short Sword", "Bronze Short Sword", "Flameheart Short Sword"],
-    "longsword": ["Steel Long Sword", "Iron Long Sword", "Adamantine Long Sword"],
-    "quarterstaff": ["Oak Staff", "Apprentice's Staff", "Staff of the Magi"],
-    "battleaxe": ["Steel Battle Axe", "Dwarven Battle Axe"],
-    "polearm": ["Polearm"],
-    "rapier": ["Steel Rapier", "Duelists Rapier"],
-    "hammer": ["Iron Hammer", "Dragonsbane Warhammer", "Steel Maul"],
-    "mace": ["Steel Mace"],
-    "flail": ["Dwarven Flail", "Flameheart Flail"],
+    "Dagger": ["Iron Dagger", "Silver Dagger"],
+    "Orb": ["Glass Orb", "Orb of Chaos"],
+    "Shortsword": ["Iron Short Sword", "Bronze Short Sword", "Flameheart Short Sword"],
+    "Longsword": ["Steel Long Sword", "Iron Long Sword", "Adamantine Long Sword"],
+    "Quarterstaff": ["Oak Staff", "Apprentice's Staff", "Staff of the Magi"],
+    "Battleaxe": ["Steel Battle Axe", "Dwarven Battle Axe"],
+    "Polearm": ["Polearm"],
+    "Rapier": ["Steel Rapier", "Duelists Rapier"],
+    "Hammer": ["Iron Hammer", "Dragonsbane Warhammer", "Steel Maul"],
+    "Mace": ["Steel Mace"],
+    "Flail": ["Dwarven Flail", "Flameheart Flail"],
 }
 
 torch = OffHand(
@@ -328,7 +328,7 @@ throwing_knife = OffHand(
     damage_modifier=1,
     attack_bonus=2,
     price = 10,
-    category="dagger"
+    category="Dagger"
 )
 
 spell_book = OffHand(
@@ -362,7 +362,7 @@ iron_dagger = OffHand(
     damage_modifier=2,
     attack_bonus=1,
     price = 15,
-    category="dagger"
+    category="Dagger"
 )
 
 silver_dagger = OffHand(
@@ -374,7 +374,7 @@ silver_dagger = OffHand(
     damage_modifier=3,
     attack_bonus=3,
     price = 30,
-    category="dagger"
+    category="Dagger"
 )
 
 glass_orb = OffHand(
@@ -386,7 +386,7 @@ glass_orb = OffHand(
     spell_bonus=1,
     attack_bonus=1,
     price=20,
-    category="orb"
+    category="Orb"
 )
 
 orb_of_chaos = OffHand(
@@ -398,7 +398,7 @@ orb_of_chaos = OffHand(
     spell_bonus=3,
     attack_bonus=4,
     price=40,
-    category="orb"
+    category="Orb"
 )
 
 iron_short_sword = Weapon(
@@ -410,7 +410,7 @@ iron_short_sword = Weapon(
     damage_modifier=0,
     attack_bonus=0,
     price = 10,
-    category="shortsword"
+    category="Shortsword"
 )
 
 flameheart_short_sword = Weapon(
@@ -422,7 +422,7 @@ flameheart_short_sword = Weapon(
     damage_modifier=2,
     attack_bonus=2,
     price = 30,
-    category="shortsword"
+    category="Shortsword"
 )
 
 bronze_short_sword = Weapon(
@@ -434,7 +434,7 @@ bronze_short_sword = Weapon(
     damage_modifier=0,
     attack_bonus=0,
     price = 5,
-    category="shortsword"
+    category="Shortsword"
 )
 
 
@@ -447,7 +447,7 @@ iron_long_sword = Weapon(
     damage_modifier=0,
     attack_bonus=1,
     price = 15,
-    category="longsword"
+    category="Longsword"
 )
 
 steel_long_sword = Weapon(
@@ -459,7 +459,7 @@ steel_long_sword = Weapon(
     damage_modifier=1,
     attack_bonus=2,
     price = 25,
-    category="longsword"
+    category="Longsword"
 )
 
 adamantine_long_sword = Weapon(
@@ -471,7 +471,7 @@ adamantine_long_sword = Weapon(
     damage_modifier=4,
     attack_bonus=2,
     price = 50,
-    category="longsword"
+    category="Longsword"
 )
 
 
@@ -484,7 +484,7 @@ steel_battle_axe = Weapon(
     damage_modifier=1,
     attack_bonus=0,
     price = 15,
-    category="battleaxe"
+    category="Battleaxe"
 )
 
 dwarven_battle_axe = Weapon(
@@ -497,7 +497,7 @@ dwarven_battle_axe = Weapon(
     attack_bonus=3,
     price = 30,
     is_two_handed=True,
-    category="battleaxe"
+    category="Battleaxe"
 )
 
 pole_arm = Weapon(
@@ -510,7 +510,7 @@ pole_arm = Weapon(
     attack_bonus=2,
     price = 25,
     is_two_handed=True,
-    category="polearm"
+    category="Polearm"
 )
 
 oak_staff = Weapon(
@@ -523,7 +523,7 @@ oak_staff = Weapon(
     attack_bonus=1,
     spell_bonus=1,
     price = 20,
-    category="quarterstaff"
+    category="Quarterstaff"
 )
 
 apprentices_staff = Weapon(
@@ -536,7 +536,7 @@ apprentices_staff = Weapon(
     attack_bonus=1,
     spell_bonus=2,
     price = 30,
-    category="quarterstaff"
+    category="Quarterstaff"
 )
 
 staff_of_magi = Weapon(
@@ -549,7 +549,7 @@ staff_of_magi = Weapon(
     attack_bonus=1,
     spell_bonus=3,
     price = 50,
-    category="quarterstaff"
+    category="Quarterstaff"
 )
 
 sturdy_quarterstaff = Weapon(
@@ -562,7 +562,7 @@ sturdy_quarterstaff = Weapon(
     attack_bonus=3,
     spell_bonus=0,
     price = 20,
-    category="quarterstaff"
+    category="Quarterstaff"
 )
 
 steel_rapier = Weapon(
@@ -574,7 +574,7 @@ steel_rapier = Weapon(
     damage_modifier=1,
     attack_bonus=0,
     price=20,
-    category="rapier"
+    category="Rapier"
 )
 
 duelists_rapier = Weapon(
@@ -586,7 +586,7 @@ duelists_rapier = Weapon(
     damage_modifier=2,
     attack_bonus=1,
     price=60,
-    category="rapier"
+    category="Rapier"
 )
 
 iron_hammer = OffHand(
@@ -598,7 +598,7 @@ iron_hammer = OffHand(
     damage_modifier=1,
     attack_bonus=0,
     price=15,
-    category="hammer"
+    category="Hammer"
 )
 
 dragonsbane_warhammer = Weapon(
@@ -611,7 +611,7 @@ dragonsbane_warhammer = Weapon(
     attack_bonus=3,
     price=70,
     is_two_handed=True,
-    category="hammer"
+    category="Hammer"
 )
 
 steel_maul = Weapon(
@@ -624,7 +624,7 @@ steel_maul = Weapon(
     attack_bonus=1,
     price=30,
     is_two_handed=True,
-    category="hammer"
+    category="Hammer"
 )
 
 steel_mace = Weapon(
@@ -636,7 +636,7 @@ steel_mace = Weapon(
     damage_modifier=1,
     attack_bonus=1,
     price=25,
-    category="mace"
+    category="Mace"
 )
 
 dwarven_flail = Weapon(
@@ -648,7 +648,7 @@ dwarven_flail = Weapon(
     damage_modifier=2,
     attack_bonus=1,
     price=35,
-    category="flail"
+    category="Flail"
 )
 
 flameheart_flail = Weapon(
@@ -660,7 +660,7 @@ flameheart_flail = Weapon(
     damage_modifier=4,
     attack_bonus=2,
     price=50,
-    category="flail"
+    category="Flail"
 )
 
 
@@ -668,11 +668,11 @@ flameheart_flail = Weapon(
 
 
 ARMOR_CATEGORIES = {
-    "light": ["Padded Armor", "Studded Leather Armor", "Robes", "Robes of Protection"],
-    "medium": ["Chainmail Armor", "Half Plate Armor"],
-    "heavy": ["Full Plate Armor"],
+    "Light": ["Padded Armor", "Studded Leather Armor", "Robes", "Robes of Protection"],
+    "Medium": ["Chainmail Armor", "Half Plate Armor"],
+    "Heavy": ["Full Plate Armor"],
 
-    "shield": ["Round Shield", "Kite Shield", "Tower Shield"]
+    "Shield": ["Round Shield", "Kite Shield", "Tower Shield"]
 }
 
 round_shield = OffHand(
@@ -682,7 +682,7 @@ round_shield = OffHand(
     description="A round shield.",
     ac_bonus=2,
     price=15,
-    category="shield"
+    category="Shield"
 
 )
 
@@ -693,7 +693,7 @@ kite_shield = OffHand(
     description="A kite shield.",
     ac_bonus=3, 
     price=35,
-    category="shield"
+    category="Shield"
 )
 
 tower_shield = OffHand(
@@ -703,7 +703,7 @@ tower_shield = OffHand(
     description="A tower shield.",
     ac_bonus=4, 
     price=50,
-    category="shield"
+    category="Shield"
 )
 
 padded_armor = Armor(
@@ -713,7 +713,7 @@ padded_armor = Armor(
     description="Light leather armor.",
     ac_bonus=1, # Adds 1 to base AC
     price = 10,
-    category="light"
+    category="Light"
 )
 
 studded_leather_armor = Armor(
@@ -723,7 +723,7 @@ studded_leather_armor = Armor(
     description="A studded leather armor.",
     ac_bonus=2,
     price=20,
-    category="light"
+    category="Light"
 )
 
 chainmail_armor = Armor(
@@ -733,7 +733,7 @@ chainmail_armor = Armor(
     description="Chainmail armor.",
     ac_bonus=3, # Adds 1 to base AC
     price = 10,
-    category="medium"
+    category="Medium"
 )
 
 half_plate_armor = Armor(
@@ -743,7 +743,7 @@ half_plate_armor = Armor(
     description="A half plate armor.",
     ac_bonus=4,
     price=30,
-    category="medium"
+    category="Medium"
 )
 
 scale_mail_armor = Armor(
@@ -753,7 +753,7 @@ scale_mail_armor = Armor(
     description="A scale mail armor.",
     ac_bonus=3,
     price=25,
-    category="medium"
+    category="Medium"
 )
 
 full_plate_armor = Armor(
@@ -763,7 +763,7 @@ full_plate_armor = Armor(
     description=("Full plate armor."),
     ac_bonus=6,
     price=50,
-    category="heavy"
+    category="Heavy"
 )
 
 robes = Armor(
@@ -773,7 +773,7 @@ robes = Armor(
     description="Simple cloth robes.",
     ac_bonus=0, # Robes typically provide no AC bonus, relying on Dex
     price = 10,
-    category="light"
+    category="Light"
 )
 
 robes_of_protection = Armor(
@@ -783,7 +783,7 @@ robes_of_protection = Armor(
     description="A robe infused with protection magic.",
     ac_bonus=4,
     price=40,
-    category="light"
+    category="Light"
 )
 
 thieves_tools = Tools(

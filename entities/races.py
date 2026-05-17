@@ -40,9 +40,9 @@ class Human(Race):
             description="Humans are versatile and adaptable, with no particular strengths or weaknesses.",
             darkvision_radius=5,
             damage_resistances=[],
-            skill_proficiencies=["Any skill"],
-            weapon_proficiencies=["Simple weapons"],
-            armor_proficiencies=["Light armor"]
+            skill_proficiencies=["Any Skill"],
+            weapon_proficiencies=["Simple Weapons"],
+            armor_proficiencies=["Light Armor"]
             )
 
     def apply_traits(self, player_instance, game_instance):
@@ -111,7 +111,7 @@ class DrowElf(Race):
             darkvision_radius=10,
             damage_resistances=["Magic"],
             skill_proficiencies=["Stealth", "Perception"],
-            weapon_proficiencies=["Rapiers", "Hand crossbows"],
+            weapon_proficiencies=["Rapiers", "Hand Crossbows"],
             armor_proficiencies=["Light armor"]
             )
     
@@ -149,8 +149,8 @@ class Tiefling(Race):
             darkvision_radius=8,
             damage_resistances=["Fire"],
             skill_proficiencies=["Intimidation", "Arcana"],
-            weapon_proficiencies=["Simple weapons"],
-            armor_proficiencies=["Light armor"]
+            weapon_proficiencies=["Simple Weapons"],
+            armor_proficiencies=["Light Armor"]
             )
     
     def apply_traits(self, player_instance, game_instance):
@@ -189,10 +189,10 @@ class Dragonborn(Race):
             name="Dragonborn",
             description="Dragonborn are proud, honorable warriors with draconic ancestry.",
             darkvision_radius=5,
-            damage_resistances=["Elemental damage based on draconic ancestry"],
+            damage_resistances=["Elemental Damage based on Draconic Ancestry"],
             skill_proficiencies=["Intimidation", "Athletics"],
-            weapon_proficiencies=["Simple weapons", "Martial weapons"],
-            armor_proficiencies=["Light armor", "Medium armor"]
+            weapon_proficiencies=["Simple Weapons", "Martial Weapons"],
+            armor_proficiencies=["Light Armor", "Medium Armor"]
             )
     
     def apply_traits(self, player_instance, game_instance):
