@@ -34,6 +34,8 @@ fresh_bones = Tile(blocked=False, char='fb', color=(200, 200, 180), name="Fresh 
 bones = Tile(blocked=False, char=';', color=(200, 200, 180), name="Bones")
 torch = Tile(blocked=True, char='i', color=(255, 165, 0), block_sight=True, name="Torch")
 
+prison_bars = Tile(blocked=True, char='pb', color=(160, 160, 180), block_sight=False, destructible=False, name="Prison Bars",)
+
 # Static Crate and Barrel (using distinct chars)
 crate = Tile(blocked=True, char='k', color=(139, 69, 19), block_sight=False, destructible=True, name="Crate") # <--- CHANGED char to 'k'
 barrel = Tile(blocked=True, char='b', color=(100, 50, 0), block_sight=False, destructible=True, name="Barrel") # <--- char 'b' is fine
@@ -90,3 +92,16 @@ class TrapTile(Tile):
         else:
             return self.trap_instance.color  # Trap's own color
 
+class PrisonDoorTile(Tile):
+    """Locked prison door. Can be opened via a skill check."""
+    def __init__(self):
+        super().__init__(
+            blocked=True,
+            char='pd',          # closed-door graphic key
+            color=(180, 140, 80),
+            block_sight=False,
+            destructible=False,
+            name="Prison Door",
+        )
+        self.is_open   = False
+        self.is_locked = True

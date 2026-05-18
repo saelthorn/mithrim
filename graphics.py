@@ -89,6 +89,11 @@ def setup_tile_mapping():
         '.6': (13 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Six 
         '.4': (14 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Four
         '`2': (10 * CELL_DIM, 4 * CELL_DIM), # Dungeon Grass Two
+
+        'pb':  (5 * CELL_DIM, 2 * CELL_DIM),   # Prison Bars  – pick a free cell
+        'pd':  (4 * CELL_DIM, 2 * CELL_DIM),   # Prison Door (closed)
+        'pdo': (3 * CELL_DIM, 2 * CELL_DIM),   # Prison Door (open)
+
         '~': (11 * CELL_DIM, 4 * CELL_DIM),  # River (Water) - FIXED: Keep this
         '≈': (11 * CELL_DIM, 4 * CELL_DIM),  # Lake (Water) - FIXED: Distinct position (adjust if your tileset has it elsewhere)
         
@@ -164,6 +169,7 @@ def setup_tile_mapping():
         # Tavern Entities and Misc.
         'A': (9 * CELL_DIM, 0 * CELL_DIM),  # Bartender (NPC)
         'p': (8 * CELL_DIM, 0 * CELL_DIM),  # Patron (NPC)
+        'pnp': (8 * CELL_DIM, 0 * CELL_DIM),   # Prisoner NPC – reuse Patron sprite
         'H': (6 * CELL_DIM, 0 * CELL_DIM),  # Healer (NPC)
         'rc': (7 * CELL_DIM, 0 * CELL_DIM), # Merchant (NPC)
         'mh': (6 * CELL_DIM, 2 * CELL_DIM), # Mage Hand (Skill)

@@ -5,14 +5,16 @@ from world.tile import (
     stairs_down, stairs_up, dungeon_door, bones, torch, crate, barrel,
     wall, floor, dungeon_grass, dungeon_grass_two,
     dungeon_floor_two, dungeon_floor_three, dungeon_floor_four,
-    rubble, cob_web, mushroom, fresh_bones, dungeon_pillar,
-    MimicTile, TrapTile, pressure_plate
+    rubble, cob_web, mushroom, fresh_bones, dungeon_pillar, prison_bars,
+    MimicTile, TrapTile, PrisonDoorTile, pressure_plate
 )
 from items.items import Chest, generate_random_loot
 from entities.monster import Mimic
 from world.altar import Altar
 from traps import DartTrap, SpikeTrap, FireTrap, ExplosiveTrap, AcidSprayTrap
 from world.water_features import generate_water_features, river, lake, sewer_water
+
+from world.encounters.prison_cell import generate_prison_cell, PrisonDoorTile
 
 
 # ---------------------------------------------------------------------------
@@ -215,7 +217,7 @@ def generate_dungeon(game_map, level_number, max_rooms=14, room_min_size=5, room
             bends.append(bend)
 
     # Optionally place doors at tunnel bends
-    #for bx, by in bends:
+    # for bx, by in bends:
     #    if random.random() < door_chance:
     #        _place_door(game_map, bx, by)
 
@@ -358,4 +360,23 @@ def generate_dungeon(game_map, level_number, max_rooms=14, room_min_size=5, room
                 chest_placed = True
             break   # only attempt one chest per room regardless
 
-    return rooms, stairs_positions, torch_light_sources
+    # ── Prison cell encounters (placed after monsters so entities list is stable) ──
+    prison_prisoners = []   # list of PrisonerNPC to be added by game.py
+    if random.random() < 0.60 and len(rooms) > 3:
+        candidate_rooms = [
+            r for r in rooms
+            if r is not stairs_up_room
+            and r is not stairs_down_room
+            and (r.x2 - r.x1) >= 7
+            and (r.y2 - r.y1) >= 5
+        ]
+        if candidate_rooms:
+            prison_room = random.choice(candidate_rooms)
+            result = generate_prison_cell(
+                game_map, prison_room, prison_prisoners, stairs_positions
+            )
+            if result:
+                prisoner, _ = result
+                # prisoner is already in prison_prisoners list
+
+    return rooms, stairs_positions, torch_light_sources, prison_prisoners

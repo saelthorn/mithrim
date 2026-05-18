@@ -1,19 +1,25 @@
 import random
+from entities.base_entity import NPC
+from core.floating_text import FloatingText
+
 
 from core.game import GameState
+
 from items.items import (
     torch, throwing_knife, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, 
     carrot, spell_book, holy_symbol, full_plate_armor, robes_of_protection, adamantine_long_sword, staff_of_magi, 
     duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, scale_mail_armor, 
     sturdy_quarterstaff, leather_cap, iron_helmet, steel_helmet, hood_of_shadows, great_helm, mages_circlet, leather_boots, 
-    iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,
+    iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers, silver_dagger, round_shield, iron_short_sword,
     CampfireKit, Food, Weapon, Helmet, Armor, Boots, OffHand
 )
 
-from entities.base_entity import NPC
 
 class DungeonHealer(NPC):
     def __init__(self, x, y):
+        self.x1 = x
+        self.y1 = y        
+        
         dialogue = [
             "Rest here, adventurer. The path ahead is perilous.",
             "I can mend your wounds, for a small favor...",
@@ -37,6 +43,9 @@ class DungeonHealer(NPC):
 
 class DungeonMerchant(NPC):
     def __init__(self, x, y):
+        self.x1 = x
+        self.y1 = y        
+        
         dialogue = [
             "Welcome to my shop! What would you like to buy?",
             "I have the finest goods in the land!",
@@ -255,13 +264,104 @@ class DungeonMerchant(NPC):
         return "Item not found in your inventory."
 
 
-class Bartender(NPC):
+
+_PRISONER_NAMES = [
+    "Silas the Fallen", "Mara the Chained", "Old Wick",
+    "Brother Dorath",   "Elara Dusk",       "Convict No. 7",
+    "The Nameless One",
+]
+
+_PRISONER_DIALOGUES = [
+    "Thank the gods… I thought I'd rot here. Take this — you've earned it.",
+    "You opened it! Here, I kept this hidden from the guards. It's yours now.",
+    "Freedom… I never thought I'd see it again. Please, take this.",
+    "Quick — before more come. I found this in a crack in the wall. Take it.",
+    "Bless you, stranger. This is all I have left. Keep it safe.",
+    "They took everything from me… except this. It's yours.",
+]
+
+_PRISONER_FREED_LINES = [
+    "Thank you again, adventurer. Stay safe out there.",
+    "I'll find my way out. Go — there's more danger ahead.",
+    "You gave me my life back. I won't forget it.",
+]
+
+_PRISONER_LOOT = [
+    greater_healing_potion, lesser_healing_potion,
+    silver_dagger,          iron_short_sword,
+    torch,                  iron_helmet,
+    round_shield,           bread,
+    green_apple,
+]
+
+
+class PrisonerNPC(NPC):
     def __init__(self, x, y):
-        dialogue = [
-            "Welcome to The Prancing Pony! What can I get you?",
-            "The dungeon's been acting up lately. Strange sounds at night...",
-            "You look like an adventurer. The dungeon entrance is just outside.",
-            "Be careful out there. Many who enter don't return.",
-            "Need a drink before you face the depths?",
-        ]
-        super().__init__(x, y, 'A', 'Bartender', (255, 215, 0), dialogue) # <--- CHANGED 'B' to 'A'        
+        self.x1 = x
+        self.y1 = y        
+        
+        name = random.choice(_PRISONER_NAMES)
+        super().__init__(x, y, 'pnp', name, (200, 160, 120))
+        self.dialogue_line  = random.choice(_PRISONER_DIALOGUES)
+        self.reward_item    = self._make_reward()
+        self.has_been_freed = False
+
+    # ── NPC interface ──────────────────────────────────────────────
+    def get_dialogue(self):
+        if self.has_been_freed:
+            return random.choice(_PRISONER_FREED_LINES)
+        return "...help… is someone there? The door — can you open it?"
+
+    # ── Helpers ───────────────────────────────────────────────────
+    def _make_reward(self):
+        template = random.choice(_PRISONER_LOOT)
+        try:
+            init_vars = {
+                k: v for k, v in vars(template).items()
+                if k not in ('owner', 'x', 'y')
+            }
+            item = template.__class__(**init_vars)
+        except Exception:
+            item = template.__class__(
+                name=template.name,
+                char=template.char,
+                color=template.color,
+                description=getattr(template, 'description', ''),
+            )
+        item.x = self.x
+        item.y = self.y
+        return item
+
+    def free(self, player, game_instance):
+        if self.has_been_freed:
+            return
+        self.has_been_freed = True
+
+        game_instance.message_log.add_message(
+            f'{self.name}: "{self.dialogue_line}"', (220, 200, 140)
+        )
+
+        if player.inventory.add_item(self.reward_item):
+            game_instance.message_log.add_message(
+                f"You receive the {self.reward_item.name}!",
+                self.reward_item.color,
+            )
+            player.update_throw_knife_ability()
+            player.update_spellbook_abilities()
+            player.update_thieves_tools_ability()
+            player.update_guard_ability()
+            player.update_holy_symbol_abilities()
+        else:
+            self.reward_item.x = player.x
+            self.reward_item.y = player.y
+            game_instance.game_map.items_on_ground.append(self.reward_item)
+            game_instance.message_log.add_message(
+                f"Inventory full! The {self.reward_item.name} drops to the floor.",
+                self.reward_item.color,
+            )
+
+        game_instance.floating_texts.append(
+            FloatingText(self.x, self.y, "FREED!", (100, 255, 150), y_speed=0.5)
+        )
+
+

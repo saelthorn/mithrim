@@ -24,6 +24,9 @@ from core.ui_screens import render_inventory_screen, render_inventory_menu_popup
 from world.map import GameMap
 from world.dungeon_generator import generate_dungeon
 from world.tavern_generator import generate_tavern
+from world.encounters.prison_cell import (
+    handle_prison_door_interaction, PrisonDoorTile
+)
 from entities.player import Player, Fighter, Rogue, Wizard, Cleric
 
 # NEW: Import all monster classes
@@ -40,7 +43,7 @@ from entities.monster import (
 
 from entities.base_entity import NPC
 from entities.tavern_npcs import create_tavern_npcs, NPC, Merchant
-from entities.dungeon_npcs import DungeonHealer, DungeonMerchant
+from entities.dungeon_npcs import DungeonHealer, DungeonMerchant, PrisonerNPC
 from entities.races import Human, HillDwarf, DrowElf, Tiefling, Dragonborn
 from entities.summons import MageHandEntity, SummonedEntity
 from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
@@ -185,6 +188,10 @@ class Game:
 
         # Tile highlights for telegraphed attacks or effects: list of (x, y, (r,g,b,a))
         self.tile_highlights = []
+
+        # Torch Flicker
+        self._torch_flicker_frame = 0
+        self._torch_flicker_tint = (235, 185, 95, 255)
 
         # Character creation specific variables
         # UPDATED: Add DrowElf to available races
@@ -555,7 +562,10 @@ class Game:
         self.game_map = GameMap(70, 50)
         self.fov = FOV(self.game_map)
         
-        rooms, self.stairs_positions, self.torch_light_sources = generate_dungeon(self.game_map, level_number)
+        rooms, self.stairs_positions, self.torch_light_sources, prison_prisoners = generate_dungeon(self.game_map, level_number)
+        # Add any prison prisoners to the entity list
+        for prisoner in prison_prisoners:
+            self.entities.append(prisoner)
 
         if spawn_on_stairs_up and 'up' in self.stairs_positions:
             start_x, start_y = self.stairs_positions['up']
@@ -903,18 +913,22 @@ class Game:
 
 
     def check_dungeon_npc_interaction(self):
-        """Check for NPC interaction in the dungeon."""
         if self.game_state == GameState.DUNGEON:
             for entity in self.entities:
-                # Check if the entity is either a DungeonHealer or DungeonMerchant and is adjacent to the player
-                if isinstance(entity, (DungeonHealer, DungeonMerchant)):
+                if isinstance(entity, (DungeonHealer, DungeonMerchant, PrisonerNPC)):
                     if (abs(self.player.x - entity.x) <= 1 and
                         abs(self.player.y - entity.y) <= 1 and
                         (abs(self.player.x - entity.x) + abs(self.player.y - entity.y)) == 1):
                         if isinstance(entity, DungeonMerchant):
-                            self.dungeon_merchant = entity # Set the current merchant
-                        return entity  # Return the NPC if adjacent
-        return None  # No NPC found
+                            self.dungeon_merchant = entity
+                        elif isinstance(entity, PrisonerNPC) and entity.has_been_freed:
+                            # Show freed dialogue via message log
+                            self.message_log.add_message(
+                                f'{entity.name}: "{entity.get_dialogue()}"', (220, 200, 140)
+                            )
+                            return None  # handled inline, no trade UI
+                        return entity
+        return None
 
     def try_light_wall_torch(self):
         """
@@ -1473,6 +1487,10 @@ class Game:
                         if adjacent_has_torch:
                             self.try_light_wall_torch()
                             return True  # Consume event regardless (don't fall to quick-bar)
+                        
+                        # --- Prison door interaction ---
+                        if handle_prison_door_interaction(self.player, self):
+                            return True                        
 
                         merchant = self.check_dungeon_npc_interaction()  # Check for adjacent NPC
                         if isinstance(merchant, DungeonMerchant):
@@ -2743,6 +2761,24 @@ class Game:
         self.clock.tick(60)  # Limit to 60 FPS
         self.fps = self.clock.get_fps()  # Get the current FPS
 
+        # self._torch_flicker_frame += 1
+        # if self._torch_flicker_frame % 12 == 0:
+        #     import random as _r
+        #     # ember / candlelit tones
+        #     r = 235 + _r.randint(-16, 10)
+        #     g = 168 + _r.randint(-20, 8)
+        #     b = 92  + _r.randint(-12, 6)
+
+        #     # subtle brightness fluctuation
+        #     a = 235 + _r.randint(-18, 0)
+
+        #     self._torch_flicker_tint = (
+        #         max(80, min(255, r)),
+        #         max(80, min(255, g)),
+        #         max(80, min(255, b)),
+        #         max(180, min(255, a)),
+        #     )     
+
         self.floating_texts = [text for text in self.floating_texts if text.update()]
 
         # NEW: If player is dead and game is not yet in GAME_OVER state, handle game over
@@ -3192,11 +3228,11 @@ class Game:
                 render_color_tint = None
                 if visibility_type == 'player':
                     if has_torchlight:
-                        render_color_tint = (235, 185, 95, 255)
+                        render_color_tint = self._torch_flicker_tint
                     else:
                         render_color_tint = (115, 102, 92, 255)
                 elif visibility_type == 'torch':
-                    render_color_tint = (255, 170, 82, 255)
+                    render_color_tint = self._torch_flicker_tint
                 elif visibility_type == 'darkvision':
                     render_color_tint = (72, 78, 86, 255)
                 elif visibility_type == 'explored':
@@ -3271,11 +3307,11 @@ class Game:
                     entity_color_tint = None
                     if visibility_type == 'player':
                         if has_torchlight:
-                            entity_color_tint = (235, 185, 95, 255)  # Dimmer tint when torchlight active
+                            entity_color_tint = self._torch_flicker_tint  # Dimmer tint when torchlight active
                         else:
                             entity_color_tint = (115, 102, 92, 255)
                     elif visibility_type == 'torch':
-                        entity_color_tint = (255, 170, 82, 255)
+                        entity_color_tint = self._torch_flicker_tint
                     elif visibility_type == 'darkvision':
                         entity_color_tint = (72, 78, 86, 255)
                     elif visibility_type == 'explored':
@@ -3417,11 +3453,11 @@ class Game:
                     item_color_tint = None
                     if visibility_type == 'player':
                         if has_torchlight:
-                            item_color_tint = (235, 185, 95, 255)  # Dimmer tint when torchlight active
+                            item_color_tint = self._torch_flicker_tint # Dimmer tint when torchlight active
                         else:
                             item_color_tint = (115, 102, 92, 255)  
                     elif visibility_type == 'torch':
-                        item_color_tint = (255, 170, 82, 255)
+                        item_color_tint = self._torch_flicker_tint
                     elif visibility_type == 'darkvision':
                         item_color_tint = (72, 78, 86, 255)
                     elif visibility_type == 'explored':

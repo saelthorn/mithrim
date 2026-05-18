@@ -30,6 +30,9 @@ class Bartender(NPC):
 
 class Merchant(NPC):
     def __init__(self, x, y):
+        self.x1 = x
+        self.y1 = y
+
         dialogue = [
             "Welcome to my tavern shop! Looking for something special?",
             "I have some fine goods and tasty treats.",
@@ -236,6 +239,9 @@ class Merchant(NPC):
 
 class Patron(NPC):
     def __init__(self, x, y, name):
+        self.x1 = x
+        self.y1 = y        
+        
         dialogue = [
             "I heard there's treasure deep in the dungeon.",
             "The monsters have been getting stronger lately.",
