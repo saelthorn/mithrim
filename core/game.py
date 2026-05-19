@@ -559,7 +559,7 @@ class Game:
             self.game_map.items_on_ground.clear()
         self.lit_wall_torches = set()  # Reset lit torches for the new level 
 
-        self.game_map = GameMap(70, 50)
+        self.game_map = GameMap(60, 40)
         self.fov = FOV(self.game_map)
         
         rooms, self.stairs_positions, self.torch_light_sources, prison_prisoners = generate_dungeon(self.game_map, level_number)
@@ -636,7 +636,7 @@ class Game:
 
         self.entities = [self.player]
         
-        monsters_per_level = min(5 + level_number, len(rooms) - 1)
+        monsters_per_level = min(5 + level_number, len(rooms) - 2)
         monster_rooms = rooms[1:monsters_per_level + 2]
 
         # Boss floors: every 5th floor via schedule

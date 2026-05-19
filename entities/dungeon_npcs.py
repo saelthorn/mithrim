@@ -11,7 +11,7 @@ from items.items import (
     duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, scale_mail_armor, 
     sturdy_quarterstaff, leather_cap, iron_helmet, steel_helmet, hood_of_shadows, great_helm, mages_circlet, leather_boots, 
     iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers, silver_dagger, round_shield, iron_short_sword,
-    CampfireKit, Food, Weapon, Helmet, Armor, Boots, OffHand
+    CampfireKit, Food, Weapon, Helmet, Armor, Boots, OffHand, FocusItem
 )
 
 
@@ -219,6 +219,22 @@ class DungeonMerchant(NPC):
     def sell_item(self, player, item_name):
         """Logic to sell an item or multiple items."""
         # Handle bulk selling
+        if item_name == "all equipments":
+            equipments = [item for item in player.inventory.items if isinstance(item, (Weapon, OffHand, Armor, Helmet, Boots, FocusItem))]
+            if not equipments:
+                return "You don't have any equipments to sell."
+            total_gold = 0
+            for item in equipments:
+                player.inventory.remove_item(item)
+                total_gold += item.price // 2
+                self.items_for_sale.append(item)
+            player.gold += total_gold
+            player.update_throw_knife_ability()
+            player.update_spellbook_abilities()
+            player.update_holy_symbol_abilities()
+            player.update_guard_ability()
+            return f"You sold {len(equipments)} equipment(s) for {total_gold} gold!"
+
         if item_name == "all weapons":
             weapons = [item for item in player.inventory.items if isinstance(item, (Weapon, OffHand))]
             if not weapons:

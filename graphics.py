@@ -90,9 +90,9 @@ def setup_tile_mapping():
         '.4': (14 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Four
         '`2': (10 * CELL_DIM, 4 * CELL_DIM), # Dungeon Grass Two
 
-        'pb':  (5 * CELL_DIM, 2 * CELL_DIM),   # Prison Bars  – pick a free cell
-        'pd':  (4 * CELL_DIM, 2 * CELL_DIM),   # Prison Door (closed)
-        'pdo': (3 * CELL_DIM, 2 * CELL_DIM),   # Prison Door (open)
+        'pd':  (11 * CELL_DIM, 3 * CELL_DIM),   # Prison Door (closed)
+        'pdo': (12 * CELL_DIM, 3 * CELL_DIM),   # Prison Door (open)
+        'pb':  (13 * CELL_DIM, 3 * CELL_DIM),   # Prison Bars  – pick a free cell
 
         '~': (11 * CELL_DIM, 4 * CELL_DIM),  # River (Water) - FIXED: Keep this
         '≈': (11 * CELL_DIM, 4 * CELL_DIM),  # Lake (Water) - FIXED: Distinct position (adjust if your tileset has it elsewhere)

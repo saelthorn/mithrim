@@ -11,8 +11,8 @@ You create a character, explore procedurally generated dungeons, fight monsters,
 
 * **Character Creation**
 
-  * Choose from multiple **races** (Human, Hill Dwarf, Drow Elf).
-  * Select a **class** (Fighter, Rogue, Wizard).
+  * Choose from multiple **races** (Human, Hill Dwarf, Drow Elf, Tiefling, and Dragonborn).
+  * Select a **class** (Fighter, Rogue, Wizard, Cleric).
   * Race and class combinations affect your stats, abilities, and visuals.
 
 * **Game States**
@@ -54,7 +54,7 @@ You create a character, explore procedurally generated dungeons, fight monsters,
 * **1–9** – Use abilities
 * **ESC** – Cancel actions / menus
 * **F11** – Toggle fullscreen
-* **Mouse Wheel** – Scroll message log
+* **Mouse Wheel** – Scroll message log / Zoom in – Zoom out
 
 ---
 
@@ -81,7 +81,6 @@ Monsters spawn by dungeon level tiers:
 ```bash
 git clone https://github.com/your-repo/mithrim.git
 cd mithrim
-pip install -r requirements.txt
 ```
 
 ### Run the Game

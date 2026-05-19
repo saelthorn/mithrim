@@ -162,7 +162,7 @@ def _is_water(game_map, x, y):
 # Main generator
 # ---------------------------------------------------------------------------
 
-def generate_dungeon(game_map, level_number, max_rooms=14, room_min_size=5, room_max_size=12):
+def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=6, room_max_size=8):
     rooms = []
     stairs_positions = {}
     torch_light_sources = []
@@ -362,7 +362,7 @@ def generate_dungeon(game_map, level_number, max_rooms=14, room_min_size=5, room
 
     # ── Prison cell encounters (placed after monsters so entities list is stable) ──
     prison_prisoners = []   # list of PrisonerNPC to be added by game.py
-    if random.random() < 0.60 and len(rooms) > 3:
+    if random.random() < 0.90 and len(rooms) > 3:
         candidate_rooms = [
             r for r in rooms
             if r is not stairs_up_room
