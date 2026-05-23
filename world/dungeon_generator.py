@@ -14,7 +14,7 @@ from world.altar import Altar
 from traps import DartTrap, SpikeTrap, FireTrap, ExplosiveTrap, AcidSprayTrap
 from world.water_features import generate_water_features, river, lake, sewer_water
 
-from world.encounters.prison_cell import generate_prison_cell, PrisonDoorTile
+from world.encounters.prison_cell import generate_prison_cell, is_prison_cell_position, PrisonDoorTile
 
 
 # ---------------------------------------------------------------------------
@@ -162,7 +162,7 @@ def _is_water(game_map, x, y):
 # Main generator
 # ---------------------------------------------------------------------------
 
-def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=6, room_max_size=8):
+def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=8, room_max_size=10):
     rooms = []
     stairs_positions = {}
     torch_light_sources = []
@@ -303,6 +303,8 @@ def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=6, room
                     continue
                 if _is_water(game_map, rx, ry):
                     continue
+                if is_prison_cell_position(game_map, rx, ry):
+                    continue   # never overwrite prison bars/door/cell floor
                 if game_map.tiles[ry][rx] != tile.floor:
                     continue   # already replaced by pillar, variant, etc.
 
@@ -342,6 +344,8 @@ def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=6, room
                 continue
             if _is_water(game_map, chx, chy):
                 continue
+            if is_prison_cell_position(game_map, chx, chy):
+                continue   # don't place chests inside or on prison tiles
             if not game_map.is_walkable(chx, chy):
                 continue
             if any(i.x == chx and i.y == chy for i in game_map.items_on_ground):
@@ -360,23 +364,25 @@ def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=6, room
                 chest_placed = True
             break   # only attempt one chest per room regardless
 
-    # ── Prison cell encounters (placed after monsters so entities list is stable) ──
-    prison_prisoners = []   # list of PrisonerNPC to be added by game.py
-    if random.random() < 0.90 and len(rooms) > 3:
+    # ── Prison cell encounters ─────────────────────────────────────────────
+    # Spawned BEFORE the populate-rooms loop so prison_cell_tiles is populated
+    # and all subsequent spawn passes can skip those positions.
+    # BAR_WINDOW_HEIGHT=5 → MIN_INNER_HEIGHT=7 → minimum total room size is 9.
+    # Since room_min_size=8, every room qualifies on dimensions alone.
+    prison_prisoners = []
+    if random.random() <= 0.99 and len(rooms) > 1:
         candidate_rooms = [
-            r for r in rooms
-            if r is not stairs_up_room
-            and r is not stairs_down_room
-            and (r.x2 - r.x1) >= 7
-            and (r.y2 - r.y1) >= 5
+            room for room in rooms
+            if room is not stairs_up_room
+            and room is not stairs_down_room
+            and (room.x2 - room.x1) >= 8    # total width  >= 8  → inner_w >= 6 (MIN_INNER_WIDTH)
+            and (room.y2 - room.y1) >= 9    # total height >= 9  → inner_h >= 7 (MIN_INNER_HEIGHT)
         ]
         if candidate_rooms:
             prison_room = random.choice(candidate_rooms)
             result = generate_prison_cell(
                 game_map, prison_room, prison_prisoners, stairs_positions
             )
-            if result:
-                prisoner, _ = result
-                # prisoner is already in prison_prisoners list
+            # On success, prisoner is already inside prison_prisoners
 
     return rooms, stairs_positions, torch_light_sources, prison_prisoners

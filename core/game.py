@@ -25,7 +25,7 @@ from world.map import GameMap
 from world.dungeon_generator import generate_dungeon
 from world.tavern_generator import generate_tavern
 from world.encounters.prison_cell import (
-    handle_prison_door_interaction, PrisonDoorTile
+    handle_prison_door_interaction, PrisonDoorTile, is_prison_cell_position
 )
 from entities.player import Player, Fighter, Rogue, Wizard, Cleric
 
@@ -741,9 +741,10 @@ class Game:
 
         for i, room in enumerate(monster_rooms):
             x, y = room.center()
-            # NEW: Ensure monster doesn't spawn on water
+            # NEW: Ensure monster doesn't spawn on water or prison tiles
             if (0 <= x < self.game_map.width and 0 <= y < self.game_map.height and
-                self.game_map.is_walkable(x, y) and not is_water_tile(self.game_map.tiles[y][x])):
+                self.game_map.is_walkable(x, y) and not is_water_tile(self.game_map.tiles[y][x])
+                and not is_prison_cell_position(self.game_map, x, y)):
                 # Randomly choose a monster class from the possible_monsters list
                 chosen_monster_class = random.choice(possible_monsters)
 
@@ -767,7 +768,8 @@ class Game:
                         # NEW: Check for water tiles
                         if self.game_map.is_walkable(x_coord, y_coord) and \
                            not any(e.x == x_coord and e.y == y_coord for e in self.entities) and \
-                           not is_water_tile(self.game_map.tiles[y_coord][x_coord]):
+                           not is_water_tile(self.game_map.tiles[y_coord][x_coord]) and \
+                           not is_prison_cell_position(self.game_map, x_coord, y_coord):
                             is_near_tunnel = False
                             for dx, dy in [(-1,0), (1,0), (0,-1), (0,1)]:
                                 neighbor_x, neighbor_y = x_coord + dx, y_coord + dy
@@ -799,7 +801,8 @@ class Game:
                         # NEW: Check for water tiles
                         if self.game_map.is_walkable(x_coord, y_coord) and \
                            not any(e.x == x_coord and e.y == y_coord for e in self.entities) and \
-                           not is_water_tile(self.game_map.tiles[y_coord][x_coord]):
+                           not is_water_tile(self.game_map.tiles[y_coord][x_coord]) and \
+                           not is_prison_cell_position(self.game_map, x_coord, y_coord):
                             is_near_tunnel = False
                             for dx, dy in [(-1,0), (1,0), (0,-1), (0,1)]:
                                 neighbor_x, neighbor_y = x_coord + dx, y_coord + dy
@@ -857,7 +860,8 @@ class Game:
                    (item_x, item_y) not in self.stairs_positions.values() and \
                    not is_blocked_by_non_item_entity and \
                    not is_occupied_by_another_item and \
-                   not is_water: # NEW: Don't spawn items on water
+                   not is_water and \
+                   not is_prison_cell_position(self.game_map, item_x, item_y): # Don't spawn items on prison tiles
                     
 
                     chosen_template = random.choice(item_templates)
@@ -3230,7 +3234,7 @@ class Game:
                     if has_torchlight:
                         render_color_tint = self._torch_flicker_tint
                     else:
-                        render_color_tint = (115, 102, 92, 255)
+                        render_color_tint = (142, 152, 165, 255)
                 elif visibility_type == 'torch':
                     render_color_tint = self._torch_flicker_tint
                 elif visibility_type == 'darkvision':
