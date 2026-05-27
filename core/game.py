@@ -563,9 +563,7 @@ class Game:
         self.fov = FOV(self.game_map)
         
         rooms, self.stairs_positions, self.torch_light_sources, prison_prisoners = generate_dungeon(self.game_map, level_number)
-        # Add any prison prisoners to the entity list
-        for prisoner in prison_prisoners:
-            self.entities.append(prisoner)
+
 
         if spawn_on_stairs_up and 'up' in self.stairs_positions:
             start_x, start_y = self.stairs_positions['up']
@@ -635,6 +633,9 @@ class Game:
                     self.game_map.altars.append(altar)
 
         self.entities = [self.player]
+        # Add any prison prisoners to the entity list
+        for prisoner in prison_prisoners:
+            self.entities.append(prisoner)        
         
         monsters_per_level = min(5 + level_number, len(rooms) - 2)
         monster_rooms = rooms[1:monsters_per_level + 2]
@@ -926,11 +927,7 @@ class Game:
                         if isinstance(entity, DungeonMerchant):
                             self.dungeon_merchant = entity
                         elif isinstance(entity, PrisonerNPC) and entity.has_been_freed:
-                            # Show freed dialogue via message log
-                            self.message_log.add_message(
-                                f'{entity.name}: "{entity.get_dialogue()}"', (220, 200, 140)
-                            )
-                            return None  # handled inline, no trade UI
+                            return entity
                         return entity
         return None
 
@@ -1500,6 +1497,11 @@ class Game:
                         if isinstance(merchant, DungeonMerchant):
                             merchant.offer_trade(self.player, self)  # Call the trade method for the Merchant
                             return True  # Consume event
+                        elif isinstance(merchant, PrisonerNPC) and merchant.has_been_freed:
+                            self.message_log.add_message(
+                                f'{merchant.name}: "{merchant.get_dialogue()}"', (220, 200, 140)
+                            )
+                            return True
 
                 if self.game_state in GameState.TAVERN:
                     if event.key == pygame.K_f:  # Check if 'F' is pressed
@@ -3061,7 +3063,7 @@ class Game:
 
                             # Set color tint based on visibility
                             if visibility_type == 'player':
-                                altar_color_tint = (115, 102, 92, 255)
+                                altar_color_tint = (142, 152, 165, 255)
                             elif visibility_type == 'torch':
                                 altar_color_tint = (255, 170, 82, 255)
                             elif visibility_type == 'darkvision':
@@ -3313,7 +3315,7 @@ class Game:
                         if has_torchlight:
                             entity_color_tint = self._torch_flicker_tint  # Dimmer tint when torchlight active
                         else:
-                            entity_color_tint = (115, 102, 92, 255)
+                            entity_color_tint = (142, 152, 165, 255)
                     elif visibility_type == 'torch':
                         entity_color_tint = self._torch_flicker_tint
                     elif visibility_type == 'darkvision':
@@ -3459,7 +3461,7 @@ class Game:
                         if has_torchlight:
                             item_color_tint = self._torch_flicker_tint # Dimmer tint when torchlight active
                         else:
-                            item_color_tint = (115, 102, 92, 255)  
+                            item_color_tint = (142, 152, 165, 255)  
                     elif visibility_type == 'torch':
                         item_color_tint = self._torch_flicker_tint
                     elif visibility_type == 'darkvision':
