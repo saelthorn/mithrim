@@ -37,31 +37,97 @@ def setup_tile_mapping():
     # Use an image editor to verify the grid positions.
     TILE_MAPPING = {
 
-        # Player Characters (based on race-class combinations)
-        'HF': (0 * CELL_DIM, 0 * CELL_DIM),  # Human Fighter
-        'HR': (1 * CELL_DIM, 0 * CELL_DIM),  # Human Rogue
-        'HW': (2 * CELL_DIM, 0 * CELL_DIM),  # Human Wizard
-        'HC': (3 * CELL_DIM, 0 * CELL_DIM),  # Human Cleric
+        # ── Player Characters ─────────────────────────────────────────────
+        # Row 0 — Human
+        'HF':  (0 * CELL_DIM,  0 * CELL_DIM),  # Human Fighter
+        'HR':  (1 * CELL_DIM,  0 * CELL_DIM),  # Human Rogue
+        'HW':  (2 * CELL_DIM,  0 * CELL_DIM),  # Human Wizard
+        'HC':  (3 * CELL_DIM,  0 * CELL_DIM),  # Human Cleric
 
-        'DF': (0 * CELL_DIM, 1 * CELL_DIM),  # HillDwarf Fighter
-        'DR': (1 * CELL_DIM, 1 * CELL_DIM),  # HillDwarf Rogue
-        'DW': (2 * CELL_DIM, 1 * CELL_DIM),  # HillDwarf Wizard
-        'DC': (3 * CELL_DIM, 1 * CELL_DIM),  # HillDwarf Cleric
+        # Row 1 — Dwarf (Hill Dwarf uses the base dwarf row)
+        'DF':  (0 * CELL_DIM,  1 * CELL_DIM),  # Hill Dwarf Fighter
+        'DR':  (1 * CELL_DIM,  1 * CELL_DIM),  # Hill Dwarf Rogue
+        'DW':  (2 * CELL_DIM,  1 * CELL_DIM),  # Hill Dwarf Wizard
+        'DC':  (3 * CELL_DIM,  1 * CELL_DIM),  # Hill Dwarf Cleric
+        # Mountain Dwarf — shares the Hill Dwarf row (same sprite set)
+        'MDF': (4 * CELL_DIM,  1 * CELL_DIM),  # Mountain Dwarf Fighter
+        'MDR': (5 * CELL_DIM,  1 * CELL_DIM),  # Mountain Dwarf Rogue
+        'MDW': (6 * CELL_DIM,  1 * CELL_DIM),  # Mountain Dwarf Wizard
+        'MDC': (7 * CELL_DIM,  1 * CELL_DIM),  # Mountain Dwarf Cleric
+        # Duergar — shares the Hill Dwarf row until a dedicated row exists
+        'DGF': (8 * CELL_DIM,  1 * CELL_DIM),  # Duergar Fighter
+        'DGR': (9 * CELL_DIM,  1 * CELL_DIM),  # Duergar Rogue
+        'DGW': (10 * CELL_DIM,  1 * CELL_DIM),  # Duergar Wizard
+        'DGC': (11 * CELL_DIM,  1 * CELL_DIM),  # Duergar Cleric
 
-        'EF': (0 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Fighter
-        'ER': (1 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Rogue
-        'EW': (2 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Wizard
-        'EC': (3 * CELL_DIM, 2 * CELL_DIM),  # DrowElf Cleric
+        # Row 2 — Elf (Drow uses the base elf row)
+        'EF':  (0 * CELL_DIM,  2 * CELL_DIM),  # Drow Fighter
+        'ER':  (1 * CELL_DIM,  2 * CELL_DIM),  # Drow Rogue
+        'EW':  (2 * CELL_DIM,  2 * CELL_DIM),  # Drow Wizard
+        'EC':  (3 * CELL_DIM,  2 * CELL_DIM),  # Drow Cleric
+        # High Elf — shares the Drow elf row until a dedicated row exists
+        'HEF': (4 * CELL_DIM,  2 * CELL_DIM),  # High Elf Fighter
+        'HER': (5 * CELL_DIM,  2 * CELL_DIM),  # High Elf Rogue
+        'HEW': (6 * CELL_DIM,  2 * CELL_DIM),  # High Elf Wizard
+        'HEC': (7 * CELL_DIM,  2 * CELL_DIM),  # High Elf Cleric
+        # Wood Elf — shares the Drow elf row until a dedicated row exists
+        'WEF': (8 * CELL_DIM,  2 * CELL_DIM),  # Wood Elf Fighter
+        'WER': (9 * CELL_DIM,  2 * CELL_DIM),  # Wood Elf Rogue
+        'WEW': (10 * CELL_DIM,  2 * CELL_DIM),  # Wood Elf Wizard
+        'WEC': (11 * CELL_DIM,  2 * CELL_DIM),  # Wood Elf Cleric
 
-        'TF': (0 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Fighter
-        'TR': (1 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Rogue
-        'TW': (2 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Wizard
-        'TC': (3 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Cleric
+        # Row 10 — Tiefling (all patron lineages share the base tiefling row)
+        'TF':  (0 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Fighter   (legacy key, kept for safety)
+        'TR':  (1 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Rogue     (legacy key)
+        'TW':  (2 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Wizard    (legacy key)
+        'TC':  (3 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Cleric    (legacy key)
+        # Zariel
+        'ZTF': (0 * CELL_DIM, 10 * CELL_DIM),  # Zariel Tiefling Fighter
+        'ZTR': (1 * CELL_DIM, 10 * CELL_DIM),  # Zariel Tiefling Rogue
+        'ZTW': (2 * CELL_DIM, 10 * CELL_DIM),  # Zariel Tiefling Wizard
+        'ZTC': (3 * CELL_DIM, 10 * CELL_DIM),  # Zariel Tiefling Cleric
+        # Levistus
+        'LTF': (4 * CELL_DIM, 10 * CELL_DIM),  # Levistus Tiefling Fighter
+        'LTR': (5 * CELL_DIM, 10 * CELL_DIM),  # Levistus Tiefling Rogue
+        'LTW': (6 * CELL_DIM, 10 * CELL_DIM),  # Levistus Tiefling Wizard
+        'LTC': (7 * CELL_DIM, 10 * CELL_DIM),  # Levistus Tiefling Cleric
+        # Dispater
+        'DTF': (8 * CELL_DIM, 10 * CELL_DIM),  # Dispater Tiefling Fighter
+        'DTR': (9 * CELL_DIM, 10 * CELL_DIM),  # Dispater Tiefling Rogue
+        'DTW': (10 * CELL_DIM, 10 * CELL_DIM),  # Dispater Tiefling Wizard
+        'DTC': (11 * CELL_DIM, 10 * CELL_DIM),  # Dispater Tiefling Cleric
+        # Mephistopheles
+        'MTF': (12 * CELL_DIM, 10 * CELL_DIM),  # Mephistopheles Tiefling Fighter
+        'MTR': (13 * CELL_DIM, 10 * CELL_DIM),  # Mephistopheles Tiefling Rogue
+        'MTW': (14 * CELL_DIM, 10 * CELL_DIM),  # Mephistopheles Tiefling Wizard
+        'MTC': (15 * CELL_DIM, 10 * CELL_DIM),  # Mephistopheles Tiefling Cleric
 
-        'DBF': (0 * CELL_DIM, 11 * CELL_DIM),  # Dragonborn Fighter
-        'DBR': (1 * CELL_DIM, 11 * CELL_DIM),  # Dragonborn Rogue
-        'DBW': (2 * CELL_DIM, 11 * CELL_DIM),  # Dragonborn Wizard
-        'DBC': (3 * CELL_DIM, 11 * CELL_DIM),  # Dragonborn Cleric
+        # Row 11 — Dragonborn (all colour lineages share the base dragonborn row)
+        'DBF': (0 * CELL_DIM, 11 * CELL_DIM),  # Dragonborn Fighter (legacy key)
+        'DBR': (1 * CELL_DIM, 11 * CELL_DIM),  # Dragonborn Rogue   (legacy key)
+        'DBW': (2 * CELL_DIM, 11 * CELL_DIM),  # Dragonborn Wizard  (legacy key)
+        'DBC': (3 * CELL_DIM, 11 * CELL_DIM),  # Dragonborn Cleric  (legacy key)
+        # Red
+        'RDF': (0 * CELL_DIM, 11 * CELL_DIM),  # Red Dragonborn Fighter
+        'RDR': (1 * CELL_DIM, 11 * CELL_DIM),  # Red Dragonborn Rogue
+        'RDW': (2 * CELL_DIM, 11 * CELL_DIM),  # Red Dragonborn Wizard
+        'RDC': (3 * CELL_DIM, 11 * CELL_DIM),  # Red Dragonborn Cleric        
+        # Gold
+        'GDF': (4 * CELL_DIM, 11 * CELL_DIM),  # Gold Dragonborn Fighter
+        'GDR': (5 * CELL_DIM, 11 * CELL_DIM),  # Gold Dragonborn Rogue
+        'GDW': (6 * CELL_DIM, 11 * CELL_DIM),  # Gold Dragonborn Wizard
+        'GDC': (7 * CELL_DIM, 11 * CELL_DIM),  # Gold Dragonborn Cleric
+        # Green
+        'GNF': (8 * CELL_DIM, 11 * CELL_DIM),  # Green Dragonborn Fighter
+        'GNR': (9 * CELL_DIM, 11 * CELL_DIM),  # Green Dragonborn Rogue
+        'GNW': (10 * CELL_DIM, 11 * CELL_DIM),  # Green Dragonborn Wizard
+        'GNC': (11 * CELL_DIM, 11 * CELL_DIM),  # Green Dragonborn Cleric
+        # Blue
+        'BDF': (12 * CELL_DIM, 11 * CELL_DIM),  # Blue Dragonborn Fighter
+        'BDR': (13 * CELL_DIM, 11 * CELL_DIM),  # Blue Dragonborn Rogue
+        'BDW': (14 * CELL_DIM, 11 * CELL_DIM),  # Blue Dragonborn Wizard
+        'BDC': (15 * CELL_DIM, 11 * CELL_DIM),  # Blue Dragonborn Cleric
+
 
 
         # Map Tiles
@@ -167,31 +233,31 @@ def setup_tile_mapping():
 
 
         # Tavern Entities and Misc.
-        'A': (9 * CELL_DIM, 0 * CELL_DIM),  # Bartender (NPC)
-        'p': (8 * CELL_DIM, 0 * CELL_DIM),  # Patron (NPC)
+        'A': (9 * CELL_DIM,   0 * CELL_DIM),  # Bartender (NPC)
+        'p': (8 * CELL_DIM,   0 * CELL_DIM),  # Patron (NPC)
         'pnp': (8 * CELL_DIM, 0 * CELL_DIM),   # Prisoner NPC – reuse Patron sprite
-        'H': (6 * CELL_DIM, 0 * CELL_DIM),  # Healer (NPC)
-        'rc': (7 * CELL_DIM, 0 * CELL_DIM), # Merchant (NPC)
-        'mh': (6 * CELL_DIM, 2 * CELL_DIM), # Mage Hand (Skill)
+        'H': (6 * CELL_DIM,   0 * CELL_DIM),  # Healer (NPC)
+        'rc': (7 * CELL_DIM,  0 * CELL_DIM), # Merchant (NPC)
+        'mh': (6 * CELL_DIM,  2 * CELL_DIM), # Mage Hand (Skill)
         'sw': (14 * CELL_DIM, 2 * CELL_DIM), # Spiritual Weapon (Skill)
         'CS': (12 * CELL_DIM, 8 * CELL_DIM), # Celestial Spirit (Skill)
 
         # Item Characters
-        'cf': (8 * CELL_DIM, 2 * CELL_DIM), # Campfire 
-        'pn': (9 * CELL_DIM, 2 * CELL_DIM), # Wood Plank (Junk)
-        'th': (10 * CELL_DIM,2 * CELL_DIM), # Torch (Item)
-        'tt': (7 * CELL_DIM, 2 * CELL_DIM), # Thieves' Tools
+        'cf': (8 * CELL_DIM,   2 * CELL_DIM), # Campfire 
+        'pn': (9 * CELL_DIM,   2 * CELL_DIM), # Wood Plank (Junk)
+        'th': (10 * CELL_DIM,  2 * CELL_DIM), # Torch (Item)
+        'tt': (7 * CELL_DIM,   2 * CELL_DIM), # Thieves' Tools
         'spb': (13 * CELL_DIM, 2 * CELL_DIM), # Spellbook (Off-hand Item)
         'hsy': (12 * CELL_DIM, 2 * CELL_DIM), # Holy Symbol (Accessory)
-        '!': (0 * CELL_DIM, 13 * CELL_DIM), # Potions
+        '!': (0 * CELL_DIM,    13 * CELL_DIM), # Potions
 
         # Food Characters
-        'met': (11 * CELL_DIM, 1 * CELL_DIM), # Meat
-        'gra': (12 * CELL_DIM, 1 * CELL_DIM), # Green Apple
-        'frg': (13 * CELL_DIM, 1 * CELL_DIM), # Fromage
-        'brd': (14 * CELL_DIM, 1 * CELL_DIM), # Bread
-        'msm': (15 * CELL_DIM, 1 * CELL_DIM), # Mushroom
-        'crt': (16 * CELL_DIM, 1 * CELL_DIM), # Carrot
+        'met': (14 * CELL_DIM, 0 * CELL_DIM), # Meat
+        'gra': (15 * CELL_DIM, 0 * CELL_DIM), # Green Apple
+        'frg': (16 * CELL_DIM, 0 * CELL_DIM), # Fromage
+        'brd': (17 * CELL_DIM, 0 * CELL_DIM), # Bread
+        'msm': (18 * CELL_DIM, 0 * CELL_DIM), # Mushroom
+        'crt': (19 * CELL_DIM, 0 * CELL_DIM), # Carrot
 
         # Armors and Robes
         'pda': (1 * CELL_DIM, 13 * CELL_DIM),  # Leather Armor

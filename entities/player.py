@@ -26,7 +26,6 @@ from items.items import (
     Helmet, Boots, FocusItem, WEAPON_CATEGORIES, ARMOR_CATEGORIES, 
 )
 
-from entities.races import Human, HillDwarf, DrowElf # Import the races you've defined
 from entities.monster import Goblin, GoblinArcher, GiantRat
 from core.floating_text import FloatingText
     
