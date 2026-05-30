@@ -314,21 +314,24 @@ _PRISONER_LOOT = [
 class PrisonerNPC(NPC):
     def __init__(self, x, y):
         self.x1 = x
-        self.y1 = y        
-        
+        self.y1 = y
+
         name = random.choice(_PRISONER_NAMES)
         super().__init__(x, y, 'pnp', name, (200, 160, 120))
         self.dialogue_line  = random.choice(_PRISONER_DIALOGUES)
         self.reward_item    = self._make_reward()
         self.has_been_freed = False
+        self.reward_given   = False   # True once the player has collected the reward
 
-    # ── NPC interface ──────────────────────────────────────────────
+    # ── NPC interface ──────────────────────────────────────────────────────
+
     def get_dialogue(self):
         if self.has_been_freed:
             return random.choice(_PRISONER_FREED_LINES)
         return "...help… is someone there? The door — can you open it?"
 
-    # ── Helpers ───────────────────────────────────────────────────
+    # ── Helpers ───────────────────────────────────────────────────────────
+
     def _make_reward(self):
         template = random.choice(_PRISONER_LOOT)
         try:
@@ -349,6 +352,11 @@ class PrisonerNPC(NPC):
         return item
 
     def free(self, player, game_instance):
+        """
+        Mark the prisoner as freed.  Called when the cell door is opened.
+        Only sets the flag and prints a flavour line — no reward is granted here.
+        The reward is given when the player talks to the prisoner (F key).
+        """
         if self.has_been_freed:
             return
         self.has_been_freed = True
@@ -356,6 +364,27 @@ class PrisonerNPC(NPC):
         game_instance.message_log.add_message(
             f'{self.name}: "{self.dialogue_line}"', (220, 200, 140)
         )
+        game_instance.floating_texts.append(
+            FloatingText(self.x, self.y, "FREED!", (100, 255, 150), y_speed=0.5)
+        )
+
+    def give_reward(self, player, game_instance):
+        """
+        Grant the prisoner's reward item to the player.
+        Called once when the player presses F while adjacent to a freed prisoner.
+        Subsequent calls print a 'nothing left to give' message and return early.
+        """
+        if not self.has_been_freed:
+            return
+
+        if self.reward_given:
+            game_instance.message_log.add_message(
+                f'{self.name}: "You\'ve already taken all I have. Safe travels."',
+                (220, 200, 140),
+            )
+            return
+
+        self.reward_given = True
 
         if player.inventory.add_item(self.reward_item):
             game_instance.message_log.add_message(
@@ -375,9 +404,4 @@ class PrisonerNPC(NPC):
                 f"Inventory full! The {self.reward_item.name} drops to the floor.",
                 self.reward_item.color,
             )
-
-        game_instance.floating_texts.append(
-            FloatingText(self.x, self.y, "FREED!", (100, 255, 150), y_speed=0.5)
-        )
-
 

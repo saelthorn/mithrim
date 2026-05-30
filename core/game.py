@@ -1603,6 +1603,8 @@ class Game:
                             merchant.offer_trade(self.player, self)  # Call the trade method for the Merchant
                             return True  # Consume event
                         elif isinstance(merchant, PrisonerNPC) and merchant.has_been_freed:
+                            # Give the reward first (only fires once), then show dialogue.
+                            merchant.give_reward(self.player, self)
                             self.message_log.add_message(
                                 f'{merchant.name}: "{merchant.get_dialogue()}"', (220, 200, 140)
                             )

@@ -131,7 +131,7 @@ def setup_tile_mapping():
 
 
         # Map Tiles
-        'bl': (11 * CELL_DIM, 2 * CELL_DIM),# Bloodstain
+        'bl': (16 * CELL_DIM, 6 * CELL_DIM),# Bloodstain
         '{': (0 * CELL_DIM, 6 * CELL_DIM),  # Tavern Crate
         '}': (2 * CELL_DIM, 6 * CELL_DIM),  # Tavern Barrel
         ',': (2 * CELL_DIM, 17 * CELL_DIM), # Tavern Floor
@@ -238,17 +238,17 @@ def setup_tile_mapping():
         'pnp': (8 * CELL_DIM, 0 * CELL_DIM),   # Prisoner NPC – reuse Patron sprite
         'H': (6 * CELL_DIM,   0 * CELL_DIM),  # Healer (NPC)
         'rc': (7 * CELL_DIM,  0 * CELL_DIM), # Merchant (NPC)
-        'mh': (6 * CELL_DIM,  2 * CELL_DIM), # Mage Hand (Skill)
-        'sw': (14 * CELL_DIM, 2 * CELL_DIM), # Spiritual Weapon (Skill)
+        'mh': (11 * CELL_DIM, 6 * CELL_DIM), # Mage Hand (Skill)
+        'sw': (19 * CELL_DIM, 6 * CELL_DIM), # Spiritual Weapon (Skill)
         'CS': (12 * CELL_DIM, 8 * CELL_DIM), # Celestial Spirit (Skill)
 
         # Item Characters
-        'cf': (8 * CELL_DIM,   2 * CELL_DIM), # Campfire 
-        'pn': (9 * CELL_DIM,   2 * CELL_DIM), # Wood Plank (Junk)
-        'th': (10 * CELL_DIM,  2 * CELL_DIM), # Torch (Item)
-        'tt': (7 * CELL_DIM,   2 * CELL_DIM), # Thieves' Tools
-        'spb': (13 * CELL_DIM, 2 * CELL_DIM), # Spellbook (Off-hand Item)
-        'hsy': (12 * CELL_DIM, 2 * CELL_DIM), # Holy Symbol (Accessory)
+        'tt': (12 * CELL_DIM,   6 * CELL_DIM), # Thieves' Tools
+        'cf': (13 * CELL_DIM,   6 * CELL_DIM), # Campfire 
+        'pn': (14 * CELL_DIM,   6 * CELL_DIM), # Wood Plank (Junk)
+        'th': (15 * CELL_DIM,  6 * CELL_DIM), # Torch (Item)
+        'hsy': (17 * CELL_DIM, 6 * CELL_DIM), # Holy Symbol (Accessory)
+        'spb': (18 * CELL_DIM, 6 * CELL_DIM), # Spellbook (Off-hand Item)
         '!': (0 * CELL_DIM,    13 * CELL_DIM), # Potions
 
         # Food Characters

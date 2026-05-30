@@ -8,19 +8,33 @@ from world.water_features import is_water_tile
 #  Geometry constants
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Total height of the bar-and-door window (must be odd so the door sits centre).
-# 5 = 2 bars above door + 1 door + 2 bars below.
-# This keeps MIN_INNER_HEIGHT at 7, which every room satisfies since
-# room_min_size=8 guarantees an inner height of at least 7.
-BAR_WINDOW_HEIGHT = 7
+# Minimum rows each cell needs:  1 bar + 1 door + 1 bar  = 3 rows per cell.
+# Plus 1 divider row between them  → MIN_INNER_HEIGHT = 3 + 1 + 3 = 7.
+MIN_CELL_HEIGHT  = 3   # rows per individual cell (bars above + door + bars below)
+MIN_INNER_HEIGHT = MIN_CELL_HEIGHT * 2 + 1   # 7  (two cells + divider row)
 
-# How many floor columns sit between the bars column and the room wall.
-CELL_FLOOR_DEPTH  = 2
+# Cell interior depth: columns between the bars column and the room wall.
+CELL_FLOOR_DEPTH = 2
 
-# Minimum inner dimensions for the cell to fit.
-# inner = room interior excluding the outer wall tiles.
-MIN_INNER_HEIGHT = BAR_WINDOW_HEIGHT + 2   # 5 + 2 = 7  (fits in every room >= size 9 total)
-MIN_INNER_WIDTH  = 1 + 1 + CELL_FLOOR_DEPTH + 2   # seal + bars + floor + 2 open cols = 6
+# Minimum inner width:  1 open corridor col + 1 bars col + CELL_FLOOR_DEPTH
+MIN_INNER_WIDTH  = 1 + 1 + CELL_FLOOR_DEPTH   # = 4
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Layout (east orientation example)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+#   col →          open_cols  │  bars_col  │  floor_cols  │ (east room wall)
+#                             │            │              │
+#   row ↓   ...  open floor   │    bar     │  cell A      │
+#           ...  open floor   │    door A  │  cell A      │   ← cell A
+#           ...  open floor   │    bar     │  cell A      │
+#           ...  open floor   │   (wall)   │  (wall)      │   ← divider row
+#           ...  open floor   │    bar     │  cell B      │
+#           ...  open floor   │    door B  │  cell B      │   ← cell B
+#           ...  open floor   │    bar     │  cell B      │
+#
+#   WEST mirrors this horizontally (bars column near the west room wall).
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -29,9 +43,8 @@ MIN_INNER_WIDTH  = 1 + 1 + CELL_FLOOR_DEPTH + 2   # seal + bars + floor + 2 open
 
 def is_prison_cell_position(game_map, tile_x, tile_y):
     """
-    Return True if (tile_x, tile_y) belongs to any placed prison cell
-    (includes bar tiles, the door tile, and cell-interior floor tiles).
-    Spawners call this to avoid placing things inside the cell.
+    Return True if (tile_x, tile_y) belongs to any placed prison cell.
+    Other spawners call this to avoid placing items or monsters inside cells.
     """
     return (tile_x, tile_y) in getattr(game_map, 'prison_cell_tiles', set())
 
@@ -42,32 +55,25 @@ def is_prison_cell_position(game_map, tile_x, tile_y):
 
 def generate_prison_cell(game_map, room, entities, stairs_positions):
     """
-    Carve a double-barred prison cell into the east OR west inner wall of *room*.
+    Carve two stacked (top/bottom) prison cells into the east or west wall
+    of *room*.  Both cells share one bars column; a single wall row divides
+    them horizontally.
 
-    Tries both orientations in random order.  On success:
-      - stamps bar, door, wall and floor tiles onto game_map
-      - registers every written tile in game_map.prison_cell_tiles
-      - appends a PrisonerNPC to *entities*
+    On success:
+      - Stamps bar, door, wall, and floor tiles onto game_map.
+      - Registers every written tile in game_map.prison_cell_tiles.
+      - Appends two PrisonerNPC instances to *entities*.
 
-    Parameters
-    ----------
-    game_map         : GameMap  — the active dungeon map
-    room             : RectRoom — the room to carve into
-    entities         : list     — PrisonerNPC is appended here on success
-    stairs_positions : dict     — {'up': (x,y), 'down': (x,y)}
-
-    Returns
-    -------
-    (PrisonerNPC, (door_col, door_row))   on success
-    None                                   if the room is too small or blocked
+    Returns a list of two (PrisonerNPC, (door_col, door_row)) pairs,
+    or None if the room is too small or all orientations are blocked.
     """
     if not hasattr(game_map, 'prison_cell_tiles'):
         game_map.prison_cell_tiles = set()
 
-    # Inner extents: first and last walkable tile (room outer walls excluded).
+    # Inner extents (room outer wall tiles excluded).
     first_inner_col = room.x1 + 1
     first_inner_row = room.y1 + 1
-    last_inner_col  = room.x2 - 1   # room.x2 itself is the east wall tile
+    last_inner_col  = room.x2 - 1
     last_inner_row  = room.y2 - 1
 
     inner_width  = last_inner_col - first_inner_col + 1
@@ -81,15 +87,11 @@ def generate_prison_cell(game_map, room, entities, stairs_positions):
 
     for orientation in orientations:
         result = _attempt_carve(
-            game_map,
-            orientation,
-            first_inner_col,
-            first_inner_row,
-            last_inner_col,
-            last_inner_row,
-            inner_height,
-            entities,
-            stairs_positions,
+            game_map, orientation,
+            first_inner_col, first_inner_row,
+            last_inner_col,  last_inner_row,
+            inner_width,     inner_height,
+            entities, stairs_positions,
         )
         if result is not None:
             return result
@@ -102,113 +104,133 @@ def generate_prison_cell(game_map, room, entities, stairs_positions):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _attempt_carve(
-    game_map,
-    orientation,
-    first_inner_col,
-    first_inner_row,
-    last_inner_col,
-    last_inner_row,
-    inner_height,
-    entities,
-    stairs_positions,
+    game_map, orientation,
+    first_inner_col, first_inner_row,
+    last_inner_col,  last_inner_row,
+    inner_width,     inner_height,
+    entities, stairs_positions,
 ):
     """
-    Try to carve the cell for one specific orientation ('east' or 'west').
-    Returns (PrisonerNPC, (door_col, door_row)) or None.
+    Try to carve the stacked dual-cell for one orientation.
+    Returns a list of two (PrisonerNPC, (door_col, door_row)) or None.
     """
 
-    # ── Assign the four working columns ───────────────────────────────────
+    # ── Assign the bars column and cell floor columns ─────────────────────
     #
-    # For EAST we work inward from the east room wall:
-    #   cell_far_col  = last inner col  (floor, against east room wall)
-    #   cell_near_col = one step inward (floor, prisoner stands here)
-    #   bars_col      = two steps inward (bars / door)
-    #   seal_col      = three steps inward (full-height wall facing the room)
+    # EAST: bars column is near the east room wall; floor columns are to its
+    #       right (between bars and east wall).  The open corridor is to the
+    #       left of the bars column.
     #
-    # WEST is the mirror image working from the west room wall.
+    # WEST: mirror image — bars near west wall, floor to its left.
 
     if orientation == 'east':
-        cell_far_col  = last_inner_col
-        cell_near_col = last_inner_col  - 1
-        bars_col      = last_inner_col  - 3
-        seal_col      = last_inner_col  - 3
-        if seal_col < first_inner_col:
+        bars_col   = last_inner_col - CELL_FLOOR_DEPTH
+        floor_cols = list(range(bars_col + 1, last_inner_col + 1))
+        if bars_col <= first_inner_col:   # no open corridor space left
             return None
-        prisoner_col = cell_near_col
 
-    else:   # 'west'
-        cell_far_col  = first_inner_col
-        cell_near_col = first_inner_col + 1
-        bars_col      = first_inner_col + 3
-        seal_col      = first_inner_col + 3
-        if seal_col > last_inner_col:
+    else:  # 'west'
+        bars_col   = first_inner_col + CELL_FLOOR_DEPTH
+        floor_cols = list(range(first_inner_col, bars_col))
+        if bars_col >= last_inner_col:
             return None
-        prisoner_col = cell_near_col
 
-    # ── Centre the bar window vertically ──────────────────────────────────
-    centre_row        = first_inner_row + inner_height // 2
-    bar_window_half   = BAR_WINDOW_HEIGHT // 2      # = 3
-    bar_window_top    = centre_row - bar_window_half
-    bar_window_bottom = bar_window_top + BAR_WINDOW_HEIGHT - 1   # inclusive
-    door_row          = centre_row
+    # ── Split inner rows into top cell / divider / bottom cell ───────────
+    #
+    # Give each cell as equal a height as possible; any leftover rows go to
+    # the top cell.  Both cells need at least MIN_CELL_HEIGHT rows.
 
-    # Safety clamp (only triggers in rooms smaller than MIN_INNER_HEIGHT)
-    bar_window_top    = max(bar_window_top,    first_inner_row + 1)
-    bar_window_bottom = min(bar_window_bottom, last_inner_row  - 1)
-    door_row          = (bar_window_top + bar_window_bottom) // 2
+    usable_rows  = inner_height - 1          # subtract 1 for the divider row
+    cell_a_height = usable_rows // 2
+    cell_b_height = usable_rows - cell_a_height
 
-    prisoner_row = door_row
+    if cell_a_height < MIN_CELL_HEIGHT or cell_b_height < MIN_CELL_HEIGHT:
+        return None
 
-    # ── Build complete list of positions we will write ────────────────────
-    positions_to_write = []
-    for row in range(first_inner_row, last_inner_row + 1):
-        positions_to_write.append((seal_col,      row))
-        positions_to_write.append((bars_col,      row))
-        positions_to_write.append((cell_near_col, row))
-        positions_to_write.append((cell_far_col,  row))
+    cell_a_top    = first_inner_row
+    cell_a_bottom = cell_a_top + cell_a_height - 1       # inclusive
+    divider_row   = cell_a_bottom + 1
+    cell_b_top    = divider_row + 1
+    cell_b_bottom = last_inner_row
+
+    # Door rows sit in the vertical centre of each cell.
+    door_row_a = (cell_a_top + cell_a_bottom) // 2
+    door_row_b = (cell_b_top + cell_b_bottom) // 2
+
+    # Prisoners stand one tile inside (on the floor column nearest the bars).
+    if orientation == 'east':
+        prisoner_col = bars_col + 2
+    else:
+        prisoner_col = bars_col - 2
+
+    # ── Collect every position we will overwrite ──────────────────────────
+    all_rows      = list(range(first_inner_row, last_inner_row + 1))
+    affected_cols = [bars_col] + floor_cols
+
+    positions_to_write = [
+        (col, row)
+        for col in affected_cols
+        for row in all_rows
+    ]
 
     # ── Validate every position before touching the map ───────────────────
-    for write_col, write_row in positions_to_write:
-        if not (0 <= write_col < game_map.width and 0 <= write_row < game_map.height):
+    for col, row in positions_to_write:
+        if not (0 <= col < game_map.width and 0 <= row < game_map.height):
             return None
-        if stairs_positions and (write_col, write_row) in stairs_positions.values():
+        if stairs_positions and (col, row) in stairs_positions.values():
             return None
-        if is_water_tile(game_map.tiles[write_row][write_col]):
+        if is_water_tile(game_map.tiles[row][col]):
             return None
 
-    if not (0 <= prisoner_col < game_map.width and 0 <= prisoner_row < game_map.height):
-        return None
+    for door_row in (door_row_a, door_row_b):
+        if not (0 <= prisoner_col < game_map.width and
+                0 <= door_row < game_map.height):
+            return None
+        if any(e.x == prisoner_col and e.y == door_row for e in entities):
+            return None
 
-    if any(entity.x == prisoner_col and entity.y == prisoner_row for entity in entities):
-        return None
+    # ── Stamp tiles ───────────────────────────────────────────────────────
+    for row in all_rows:
 
-    # ── Stamp every tile ──────────────────────────────────────────────────
-    for row in range(first_inner_row, last_inner_row + 1):
-        row_is_in_bar_window = (bar_window_top <= row <= bar_window_bottom)
-
-
-        # Bars column: bars or door inside the window, wall outside it.
-        if row_is_in_bar_window:
-            if row == door_row:
-                game_map.tiles[row][bars_col] = PrisonDoorTile()
-            else:
-                game_map.tiles[row][bars_col] = prison_bars
-        else:
+        if row == divider_row:
+            # Full-width wall row separating the two cells.
             game_map.tiles[row][bars_col] = wall
+            for col in floor_cols:
+                game_map.tiles[row][col] = wall
+            continue
 
-        # Cell interior: always floor (prisoner walks here).
-        game_map.tiles[row][cell_near_col] = floor
-        game_map.tiles[row][cell_far_col]  = floor
+        # Determine which cell this row belongs to.
+        in_cell_a = (cell_a_top <= row <= cell_a_bottom)
+        in_cell_b = (cell_b_top <= row <= cell_b_bottom)
 
-    # ── Register cell footprint so spawners can avoid these tiles ─────────
-    for written_col, written_row in positions_to_write:
-        game_map.prison_cell_tiles.add((written_col, written_row))
+        # Bars column — door at the cell's centre row, bars elsewhere.
+        if in_cell_a:
+            game_map.tiles[row][bars_col] = (
+                PrisonDoorTile() if row == door_row_a else prison_bars
+            )
+        elif in_cell_b:
+            game_map.tiles[row][bars_col] = (
+                PrisonDoorTile() if row == door_row_b else prison_bars
+            )
 
-    # ── Place the prisoner ─────────────────────────────────────────────────
-    prisoner = PrisonerNPC(prisoner_col, prisoner_row)
-    entities.append(prisoner)
+        # Cell interior — always floor.
+        for col in floor_cols:
+            game_map.tiles[row][col] = floor
 
-    return prisoner, (bars_col, door_row)
+    # ── Register the footprint so other spawners skip these tiles ─────────
+    for col, row in positions_to_write:
+        game_map.prison_cell_tiles.add((col, row))
+
+    # ── Place the two prisoners (one per cell, near their door) ──────────
+    prisoner_a = PrisonerNPC(prisoner_col, door_row_a)
+    prisoner_b = PrisonerNPC(prisoner_col, door_row_b)
+    entities.append(prisoner_a)
+    entities.append(prisoner_b)
+
+    return [
+        (prisoner_a, (bars_col, door_row_a)),
+        (prisoner_b, (bars_col, door_row_b)),
+    ]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -220,8 +242,11 @@ def handle_prison_door_interaction(player, game_instance):
     Check the four cardinal tiles adjacent to *player* for a PrisonDoorTile.
     If one is found, run an Athletics or Thieves'-Tools skill check to open it.
 
-    Returns True if any interaction was handled (the caller should consume the
-    key event regardless of success or failure so other handlers don't fire).
+    Opening the door does NOT give any reward — the prisoner gives their
+    reward when the player talks to them (F key while adjacent).
+
+    Returns True if any interaction was handled (caller should consume the
+    key event regardless of success or failure).
     """
     game_map = game_instance.game_map
 
@@ -244,24 +269,20 @@ def handle_prison_door_interaction(player, game_instance):
             )
             return True
 
-        # ── Build the skill check ─────────────────────────────────────────
+        # ── Skill check ───────────────────────────────────────────────────
         player_has_thieves_tools = (
             hasattr(player, 'has_thieves_tools') and player.has_thieves_tools()
         )
 
         if player_has_thieves_tools:
-            skill_bonus = (
-                player.get_ability_modifier(player.dexterity)
-                + player.proficiency_bonus
-            )
-            skill_label    = "Thieves' Tools (DEX)"
+            skill_bonus      = (player.get_ability_modifier(player.dexterity)
+                                + player.proficiency_bonus)
+            skill_label      = "Thieves' Tools (DEX)"
             difficulty_class = 12
         else:
-            skill_bonus = (
-                player.get_ability_modifier(player.strength)
-                + player.proficiency_bonus
-            )
-            skill_label    = "Athletics (STR)"
+            skill_bonus      = (player.get_ability_modifier(player.strength)
+                                + player.proficiency_bonus)
+            skill_label      = "Athletics (STR)"
             difficulty_class = 15
 
         die_roll    = random.randint(1, 20)
@@ -278,7 +299,7 @@ def handle_prison_door_interaction(player, game_instance):
             neighbour_tile.is_open   = True
             neighbour_tile.is_locked = False
             neighbour_tile.blocked   = False
-            neighbour_tile.char      = 'pdo'    # open-door graphic key in graphics.py
+            neighbour_tile.char      = 'pdo'
 
             success_messages = [
                 "The prison door swings open with a groan of rusty hinges!",
@@ -294,19 +315,19 @@ def handle_prison_door_interaction(player, game_instance):
             game_instance.floating_texts.append(
                 FloatingText(
                     neighbour_col, neighbour_row,
-                    "OPEN!", (100, 255, 100),
-                    y_speed=0.5,
+                    "OPEN!", (100, 255, 100), y_speed=0.5,
                 )
             )
 
-            # Free the nearest prisoner within 2 tiles of the door.
+            # Free the nearest unfreed prisoner within 3 tiles of this door.
+            # No reward yet — that comes when the player talks to them.
             for entity in game_instance.entities:
                 if isinstance(entity, PrisonerNPC) and not entity.has_been_freed:
-                    chebyshev_distance = max(
+                    chebyshev_dist = max(
                         abs(entity.x - neighbour_col),
                         abs(entity.y - neighbour_row),
                     )
-                    if chebyshev_distance <= 2:
+                    if chebyshev_dist <= 3:
                         entity.free(player, game_instance)
                         break
 
@@ -329,8 +350,7 @@ def handle_prison_door_interaction(player, game_instance):
         game_instance.floating_texts.append(
             FloatingText(
                 neighbour_col, neighbour_row,
-                "LOCKED!", (255, 80, 80),
-                y_speed=0.5,
+                "LOCKED!", (255, 80, 80), y_speed=0.5,
             )
         )
         return True     # event consumed even on failure

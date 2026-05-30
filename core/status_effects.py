@@ -457,6 +457,9 @@ class SpotTrapsEffect(StatusEffect):
             for trap_tile in adjacent_traps:
                 if investigation_check_total >= trap_tile.trap_instance.detection_dc:
                     trap_tile.trap_instance.reveal(game_instance, trap_tile.x, trap_tile.y)
+
+                    game_instance.message_log.add_message(f"Perception Check: Rolled {d20_roll} against {trap_tile.trap_instance.detection_dc}.", (0, 255, 255))
+
                     game_instance.message_log.add_message(f"You spot a hidden {trap_tile.trap_instance.name}!", (0, 255, 255))
                     found_any = True
     
@@ -498,14 +501,16 @@ class DetectMagicEffect(StatusEffect):
                 arcana_bonus += target.proficiency_bonus
             d20_roll = random.randint(1, 20)
             arcana_check_total = d20_roll + arcana_bonus
-            game_instance.message_log.add_message(f"Arcana Check: Rolled {d20_roll} + {arcana_bonus} = {arcana_check_total} against DC.", (160, 40, 160))
-            
+
             found_any = False
             for item in detected_items:
                 if isinstance(item, TrapTile):
                     detection_dc = item.trap_instance.detection_dc
                     if arcana_check_total >= detection_dc:
                         item.trap_instance.reveal(game_instance, item.x, item.y)
+                        
+                        game_instance.message_log.add_message(f"Arcana Check: Rolled {d20_roll} + {arcana_bonus} = {arcana_check_total} against {item.trap_instance.detection_dc} DC.", (160, 40, 160))
+            
                         game_instance.message_log.add_message(f"You detect a hidden {item.trap_instance.name}!", (0, 255, 255))
                         found_any = True
                 elif isinstance(item, MimicTile):
@@ -513,6 +518,9 @@ class DetectMagicEffect(StatusEffect):
                     detection_dc = 15  # Or getattr(item.mimic_entity, 'detection_dc', 15)
                     if arcana_check_total >= detection_dc:
                         item.mimic_entity.reveal(game_instance)
+
+                        game_instance.message_log.add_message(f"Arcana Check: Rolled {d20_roll} + {arcana_bonus} = {arcana_check_total} against {item.trap_instance.detection_dc} DC.", (160, 40, 160))
+                                                
                         game_instance.message_log.add_message(f"You detect a hidden mimic!", (0, 255, 255))
                         found_any = True
     

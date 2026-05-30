@@ -274,25 +274,32 @@ def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=8, room
     trap_rooms = set(id(r) for r in random.sample(interior_rooms, k=min(num_trap_rooms, len(interior_rooms))))
 
     # ── Prison cell encounters ─────────────────────────────────────────────
-    # Spawned BEFORE the populate-rooms loop so prison_cell_tiles is populated
-    # and all subsequent spawn passes can skip those positions.
-    # BAR_WINDOW_HEIGHT=5 → MIN_INNER_HEIGHT=7 → minimum total room size is 9.
-    # Since room_min_size=8, every room qualifies on dimensions alone.
+
+    MAX_PRISON_ROOMS   = 3          # upper bound on cells per floor
+    PRISON_ROOM_CHANCE = 0.80       # per-room probability of becoming a prison
+
     prison_prisoners = []
-    if random.random() <= 0.99 and len(rooms) > 1:
-        candidate_rooms = [
-            room for room in rooms
-            if room is not stairs_up_room
-            and room is not stairs_down_room
-            and (room.x2 - room.x1) >= 8    # total width  >= 8  → inner_w >= 6 (MIN_INNER_WIDTH)
-            and (room.y2 - room.y1) >= 9    # total height >= 9  → inner_h >= 7 (MIN_INNER_HEIGHT)
-        ]
-        if candidate_rooms:
-            prison_room = random.choice(candidate_rooms)
-            generate_prison_cell(
-                game_map, prison_room, prison_prisoners, stairs_positions
-            )
-            # On success, prisoner is already inside prison_prisoners
+
+    # Collect rooms that are large enough and are not stair rooms.
+    prison_candidates = [
+        room for room in rooms
+        if room is not stairs_up_room
+        and room is not stairs_down_room
+        and (room.x2 - room.x1) >= 8
+        and (room.y2 - room.y1) >= 9
+    ]
+
+    # Shuffle so selection is random, then iterate up to the cap.
+    random.shuffle(prison_candidates)
+
+    prison_rooms_placed = 0
+    for candidate in prison_candidates:
+        if prison_rooms_placed >= MAX_PRISON_ROOMS:
+            break
+        if random.random() > PRISON_ROOM_CHANCE:
+            continue
+        generate_prison_cell(game_map, candidate, prison_prisoners, stairs_positions)
+        prison_rooms_placed += 1
 
     # ------------------------------------------------------------------
     # 6. Populate rooms
