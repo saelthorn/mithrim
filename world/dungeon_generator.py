@@ -94,23 +94,62 @@ def _dig_tunnel_v(game_map, y1, y2, x):
             game_map.tiles[y][x] = tile.floor
 
 
-def _connect_rooms(game_map, room_a, room_b):
+def _connect_rooms(game_map, room_a, room_b, prison_blocked_sides=None):
     """
     Connect two rooms with an L-shaped tunnel.
-    Randomly choose the bend direction.
+
+    If a room has a prison cell on one side (east/west), tunnels must never
+    enter that room from that cardinal direction.  We control this by choosing
+    which bend variant to use:
+
+      Variant A  (horizontal first):
+        - enters room_a from the EAST or WEST (horizontal segment leaves ax)
+        - enters room_b from the NORTH or SOUTH (vertical segment arrives at by)
+
+      Variant B  (vertical first):
+        - enters room_a from the NORTH or SOUTH (vertical segment leaves ay)
+        - enters room_b from the EAST or WEST (horizontal segment arrives at bx)
+
+    So if room_a has prison on the east/west we prefer Variant B (enters room_a
+    vertically).  If room_b has prison on east/west we prefer Variant A (enters
+    room_b vertically).  If both are constrained the same way we still pick the
+    best option — the constraint is a preference, not a hard block, since some
+    layouts may have no perfect choice.
     """
     ax, ay = room_a.center()
     bx, by = room_b.center()
-    if randint(0, 1):
+
+    blocked_sides = prison_blocked_sides or {}
+    a_blocked = blocked_sides.get(id(room_a))  # 'east', 'west', or None
+    b_blocked = blocked_sides.get(id(room_b))
+
+    # Variant A: horizontal first (room_a entered east/west, room_b north/south)
+    # Variant B: vertical first  (room_a entered north/south, room_b east/west)
+    #
+    # a_blocked east/west  → avoid variant A for room_a  → prefer B
+    # b_blocked east/west  → avoid variant B for room_b  → prefer A
+    a_needs_vertical_entry = a_blocked in ('east', 'west')
+    b_needs_vertical_entry = b_blocked in ('east', 'west')
+
+    if a_needs_vertical_entry and not b_needs_vertical_entry:
+        use_variant_b = True   # room_a must be entered vertically
+    elif b_needs_vertical_entry and not a_needs_vertical_entry:
+        use_variant_b = False  # room_b must be entered vertically → use A
+    else:
+        use_variant_b = bool(randint(0, 1))  # no constraint or both constrained
+
+    if not use_variant_b:
+        # Variant A: horizontal ax→bx at ay, then vertical ay→by at bx
         _dig_tunnel_h(game_map, ax, bx, ay)
         _dig_tunnel_v(game_map, ay, by, bx)
         bend = (bx, ay)
     else:
+        # Variant B: vertical ay→by at ax, then horizontal ax→bx at by
         _dig_tunnel_v(game_map, ay, by, ax)
         _dig_tunnel_h(game_map, ax, bx, by)
         bend = (ax, by)
-    return bend   # return the bend point so we can optionally place a door there
 
+    return bend
 
 #def _place_door(game_map, x, y):
     """Place a door tile only if the spot is currently open floor."""
@@ -273,14 +312,17 @@ def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=8, room
     num_trap_rooms = max(1, len(interior_rooms) // 3)
     trap_rooms = set(id(r) for r in random.sample(interior_rooms, k=min(num_trap_rooms, len(interior_rooms))))
 
-    # ── Prison cell encounters ─────────────────────────────────────────────
+    # ------------------------------------------------------------------
+    # 6. Prison cell encounters
+    #    Carved after tunnels are already dug. We then repair any tunnel
+    #    that punched through the prison's blocked side by walling it off
+    #    and digging a new vertical entry from the top or bottom instead.
+    # ------------------------------------------------------------------
+    MAX_PRISON_ROOMS   = 3
+    PRISON_ROOM_CHANCE = 0.80
+    prison_prisoners   = []
+    prison_blocked_sides = {}  # id(room) -> 'east' or 'west'
 
-    MAX_PRISON_ROOMS   = 3          # upper bound on cells per floor
-    PRISON_ROOM_CHANCE = 0.80       # per-room probability of becoming a prison
-
-    prison_prisoners = []
-
-    # Collect rooms that are large enough and are not stair rooms.
     prison_candidates = [
         room for room in rooms
         if room is not stairs_up_room
@@ -288,8 +330,6 @@ def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=8, room
         and (room.x2 - room.x1) >= 8
         and (room.y2 - room.y1) >= 9
     ]
-
-    # Shuffle so selection is random, then iterate up to the cap.
     random.shuffle(prison_candidates)
 
     prison_rooms_placed = 0
@@ -298,17 +338,94 @@ def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=8, room
             break
         if random.random() > PRISON_ROOM_CHANCE:
             continue
-        generate_prison_cell(game_map, candidate, prison_prisoners, stairs_positions)
-        prison_rooms_placed += 1
+        orientation, result = generate_prison_cell(
+            game_map, candidate, prison_prisoners, stairs_positions
+        )
+        if result is not None:
+            prison_blocked_sides[id(candidate)] = orientation
+            prison_rooms_placed += 1
 
     # ------------------------------------------------------------------
-    # 6. Populate rooms
+    # 7. Repair tunnels that cut through prison-blocked walls
+    #
+    #    For each prison room, find the column of its outer wall on the
+    #    blocked side (east wall col = room.x2, west wall col = room.x1).
+    #    Any floor tile on that wall column was dug by a horizontal tunnel
+    #    — wall it back up.  Then ensure the room is still reachable by
+    #    digging a vertical entry through the top or bottom wall instead.
+    # ------------------------------------------------------------------
+    for room, side in [(r, prison_blocked_sides[id(r)]) for r in rooms if id(r) in prison_blocked_sides]:
+
+        if side == 'east':
+            blocked_wall_col = room.x2   # the east outer wall column
+        else:
+            blocked_wall_col = room.x1   # the west outer wall column
+
+        # Seal any horizontal tunnel breaches on the blocked wall column.
+        for row in range(room.y1, room.y2 + 1):
+            if 0 <= blocked_wall_col < game_map.width and 0 <= row < game_map.height:
+                t = game_map.tiles[row][blocked_wall_col]
+                # A floor (or variant) on the outer wall means a tunnel dug through here.
+                if not t.blocked:
+                    game_map.tiles[row][blocked_wall_col] = wall
+
+        # Also seal one column inside the room on the blocked side, because
+        # _dig_tunnel_h may have run a few tiles into the room interior before
+        # hitting the bars column.
+        inner_col = (room.x2 - 1) if side == 'east' else (room.x1 + 1)
+        for row in range(room.y1, room.y2 + 1):
+            if 0 <= inner_col < game_map.width and 0 <= row < game_map.height:
+                if is_prison_cell_position(game_map, inner_col, row):
+                    # This column is bars/floor — leave it alone.
+                    continue
+                t = game_map.tiles[row][inner_col]
+                if not t.blocked:
+                    game_map.tiles[row][inner_col] = wall
+
+        # Now ensure the room is still connected by checking that at least
+        # one floor tile exists on the top or bottom outer wall (a vertical
+        # tunnel already enters there, or we dig one now).
+        top_wall_row    = room.y1
+        bottom_wall_row = room.y2
+        cx = (room.x1 + room.x2) // 2
+
+        def _has_floor_on_wall(wall_row, x1, x2):
+            for col in range(x1 + 1, x2):
+                if 0 <= col < game_map.width and 0 <= wall_row < game_map.height:
+                    if not game_map.tiles[wall_row][col].blocked:
+                        return True
+            return False
+
+        top_open    = _has_floor_on_wall(top_wall_row,    room.x1, room.x2)
+        bottom_open = _has_floor_on_wall(bottom_wall_row, room.x1, room.x2)
+
+        if not top_open and not bottom_open:
+            # Room is now sealed — punch a new entry through the top wall at center.
+            if 0 <= cx < game_map.width and 0 <= top_wall_row < game_map.height:
+                game_map.tiles[top_wall_row][cx] = tile.floor
+            # And connect it upward to the nearest open corridor tile above.
+            connect_row = top_wall_row - 1
+            while connect_row >= 0:
+                if not game_map.tiles[connect_row][cx].blocked:
+                    break
+                game_map.tiles[connect_row][cx] = tile.floor
+                connect_row -= 1
+
+    # ------------------------------------------------------------------
+    # 8. Populate rooms
     # ------------------------------------------------------------------
     for room in rooms:
         is_stair_room = (room is stairs_up_room or room is stairs_down_room)
 
-        # --- Pillars in large rooms ---
-        if not is_stair_room and random.random() < 0.4:
+        # Check if this room has any prison cell tiles — if so, skip pillars
+        # to avoid blocking cell interiors and corridors.
+        room_has_prison_tiles = any(
+            is_prison_cell_position(game_map, x, y)
+            for x, y in room.inner_tiles()
+        )
+
+        # --- Pillars in large rooms (not stair rooms, not prison rooms) ---
+        if not is_stair_room and not room_has_prison_tiles and random.random() < 0.4:
             _place_pillars(game_map, room)
 
         # --- Torches on room walls ---

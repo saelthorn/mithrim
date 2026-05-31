@@ -896,39 +896,67 @@ class Game:
             if not healer_spawned:
                 self.message_log.add_message("DEBUG: Dungeon Healer could not find a suitable spawn spot.", (100, 100, 100))
 
-        elif len(rooms) > 2 and random.random() < 0.9: # Merchant spawnrate
+        elif len(rooms) > 2 and random.random() < 0.9:  # Merchant spawnrate
             shuffled_merchant_rooms = list(rooms[1:-1])
             random.shuffle(shuffled_merchant_rooms)
             merchant_spawned = False
             for merchant_room in shuffled_merchant_rooms:
+            
+                # Check if this room is a prison cell room. If so, replace one of
+                # its prisoners with the merchant instead of spawning on open floor.
+                room_has_prison = any(
+                    is_prison_cell_position(self.game_map, x, y)
+                    for y in range(merchant_room.y1 + 1, merchant_room.y2)
+                    for x in range(merchant_room.x1 + 1, merchant_room.x2)
+                )
+                if room_has_prison:
+                    prisoner_in_room = next(
+                        (e for e in self.entities
+                         if isinstance(e, PrisonerNPC)
+                         and merchant_room.x1 < e.x < merchant_room.x2
+                         and merchant_room.y1 < e.y < merchant_room.y2),
+                        None
+                    )
+                    if prisoner_in_room:
+                        self.entities.remove(prisoner_in_room)
+                        self.dungeon_merchant = DungeonMerchant(prisoner_in_room.x, prisoner_in_room.y)
+                        self.entities.append(self.dungeon_merchant)
+                        self.message_log.add_message(
+                            "A merchant is being held prisoner in one of the cells!", (200, 180, 100)
+                        )
+                        merchant_spawned = True
+                        break
+                    # No prisoner found in this prison room — fall through to normal logic.
+
+                # Normal spawn: find an open floor tile not near a tunnel entrance.
                 possible_spawn_points = []
                 for y_coord in range(merchant_room.y1 + 2, merchant_room.y2 - 1):
                     for x_coord in range(merchant_room.x1 + 2, merchant_room.x2 - 1):
-                        # NEW: Check for water tiles
                         if self.game_map.is_walkable(x_coord, y_coord) and \
                            not any(e.x == x_coord and e.y == y_coord for e in self.entities) and \
                            not is_water_tile(self.game_map.tiles[y_coord][x_coord]) and \
                            not is_prison_cell_position(self.game_map, x_coord, y_coord):
                             is_near_tunnel = False
-                            for dx, dy in [(-1,0), (1,0), (0,-1), (0,1)]:
+                            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                                 neighbor_x, neighbor_y = x_coord + dx, y_coord + dy
                                 if self.game_map.tiles[neighbor_y][neighbor_x] == floor and \
-                                   not (merchant_room.x1 < neighbor_x < merchant_room.x2 and merchant_room.y1 < neighbor_y < merchant_room.y2):
+                                   not (merchant_room.x1 < neighbor_x < merchant_room.x2
+                                        and merchant_room.y1 < neighbor_y < merchant_room.y2):
                                     is_near_tunnel = True
                                     break
                             if not is_near_tunnel:
                                 possible_spawn_points.append((x_coord, y_coord))
-                
+
                 if possible_spawn_points:
                     merchant_x, merchant_y = random.choice(possible_spawn_points)
-                    self.dungeon_merchant = DungeonMerchant(merchant_x, merchant_y) # Assign to game instance
+                    self.dungeon_merchant = DungeonMerchant(merchant_x, merchant_y)
                     self.entities.append(self.dungeon_merchant)
                     merchant_spawned = True
                     break
-            
+                
             if not merchant_spawned:
-                self.message_log.add_message("DEBUG: Dungeon Healer could not find a suitable spawn spot.", (100, 100, 100))                
-
+                self.message_log.add_message("DEBUG: Dungeon Merchant could not find a suitable spawn spot.", (100, 100, 100))
+                
         item_templates = [
             lesser_healing_potion, greater_healing_potion, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor,
             robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, 
@@ -1592,11 +1620,7 @@ class Game:
                         )
                         if adjacent_has_torch:
                             self.try_light_wall_torch()
-                            return True  # Consume event regardless (don't fall to quick-bar)
-                        
-                        # --- Prison door interaction ---
-                        if handle_prison_door_interaction(self.player, self):
-                            return True                        
+                            return True  # Consume event regardless (don't fall to quick-bar)                    
 
                         merchant = self.check_dungeon_npc_interaction()  # Check for adjacent NPC
                         if isinstance(merchant, DungeonMerchant):
@@ -1844,6 +1868,10 @@ class Game:
                                     else:
                                         self.message_log.add_message("Nothing to interact with here.", (150, 150, 150))
                             # --- MODIFIED END ---
+                            
+                            # --- Prison door interaction ---
+                            if handle_prison_door_interaction(self.player, self):
+                                return True                                
 
                     abilities_list = list(self.player.abilities.values())
 

@@ -94,9 +94,9 @@ def generate_prison_cell(game_map, room, entities, stairs_positions):
             entities, stairs_positions,
         )
         if result is not None:
-            return result
+            return orientation, result   
 
-    return None
+    return None, None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
