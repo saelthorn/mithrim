@@ -151,7 +151,7 @@ def _connect_rooms(game_map, room_a, room_b, prison_blocked_sides=None):
 
     return bend
 
-#def _place_door(game_map, x, y):
+def _place_door(game_map, x, y):
     """Place a door tile only if the spot is currently open floor."""
     if game_map.is_walkable(x, y):
         game_map.tiles[y][x] = dungeon_door
@@ -201,7 +201,7 @@ def _is_water(game_map, x, y):
 # Main generator
 # ---------------------------------------------------------------------------
 
-def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=8, room_max_size=10):
+def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room_max_size=10):
     rooms = []
     stairs_positions = {}
     torch_light_sources = []
@@ -318,9 +318,10 @@ def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=8, room
     #    that punched through the prison's blocked side by walling it off
     #    and digging a new vertical entry from the top or bottom instead.
     # ------------------------------------------------------------------
-    MAX_PRISON_ROOMS   = 3
-    PRISON_ROOM_CHANCE = 0.80
-    prison_prisoners   = []
+    MAX_PRISON_ROOMS    = 3
+    PRISON_ROOM_CHANCE  = 0.80
+    PRISONER_SPAWN_CHANCE = 0.65   # chance each individual prisoner actually appears
+    prison_prisoners    = []
     prison_blocked_sides = {}  # id(room) -> 'east' or 'west'
 
     prison_candidates = [
@@ -338,12 +339,22 @@ def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=8, room
             break
         if random.random() > PRISON_ROOM_CHANCE:
             continue
+
+        # Snapshot list length so we can identify newly added prisoners
+        prisoners_before = len(prison_prisoners)
+
         orientation, result = generate_prison_cell(
             game_map, candidate, prison_prisoners, stairs_positions
         )
         if result is not None:
             prison_blocked_sides[id(candidate)] = orientation
             prison_rooms_placed += 1
+
+            # Cull newly added prisoners based on spawn chance.
+            # Iterate in reverse so removing by index is safe.
+            for i in range(len(prison_prisoners) - 1, prisoners_before - 1, -1):
+                if random.random() > PRISONER_SPAWN_CHANCE:
+                    prison_prisoners.pop(i)
 
     # ------------------------------------------------------------------
     # 7. Repair tunnels that cut through prison-blocked walls
@@ -410,6 +421,45 @@ def generate_dungeon(game_map, level_number, max_rooms=12, room_min_size=8, room
                     break
                 game_map.tiles[connect_row][cx] = tile.floor
                 connect_row -= 1
+
+    # ------------------------------------------------------------------
+    # 7b. Carve a 1-tile floor border just outside each prison room
+    #
+    #     The prison room's own walls are left intact.  We carve floor
+    #     into the ring of tiles immediately outside those walls so the
+    #     player has a walkable corridor all the way around the room:
+
+    for room in [r for r in rooms if id(r) in prison_blocked_sides]:
+
+        # One tile beyond each edge of the room boundary
+        surround_x1 = room.x1 - 1
+        surround_x2 = room.x2 + 1
+        surround_y1 = room.y1 - 1
+        surround_y2 = room.y2 + 1
+
+        # Top row  (y == room.y1 - 1)
+        for col in range(surround_x1, surround_x2 + 1):
+            if 0 <= col < game_map.width and 0 <= surround_y1 < game_map.height:
+                if game_map.tiles[surround_y1][col].blocked:
+                    game_map.tiles[surround_y1][col] = tile.floor
+
+        # Bottom row  (y == room.y2 + 1)
+        for col in range(surround_x1, surround_x2 + 1):
+            if 0 <= col < game_map.width and 0 <= surround_y2 < game_map.height:
+                if game_map.tiles[surround_y2][col].blocked:
+                    game_map.tiles[surround_y2][col] = tile.floor
+
+        # Left column  (x == room.x1 - 1)
+        for row in range(surround_y1, surround_y2 + 1):
+            if 0 <= surround_x1 < game_map.width and 0 <= row < game_map.height:
+                if game_map.tiles[row][surround_x1].blocked:
+                    game_map.tiles[row][surround_x1] = tile.floor
+
+        # Right column  (x == room.x2 + 1)
+        for row in range(surround_y1, surround_y2 + 1):
+            if 0 <= surround_x2 < game_map.width and 0 <= row < game_map.height:
+                if game_map.tiles[row][surround_x2].blocked:
+                    game_map.tiles[row][surround_x2] = tile.floor
 
     # ------------------------------------------------------------------
     # 8. Populate rooms

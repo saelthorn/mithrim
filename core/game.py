@@ -664,7 +664,7 @@ class Game:
             self.game_map.items_on_ground.clear()
         self.lit_wall_torches = set()  # Reset lit torches for the new level 
 
-        self.game_map = GameMap(60, 40)
+        self.game_map = GameMap(100, 60)
         self.fov = FOV(self.game_map)
         
         rooms, self.stairs_positions, self.torch_light_sources, prison_prisoners = generate_dungeon(self.game_map, level_number)
