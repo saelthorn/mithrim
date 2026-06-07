@@ -651,7 +651,7 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
         )
 
         # --- Pillars in large rooms (not stair rooms, not prison rooms) ---
-        if not is_stair_room and not room_has_prison_tiles and random.random() < 0.4:
+        if not is_stair_room and not room_has_prison_tiles and not isinstance(room, LShapedRoom) and random.random() < 0.4:
             _place_pillars(game_map, room)
 
         # --- Torches on room walls ---
