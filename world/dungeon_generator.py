@@ -51,6 +51,62 @@ class RectRoom:
         )
 
 
+class LShapedRoom:
+    """
+    L-shaped room composed of a horizontal and vertical rectangular section.
+    The two sections overlap to form an L.
+    """
+    def __init__(self, h_x1, h_x2, h_y1, h_y2, v_x1, v_x2, v_y1, v_y2):
+        # Horizontal section (the wide bar of the L)
+        self.h_x1 = h_x1
+        self.h_x2 = h_x2
+        self.h_y1 = h_y1
+        self.h_y2 = h_y2
+        
+        # Vertical section (the tall bar of the L)
+        self.v_x1 = v_x1
+        self.v_x2 = v_x2
+        self.v_y1 = v_y1
+        self.v_y2 = v_y2
+        
+        # Bounding box for intersection checks and general properties
+        self.x1 = min(h_x1, v_x1)
+        self.x2 = max(h_x2, v_x2)
+        self.y1 = min(h_y1, v_y1)
+        self.y2 = max(h_y2, v_y2)
+
+    def center(self):
+        """Return the center of the bounding box."""
+        return ((self.x1 + self.x2) // 2, (self.y1 + self.y2) // 2)
+
+    def inner_tiles(self):
+        """Yield all interior tiles of the L-shaped room (union of both sections)."""
+        seen = set()
+        
+        # Interior of horizontal section
+        for y in range(self.h_y1 + 1, self.h_y2):
+            for x in range(self.h_x1 + 1, self.h_x2):
+                if (x, y) not in seen:
+                    seen.add((x, y))
+                    yield x, y
+        
+        # Interior of vertical section (excluding already-covered overlap)
+        for y in range(self.v_y1 + 1, self.v_y2):
+            for x in range(self.v_x1 + 1, self.v_x2):
+                if (x, y) not in seen:
+                    seen.add((x, y))
+                    yield x, y
+
+    def intersects(self, other, padding=1):
+        """Check if this L-room's bounding box intersects with another room."""
+        return (
+            self.x1 - padding <= other.x2 + padding and
+            self.x2 + padding >= other.x1 - padding and
+            self.y1 - padding <= other.y2 + padding and
+            self.y2 + padding >= other.y1 - padding
+        )
+
+
 # ---------------------------------------------------------------------------
 # Tile helpers
 # ---------------------------------------------------------------------------
@@ -75,9 +131,22 @@ def _plain_floor():
 
 
 def _dig_room(game_map, room):
-    for y in range(room.y1 + 1, room.y2):
-        for x in range(room.x1 + 1, room.x2):
-            game_map.tiles[y][x] = _plain_floor()
+    """Dig a room (rectangular or L-shaped)."""
+    if isinstance(room, LShapedRoom):
+        # Dig the horizontal section
+        for y in range(room.h_y1 + 1, room.h_y2):
+            for x in range(room.h_x1 + 1, room.h_x2):
+                game_map.tiles[y][x] = _plain_floor()
+        
+        # Dig the vertical section
+        for y in range(room.v_y1 + 1, room.v_y2):
+            for x in range(room.v_x1 + 1, room.v_x2):
+                game_map.tiles[y][x] = _plain_floor()
+    else:
+        # Regular rectangular room
+        for y in range(room.y1 + 1, room.y2):
+            for x in range(room.x1 + 1, room.x2):
+                game_map.tiles[y][x] = _plain_floor()
 
 
 def _dig_tunnel_h(game_map, x1, x2, y):
@@ -197,6 +266,106 @@ def _is_water(game_map, x, y):
     return game_map.tiles[y][x] in (lake, sewer_water, river)
 
 
+def _generate_l_shaped_room(game_map, room_min_size, room_max_size):
+    """
+    Generate a random L-shaped room that fits on the map.
+    Returns an LShapedRoom or None if generation fails.
+    More lenient sizing and positioning to ensure success rate.
+    """
+    # Make sections more reasonably sized
+    h_w = randint(max(6, room_min_size), room_max_size + 2)      # horizontal section width
+    h_h = randint(3, 5)                                           # horizontal section height (thinner)
+    v_w = randint(3, 5)                                           # vertical section width (narrower)
+    v_h = randint(max(6, room_min_size), room_max_size + 2)      # vertical section height
+    
+    # Randomly position the L in one of 4 orientations
+    orientation = randint(0, 3)
+    
+    try:
+        if orientation == 0:
+            # Horizontal at top-left, vertical extending down-right
+            max_h_x = game_map.width - h_w - v_w - 3
+            if max_h_x < 2:
+                return None
+            h_x = randint(2, max_h_x)
+            max_h_y = game_map.height - max(h_h, v_h) - 3
+            if max_h_y < 2:
+                return None
+            h_y = randint(2, max_h_y)
+            v_x = h_x + h_w - v_w
+            v_y = h_y + h_h - 1  # Overlap to create seamless L-shape
+            
+            if not (0 <= v_x and v_x + v_w <= game_map.width and
+                    0 <= v_y and v_y + v_h <= game_map.height):
+                return None
+                
+            return LShapedRoom(h_x, h_x + h_w, h_y, h_y + h_h,
+                              v_x, v_x + v_w, v_y, v_y + v_h)
+        
+        elif orientation == 1:
+            # Horizontal at top-right, vertical extending down-left
+            max_h_x = game_map.width - h_w - 3
+            if max_h_x < v_w + 2:
+                return None
+            h_x = randint(v_w + 2, max_h_x)
+            max_h_y = game_map.height - max(h_h, v_h) - 3
+            if max_h_y < 2:
+                return None
+            h_y = randint(2, max_h_y)
+            v_x = h_x
+            v_y = h_y + h_h - 1  # Overlap to create seamless L-shape
+            
+            if not (0 <= v_x and v_x + v_w <= game_map.width and
+                    0 <= v_y and v_y + v_h <= game_map.height):
+                return None
+                
+            return LShapedRoom(h_x, h_x + h_w, h_y, h_y + h_h,
+                              max(0, v_x - v_w), v_x, v_y, v_y + v_h)
+        
+        elif orientation == 2:
+            # Vertical at top-left, horizontal extending right-down
+            max_v_x = game_map.width - max(h_w, v_w) - 3
+            if max_v_x < 2:
+                return None
+            v_x = randint(2, max_v_x)
+            max_v_y = game_map.height - v_h - h_h - 3
+            if max_v_y < 2:
+                return None
+            v_y = randint(2, max_v_y)
+            h_x = v_x + v_w - 1  # Overlap to create seamless L-shape
+            h_y = v_y + v_h - h_h
+            
+            if not (0 <= h_x and h_x + h_w <= game_map.width and
+                    0 <= h_y and h_y + h_h <= game_map.height):
+                return None
+                
+            return LShapedRoom(h_x, h_x + h_w, h_y, h_y + h_h,
+                              v_x, v_x + v_w, v_y, v_y + v_h)
+        
+        else:  # orientation == 3
+            # Vertical at top-right, horizontal extending left-down
+            max_v_x = game_map.width - v_w - 3
+            if max_v_x < h_w + 2:
+                return None
+            v_x = randint(h_w + 2, max_v_x)
+            max_v_y = game_map.height - v_h - h_h - 3
+            if max_v_y < 2:
+                return None
+            v_y = randint(2, max_v_y)
+            h_x = v_x - h_w + 1  # Overlap to create seamless L-shape
+            h_y = v_y + v_h - h_h
+            
+            if not (0 <= h_x and h_x + h_w <= game_map.width and
+                    0 <= h_y and h_y + h_h <= game_map.height):
+                return None
+                
+            return LShapedRoom(h_x, h_x + h_w, h_y, h_y + h_h,
+                              v_x, v_x + v_w, v_y, v_y + v_h)
+    
+    except (ValueError, IndexError):
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Main generator
 # ---------------------------------------------------------------------------
@@ -217,11 +386,17 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
     # ------------------------------------------------------------------
     attempts = max_rooms * 4
     for _ in range(attempts):
-        w = randint(room_min_size, room_max_size)
-        h = randint(room_min_size, room_max_size)
-        x = randint(1, game_map.width  - w - 2)
-        y = randint(1, game_map.height - h - 2)
-        new_room = RectRoom(x, y, w, h)
+        # 35% chance to generate an L-shaped room, 65% chance for rectangular
+        if random.random() < 0.35:
+            new_room = _generate_l_shaped_room(game_map, room_min_size, room_max_size)
+            if new_room is None:
+                continue  # Failed to generate L-room, try again
+        else:
+            w = randint(room_min_size, room_max_size)
+            h = randint(room_min_size, room_max_size)
+            x = randint(1, game_map.width  - w - 2)
+            y = randint(1, game_map.height - h - 2)
+            new_room = RectRoom(x, y, w, h)
 
         if any(new_room.intersects(r) for r in rooms):
             continue
@@ -328,6 +503,7 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
         room for room in rooms
         if room is not stairs_up_room
         and room is not stairs_down_room
+        and not isinstance(room, LShapedRoom)
         and (room.x2 - room.x1) >= 8
         and (room.y2 - room.y1) >= 9
     ]

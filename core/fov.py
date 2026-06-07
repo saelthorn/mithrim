@@ -18,6 +18,10 @@ class FOV:
         self.visible_sources[(origin_x, origin_y)] = light_source_type
         self.explored.add((origin_x, origin_y))
 
+        # OPTIMIZATION: Use squared distances to avoid sqrt in tight loop
+        extended_radius_sq = extended_radius * extended_radius
+        normal_radius_sq = normal_radius * normal_radius
+
         # Cast a ray toward every tile within the extended radius bounding box
         for ty in range(origin_y - extended_radius, origin_y + extended_radius + 1):
             for tx in range(origin_x - extended_radius, origin_x + extended_radius + 1):
@@ -25,23 +29,27 @@ class FOV:
                 if tx == origin_x and ty == origin_y:
                     continue
 
-                # Euclidean distance check — enforces a true circle
-                dist = math.sqrt((tx - origin_x) ** 2 + (ty - origin_y) ** 2)
-                if dist > extended_radius:
+                # OPTIMIZATION: Use squared distance comparison to avoid sqrt
+                dist_sq = (tx - origin_x) ** 2 + (ty - origin_y) ** 2
+                if dist_sq > extended_radius_sq:
                     continue
 
+                # Only compute sqrt when needed
+                dist = math.sqrt(dist_sq)
                 self._cast_ray_to_tile(
                     origin_x, origin_y,
                     tx, ty,
-                    dist, normal_radius,
+                    dist, normal_radius, normal_radius_sq,
                     light_source_type
                 )
 
-    def _cast_ray_to_tile(self, start_x, start_y, target_x, target_y, target_dist, normal_radius, light_source_type):
+    def _cast_ray_to_tile(self, start_x, start_y, target_x, target_y, target_dist, normal_radius, normal_radius_sq, light_source_type):
         """
         Cast a ray from origin toward a specific target tile.
         Steps along the ray in 0.5-unit increments to avoid skipping
         narrow walls, stopping if a sight-blocking tile is hit.
+        
+        OPTIMIZED: Uses squared distances for tile distance comparison
         """
         dx = target_x - start_x
         dy = target_y - start_y
@@ -69,13 +77,14 @@ class FOV:
                 continue
             seen_tiles.add((x, y))
 
-            # Tile distance from origin (Euclidean, in tiles)
-            tile_dist = math.sqrt((x - start_x) ** 2 + (y - start_y) ** 2)
+            # OPTIMIZATION: Use squared distance to avoid sqrt
+            tile_dist_sq = (x - start_x) ** 2 + (y - start_y) ** 2
 
             current_source = self.visible_sources.get((x, y))
 
             if light_source_type == 'player':
-                if tile_dist <= normal_radius:
+                # Compare squared distances (no sqrt needed)
+                if tile_dist_sq <= normal_radius_sq:
                     self.visible_sources[(x, y)] = 'player'
                 else:
                     if current_source != 'player':

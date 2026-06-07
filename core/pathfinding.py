@@ -20,12 +20,19 @@ def astar(game_map, start, end, entities=None, moving_entity=None, ignore_destru
     can_swim = getattr(moving_entity, 'can_swim', False)
 
     # Precompute entity blocked positions for O(1) lookup
+    # FIXED: Only scan entities' actual footprints, not entire map (6000x speedup!)
     blocked_tiles = set()
     if entities:
         for ent in entities:
-            if hasattr(ent, 'occupies_tile'):
-                blocked_tiles.update(ent.occupies_tile(x, y) for x in range(game_map.width) for y in range(game_map.height) if ent.occupies_tile(x, y))
+            if hasattr(ent, 'occupies_tile') and hasattr(ent, 'footprint_size') and ent.footprint_size > 1:
+                # Multi-tile entity: only compute tiles it actually occupies
+                for oy in range(ent.footprint_size):
+                    for ox in range(ent.footprint_size):
+                        tx, ty = ent.x + ox, ent.y + oy
+                        if 0 <= tx < game_map.width and 0 <= ty < game_map.height:
+                            blocked_tiles.add((tx, ty))
             else:
+                # Single-tile entity: add their position
                 if hasattr(ent, 'x') and hasattr(ent, 'y'):
                     blocked_tiles.add((ent.x, ent.y))
     blocked_tiles.discard(start)

@@ -23,6 +23,54 @@ class AI_State(Enum):
     DESPERATE_FIGHT = 3
     INVESTIGATE = 4  # New state for investigation
 
+
+# --- MONSTER GROUP DEFINITIONS ---
+# Maps primary monster type to list of compatible monster types that can spawn together
+MONSTER_GROUPS = {
+    # Paired/Pack Monsters
+    'Goblin': ['Goblin', 'GoblinArcher'],
+    'GoblinArcher': ['Goblin', 'GoblinArcher'],
+    'Skeleton': ['Skeleton', 'SkeletonArcher'],
+    'SkeletonArcher': ['Skeleton', 'SkeletonArcher'],
+    'Lizardfolk': ['Lizardfolk', 'LizardfolkArcher'],
+    'LizardfolkArcher': ['Lizardfolk', 'LizardfolkArcher'],
+    'Centaur': ['Centaur', 'CentaurArcher'],
+    'CentaurArcher': ['Centaur', 'CentaurArcher'],
+    'Wolf': ['Wolf', 'Wolf'],
+    
+    # Solo/Pack Monsters (can appear in small groups of same type)
+    'GiantRat': ['GiantRat', 'GiantRat'],
+    'Ooze': ['Ooze'],
+    'Orc': ['Orc', 'Orc'],
+    'Troll': ['Troll'],
+    'GiantSpider': ['GiantSpider', 'GiantSpider'],
+    'Wererat': ['Wererat', 'Wererat'],
+    'MyconidSprout': ['MyconidSprout', 'MyconidSprout', 'MyconidAdult'],
+    'MyconidAdult': ['MyconidAdult', 'MyconidSprout'],
+    'Beholder': ['Beholder', 'Gauth'],
+    'LargeOoze': ['LargeOoze', 'Ooze'],
+    
+    # Solo Monsters
+    'RedDragon': ['RedDragon'],
+    'Owlbear': ['Owlbear'],
+    'Demogorgon': ['Demogorgon'],
+    'AlphaGrick': ['AlphaGrick'],
+    'Grick': ['Grick'],
+    'GibberingMouther': ['GibberingMouther'],
+    'MindFlayer': ['MindFlayer'],
+    'Minotaur': ['Minotaur'],
+    'Yochlol': ['Yochlol'],
+    'RedSlaad': ['RedSlaad'],
+    'DeathSlaad': ['DeathSlaad'],
+    'Mezzoloth': ['Mezzoloth'],
+    'Gauth': ['Gauth'],
+    'Drider': ['Drider'],
+    'Arasta': ['Arasta'],
+    'IntellectDevourer': ['IntellectDevourer', 'IntellectDevourer'],
+    'Imp': ['Imp', 'Imp'],
+    'Wraith': ['Wraith'],
+}
+
 class Monster:
     def __init__(self, x, y, char, name, color):
         self.x = x

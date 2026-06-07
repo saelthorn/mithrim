@@ -851,17 +851,15 @@ class Game:
             if (0 <= x < self.game_map.width and 0 <= y < self.game_map.height and
                 self.game_map.is_walkable(x, y) and not is_water_tile(self.game_map.tiles[y][x])
                 and not is_prison_cell_position(self.game_map, x, y)):
-                # Randomly choose a monster class from the possible_monsters list
+                # Randomly choose a primary monster class from the possible_monsters list
                 chosen_monster_class = random.choice(possible_monsters)
 
                 # Mimic is handled separately as a special case in dungeon_generator.py
                 if chosen_monster_class == Mimic:
                     continue 
 
-                monster = chosen_monster_class(x, y)
-                # --- Monster Stat Scaling (Optional, implement later) ---
-                # You can add logic here to scale monster HP, attack, etc. based on level_number
-                self.entities.append(monster)
+                # Spawn a group of related monsters (1-4 per room)
+                spawned = self.spawn_monster_group(room, chosen_monster_class, self.game_map, possible_monsters)
 
         if len(rooms) > 2 and random.random() < 0.2: # Healer spawnrate
             shuffled_healer_rooms = list(rooms[1:-1])
@@ -2234,6 +2232,65 @@ class Game:
                 elif entity.x == x and entity.y == y:
                     return entity
         return None
+
+    def spawn_monster_group(self, room, primary_monster_class, game_map, possible_monsters):
+        """
+        Spawns a group of related monsters in a room.
+        - Chooses the primary monster type
+        - Spawns 1-4 monsters of compatible types
+        - Ensures they don't overlap and are within walkable tiles
+        """
+        from entities.monster import MONSTER_GROUPS
+        
+        # Get the primary monster's name for group lookup
+        primary_name = primary_monster_class.__name__
+        compatible_types = MONSTER_GROUPS.get(primary_name, [primary_name])
+        
+        # Determine how many monsters to spawn (1-4)
+        min_spawn = 1
+        max_spawn = 4 if len(compatible_types) > 1 else 2  # Solo monsters spawn 1-2, packs 1-4
+        num_to_spawn = random.randint(min_spawn, max_spawn)
+        
+        # Find all valid spawn positions within the room
+        valid_positions = []
+        for y in range(room.y1 + 1, room.y2):
+            for x in range(room.x1 + 1, room.x2):
+                if (0 <= x < game_map.width and 0 <= y < game_map.height and
+                    game_map.is_walkable(x, y) and 
+                    not is_water_tile(game_map.tiles[y][x]) and
+                    not is_prison_cell_position(game_map, x, y) and
+                    not any(e.x == x and e.y == y for e in self.entities)):
+                    valid_positions.append((x, y))
+        
+        # Spawn monsters
+        spawned_count = 0
+        for i in range(num_to_spawn):
+            if not valid_positions:
+                break  # No more valid positions
+            
+            # Choose a compatible monster type
+            monster_type_name = random.choice(compatible_types)
+            
+            # Find the class from possible_monsters list
+            monster_class = None
+            for cls in possible_monsters:
+                if cls.__name__ == monster_type_name:
+                    monster_class = cls
+                    break
+            
+            if monster_class is None:
+                continue  # Skip if class not found
+            
+            # Pick a random position from valid positions
+            spawn_x, spawn_y = random.choice(valid_positions)
+            valid_positions.remove((spawn_x, spawn_y))  # Remove to avoid overlap
+            
+            # Create and add the monster
+            monster = monster_class(spawn_x, spawn_y)
+            self.entities.append(monster)
+            spawned_count += 1
+        
+        return spawned_count
 
     def get_adjacent_target(self):
         for dx, dy in [(0,1),(1,0),(0,-1),(-1,0),(-1,-1),(1,-1),(-1,1),(1,1)]:
