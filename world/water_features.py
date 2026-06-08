@@ -182,13 +182,35 @@ def _generate_sewer_hallway(game_map, rooms):
     room1, room2 = random.sample(rooms, 2)
 
     def _room_edge_point(room):
+        """Get a random edge point of a room, safely handling small rooms."""
+        # Ensure room has minimum dimensions (handles 3x3 hub rooms)
+        room_width = room.x2 - room.x1
+        room_height = room.y2 - room.y1
+        
+        # Safe offsets based on room size
+        x_offset = min(1, max(0, room_width // 3))
+        y_offset = min(1, max(0, room_height // 3))
+        
         if random.random() < 0.5:
-            x = random.randint(room.x1 + 2, room.x2 - 2)
-            y = room.y1 + 1 if random.random() < 0.5 else room.y2 - 1
+            # Horizontal: pick random x, fixed y (top or bottom)
+            x_min = room.x1 + x_offset
+            x_max = room.x2 - x_offset
+            if x_min < x_max:
+                x = random.randint(x_min, x_max - 1)
+            else:
+                x = (room.x1 + room.x2) // 2
+            y = room.y1 + y_offset if random.random() < 0.5 else room.y2 - y_offset - 1
             return x, y
-        y = random.randint(room.y1 + 2, room.y2 - 2)
-        x = room.x1 + 1 if random.random() < 0.5 else room.x2 - 1
-        return x, y
+        else:
+            # Vertical: fixed x, pick random y
+            y_min = room.y1 + y_offset
+            y_max = room.y2 - y_offset
+            if y_min < y_max:
+                y = random.randint(y_min, y_max - 1)
+            else:
+                y = (room.y1 + room.y2) // 2
+            x = room.x1 + x_offset if random.random() < 0.5 else room.x2 - x_offset - 1
+            return x, y
 
     start_x, start_y = _room_edge_point(room1)
     end_x, end_y = _room_edge_point(room2)

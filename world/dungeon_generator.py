@@ -168,6 +168,23 @@ def _tunnel_length(x1, y1, x2, y2):
     return abs(x2 - x1) + abs(y2 - y1)
 
 
+def _create_hub_room(game_map, cx, cy, rooms):
+    """
+    Create a 3x3 hub room centered at (cx, cy).
+    Returns a RectRoom if successful, None if it intersects with existing rooms.
+    """
+    # 3x3 room, so x1/x2 are 2 units apart (same with y)
+    hub = RectRoom(cx - 1, cy - 1, 3, 3)
+    
+    # Check if it intersects with any existing room
+    if any(hub.intersects(r) for r in rooms):
+        return None
+    
+    # Carve out the hub room
+    _dig_room(game_map, hub)
+    return hub
+
+
 def _connect_rooms(game_map, room_a, room_b, prison_blocked_sides=None, max_tunnel_length=None):
     """
     Connect two rooms with an L-shaped tunnel.
@@ -450,25 +467,104 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
         _dig_room(game_map, rooms[0])
 
     # ------------------------------------------------------------------
-    # 2. Connect rooms
-    #    Primary chain: rooms[0] → rooms[1] → … (guarantees connectivity)
-    #    Extra edges:   randomly connect non-adjacent rooms to create loops
+    # 2. Connect rooms using a tree/graph structure
+    #    - Room 0 is the root
+    #    - Each room connects to its 2-3 nearest unconnected rooms
+    #    - This creates natural branching instead of a linear chain
+    #    - Ensures full connectivity while preferring short distances
     # ------------------------------------------------------------------
     bends = []
-    for i in range(1, len(rooms)):
-        bend = _connect_rooms(game_map, rooms[i - 1], rooms[i], max_tunnel_length=max_tunnel_length)
+    connected = set()  # Track which rooms have been processed
+    connected.add(0)   # Start with room 0 as root
+    queue = [0]       # Breadth-first queue
+    
+    def _distance_between_rooms(room_a, room_b):
+        """Calculate Euclidean distance between room centers."""
+        ax, ay = room_a.center()
+        bx, by = room_b.center()
+        return ((ax - bx) ** 2 + (ay - by) ** 2) ** 0.5
+    
+    def _connect_rooms_safe(room_a, room_b):
+        """Connect two rooms with hub fallback. Returns True if successful."""
+        # Try direct connection first
+        bend = _connect_rooms(game_map, room_a, room_b, max_tunnel_length=max_tunnel_length)
         if bend is not None:
             bends.append(bend)
-
-    # Add ~30% of extra random connections for more interesting layouts
-    extra_connections = max(1, len(rooms) // 3)
-    room_indices = list(range(len(rooms)))
-    for _ in range(extra_connections):
-        a, b = random.sample(room_indices, 2)
-        if abs(a - b) > 1:   # avoid re-connecting already-adjacent rooms
-            bend = _connect_rooms(game_map, rooms[a], rooms[b], max_tunnel_length=max_tunnel_length)
-            if bend is not None:
-                bends.append(bend)
+            return True
+        
+        # Tunnel too long; try to create a hub room at midpoint
+        ax, ay = room_a.center()
+        bx, by = room_b.center()
+        hub_x = (ax + bx) // 2
+        hub_y = (ay + by) // 2
+        
+        # Try to create a hub room at the midpoint
+        hub = _create_hub_room(game_map, hub_x, hub_y, rooms)
+        if hub is None:
+            # Try a few offset positions if the center doesn't work
+            for offset_x in [-3, 3]:
+                for offset_y in [-3, 3]:
+                    hub = _create_hub_room(game_map, hub_x + offset_x, hub_y + offset_y, rooms)
+                    if hub is not None:
+                        break
+                if hub is not None:
+                    break
+        
+        if hub is None:
+            return False  # Couldn't create hub
+        
+        rooms.append(hub)  # Add hub to rooms list
+        
+        # Connect room_a → hub and hub → room_b
+        bend1 = _connect_rooms(game_map, room_a, hub, max_tunnel_length=None)
+        bend2 = _connect_rooms(game_map, hub, room_b, max_tunnel_length=None)
+        
+        if bend1 is not None:
+            bends.append(bend1)
+        if bend2 is not None:
+            bends.append(bend2)
+        
+        return True
+    
+    # Process rooms in breadth-first order, building a tree structure
+    while queue:
+        current_idx = queue.pop(0)
+        current_room = rooms[current_idx]
+        
+        # Find unconnected rooms, sorted by distance (nearest first)
+        unconnected = [
+            (i, _distance_between_rooms(current_room, rooms[i]))
+            for i in range(len(rooms))
+            if i not in connected
+        ]
+        unconnected.sort(key=lambda x: x[1])
+        
+        # Connect to 2-3 nearest unconnected rooms (branching factor)
+        branches = min(3, len(unconnected))
+        for i in range(branches):
+            if i >= len(unconnected):
+                break
+            next_idx, distance = unconnected[i]
+            next_room = rooms[next_idx]
+            
+            # Try to connect
+            if _connect_rooms_safe(current_room, next_room):
+                connected.add(next_idx)
+                queue.append(next_idx)
+    
+    # Attempt to connect any remaining unconnected rooms
+    # (in case the tree structure didn't reach them)
+    for i in range(len(rooms)):
+        if i not in connected:
+            # Find nearest connected room and connect to it
+            connected_distances = [
+                (j, _distance_between_rooms(rooms[i], rooms[j]))
+                for j in connected
+            ]
+            if connected_distances:
+                nearest_idx, _ = min(connected_distances, key=lambda x: x[1])
+                if _connect_rooms_safe(rooms[nearest_idx], rooms[i]):
+                    connected.add(i)
 
     # Optionally place doors at tunnel bends
     # for bx, by in bends:
