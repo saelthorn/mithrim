@@ -1,5 +1,7 @@
 # Mithrim
 
+<img width="1621" height="985" alt="mithrim_bg" src="https://github.com/user-attachments/assets/aa4b1c03-84a8-4b92-9981-03bcaeea1d2e" />
+
 A turn-based dungeon crawler roguelike built in Python with Pygame. Create a character, explore procedurally-generated dungeons, and defeat the Spider Queen Arasta across 20 levels of increasing difficulty.
 
 ## Overview
