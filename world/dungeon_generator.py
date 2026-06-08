@@ -163,7 +163,12 @@ def _dig_tunnel_v(game_map, y1, y2, x):
             game_map.tiles[y][x] = tile.floor
 
 
-def _connect_rooms(game_map, room_a, room_b, prison_blocked_sides=None):
+def _tunnel_length(x1, y1, x2, y2):
+    """Calculate the Manhattan distance for a tunnel (L-shaped)."""
+    return abs(x2 - x1) + abs(y2 - y1)
+
+
+def _connect_rooms(game_map, room_a, room_b, prison_blocked_sides=None, max_tunnel_length=None):
     """
     Connect two rooms with an L-shaped tunnel.
 
@@ -184,9 +189,18 @@ def _connect_rooms(game_map, room_a, room_b, prison_blocked_sides=None):
     room_b vertically).  If both are constrained the same way we still pick the
     best option — the constraint is a preference, not a hard block, since some
     layouts may have no perfect choice.
+    
+    If max_tunnel_length is set and the tunnel would exceed it (Manhattan distance),
+    returns None instead of creating the tunnel.
     """
     ax, ay = room_a.center()
     bx, by = room_b.center()
+
+    # Check tunnel length if constrained
+    if max_tunnel_length is not None:
+        tunnel_len = _tunnel_length(ax, ay, bx, by)
+        if tunnel_len > max_tunnel_length:
+            return None  # Tunnel too long, reject connection
 
     blocked_sides = prison_blocked_sides or {}
     a_blocked = blocked_sides.get(id(room_a))  # 'east', 'west', or None
@@ -266,12 +280,19 @@ def _is_water(game_map, x, y):
     return game_map.tiles[y][x] in (lake, sewer_water, river)
 
 
-def _generate_l_shaped_room(game_map, room_min_size, room_max_size):
+def _generate_l_shaped_room(game_map, room_min_size, room_max_size, region_x1=None, region_x2=None, region_y1=None, region_y2=None):
     """
-    Generate a random L-shaped room that fits on the map.
+    Generate a random L-shaped room that fits on the map, optionally within a center-biased region.
     Returns an LShapedRoom or None if generation fails.
     More lenient sizing and positioning to ensure success rate.
     """
+    # Use full map if region not specified
+    if region_x1 is None:
+        region_x1 = 1
+        region_x2 = game_map.width - 1
+        region_y1 = 1
+        region_y2 = game_map.height - 1
+    
     # Make sections more reasonably sized
     h_w = randint(max(6, room_min_size), room_max_size + 2)      # horizontal section width
     h_h = randint(3, 5)                                           # horizontal section height (thinner)
@@ -284,14 +305,14 @@ def _generate_l_shaped_room(game_map, room_min_size, room_max_size):
     try:
         if orientation == 0:
             # Horizontal at top-left, vertical extending down-right
-            max_h_x = game_map.width - h_w - v_w - 3
-            if max_h_x < 2:
+            max_h_x = min(region_x2 - h_w - v_w - 3, game_map.width - h_w - v_w - 3)
+            if max_h_x < region_x1:
                 return None
-            h_x = randint(2, max_h_x)
-            max_h_y = game_map.height - max(h_h, v_h) - 3
-            if max_h_y < 2:
+            h_x = randint(region_x1, max_h_x)
+            max_h_y = min(region_y2 - max(h_h, v_h) - 3, game_map.height - max(h_h, v_h) - 3)
+            if max_h_y < region_y1:
                 return None
-            h_y = randint(2, max_h_y)
+            h_y = randint(region_y1, max_h_y)
             v_x = h_x + h_w - v_w
             v_y = h_y + h_h - 1  # Overlap to create seamless L-shape
             
@@ -304,14 +325,14 @@ def _generate_l_shaped_room(game_map, room_min_size, room_max_size):
         
         elif orientation == 1:
             # Horizontal at top-right, vertical extending down-left
-            max_h_x = game_map.width - h_w - 3
-            if max_h_x < v_w + 2:
+            max_h_x = min(region_x2 - h_w - 3, game_map.width - h_w - 3)
+            if max_h_x < region_x1 + v_w + 2:
                 return None
-            h_x = randint(v_w + 2, max_h_x)
-            max_h_y = game_map.height - max(h_h, v_h) - 3
-            if max_h_y < 2:
+            h_x = randint(region_x1 + v_w + 2, max_h_x)
+            max_h_y = min(region_y2 - max(h_h, v_h) - 3, game_map.height - max(h_h, v_h) - 3)
+            if max_h_y < region_y1:
                 return None
-            h_y = randint(2, max_h_y)
+            h_y = randint(region_y1, max_h_y)
             v_x = h_x
             v_y = h_y + h_h - 1  # Overlap to create seamless L-shape
             
@@ -324,14 +345,14 @@ def _generate_l_shaped_room(game_map, room_min_size, room_max_size):
         
         elif orientation == 2:
             # Vertical at top-left, horizontal extending right-down
-            max_v_x = game_map.width - max(h_w, v_w) - 3
-            if max_v_x < 2:
+            max_v_x = min(region_x2 - max(h_w, v_w) - 3, game_map.width - max(h_w, v_w) - 3)
+            if max_v_x < region_x1:
                 return None
-            v_x = randint(2, max_v_x)
-            max_v_y = game_map.height - v_h - h_h - 3
-            if max_v_y < 2:
+            v_x = randint(region_x1, max_v_x)
+            max_v_y = min(region_y2 - v_h - h_h - 3, game_map.height - v_h - h_h - 3)
+            if max_v_y < region_y1:
                 return None
-            v_y = randint(2, max_v_y)
+            v_y = randint(region_y1, max_v_y)
             h_x = v_x + v_w - 1  # Overlap to create seamless L-shape
             h_y = v_y + v_h - h_h
             
@@ -344,14 +365,14 @@ def _generate_l_shaped_room(game_map, room_min_size, room_max_size):
         
         else:  # orientation == 3
             # Vertical at top-right, horizontal extending left-down
-            max_v_x = game_map.width - v_w - 3
-            if max_v_x < h_w + 2:
+            max_v_x = min(region_x2 - v_w - 3, game_map.width - v_w - 3)
+            if max_v_x < region_x1 + h_w + 2:
                 return None
-            v_x = randint(h_w + 2, max_v_x)
-            max_v_y = game_map.height - v_h - h_h - 3
-            if max_v_y < 2:
+            v_x = randint(region_x1 + h_w + 2, max_v_x)
+            max_v_y = min(region_y2 - v_h - h_h - 3, game_map.height - v_h - h_h - 3)
+            if max_v_y < region_y1:
                 return None
-            v_y = randint(2, max_v_y)
+            v_y = randint(region_y1, max_v_y)
             h_x = v_x - h_w + 1  # Overlap to create seamless L-shape
             h_y = v_y + v_h - h_h
             
@@ -380,6 +401,21 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
     possible_traps = [DartTrap, SpikeTrap, FireTrap, ExplosiveTrap, AcidSprayTrap]
     prop_chance = 0.16
     door_chance = 0.55   # probability of placing a door at a tunnel bend
+    
+    # Calculate center-biased placement region to keep rooms clustered
+    # and avoid long winding tunnels
+    center_x = game_map.width // 2
+    center_y = game_map.height // 2
+    region_width = max(50, int(game_map.width * 0.6))    # 60% of map width
+    region_height = max(40, int(game_map.height * 0.6))  # 60% of map height
+    region_x1 = max(1, center_x - region_width // 2)
+    region_x2 = min(game_map.width - 1, center_x + region_width // 2)
+    region_y1 = max(1, center_y - region_height // 2)
+    region_y2 = min(game_map.height - 1, center_y + region_height // 2)
+    
+    # Maximum tunnel length to prevent long winding corridors (in Manhattan distance)
+    # This is roughly 40% of the region's diagonal
+    max_tunnel_length = int(((region_width ** 2 + region_height ** 2) ** 0.5) * 0.4)
 
     # ------------------------------------------------------------------
     # 1. Generate rooms
@@ -388,14 +424,16 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
     for _ in range(attempts):
         # 35% chance to generate an L-shaped room, 65% chance for rectangular
         if random.random() < 0.35:
-            new_room = _generate_l_shaped_room(game_map, room_min_size, room_max_size)
+            new_room = _generate_l_shaped_room(game_map, room_min_size, room_max_size,
+                                               region_x1, region_x2, region_y1, region_y2)
             if new_room is None:
                 continue  # Failed to generate L-room, try again
         else:
             w = randint(room_min_size, room_max_size)
             h = randint(room_min_size, room_max_size)
-            x = randint(1, game_map.width  - w - 2)
-            y = randint(1, game_map.height - h - 2)
+            # Place room within center-biased region
+            x = randint(region_x1, max(region_x1 + 1, region_x2 - w - 1))
+            y = randint(region_y1, max(region_y1 + 1, region_y2 - h - 1))
             new_room = RectRoom(x, y, w, h)
 
         if any(new_room.intersects(r) for r in rooms):
@@ -418,8 +456,9 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
     # ------------------------------------------------------------------
     bends = []
     for i in range(1, len(rooms)):
-        bend = _connect_rooms(game_map, rooms[i - 1], rooms[i])
-        bends.append(bend)
+        bend = _connect_rooms(game_map, rooms[i - 1], rooms[i], max_tunnel_length=max_tunnel_length)
+        if bend is not None:
+            bends.append(bend)
 
     # Add ~30% of extra random connections for more interesting layouts
     extra_connections = max(1, len(rooms) // 3)
@@ -427,8 +466,9 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
     for _ in range(extra_connections):
         a, b = random.sample(room_indices, 2)
         if abs(a - b) > 1:   # avoid re-connecting already-adjacent rooms
-            bend = _connect_rooms(game_map, rooms[a], rooms[b])
-            bends.append(bend)
+            bend = _connect_rooms(game_map, rooms[a], rooms[b], max_tunnel_length=max_tunnel_length)
+            if bend is not None:
+                bends.append(bend)
 
     # Optionally place doors at tunnel bends
     # for bx, by in bends:
