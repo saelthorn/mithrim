@@ -15,6 +15,7 @@ from traps import DartTrap, SpikeTrap, FireTrap, ExplosiveTrap, AcidSprayTrap
 from world.water_features import generate_water_features, river, lake, sewer_water
 
 from world.encounters.prison_cell import generate_prison_cell, is_prison_cell_position, PrisonDoorTile
+from world.encounters.temple_room import generate_circular_temple
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +100,44 @@ class LShapedRoom:
 
     def intersects(self, other, padding=1):
         """Check if this L-room's bounding box intersects with another room."""
+        return (
+            self.x1 - padding <= other.x2 + padding and
+            self.x2 + padding >= other.x1 - padding and
+            self.y1 - padding <= other.y2 + padding and
+            self.y2 + padding >= other.y1 - padding
+        )
+
+
+class CircleRoom:
+    """
+    Circular room defined by center coordinates and radius.
+    Used for sacred temple chambers with perfect circular geometry.
+    """
+    def __init__(self, center_x, center_y, radius):
+        self.center_x = center_x
+        self.center_y = center_y
+        self.radius = radius
+        # Bounding box for intersection checks
+        self.x1 = center_x - radius
+        self.y1 = center_y - radius
+        self.x2 = center_x + radius + 1
+        self.y2 = center_y + radius + 1
+
+    def center(self):
+        """Return the center coordinates."""
+        return (self.center_x, self.center_y)
+
+    def inner_tiles(self):
+        """Yield all (x, y) coordinates within the circular boundary."""
+        for y in range(self.y1, self.y2):
+            for x in range(self.x1, self.x2):
+                dx = x - self.center_x
+                dy = y - self.center_y
+                if dx * dx + dy * dy <= self.radius * self.radius:
+                    yield x, y
+
+    def intersects(self, other, padding=1):
+        """Check if this circle's bounding box intersects with another room."""
         return (
             self.x1 - padding <= other.x2 + padding and
             self.x2 + padding >= other.x1 - padding and
@@ -404,6 +443,56 @@ def _generate_l_shaped_room(game_map, room_min_size, room_max_size, region_x1=No
         return None
 
 
+def _generate_circular_room(game_map, radius, region_x1, region_x2, region_y1, region_y2):
+    """
+    Generate a circular temple room at a random position within the region.
+    
+    Args:
+        game_map: The dungeon map
+        radius: Radius of the circular room
+        region_x1, region_x2, region_y1, region_y2: Placement region bounds
+    
+    Returns:
+        CircleRoom or None if no valid placement found
+    """
+    # Ensure the circle fits completely within the map and region
+    min_x = max(region_x1, radius + 1)
+    max_x = min(region_x2 - radius - 1, game_map.width - radius - 2)
+    min_y = max(region_y1, radius + 1)
+    max_y = min(region_y2 - radius - 1, game_map.height - radius - 2)
+    
+    if min_x >= max_x or min_y >= max_y:
+        return None
+    
+    center_x = randint(min_x, max_x)
+    center_y = randint(min_y, max_y)
+    
+    return CircleRoom(center_x, center_y, radius)
+
+
+def _dig_circular_room(game_map, circle_room):
+    """
+    Carve a circular room into the dungeon map using distance formula.
+    
+    Args:
+        game_map: The dungeon map
+        circle_room: CircleRoom instance to carve
+    """
+    center_x = circle_room.center_x
+    center_y = circle_room.center_y
+    radius = circle_room.radius
+    
+    # Carve all tiles within the circular boundary
+    for y in range(circle_room.y1, circle_room.y2):
+        for x in range(circle_room.x1, circle_room.x2):
+            if 0 <= x < game_map.width and 0 <= y < game_map.height:
+                dx = x - center_x
+                dy = y - center_y
+                # Use distance squared to avoid sqrt()
+                if dx * dx + dy * dy <= radius * radius:
+                    game_map.tiles[y][x] = _plain_floor()
+
+
 # ---------------------------------------------------------------------------
 # Main generator
 # ---------------------------------------------------------------------------
@@ -439,13 +528,25 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
     # ------------------------------------------------------------------
     attempts = max_rooms * 4
     for _ in range(attempts):
-        # 35% chance to generate an L-shaped room, 65% chance for rectangular
-        if random.random() < 0.35:
+        # Room type distribution: 30% circular temples, 40% L-shaped, 70% rectangular
+        rand_val = random.random()
+        
+        if rand_val < 0.30:
+            # Generate a circular temple room
+            temple_radius = randint(5, 8)
+            new_room = _generate_circular_room(game_map, temple_radius, 
+                                               region_x1, region_x2, region_y1, region_y2)
+            if new_room is None:
+                continue  # Failed to generate circle, try again
+                
+        elif rand_val < 0.70:
+            # Generate an L-shaped room
             new_room = _generate_l_shaped_room(game_map, room_min_size, room_max_size,
                                                region_x1, region_x2, region_y1, region_y2)
             if new_room is None:
                 continue  # Failed to generate L-room, try again
         else:
+            # Generate a rectangular room
             w = randint(room_min_size, room_max_size)
             h = randint(room_min_size, room_max_size)
             # Place room within center-biased region
@@ -456,7 +557,16 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
         if any(new_room.intersects(r) for r in rooms):
             continue
 
-        _dig_room(game_map, new_room)
+        # Dig the room (different handling for circular vs rectangular)
+        if isinstance(new_room, CircleRoom):
+            _dig_circular_room(game_map, new_room)
+            # Decorate with altar and pillars (80% of circles)
+            if random.random() < 0.8:
+                generate_circular_temple(game_map, new_room.center_x, new_room.center_y,
+                                        new_room.radius, game_map.items_on_ground, stairs_positions)
+        else:
+            _dig_room(game_map, new_room)
+            
         rooms.append(new_room)
         if len(rooms) >= max_rooms:
             break
@@ -630,8 +740,8 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
     #    and digging a new vertical entry from the top or bottom instead.
     # ------------------------------------------------------------------
     MAX_PRISON_ROOMS    = 3
-    PRISON_ROOM_CHANCE  = 0.80
-    PRISONER_SPAWN_CHANCE = 0.65   # chance each individual prisoner actually appears
+    PRISON_ROOM_CHANCE  = 0.60
+    PRISONER_SPAWN_CHANCE = 0.40  # chance each individual prisoner actually appears
     prison_prisoners    = []
     prison_blocked_sides = {}  # id(room) -> 'east' or 'west'
 
@@ -777,6 +887,10 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
     # 8. Populate rooms
     # ------------------------------------------------------------------
     for room in rooms:
+        # Skip circular temple rooms — they're already fully decorated
+        if isinstance(room, CircleRoom):
+            continue
+            
         is_stair_room = (room is stairs_up_room or room is stairs_down_room)
 
         # Check if this room has any prison cell tiles — if so, skip pillars

@@ -9,10 +9,10 @@ class Tile:
         self.name = name
 
 # Dungeon tile templates
-floor = Tile(blocked=False, char='.', color=(200, 180, 50), name="Floor")
-wall  = Tile(blocked=True, char='#', color=(130, 110, 50), name="Wall")
-stairs_down = Tile(blocked=False, char='>', color=(255, 255, 255), name="Stairs Down")
-stairs_up = Tile(blocked=False, char='<', color=(255, 255, 255), name="Stairs Up")
+floor = Tile(blocked=False, char='.', color=(97, 95, 88), name="Floor")
+wall  = Tile(blocked=True, char='#', color=(65, 61, 46), name="Wall")
+stairs_down = Tile(blocked=False, char='>', color=(230, 192, 0), name="Stairs Down")
+stairs_up = Tile(blocked=False, char='<', color=(230, 192, 0), name="Stairs Up")
 dungeon_door = Tile(blocked=False, char='dd', color=(139, 69, 19), name="Dungeon Door")
 dungeon_pillar = Tile(blocked=True, char='dp', color=(230, 230, 230), block_sight=True, name="Dungeon Pillar")
 altar = Tile(blocked=True, char='alt', color=(255, 215, 0), block_sight=True, name="Altar")  
@@ -20,11 +20,11 @@ altar = Tile(blocked=True, char='alt', color=(255, 215, 0), block_sight=True, na
 pressure_plate = Tile(blocked=False, char='_', color=(200, 180, 50), name="Pressure Plate")
 
 # Dungeon Decorations
-dungeon_floor_two = Tile(blocked=False, char='.2', color=(200, 180, 50), name="Dungeon Floor Two")
-dungeon_floor_three = Tile(blocked=False, char='.3', color=(200, 180, 50), name="Dungeon Floor Three")
-dungeon_floor_four = Tile(blocked=False, char='.4', color=(200, 180, 50), name="Dungeon Floor Four")
-dungeon_floor_five = Tile(blocked=False, char='.5', color=(200, 180, 50), name="Dungeon Floor Five")
-dungeon_floor_six = Tile(blocked=False, char='.6', color=(200, 180, 50), name="Dungeon Floor Six")
+dungeon_floor_two = Tile(blocked=False, char='.2', color=(97, 95, 88), name="Dungeon Floor Two")
+dungeon_floor_three = Tile(blocked=False, char='.3', color=(97, 95, 88), name="Dungeon Floor Three")
+dungeon_floor_four = Tile(blocked=False, char='.4', color=(97, 95, 88), name="Dungeon Floor Four")
+dungeon_floor_five = Tile(blocked=False, char='.5', color=(97, 95, 88), name="Dungeon Floor Five")
+dungeon_floor_six = Tile(blocked=False, char='.6', color=(97, 95, 88), name="Dungeon Floor Six")
 dungeon_grass = Tile(blocked=False, char='`', color=(0, 160, 20), name="Dungeon Grass")
 dungeon_grass_two = Tile(blocked=False, char='`2', color=(0, 160, 20), name="Dungeon Grass Two")
 rubble = Tile(blocked=False, char='%', color=(150, 150, 150), name="Rubble")
@@ -32,13 +32,13 @@ cob_web = Tile(blocked=True, char='x', color=(200, 200, 200), block_sight=False,
 mushroom = Tile(blocked=False, char='*', color=(255, 0, 255), name="Mushroom")
 fresh_bones = Tile(blocked=False, char='fb', color=(200, 200, 180), name="Fresh Bones")
 bones = Tile(blocked=False, char=';', color=(200, 200, 180), name="Bones")
-torch = Tile(blocked=True, char='i', color=(255, 165, 0), block_sight=True, name="Torch")
+torch = Tile(blocked=True, char='i', color=(153, 76, 0), block_sight=True, name="Torch")
 
 prison_bars = Tile(blocked=True, char='pb', color=(160, 160, 180), block_sight=False, destructible=False, name="Prison Bars",)
 
 # Static Crate and Barrel (using distinct chars)
-crate = Tile(blocked=True, char='k', color=(139, 69, 19), block_sight=False, destructible=True, name="Crate") # <--- CHANGED char to 'k'
-barrel = Tile(blocked=True, char='b', color=(100, 50, 0), block_sight=False, destructible=True, name="Barrel") # <--- char 'b' is fine
+crate = Tile(blocked=True, char='k', color=(74, 57, 0), block_sight=False, destructible=True, name="Crate") # <--- CHANGED char to 'k'
+barrel = Tile(blocked=True, char='b', color=(74, 57, 0), block_sight=False, destructible=True, name="Barrel") # <--- char 'b' is fine
 
 # Tavern tile templates
 tavern_floor = Tile(blocked=False, char=',', color=(139, 69, 19), name="Tavern Floor")

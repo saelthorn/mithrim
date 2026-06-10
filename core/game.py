@@ -3345,7 +3345,7 @@ class Game:
         if self.player: # Only draw UI if player exists (after character creation)
             self.draw_ui() # This method now draws directly to self.screen
             # Draw minimap if in dungeon or tavern state
-            if self.game_state in [GameState.DUNGEON, GameState.TAVERN]:
+            if self.game_state in [GameState.DUNGEON]:
                 self.draw_minimap() # This method now draws directly to self.screen
 
         # Message log is also drawn directly to screen
@@ -4354,7 +4354,7 @@ class Game:
                 bloodstain_minimap_y = offset_y + bloodstain.y * actual_minimap_tile_size
                 pygame.draw.rect(
                     self.minimap_surface,
-                    (100, 0, 0), # Dark red for minimap bloodstains
+                    (80, 10, 10), # Dark red for minimap bloodstains
                     (bloodstain_minimap_x, bloodstain_minimap_y, actual_minimap_tile_size, actual_minimap_tile_size)
                 )
 
@@ -4364,7 +4364,7 @@ class Game:
 
             pygame.draw.rect(
                 self.minimap_surface,
-                (255, 255, 255),
+                (255, 178, 102),
                 (player_minimap_x, player_minimap_y, actual_minimap_tile_size, actual_minimap_tile_size)
             )
 

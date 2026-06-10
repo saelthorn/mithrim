@@ -26,7 +26,7 @@ MINIMAP_WIDTH_RATIO = 0.2  # 20% of screen width
 MINIMAP_HEIGHT_RATIO = 0.2  # 20% of screen height
 MINIMAP_MARGIN_TOP_RATIO = 0.01  # 1% of screen height (NEW)
 MINIMAP_MARGIN_RIGHT_RATIO = 0.18  # 18% of screen width (NEW)
-MINIMAP_TILE_SIZE = 1       # Size of each tile on the minimap in pixels
+MINIMAP_TILE_SIZE = 1.9      # Size of each tile on the minimap in pixels
 MINIMAP_ALPHA = 180         # Transparency of the minimap surface (0-255)
 
 # --- Message Log Font Scaling ---
@@ -56,8 +56,8 @@ MIN_GAME_AREA_TILES_HEIGHT = 12 # Ensure at least 18 tiles high are always shown
 # This determines the "base" zoom level. E.g., 2 means each 12px tile will try to be 24px.
 # A value of 1 means each 12px tile will try to be 12px (most zoomed out, smallest tiles).
 # A value of 3 means each 12px tile will try to be 36px (more zoomed in, larger tiles).
-TARGET_EFFECTIVE_TILE_SCALE = 2.5 # <--- ADD THIS LINE
-MIN_ZOOM_SCALE = 1.0
+TARGET_EFFECTIVE_TILE_SCALE = 3.0 # <--- ADD THIS LINE
+MIN_ZOOM_SCALE = 0.5
 MAX_ZOOM_SCALE = 3.0
 ZOOM_STEP = 0.5
 

@@ -1,28 +1,3 @@
-# races.py
-# ─────────────────────────────────────────────────────────────────────────────
-# Race & Lineage system
-#
-# Hierarchy
-#   Race  (abstract base)
-#   ├─ Human
-#   ├─ Elf  ──────────────── DrowElf | HighElf | WoodElf
-#   ├─ Dwarf  ────────────── HillDwarf | MountainDwarf | Duergar
-#   ├─ Tiefling  ──────────  ZarielTiefling | LevistusTiefling
-#   │                        DispaterTiefling | MephistophelesTiefling
-#   └─ Dragonborn  ────────  RedDragonborn | BlueDragonborn
-#                            GoldDragonborn | GreenDragonborn
-#
-# Design rule: base classes NEVER pass their own default lists through
-# **kwargs.  Instead they define class-level constants (BASE_RESISTANCES,
-# BASE_SKILLS, etc.) that __init__ reads directly.  Subclasses override
-# those constants — they never pass duplicate keyword arguments.
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# BASE RACE
-# ═══════════════════════════════════════════════════════════════════════════
-
 class Race:
     """
     Abstract base for every playable race / lineage.
