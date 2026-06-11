@@ -664,7 +664,7 @@ class Game:
             self.game_map.items_on_ground.clear()
         self.lit_wall_torches = set()  # Reset lit torches for the new level 
 
-        self.game_map = GameMap(160, 120)
+        self.game_map = GameMap(120, 100)
         self.fov = FOV(self.game_map)
         
         rooms, self.stairs_positions, self.torch_light_sources, prison_prisoners = generate_dungeon(self.game_map, level_number)
@@ -2112,6 +2112,8 @@ class Game:
             # Ensure it's not a Chest, as Chests are handled by their own 'open' method
             if isinstance(item_to_pick_up, Chest):
                 return False # Let the chest opening logic handle this
+            if isinstance(item_to_pick_up, Altar):
+                return False # Altars are not picked up, they are interacted with in place
             
             if item_to_pick_up.on_pickup(self.player, self):
                 # Remove the item from the ground after successful pickup

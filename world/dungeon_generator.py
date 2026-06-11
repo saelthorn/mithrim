@@ -528,10 +528,10 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
     # ------------------------------------------------------------------
     attempts = max_rooms * 4
     for _ in range(attempts):
-        # Room type distribution: 30% circular temples, 40% L-shaped, 70% rectangular
+        # Room type distribution: 20% circular temples, 25% L-shaped, 55% rectangular
         rand_val = random.random()
         
-        if rand_val < 0.30:
+        if rand_val < 0.20:
             # Generate a circular temple room
             temple_radius = randint(5, 8)
             new_room = _generate_circular_room(game_map, temple_radius, 
@@ -539,7 +539,7 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
             if new_room is None:
                 continue  # Failed to generate circle, try again
                 
-        elif rand_val < 0.70:
+        elif rand_val < 0.45:
             # Generate an L-shaped room
             new_room = _generate_l_shaped_room(game_map, room_min_size, room_max_size,
                                                region_x1, region_x2, region_y1, region_y2)
@@ -750,6 +750,7 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
         if room is not stairs_up_room
         and room is not stairs_down_room
         and not isinstance(room, LShapedRoom)
+        and not isinstance(room, CircleRoom)  # Exclude circular temples
         and (room.x2 - room.x1) >= 8
         and (room.y2 - room.y1) >= 9
     ]

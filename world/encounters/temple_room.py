@@ -77,22 +77,22 @@ def generate_circular_temple(game_map, center_x, center_y, radius, items_on_grou
     pillar_positions = []
     
     # Cardinal directions (4-way)
-    cardinal_offsets = [
-        (0, -pillar_distance),   # North
-        (0, pillar_distance),    # South
-        (-pillar_distance, 0),   # West
-        (pillar_distance, 0),    # East
-    ]
+    # cardinal_offsets = [
+    #     (0, -pillar_distance),   # North
+    #     (0, pillar_distance),    # South
+    #     (-pillar_distance, 0),   # West
+    #     (pillar_distance, 0),    # East
+    # ]
     
-    for dx, dy in cardinal_offsets:
-        px = center_x + dx
-        py = center_y + dy
+    # for dx, dy in cardinal_offsets:
+    #     px = center_x + dx
+    #     py = center_y + dy
         
-        if (0 <= px < game_map.width and 0 <= py < game_map.height):
-            if is_circle_tile(center_x, center_y, radius, px, py):
-                if game_map.tiles[py][px] == floor:
-                    game_map.tiles[py][px] = dungeon_pillar
-                    pillar_positions.append((px, py))
+    #     if (0 <= px < game_map.width and 0 <= py < game_map.height):
+    #         if is_circle_tile(center_x, center_y, radius, px, py):
+    #             if game_map.tiles[py][px] == floor:
+    #                 game_map.tiles[py][px] = dungeon_pillar
+    #                 pillar_positions.append((px, py))
     
     # Diagonal pillars (4-way) — placed at 45° angles
     diagonal_distance = int(pillar_distance * 0.707)  # sqrt(2)/2 ≈ 0.707
