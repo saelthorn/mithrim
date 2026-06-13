@@ -655,6 +655,61 @@ class Game:
         self.minimap_needs_redraw = True # New map, redraw minimap
     
 
+    def is_point_in_room_interior(self, room, x, y):
+        """Check if a point (x, y) is within the actual interior of a room."""
+        from world.dungeon_generator import LShapedRoom
+        
+        if isinstance(room, LShapedRoom):
+            # For L-shaped rooms, check if point is in either section's interior
+            in_h = (room.h_x1 < x < room.h_x2) and (room.h_y1 < y < room.h_y2)
+            in_v = (room.v_x1 < x < room.v_x2) and (room.v_y1 < y < room.v_y2)
+            return in_h or in_v
+        else:
+            # For rectangular rooms
+            return (room.x1 < x < room.x2) and (room.y1 < y < room.y2)
+
+    def get_room_interior_area(self, room):
+        """Calculate the area (number of interior tiles) of a room."""
+        from world.dungeon_generator import LShapedRoom
+        
+        if isinstance(room, LShapedRoom):
+            # For L-shaped rooms, count actual interior tiles
+            h_area = max(0, (room.h_x2 - room.h_x1 - 2)) * max(0, (room.h_y2 - room.h_y1 - 2))
+            v_area = max(0, (room.v_x2 - room.v_x1 - 2)) * max(0, (room.v_y2 - room.v_y1 - 2))
+            # Subtract overlap (intersection area) to avoid double counting
+            overlap_x = max(0, min(room.h_x2, room.v_x2) - max(room.h_x1, room.v_x1) - 2)
+            overlap_y = max(0, min(room.h_y2, room.v_y2) - max(room.h_y1, room.v_y1) - 2)
+            overlap_area = overlap_x * overlap_y
+            return h_area + v_area - overlap_area
+        else:
+            # For rectangular rooms
+            return max(0, (room.x2 - room.x1 - 2)) * max(0, (room.y2 - room.y1 - 2))
+
+    def get_valid_spawn_point_in_room(self, room, game_map, max_attempts=50):
+        """Get a valid spawn point within a room's actual interior."""
+        from world.dungeon_generator import LShapedRoom
+        
+        for _ in range(max_attempts):
+            if isinstance(room, LShapedRoom):
+                # Choose randomly between horizontal and vertical section
+                if random.random() < 0.5:
+                    x = random.randint(room.h_x1 + 1, room.h_x2 - 2)
+                    y = random.randint(room.h_y1 + 1, room.h_y2 - 2)
+                else:
+                    x = random.randint(room.v_x1 + 1, room.v_x2 - 2)
+                    y = random.randint(room.v_y1 + 1, room.v_y2 - 2)
+            else:
+                # For rectangular rooms
+                x = random.randint(room.x1 + 1, room.x2 - 2)
+                y = random.randint(room.y1 + 1, room.y2 - 2)
+            
+            if 0 <= x < game_map.width and 0 <= y < game_map.height:
+                if game_map.is_walkable(x, y):
+                    return x, y
+        
+        # Fallback to room center if all attempts fail
+        return room.center()
+
     def generate_level(self, level_number, spawn_on_stairs_up=False):
         self.game_state = GameState.DUNGEON
         self._previous_game_state = GameState.DUNGEON
@@ -753,9 +808,10 @@ class Game:
             # Choose the largest room by area, prefer not to use the player's start room
             candidate_rooms = rooms[1:] if len(rooms) > 1 else rooms
             if candidate_rooms:
+                # NEW: Use get_room_interior_area to handle L-shaped rooms
                 boss_room = max(
                     candidate_rooms,
-                    key=lambda r: max(0, (r.x2 - r.x1 - 1)) * max(0, (r.y2 - r.y1 - 1))
+                    key=lambda r: self.get_room_interior_area(r)
                 )
                 # Find a spawn point inside the boss room that is walkable and not on stairs or water
                 preferred_spots = []
@@ -846,8 +902,9 @@ class Game:
             possible_monsters = [GiantRat] # Default to GiantRat if no tier matches
 
         for i, room in enumerate(monster_rooms):
-            x, y = room.center()
-            # NEW: Ensure monster doesn't spawn on water or prison tiles
+            # NEW: Use get_valid_spawn_point_in_room to handle L-shaped rooms
+            x, y = self.get_valid_spawn_point_in_room(room, self.game_map)
+            # Ensure monster doesn't spawn on water or prison tiles
             if (0 <= x < self.game_map.width and 0 <= y < self.game_map.height and
                 self.game_map.is_walkable(x, y) and not is_water_tile(self.game_map.tiles[y][x])
                 and not is_prison_cell_position(self.game_map, x, y)):
@@ -869,7 +926,10 @@ class Game:
                 possible_spawn_points = []
                 for y_coord in range(healer_room.y1 + 2, healer_room.y2 - 1):
                     for x_coord in range(healer_room.x1 + 2, healer_room.x2 - 1):
-                        # NEW: Check for water tiles
+                        # NEW: Check if point is in actual room interior (handles L-shaped rooms)
+                        if not self.is_point_in_room_interior(healer_room, x_coord, y_coord):
+                            continue
+                        # Check for water tiles and other blockers
                         if self.game_map.is_walkable(x_coord, y_coord) and \
                            not any(e.x == x_coord and e.y == y_coord for e in self.entities) and \
                            not is_water_tile(self.game_map.tiles[y_coord][x_coord]) and \
@@ -878,7 +938,7 @@ class Game:
                             for dx, dy in [(-1,0), (1,0), (0,-1), (0,1)]:
                                 neighbor_x, neighbor_y = x_coord + dx, y_coord + dy
                                 if self.game_map.tiles[neighbor_y][neighbor_x] == floor and \
-                                   not (healer_room.x1 < neighbor_x < healer_room.x2 and healer_room.y1 < neighbor_y < healer_room.y2):
+                                   not self.is_point_in_room_interior(healer_room, neighbor_x, neighbor_y):
                                     is_near_tunnel = True
                                     break
                             if not is_near_tunnel:
@@ -906,6 +966,7 @@ class Game:
                     is_prison_cell_position(self.game_map, x, y)
                     for y in range(merchant_room.y1 + 1, merchant_room.y2)
                     for x in range(merchant_room.x1 + 1, merchant_room.x2)
+                    if self.is_point_in_room_interior(merchant_room, x, y)  # NEW: Check actual room interior
                 )
                 if room_has_prison:
                     prisoner_in_room = next(
@@ -930,6 +991,9 @@ class Game:
                 possible_spawn_points = []
                 for y_coord in range(merchant_room.y1 + 2, merchant_room.y2 - 1):
                     for x_coord in range(merchant_room.x1 + 2, merchant_room.x2 - 1):
+                        # NEW: Check if point is in actual room interior (handles L-shaped rooms)
+                        if not self.is_point_in_room_interior(merchant_room, x_coord, y_coord):
+                            continue
                         if self.game_map.is_walkable(x_coord, y_coord) and \
                            not any(e.x == x_coord and e.y == y_coord for e in self.entities) and \
                            not is_water_tile(self.game_map.tiles[y_coord][x_coord]) and \
@@ -938,8 +1002,7 @@ class Game:
                             for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                                 neighbor_x, neighbor_y = x_coord + dx, y_coord + dy
                                 if self.game_map.tiles[neighbor_y][neighbor_x] == floor and \
-                                   not (merchant_room.x1 < neighbor_x < merchant_room.x2
-                                        and merchant_room.y1 < neighbor_y < merchant_room.y2):
+                                   not self.is_point_in_room_interior(merchant_room, neighbor_x, neighbor_y):
                                     is_near_tunnel = True
                                     break
                             if not is_near_tunnel:
@@ -968,7 +1031,8 @@ class Game:
 
         for room in rooms:
             if random.random() < item_spawn_chance:
-                item_x, item_y = room.center()
+                # NEW: Use get_valid_spawn_point_in_room to handle L-shaped rooms
+                item_x, item_y = self.get_valid_spawn_point_in_room(room, self.game_map)
                 
                 is_blocked_by_non_item_entity = False
                 for e in self.entities:

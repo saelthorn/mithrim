@@ -1,12 +1,14 @@
 # Mithrim
 
+<img width="1621" height="985" alt="mithrim_bg" src="https://github.com/user-attachments/assets/aa4b1c03-84a8-4b92-9981-03bcaeea1d2e" />
+
 A turn-based dungeon crawler roguelike built in Python with Pygame. Create a character, explore procedurally-generated dungeons, and defeat the Spider Queen Arasta across 20 levels of increasing difficulty.
 
 ## Overview
 
 Mithrim is a tactical RPG inspired by D&D 5e mechanics. The game features:
 
-- Character customization with 15 races and 4 classes
+- Character customization with 5 races, 15 sub-races  and 4 classes
 - Turn-based tactical combat with status effects and special abilities
 - Procedurally-generated dungeon levels with environmental hazards
 - 40+ unique monsters with scaling difficulty
@@ -160,24 +162,27 @@ Procedurally generates 60×40 tile levels:
 **Debuffs:**
 - CurseOfWeakness: -2 STR for 10 turns
 - CurseOfBlindness: -4 AC for 5 turns
+- CurseOfRot: -1 HP for 40 turns
 - Poisoned: Take poison damage over time
 - AcidBurned: Take acid damage over time
 - Burning: Take fire damage over time
+
+Remove Status Effects by resting
 
 ### Trap System
 
 Traps are hidden or revealed tiles. When stepping on trap:
 
 1. Roll Perception check (DC varies by trap type)
-2. If successful: Trap revealed, no damage
+2. If successful: Trap revealed, stops you from your tracks
 3. If failed: Trap springs, takes damage
 
 **Trap Types:**
-- Dart Trap: 1d4 piercing damage
+- Dart Trap: 1d4 piercing damage + Poisoned Status Effect
 - Spike Trap: 1d6 piercing damage
-- Fire Trap: 2d6 fire damage (AoE)
+- Fire Trap: 2d6 fire damage (AoE) + Burning Status Effect
 - Explosive Trap: 3d6 force damage (AoE)
-- Acid Spray Trap: 2d6 acid damage (AoE)
+- Acid Spray Trap: 2d6 acid damage (AoE) + AcidBurned Status Effect
 
 ### Hunger System
 
@@ -189,12 +194,15 @@ Traps are hidden or revealed tiles. When stepping on trap:
 ### Altars
 
 Hidden altars spawn on dungeon levels. Interacting with unknown altar:
-- 50% chance: Blessing of Strength (+2 STR, 10 turns)
-- 50% chance: Curse of Weakness (-2 STR, 10 turns)
+- 50% chance: Blessing of Strength (+2 STR, 10 turns), etc.
+- 50% chance: Curse of Weakness (-2 STR, 10 turns), etc.
+
+Better Altar Chances for **Cleric** Class
 
 ### Inventory Management
 
 - Navigate with arrow keys / WASD
+- Select items: Return (Enter) key
 - Use items: U key
 - Equip items: E key
 - Drop items: D key
@@ -350,7 +358,7 @@ Tracks explored vs. currently visible tiles.
 
 **Monster Pathfinding:**
 A* algorithm finds shortest path to player.  
-Avoids water and traps.  
+Avoids water and traps. (With exception of some monsters of course)
 Respects movement costs.
 
 **Turn System:**
