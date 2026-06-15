@@ -146,6 +146,62 @@ class CircleRoom:
         )
 
 
+class PlusShapedRoom:
+    """
+    Plus-shaped (cross/'+') room composed of a horizontal and vertical rectangular section.
+    The two sections overlap in the center to form a plus sign.
+    """
+    def __init__(self, h_x1, h_x2, h_y1, h_y2, v_x1, v_x2, v_y1, v_y2):
+        # Horizontal section (the wide bar of the plus)
+        self.h_x1 = h_x1
+        self.h_x2 = h_x2
+        self.h_y1 = h_y1
+        self.h_y2 = h_y2
+        
+        # Vertical section (the tall bar of the plus)
+        self.v_x1 = v_x1
+        self.v_x2 = v_x2
+        self.v_y1 = v_y1
+        self.v_y2 = v_y2
+        
+        # Bounding box for intersection checks and general properties
+        self.x1 = min(h_x1, v_x1)
+        self.x2 = max(h_x2, v_x2)
+        self.y1 = min(h_y1, v_y1)
+        self.y2 = max(h_y2, v_y2)
+
+    def center(self):
+        """Return the center of the bounding box."""
+        return ((self.x1 + self.x2) // 2, (self.y1 + self.y2) // 2)
+
+    def inner_tiles(self):
+        """Yield all interior tiles of the plus-shaped room (union of both sections)."""
+        seen = set()
+        
+        # Interior of horizontal section
+        for y in range(self.h_y1 + 1, self.h_y2):
+            for x in range(self.h_x1 + 1, self.h_x2):
+                if (x, y) not in seen:
+                    seen.add((x, y))
+                    yield x, y
+        
+        # Interior of vertical section (excluding already-covered overlap)
+        for y in range(self.v_y1 + 1, self.v_y2):
+            for x in range(self.v_x1 + 1, self.v_x2):
+                if (x, y) not in seen:
+                    seen.add((x, y))
+                    yield x, y
+
+    def intersects(self, other, padding=1):
+        """Check if this plus-room's bounding box intersects with another room."""
+        return (
+            self.x1 - padding <= other.x2 + padding and
+            self.x2 + padding >= other.x1 - padding and
+            self.y1 - padding <= other.y2 + padding and
+            self.y2 + padding >= other.y1 - padding
+        )
+
+
 # ---------------------------------------------------------------------------
 # Tile helpers
 # ---------------------------------------------------------------------------
@@ -173,7 +229,7 @@ def _dig_room(game_map, room):
     """Dig a room (rectangular or L-shaped)."""
     if isinstance(room, LShapedRoom):
         # Dig the horizontal section
-        for y in range(room.h_y1 + 1, room.h_y2):
+        for y in range(room.h_y1 + 1, room.h_y2): 
             for x in range(room.h_x1 + 1, room.h_x2):
                 game_map.tiles[y][x] = _plain_floor()
         
@@ -351,8 +407,8 @@ def _generate_l_shaped_room(game_map, room_min_size, room_max_size, region_x1=No
     
     # Make sections more reasonably sized
     h_w = randint(max(6, room_min_size), room_max_size + 2)      # horizontal section width
-    h_h = randint(3, 5)                                           # horizontal section height (thinner)
-    v_w = randint(3, 5)                                           # vertical section width (narrower)
+    h_h = randint(4, 5)                                           # horizontal section height (thinner)
+    v_w = randint(4, 5)                                           # vertical section width (narrower)
     v_h = randint(max(6, room_min_size), room_max_size + 2)      # vertical section height
     
     # Randomly position the L in one of 4 orientations
@@ -493,6 +549,89 @@ def _dig_circular_room(game_map, circle_room):
                     game_map.tiles[y][x] = _plain_floor()
 
 
+def _generate_plus_shaped_room(game_map, room_min_size, room_max_size, region_x1=None, region_x2=None, region_y1=None, region_y2=None):
+    """
+    Generate a random plus-shaped (cross) room that fits on the map, optionally within a center-biased region.
+    Returns a PlusShapedRoom or None if generation fails.
+    
+    The plus shape consists of:
+    - A horizontal bar (wide, thin)
+    - A vertical bar (tall, thin)
+    - Both centered on the same point, creating a symmetric plus/cross shape
+    """
+    # Use full map if region not specified
+    if region_x1 is None:
+        region_x1 = 1
+        region_x2 = game_map.width - 1
+        region_y1 = 1
+        region_y2 = game_map.height - 1
+    
+    # Dimensions for plus-shaped room
+    h_w = randint(max(8, room_min_size), room_max_size + 2)      # horizontal bar width (full extent)
+    h_h = randint(3, 5)                                           # horizontal bar height (thin)
+    v_w = randint(3, 5)                                           # vertical bar width (thin)
+    v_h = randint(max(8, room_min_size), room_max_size + 2)      # vertical bar height (full extent)
+    
+    try:
+        # Choose a center point for the plus
+        min_x = max(region_x1, (h_w // 2) + 2)
+        max_x = min(region_x2 - (h_w // 2) - 2, game_map.width - (h_w // 2) - 3)
+        min_y = max(region_y1, (v_h // 2) + 2)
+        max_y = min(region_y2 - (v_h // 2) - 2, game_map.height - (v_h // 2) - 3)
+        
+        if min_x >= max_x or min_y >= max_y:
+            return None
+        
+        center_x = randint(min_x, max_x)
+        center_y = randint(min_y, max_y)
+        
+        # Calculate the four positions of the bars
+        # Horizontal bar: centered on center_y, extends left-right from center_x
+        h_x1 = center_x - (h_w // 2)
+        h_x2 = h_x1 + h_w
+        h_y1 = center_y - (h_h // 2)
+        h_y2 = h_y1 + h_h
+        
+        # Vertical bar: centered on center_x, extends up-down from center_y
+        v_x1 = center_x - (v_w // 2)
+        v_x2 = v_x1 + v_w
+        v_y1 = center_y - (v_h // 2)
+        v_y2 = v_y1 + v_h
+        
+        # Validate all boundaries
+        if not (0 <= h_x1 and h_x2 <= game_map.width and
+                0 <= h_y1 and h_y2 <= game_map.height and
+                0 <= v_x1 and v_x2 <= game_map.width and
+                0 <= v_y1 and v_y2 <= game_map.height):
+            return None
+        
+        return PlusShapedRoom(h_x1, h_x2, h_y1, h_y2, v_x1, v_x2, v_y1, v_y2)
+    
+    except (ValueError, IndexError):
+        return None
+
+
+def _dig_plus_shaped_room(game_map, plus_room):
+    """
+    Carve a plus-shaped room into the dungeon map.
+    
+    Args:
+        game_map: The dungeon map
+        plus_room: PlusShapedRoom instance to carve
+    """
+    # Dig the horizontal section
+    for y in range(plus_room.h_y1 + 1, plus_room.h_y2):
+        for x in range(plus_room.h_x1 + 1, plus_room.h_x2):
+            if 0 <= x < game_map.width and 0 <= y < game_map.height:
+                game_map.tiles[y][x] = _plain_floor()
+    
+    # Dig the vertical section
+    for y in range(plus_room.v_y1 + 1, plus_room.v_y2):
+        for x in range(plus_room.v_x1 + 1, plus_room.v_x2):
+            if 0 <= x < game_map.width and 0 <= y < game_map.height:
+                game_map.tiles[y][x] = _plain_floor()
+
+
 # ---------------------------------------------------------------------------
 # Main generator
 # ---------------------------------------------------------------------------
@@ -526,20 +665,27 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
     # ------------------------------------------------------------------
     # 1. Generate rooms
     # ------------------------------------------------------------------
+    # Room type distribution: 15% circular temples, 15% plus-shaped, 20% L-shaped, 50% rectangular
     attempts = max_rooms * 4
     for _ in range(attempts):
-        # Room type distribution: 20% circular temples, 25% L-shaped, 55% rectangular
         rand_val = random.random()
         
-        if rand_val < 0.20:
+        if rand_val < 0.15:
             # Generate a circular temple room
             temple_radius = randint(5, 8)
             new_room = _generate_circular_room(game_map, temple_radius, 
                                                region_x1, region_x2, region_y1, region_y2)
             if new_room is None:
                 continue  # Failed to generate circle, try again
+        
+        elif rand_val < 0.30:
+            # Generate a plus-shaped room
+            new_room = _generate_plus_shaped_room(game_map, room_min_size, room_max_size,
+                                                  region_x1, region_x2, region_y1, region_y2)
+            if new_room is None:
+                continue  # Failed to generate plus-room, try again
                 
-        elif rand_val < 0.45:
+        elif rand_val < 0.50:
             # Generate an L-shaped room
             new_room = _generate_l_shaped_room(game_map, room_min_size, room_max_size,
                                                region_x1, region_x2, region_y1, region_y2)
@@ -557,13 +703,15 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
         if any(new_room.intersects(r) for r in rooms):
             continue
 
-        # Dig the room (different handling for circular vs rectangular)
+        # Dig the room (different handling for each type)
         if isinstance(new_room, CircleRoom):
             _dig_circular_room(game_map, new_room)
             # Decorate with altar and pillars (80% of circles)
             if random.random() < 0.8:
                 generate_circular_temple(game_map, new_room.center_x, new_room.center_y,
                                         new_room.radius, game_map.items_on_ground, stairs_positions)
+        elif isinstance(new_room, PlusShapedRoom):
+            _dig_plus_shaped_room(game_map, new_room)
         else:
             _dig_room(game_map, new_room)
             
@@ -751,6 +899,7 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
         and room is not stairs_down_room
         and not isinstance(room, LShapedRoom)
         and not isinstance(room, CircleRoom)  # Exclude circular temples
+        and not isinstance(room, PlusShapedRoom)  # Exclude plus-shaped rooms
         and (room.x2 - room.x1) >= 8
         and (room.y2 - room.y1) >= 9
     ]
@@ -888,8 +1037,8 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
     # 8. Populate rooms
     # ------------------------------------------------------------------
     for room in rooms:
-        # Skip circular temple rooms — they're already fully decorated
-        if isinstance(room, CircleRoom):
+        # Skip circular temple and plus-shaped rooms — they have their own special handling
+        if isinstance(room, CircleRoom) or isinstance(room, PlusShapedRoom):
             continue
             
         is_stair_room = (room is stairs_up_room or room is stairs_down_room)
@@ -901,8 +1050,10 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
             for x, y in room.inner_tiles()
         )
 
-        # --- Pillars in large rooms (not stair rooms, not prison rooms) ---
-        if not is_stair_room and not room_has_prison_tiles and not isinstance(room, LShapedRoom) and random.random() < 0.4:
+        # --- Pillars in large rooms (not stair rooms, not prison rooms, not special shapes) ---
+        if (not is_stair_room and not room_has_prison_tiles and 
+            not isinstance(room, LShapedRoom) and not isinstance(room, PlusShapedRoom) and 
+            random.random() < 0.4):
             _place_pillars(game_map, room)
 
         # --- Torches on room walls ---

@@ -745,52 +745,8 @@ class Game:
         self.camera.target_y = self.player.y
         # No need to call self.camera.update here, as render will do it.
 
-        # Altar generation (this is correct placement)
-        altars_to_place = min(1 + level_number // 1, 1)
-        for _ in range(altars_to_place):
-            # Find a suitable room for the altar (preferably not the starting room)
-            if len(rooms) > 1:
-                # Select a room, excluding the first one (player spawn)
-                altar_room = random.choice(rooms[1:])
-
-                # Try to find an unoccupied spot within the room for the altar
-                possible_altar_spots = []
-                # Iterate over all tiles within the room (excluding walls)
-                for y_coord in range(altar_room.y1 + 1, altar_room.y2):
-                    for x_coord in range(altar_room.x1 + 1, altar_room.x2):
-                        # Check if the tile is walkable (floor)
-                        if self.game_map.is_walkable(x_coord, y_coord):
-                            # Check if it's not a stairs position
-                            is_stairs = False
-                            for _, pos in self.stairs_positions.items():
-                                if (x_coord, y_coord) == pos:
-                                    is_stairs = True
-                                    break
-                                
-                            # Check if it's not already occupied by another altar
-                            is_occupied_by_altar = False
-                            for existing_altar in self.game_map.altars:
-                                if existing_altar.x == x_coord and existing_altar.y == y_coord:
-                                    is_occupied_by_altar = True
-                                    break
-                            # Check if it's not occupied by any existing items on the ground
-                            is_occupied_by_item = False
-                            for existing_item in self.game_map.items_on_ground:
-                                if existing_item.x == x_coord and existing_item.y == y_coord:
-                                    is_occupied_by_item = True
-                                    break
-                            # NEW: Check if it's not a water tile
-                            is_water = is_water_tile(self.game_map.tiles[y_coord][x_coord])
-
-                            # Add to possible spots if all checks pass
-                            if not is_stairs and not is_occupied_by_altar and not is_occupied_by_item and not is_water:
-                                possible_altar_spots.append((x_coord, y_coord))
-
-                if possible_altar_spots:
-                    # Choose a random spot from the valid ones
-                    altar_x, altar_y = random.choice(possible_altar_spots)
-                    altar = Altar(altar_x, altar_y)
-                    self.game_map.altars.append(altar)
+        # Altars are now generated exclusively in circular temple rooms via generate_circular_temple()
+        # See: dungeon_generator.py _generate_circular_room() and temple_room.py generate_circular_temple()
 
         self.entities = [self.player]
         # Add any prison prisoners to the entity list
@@ -1910,25 +1866,31 @@ class Game:
                             if self.handle_item_pickup():
                                 action_taken = True
                             else:
-                                # If no item at feet, check for adjacent interactables
-                                target = self.get_adjacent_target()
-                                if target:
-                                    if isinstance(target, Mimic): # Mimics are entities, but also interactable
-                                        target.reveal(self)
-                                        action_taken = True
-                                    elif isinstance(target, Monster): # If it's a monster, attack it
-                                        self.handle_player_attack(target, self)
-                                        action_taken = True
-                                    else:
-                                        self.message_log.add_message(f"You can't interact with {target.name} that way.", (150, 150, 150))
+                                # Check for Altar at player's position (before other interactions)
+                                altar_at_pos = self.get_altar_at(self.player.x, self.player.y)
+                                if altar_at_pos:
+                                    altar_at_pos.interact(self.player, self)
+                                    action_taken = True
                                 else:
-                                    # If no adjacent entity, check for chests at player's position
-                                    chest_at_pos = self.get_chest_at(self.player.x, self.player.y)
-                                    if chest_at_pos:
-                                        chest_at_pos.open(self.player, self)
-                                        action_taken = True
+                                    # If no altar, check for adjacent interactables
+                                    target = self.get_adjacent_target()
+                                    if target:
+                                        if isinstance(target, Mimic): # Mimics are entities, but also interactable
+                                            target.reveal(self)
+                                            action_taken = True
+                                        elif isinstance(target, Monster): # If it's a monster, attack it
+                                            self.handle_player_attack(target, self)
+                                            action_taken = True
+                                        else:
+                                            self.message_log.add_message(f"You can't interact with {target.name} that way.", (150, 150, 150))
                                     else:
-                                        self.message_log.add_message("Nothing to interact with here.", (150, 150, 150))
+                                        # If no adjacent entity, check for chests at player's position
+                                        chest_at_pos = self.get_chest_at(self.player.x, self.player.y)
+                                        if chest_at_pos:
+                                            chest_at_pos.open(self.player, self)
+                                            action_taken = True
+                                        else:
+                                            self.message_log.add_message("Nothing to interact with here.", (150, 150, 150))
                             # --- MODIFIED END ---
                             
                             # --- Prison door interaction ---
@@ -2165,6 +2127,13 @@ class Game:
         """Checks if there's a chest at the given coordinates."""
         for item in self.game_map.items_on_ground:
             if isinstance(item, Chest) and item.x == x and item.y == y:
+                return item
+        return None
+
+    def get_altar_at(self, x, y):
+        """Checks if there's an altar at the given coordinates."""
+        for item in self.game_map.items_on_ground:
+            if isinstance(item, Altar) and item.x == x and item.y == y:
                 return item
         return None
 

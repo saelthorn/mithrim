@@ -12,6 +12,7 @@ class Altar:
         self.description = "An ancient altar that bestows blessings or curses"
         self.activated = False
         self.effect = None
+        self.alive = True  # Treat as a ground item
         
         # Blessing/curse determination moved to interact() method
         # where we can check the player's class

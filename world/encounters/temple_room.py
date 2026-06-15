@@ -120,22 +120,22 @@ def generate_circular_temple(game_map, center_x, center_y, radius, items_on_grou
     # Torch distance is set to (radius - 1) to place them just inside
     # the circular boundary, creating an inner ring of light.
     #
-    torch_distance = radius - 1
-    torch_angles = [0, 45, 90, 135, 180, 225, 270, 315]  # 8 directions
-    torch_positions = []
+    # torch_distance = radius - 1
+    # torch_angles = [0, 45, 90, 135, 180, 225, 270, 315]  # 8 directions
+    # torch_positions = []
     
-    for angle_deg in torch_angles:
-        # Convert angle to radians and compute position using trig
-        angle_rad = math.radians(angle_deg)
-        tx = center_x + int(round(torch_distance * math.cos(angle_rad)))
-        ty = center_y + int(round(torch_distance * math.sin(angle_rad)))
+    # for angle_deg in torch_angles:
+    #     # Convert angle to radians and compute position using trig
+    #     angle_rad = math.radians(angle_deg)
+    #     tx = center_x + int(round(torch_distance * math.cos(angle_rad)))
+    #     ty = center_y + int(round(torch_distance * math.sin(angle_rad)))
         
-        if (0 <= tx < game_map.width and 0 <= ty < game_map.height):
-            if is_circle_tile(center_x, center_y, radius, tx, ty):
-                if game_map.tiles[ty][tx] == floor:
-                    game_map.tiles[ty][tx] = torch_tile
-                    torch_positions.append((tx, ty))
+    #     if (0 <= tx < game_map.width and 0 <= ty < game_map.height):
+    #         if is_circle_tile(center_x, center_y, radius, tx, ty):
+    #             if game_map.tiles[ty][tx] == floor:
+    #                 game_map.tiles[ty][tx] = torch_tile
+    #                 torch_positions.append((tx, ty))
     
-    result['torch_positions'] = torch_positions
+    # result['torch_positions'] = torch_positions
     
-    return result
+    # return result
