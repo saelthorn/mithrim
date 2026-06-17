@@ -22,6 +22,7 @@ class AI_State(Enum):
     FLEEING = 2
     DESPERATE_FIGHT = 3
     INVESTIGATE = 4  # New state for investigation
+    KITING = 5  # New state for kiting behavior
 
 
 # --- MONSTER GROUP DEFINITIONS ---
@@ -36,7 +37,7 @@ MONSTER_GROUPS = {
     'LizardfolkArcher': ['Lizardfolk', 'LizardfolkArcher'],
     'Centaur': ['Centaur', 'CentaurArcher'],
     'CentaurArcher': ['Centaur', 'CentaurArcher'],
-    'Wolf': ['Wolf', 'Wolf'],
+    'Wolf': ['Wolf', 'Wolf', 'Goblin', 'GoblinArcher'],
     
     # Solo/Pack Monsters (can appear in small groups of same type)
     'GiantRat': ['GiantRat', 'GiantRat'],
@@ -149,6 +150,14 @@ class Monster:
         self.desperate_fight_hp_threshold = 0.50  # Fight if player HP < 40% (and monster HP is also low)
         self.ai_state = AI_State.CHASING  # Default state
 
+        # Kiting behavior for ranged monsters
+        self.can_kite = False  # Enable kiting for intelligent ranged monsters
+        self.ideal_kiting_distance = 4  # Preferred distance to maintain
+        self.kiting_attack_threshold = 2  # Min distance before retreating
+        self.kiting_retreat_distance = 5  # Max distance before pursuing again
+        self.last_kite_direction = (0, 0)  # Memory of last kiting direction
+        self.kiting_turns_since_strafe = 0  # Track strafe attempts
+
         # Telegraph fields: when set by a monster, game will render highlights
         self.pending_telegraph_tiles = []  # list[(x,y)] tiles the monster intends to hit next turn
         self.telegraph_color = (255, 0, 0, 100)  # translucent red
@@ -156,7 +165,9 @@ class Monster:
         self.telegraph_timer = 0  # Timer for when telegraphed attack resolves (3 turns)
 
         self.loot_table = []  # List of (item_template, drop_chance) tuples
-
+        
+        # Fleeing behavior: track consecutive turns where flee fails (monster stuck)
+        self.consecutive_failed_flee_turns = 0  # Counter for failed flee attempts
 
             
 
@@ -195,7 +206,7 @@ class Monster:
         if distance_to_player <= self.detection_range and is_visible_to_monster:
             self.last_known_player_position = (player.x, player.y)
             # If monster was investigating or patrolling, switch to chasing
-            if self.ai_state != AI_State.CHASING:
+            if self.ai_state != AI_State.CHASING and self.ai_state != AI_State.KITING:
                 self.ai_state = AI_State.CHASING
                 game_instance.message_log.add_message(f"The {self.name} spots you and starts chasing!", self.color)
             return True  # Player currently detected
@@ -258,9 +269,7 @@ class Monster:
         if possible_moves:
             target_x, target_y = random.choice(possible_moves)
             self.move_towards(target_x, target_y, game_map, game)
-            # game.message_log.add_message(f"The {self.name} patrols nearby.", self.color)
         else:
-            # game.message_log.add_message(f"The {self.name} waits, unable to patrol.", (150, 150, 150))
             pass
 
     def move_towards(self, target_x, target_y, game_map, game):
@@ -284,16 +293,10 @@ class Monster:
                 self.x = next_x
                 self.y = next_y
                 game.update_fov()  # Update FOV after movement to handle submerging
-                # game.message_log.add_message(f"The {self.name} moves to ({self.x}, {self.y}).", self.color)
                 return True
             else:
-                # If can_move_to returned False, it means there was an un-smashable obstacle
-                # or another entity blocking the way.
-                # game.message_log.add_message(f"The {self.name} is blocked from moving to ({next_x}, {next_y}).", (150, 150, 150))
                 return False
         else:
-            # No path found or already at target
-            # game.message_log.add_message(f"The {self.name} cannot find a path to ({target_x}, {target_y}).", (150, 150, 150))
             return False
     
     def flee(self, player, game_map, game):
@@ -351,7 +354,118 @@ class Monster:
                 return True  # Successfully fled one step
     
         return False  # Could not find a valid tile to flee to
-    
+
+    def kite(self, target, game_map, game):
+        """
+        Kiting behavior: maintain optimal ranged attack distance.
+        Move away if target gets too close, pursue if target gets too far.
+        This is the core tactic for intelligent ranged monsters.
+        """
+        distance = self.distance_to(target.x, target.y)
+  
+        # If range monster stays at the same position for multiple turns, attack the target if within range
+        if distance <= 1 and self.is_ranged:
+            self.attack(target, game)
+            return True
+                
+        # If target is too close, retreat
+        if distance <= self.kiting_attack_threshold:
+            self.flee(target, game_map, game)
+            return True
+
+        # If target is within attack range and line of sight, attack
+        if distance <= self.range and game.check_line_of_sight(self.x, self.y, target.x, target.y):
+            self.ranged_attack(target, game)
+            return True
+        
+        # If target is too far, pursue closer
+        if distance > self.kiting_retreat_distance:
+            self.move_towards(target.x, target.y, game_map, game)
+            return True
+        
+
+        # Maintain distance: strafe around target at ideal distance
+        # Try to move perpendicular to avoid direct approach
+        dx = target.x - self.x
+        dy = target.y - self.y
+        
+        # Normalize direction vector
+        mag = max(abs(dx), abs(dy))
+        if mag > 0:
+            dx = dx // mag if dx != 0 else 0
+            dy = dy // mag if dy != 0 else 0
+        
+        # Perpendicular movement options (rotate 90 degrees)
+        perpendicular_moves = [
+            (-dy, dx),    # Left strafe
+            (dy, -dx),    # Right strafe
+        ]
+        
+        # Choose strafe direction that maintains distance best
+        best_move = None
+        best_distance_diff = float('inf')
+        
+        for move_dx, move_dy in perpendicular_moves:
+            if move_dx == 0 and move_dy == 0:
+                continue
+            
+            check_x = self.x + move_dx
+            check_y = self.y + move_dy
+            
+            # Verify tile is walkable and not blocked
+            if not (0 <= check_x < game_map.width and 0 <= check_y < game_map.height):
+                continue
+            if not game_map.is_walkable(check_x, check_y):
+                continue
+            
+            # Check for blocking entities
+            blocked = False
+            for entity in game.entities:
+                if entity != self and entity.alive and entity.blocks_movement:
+                    if hasattr(entity, 'occupies_tile'):
+                        if entity.occupies_tile(check_x, check_y):
+                            blocked = True
+                            break
+                    elif entity.x == check_x and entity.y == check_y:
+                        blocked = True
+                        break
+            if blocked:
+                continue
+            
+            # Calculate new distance after move
+            new_distance = self.distance_to(check_x, check_y)
+            distance_diff = abs(new_distance - self.ideal_kiting_distance)
+            
+            if distance_diff < best_distance_diff:
+                best_distance_diff = distance_diff
+                best_move = (check_x, check_y)
+        
+        # Execute best strafe move
+        if best_move:
+            self.x, self.y = best_move
+            game.update_fov()
+            self.kiting_turns_since_strafe = 0
+            return True
+        
+        # If strafing fails, try diagonal retreat while maintaining distance
+        self.kiting_turns_since_strafe += 1
+        if self.kiting_turns_since_strafe > 2:
+            # Try diagonal away
+            for move_dx in [-1, 0, 1]:
+                for move_dy in [-1, 0, 1]:
+                    if move_dx == 0 and move_dy == 0:
+                        continue
+                    # Favor moves away from target
+                    if (move_dx * dx + move_dy * dy) < 0:
+                        check_x = self.x + move_dx
+                        check_y = self.y + move_dy
+                        if self.can_occupy_position(check_x, check_y, game_map, game.entities, exclusions=[self]):
+                            self.x, self.y = check_x, check_y
+                            game.update_fov()
+                            self.kiting_turns_since_strafe = 0
+                            return True
+        
+        return False
 
     def roll_damage(self, is_ranged=False):
         """
@@ -481,7 +595,6 @@ class Monster:
             if self.can_burn:
                 if not target.make_saving_throw("DEX", self.burn_dc, game): # Fire often uses Dex save
                     target.add_status_effect("Burning", self.burn_duration, game, source=self)
-            # Add more status effects here as needed (e.g., Restrained, Stunned, etc.)
 
         else:
             # Miss handling
@@ -605,7 +718,6 @@ class Monster:
             if self.can_burn:
                 if not target.make_saving_throw("DEX", self.burn_dc, game):
                     target.add_status_effect("Burning", self.burn_duration, game, source=self)
-            # Add more ranged status effects here as needed
 
         else:
             # Miss handling
@@ -904,7 +1016,7 @@ class Monster:
         return True
 
     def take_turn(self, player, game_map, game):
-        """Handle monster's combat and movement"""
+        """Handle monster's combat and movement with improved AI"""
         if not self.alive:
             return
 
@@ -913,7 +1025,6 @@ class Monster:
             return
 
         # NEW: Check for player's summoned entities and prioritize attacking them
-        # This must be done early so target_entity is available for telegraph resolution
         target_entity = None
         target_distance = float('inf')
 
@@ -963,11 +1074,7 @@ class Monster:
         player_detected = self.detect_player(player, game)
 
         # Check torchlight stimulus to trigger investigate state
-        if not player_detected and self.is_intelligent: # Only intelligent monsters investigate light
-            self.check_torchlight_in_range(game)
-
-        # Check torchlight stimulus to trigger investigate state
-        if not player_detected and self.is_intelligent: # Only intelligent monsters investigate light
+        if not player_detected and self.is_intelligent:
             self.check_torchlight_in_range(game)
 
         # Handle AI states for intelligent monsters
@@ -976,38 +1083,52 @@ class Monster:
                 if player_detected:
                     # Player found again, switch to chasing
                     self.ai_state = AI_State.CHASING
-                    self.investigate_turns_left = 0 # Reset timer
+                    self.investigate_turns_left = 0
                     game.message_log.add_message(f"The {self.name} re-acquires your scent and resumes chasing!", self.color)
-                    # Fall through to CHASING logic for this turn
                 else:
                     if self.investigate_turns_left > 0:
                         self.investigate_turns_left -= 1
                         if self.last_known_player_position:
                             target_x, target_y = self.last_known_player_position
                             if (self.x, self.y) == (target_x, target_y):
-                                # Reached last known position, but player not detected.
-                                # Continue ticking down investigate_turns_left.
-                                # If it's the last turn, message that it gives up.
                                 if self.investigate_turns_left == 0:
                                     game.message_log.add_message(f"The {self.name} finds nothing and gives up investigating.", (150, 150, 150))
                                     self.patrol(game_map, game)
-                                    self.last_known_player_position = None # Clear last known position
-                                # Else, just wait at the last known position for the timer to run out
+                                    self.last_known_player_position = None
                             else:
-                                # Move towards last known position
                                 self.move_towards(target_x, target_y, game_map, game)
                         else:
-                            # No last known position, fallback to patrol (shouldn't happen if INVESTIGATE is set correctly)
                             self.patrol(game_map, game)
                     else:
-                        # Investigation timed out, switch to patrol
                         self.patrol(game_map, game)
                         self.last_known_player_position = None
-                return # End turn after investigation logic
+                return
+
+            # KITING STATE - New AI behavior for ranged monsters
+            if self.ai_state == AI_State.KITING:
+                if player_detected:
+                    if self.kite(target_entity, game_map, game):
+                        return
+                else:
+                    # Lost sight of target, switch to investigating
+                    self.ai_state = AI_State.INVESTIGATE
+                    self.investigate_turns_left = 4
+                    self.last_known_player_position = self.last_known_player_position or (player.x, player.y)
+                    game.message_log.add_message(f"The {self.name} loses track of you.", (150, 150, 150))
+                return
 
             if self.ai_state == AI_State.FLEEING:
                 if self.flee(player, game_map, game):
                     return
+                else:
+                    # Cornered! Monster cannot flee any longer (back against wall, no valid escape moves)
+                    # Switch to attacking instead of continuing to flee
+                    game.message_log.add_message(
+                        f"The {self.name} is cornered and fights back viciously!",
+                        (255, 100, 100)
+                    )
+                    self.ai_state = AI_State.CHASING
+                    # Fall through to CHASING logic below - don't return
 
             if self.ai_state == AI_State.DESPERATE_FIGHT:
                 game.message_log.add_message(f"The {self.name} is desperate and fights on!", (255, 100, 100))
@@ -1033,7 +1154,7 @@ class Monster:
                         if self.can_move_to(new_x, new_y, game_map, game):
                             self.x = new_x
                             self.y = new_y
-                            game.update_fov()  # Update FOV after movement
+                            game.update_fov()
                         else:
                             game.message_log.add_message(f"The {self.name} is blocked and cannot reach {target_entity.name}!", (100, 100, 100))
                     else:
@@ -1041,6 +1162,12 @@ class Monster:
                     return
 
             if self.ai_state == AI_State.CHASING:
+                # Decision: should intelligent ranged monsters use kiting?
+                if self.is_ranged and self.can_kite and player_detected:
+                    self.ai_state = AI_State.KITING
+                    if self.kite(target_entity, game_map, game):
+                        return
+
                 if self.is_ranged and target_distance <= self.range and game.check_line_of_sight(self.x, self.y, target_entity.x, target_entity.y):
                     self.ranged_attack(target_entity, game)
                     return
@@ -1066,7 +1193,7 @@ class Monster:
                         if self.can_move_to(new_x, new_y, game_map, game):
                             self.x = new_x
                             self.y = new_y
-                            game.update_fov()  # Update FOV after movement
+                            game.update_fov()
                         else:
                             game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
                     else:
@@ -1098,7 +1225,7 @@ class Monster:
                             if self.can_move_to(nx, ny, game_map, game):
                                 self.x = nx
                                 self.y = ny
-                                game.update_fov()  # Update FOV after movement
+                                game.update_fov()
                                 moved = True
                                 break
 
@@ -1227,9 +1354,9 @@ class Mimic(Monster):
             game_instance.message_log.add_message(f"You strike the {self.name}!", (255, 165, 0))
             self.reveal(game_instance) 
             
-        damage_taken = super().take_damage(amount, game_instance, damage_type) # Pass game_instance here
+        damage_taken = super().take_damage(amount, game_instance, damage_type)
 
-        if not self.alive and not self.disguised: # Only if it died and was already revealed
+        if not self.alive and not self.disguised:
             game_instance.message_log.add_message(f"The {self.name} shudders and collapses!", (255, 0, 0))
 
         return damage_taken
@@ -1266,7 +1393,7 @@ class Mimic(Monster):
                 game_instance.game_map.items_on_ground.remove(self)
                 print(f"DEBUG: Mimic removed from game_map.items_on_ground upon reveal.")
             
-            from world.tile import floor # Import floor tile
+            from world.tile import floor
             game_instance.game_map.tiles[self.y][self.x] = floor
             print(f"DEBUG: MimicTile at ({self.x},{self.y}) replaced with floor tile.")
             
@@ -1277,7 +1404,7 @@ class Mimic(Monster):
         if not self.alive:
             return
         
-        if self.disguised: # Should not happen if handle_player_action works
+        if self.disguised:
             return
         
         # If not disguised, behave like a normal monster (Stage 2 combat form)
@@ -1298,16 +1425,15 @@ class GiantRat(Monster):
         self.damage_modifier = 2
         self.detection_range = 8
         self.num_damage_dice = 1
-        # self.can_disease = True  # Filth Fever (homebrew disease effect)
-        self.is_intelligent = False # Not intelligent enough to flee
+        self.is_intelligent = False
 
         self.loot_table = [
-            (meat, 0.25) # 25% chance to drop meat
+            (meat, 0.25)
         ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": False,  # Proficient in Dexterity saves
+            "DEX": False,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1330,11 +1456,11 @@ class Ooze(Monster):
         self.damage_modifier = 1
         self.detection_range = 4
         self.acid_burn_damage_per_turn = 3
-        self.is_intelligent = False # Not intelligent enough to flee
+        self.is_intelligent = False
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1353,16 +1479,16 @@ class Goblin(Monster):
         self.damage_modifier = 2
         self.detection_range = 6
         self.num_damage_dice = 1
-        self.is_intelligent = True # Intelligent enough to flee
+        self.is_intelligent = True
         self.can_poison = True
 
         self.loot_table = [
-            (iron_dagger, 0.8) # 25% chance to drop meat
+            (iron_dagger, 0.8)
         ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1382,20 +1508,25 @@ class GoblinArcher(Monster):
         self.detection_range = 6
         self.num_damage_dice = 1
         self.is_ranged = True
-        self.ranged_attack_bonus = 2  # Base ranged attack bonus
-        self.range = 4  # Max range for ranged attacks
-        self.ranged_die_type = 6  # Base die type for ranged attacks
-        self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
-        self.is_intelligent = True # Intelligent enough to flee
+        self.ranged_attack_bonus = 2
+        self.range = 4
+        self.ranged_die_type = 6
+        self.ranged_num_dice = 1
+        self.is_intelligent = True
         self.can_poison = True
+        
+        # Enable kiting for this ranged monster
+        self.can_kite = True
+        self.ideal_kiting_distance = self.range - 1
+        self.kiting_attack_threshold = 2
 
         self.loot_table = [
-            (bread, 0.25) # 25% chance to drop meat
+            (bread, 0.25)
         ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1414,15 +1545,15 @@ class Skeleton(Monster):
         self.damage_modifier = 2
         self.detection_range = 4
         self.num_damage_dice = 1
-        self.is_intelligent = False # Not intelligent enough to flee
+        self.is_intelligent = False
         
         self.loot_table = [
-            (bronze_short_sword, 0.85) # 25% chance to drop meat
+            (bronze_short_sword, 0.85)
         ]
         
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1442,15 +1573,15 @@ class SkeletonArcher(Monster):
         self.detection_range = 5
         self.num_damage_dice = 1
         self.is_ranged = True
-        self.ranged_attack_bonus = 2  # Base ranged attack bonus
-        self.range = 4  # Max range for ranged attacks
-        self.ranged_die_type = 6  # Base die type for ranged attacks
-        self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
-        self.is_intelligent = False # Not intelligent enough to flee
+        self.ranged_attack_bonus = 2
+        self.range = 4
+        self.ranged_die_type = 6
+        self.ranged_num_dice = 1
+        self.is_intelligent = False
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1469,15 +1600,15 @@ class Orc(Monster):
         self.damage_modifier = 3
         self.detection_range = 6
         self.num_damage_dice = 1
-        self.is_intelligent = True # Intelligent enough to flee
+        self.is_intelligent = True
 
         self.loot_table = [
-            (steel_battle_axe, 0.75) # 25% chance to drop meat
+            (steel_battle_axe, 0.75)
         ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1496,17 +1627,17 @@ class Centaur(Monster):
         self.damage_modifier = 4
         self.detection_range = 6
         self.num_damage_dice = 2
-        self.is_intelligent = True # Intelligent enough to flee
+        self.is_intelligent = True
 
         self.loot_table = [
-            (pole_arm, 0.75), # 75% chance to drop meat
-            (studded_leather_armor, 0.50), # 50% chance to drop armor
-            (meat, 0.25) # 25% chance to drop meat
+            (pole_arm, 0.75),
+            (studded_leather_armor, 0.50),
+            (meat, 0.25)
         ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1526,20 +1657,25 @@ class CentaurArcher(Monster):
         self.detection_range = 6
         self.num_damage_dice = 1
         self.is_ranged = True
-        self.ranged_attack_bonus = 2  # Base ranged attack bonus
-        self.range = 5  # Max range for ranged attacks
-        self.ranged_die_type = 8  # Base die type for ranged attacks
-        self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
-        self.is_intelligent = True # Intelligent enough to flee
+        self.ranged_attack_bonus = 2
+        self.range = 5
+        self.ranged_die_type = 8
+        self.ranged_num_dice = 1
+        self.is_intelligent = True
+        
+        # Enable kiting for this ranged monster
+        self.can_kite = True
+        self.ideal_kiting_distance = self.range - 1
+        self.kiting_attack_threshold = 2
 
         self.loot_table = [
-            (iron_short_sword, 0.20), # 25% chance to drop meat
-            (meat, 0.25) # 25% chance to drop meat
+            (iron_short_sword, 0.20),
+            (meat, 0.25)
         ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1558,17 +1694,15 @@ class Troll(Monster):
         self.damage_modifier = 4
         self.detection_range = 8
         self.num_damage_dice = 2
-        # self.regeneration = True
-        # self.regen_amount = 10  # per turn unless acid/fire damage
-        self.is_intelligent = False # Not intelligent enough to flee (more brute force)
+        self.is_intelligent = False
 
         self.loot_table = [
-            (steel_maul, 0.85), # 85% chance to drop meat
+            (steel_maul, 0.85),
         ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1592,15 +1726,15 @@ class Lizardfolk(Monster):
         self.poison_dc = 13
         self.poison_duration = 3
         self.poison_damage_per_turn = 2
-        self.is_intelligent = True # Intelligent enough to flee
+        self.is_intelligent = True
 
         self.loot_table = [
-            (pole_arm, 0.75) # 25% chance to drop meat
+            (pole_arm, 0.75)
         ]        
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1621,15 +1755,20 @@ class LizardfolkArcher(Monster):
         self.detection_range = 5
         self.num_damage_dice = 1
         self.is_ranged = True
-        self.ranged_attack_bonus = 2  # Base ranged attack bonus
-        self.range = 4  # Max range for ranged attacks
-        self.ranged_die_type = 8  # Base die type for ranged attacks
-        self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
-        self.is_intelligent = True # Intelligent enough to flee
+        self.ranged_attack_bonus = 2
+        self.range = 4
+        self.ranged_die_type = 8
+        self.ranged_num_dice = 1
+        self.is_intelligent = True
+        
+        # Enable kiting for this ranged monster
+        self.can_kite = True
+        self.ideal_kiting_distance = self.range - 1
+        self.kiting_attack_threshold = 2
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1653,11 +1792,11 @@ class GiantSpider(Monster):
         self.poison_duration = 3
         self.poison_damage_per_turn = 4
         self.web_restrain = True
-        self.is_intelligent = False # More instinct-driven
+        self.is_intelligent = False
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1677,24 +1816,28 @@ class Beholder(Monster):
         self.detection_range = 8
         self.num_damage_dice = 4
         self.is_ranged = True
-        self.ranged_attack_bonus = 2  # Base ranged attack bonus
-        self.range = 5  # Max range for ranged attacks
-        self.ranged_die_type = 8  # Base die type for ranged attacks
-        self.ranged_num_dice = 4  # Number of damage dice for ranged attacks
+        self.ranged_attack_bonus = 2
+        self.range = 5
+        self.ranged_die_type = 8
+        self.ranged_num_dice = 4
         self.footprint_size = 2
-        # self.eye_ray_effects = ["charm", "paralyze", "petrify", "fear", "disintegrate"]
-        self.is_intelligent = True # Highly intelligent
+        self.is_intelligent = True
+        
+        # Beholder can kite at very long range
+        self.can_kite = True
+        self.ideal_kiting_distance = 5
+        self.kiting_attack_threshold = 3
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
             "CHA": False,
         }        
 
-class LargeOoze(Monster):  # Gelatinous Cube
+class LargeOoze(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'LO', 'Large Ooze', (34, 139, 34))
         self.can_swim = True
@@ -1711,16 +1854,16 @@ class LargeOoze(Monster):  # Gelatinous Cube
         self.acid_burn_duration = 4
         self.acid_burn_damage_per_turn = 4
         self.split_on_slash = True
-        self.is_intelligent = False # Mindless
+        self.is_intelligent = False
 
         self.loot_table = [
-            (bronze_short_sword, 0.30), # 25% chance to drop meat
-            (round_shield, 0.25) # 25% chance to drop round shield
+            (bronze_short_sword, 0.30),
+            (round_shield, 0.25)
         ]    
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1740,16 +1883,13 @@ class RedDragon(Monster):
         self.damage_modifier = 6
         self.detection_range = 8
         self.num_damage_dice = 2
-        self.is_intelligent = True # Intelligent enough to flee
-
-
+        self.is_intelligent = True
         self.is_ranged = True
-        self.ranged_attack_bonus = 5  # Base ranged attack bonus
-        self.range = 4  # Max range for ranged attacks
-        self.ranged_die_type = 6  # Base die type for ranged attacks
-        self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
+        self.ranged_attack_bonus = 5
+        self.range = 4
+        self.ranged_die_type = 6
+        self.ranged_num_dice = 1
         self.footprint_size = 3
-
         self.can_burn = True
         self.burn_dc = 17
         self.burn_damage_per_turn = 6
@@ -1757,7 +1897,7 @@ class RedDragon(Monster):
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": True,
             "INT": False,
             "WIS": False,
@@ -1776,11 +1916,11 @@ class Owlbear(Monster):
         self.damage_modifier = 5
         self.detection_range = 5
         self.num_damage_dice = 2
-        self.is_intelligent = False # More beast-like
+        self.is_intelligent = False
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1800,13 +1940,11 @@ class Demogorgon(Monster):
         self.detection_range = 15
         self.num_damage_dice = 3
         self.footprint_size = 3
-        # self.legendary_resistance = 3
-        # self.frightful_presence = True
-        self.is_intelligent = True # Highly intelligent, but likely never flees (boss)
+        self.is_intelligent = True
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1816,37 +1954,29 @@ class Demogorgon(Monster):
 class AlphaGrick(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'AG', 'Alpha Grick', (169, 169, 169))
-        self.hp = 153  # 18d10 + 54
+        self.hp = 153
         self.max_hp = 153
-        self.attack_bonus = 7  # +7 to hit (tentacles)
+        self.attack_bonus = 7
         self.armor_class = 18
         self.base_xp = 2900
-        self.monster_die_type = 8  # Tentacles 2d8, Beak 2d6
-        self.damage_modifier = 4   # STR mod +4
+        self.monster_die_type = 8
+        self.damage_modifier = 4
         self.detection_range = 10
         self.num_damage_dice = 2
-        self.is_intelligent = False  # Ambush predator, animal cunning but not "smart"
-
-        # Resistances
-        # self.resist_nonmagical = True
-        # self.damage_resistances = ["bludgeoning", "piercing", "slashing (nonmagical)"]
-
-        # Multiattack (not coded but relevant):
-        # Tentacles (2d8+4) + Beak (2d6+4)
+        self.is_intelligent = False
 
         self.loot_table = [
-            (meat, 0.25)  # 25% chance to drop meat
+            (meat, 0.25)
         ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,   # +3 in stat block
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
             "CHA": False,
         }
-
 
 
 class Grick(Monster):
@@ -1862,12 +1992,11 @@ class Grick(Monster):
         self.damage_modifier = 2
         self.detection_range = 8
         self.num_damage_dice = 2
-        # self.resist_nonmagical = True
-        self.is_intelligent = False # Ambush predator, not intelligent
+        self.is_intelligent = False
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1886,13 +2015,11 @@ class GibberingMouther(Monster):
         self.damage_modifier = 1
         self.detection_range = 4
         self.num_damage_dice = 2
-        # self.maddening_babble = True
-        # self.prone_ground = True
-        self.is_intelligent = False # Mindless aberration
+        self.is_intelligent = False
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1912,21 +2039,24 @@ class MindFlayer(Monster):
         self.detection_range = 6
         self.damage_modifier = 4
         self.is_ranged = True
-        self.ranged_attack_bonus = 7  # Base ranged attack bonus
-        self.range = 4  # Max range for ranged attacks
-        self.ranged_die_type = 10  # Base die type for ranged attacks
-        self.ranged_num_dice = 2  # Number of damage dice for ranged attacks
-        # self.psionic_blast_dc = 15
-        # self.psionic_stun_duration = 1
-        self.is_intelligent = True # Highly intelligent
+        self.ranged_attack_bonus = 7
+        self.range = 4
+        self.ranged_die_type = 10
+        self.ranged_num_dice = 2
+        self.is_intelligent = True
+        
+        # Mind Flayer uses kiting at medium range
+        self.can_kite = True
+        self.ideal_kiting_distance = 4
+        self.kiting_attack_threshold = 2
 
         self.loot_table = [
-            (chainmail_armor, 0.75) # 75% chance to drop meat
+            (chainmail_armor, 0.75)
         ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1945,17 +2075,16 @@ class Minotaur(Monster):
         self.damage_modifier = 4 
         self.detection_range = 6
         self.num_damage_dice = 2
-        # self.charge_attack = True
-        self.is_intelligent = True # Intelligent enough to flee
+        self.is_intelligent = True
 
         self.loot_table = [
             (steel_battle_axe, 0.75),
-            (meat, 0.25) # 25% chance to drop meat
+            (meat, 0.25)
         ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -1974,18 +2103,16 @@ class Wererat(Monster):
         self.damage_modifier = 2
         self.detection_range = 6
         self.num_damage_dice = 1
-        # self.shapechanger = True
-        # self.disease = True
-        self.is_intelligent = True # Intelligent enough to flee
+        self.is_intelligent = True
 
         self.loot_table = [
-            (iron_dagger, 0.85), # 85% chance to drop dagger
-            (meat, 0.25), # 25% chance to drop meat
+            (iron_dagger, 0.85),
+            (meat, 0.25),
         ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -2005,16 +2132,15 @@ class Wolf(Monster):
         self.damage_modifier = 2
         self.detection_range = 8
         self.num_damage_dice = 1
-        # self.knock_prone_dc = 11
-        self.is_intelligent = False # More beast-like
+        self.is_intelligent = False
         
         self.loot_table = [
-            (meat, 0.60) # 25% chance to drop meat
+            (meat, 0.60)
         ]        
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -2037,11 +2163,11 @@ class Yochlol(Monster):
         self.poison_dc = 10
         self.poison_duration = 3
         self.poison_damage_per_turn = 4
-        self.is_intelligent = True # Intelligent enough to flee
+        self.is_intelligent = True
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -2050,28 +2176,23 @@ class Yochlol(Monster):
 
 class RedSlaad(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'RS', 'Red Slaad', (180, 30, 30))  # Deep red
+        super().__init__(x, y, 'RS', 'Red Slaad', (180, 30, 30))
 
         self.hp = 93
         self.max_hp = 93
         self.attack_bonus = 6
         self.armor_class = 14
         self.base_xp = 1800
-        self.monster_die_type = 6   # Claw damage (1d6+4)
-        self.num_damage_dice = 2    # Claw: 2d6+4 each
+        self.monster_die_type = 6
+        self.num_damage_dice = 2
         self.damage_modifier = 4
         self.detection_range = 6
-        self.is_intelligent = False  # Bestial cunning, not strategic
-
-        # Claw carries a disease (Chaos Phage / Egg Implant)
-        # self.disease = True
-        # self.disease_dc = 14
-        # self.disease_effect = "Implants egg → Spawns Blue Slaad on death"
+        self.is_intelligent = False
         
         self.saving_throw_proficiencies = {
-            "STR": True,   # +4 base
+            "STR": True,
             "DEX": False,
-            "CON": True,   # +3 base
+            "CON": True,
             "INT": False,
             "WIS": False,
             "CHA": False,
@@ -2079,29 +2200,18 @@ class RedSlaad(Monster):
 
 class DeathSlaad(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'DS', 'Death Slaad', (80, 0, 120))  # Black-purple skin
+        super().__init__(x, y, 'DS', 'Death Slaad', (80, 0, 120))
 
         self.hp = 170
         self.max_hp = 170
         self.attack_bonus = 8
         self.armor_class = 18
         self.base_xp = 5900
-        self.monster_die_type = 8   # Claw/Bite with d8s
-        self.num_damage_dice = 2    # 2d8+5 per claw
+        self.monster_die_type = 8
+        self.num_damage_dice = 2
         self.damage_modifier = 5
         self.detection_range = 8
-        self.is_intelligent = True  # Scheming and malicious
-
-        # Shapechanger trait
-        # self.shapechanger = True  # Can polymorph into humanoid
-
-        # Spellcasting (innate)
-        # self.spells = ["Fireball", "Fear", "Invisibility", "Detect Magic"]
-
-        # Claw carries Chaos Phage (disease)
-        # self.disease = True
-        # self.disease_dc = 15
-        # self.disease_effect = "Chaotic mutation → Transformation"
+        self.is_intelligent = True
 
         self.saving_throw_proficiencies = {
             "STR": True,
@@ -2114,27 +2224,21 @@ class DeathSlaad(Monster):
 
 class MyconidSprout(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'MS', 'Myconid Sprout', (120, 200, 120))  # Pale green mushroomy look
+        super().__init__(x, y, 'MS', 'Myconid Sprout', (120, 200, 120))
 
         self.hp = 7
         self.max_hp = 7
         self.attack_bonus = 2
         self.armor_class = 10
         self.base_xp = 50
-        self.monster_die_type = 4   # Fist attack (1d4)
+        self.monster_die_type = 4
         self.num_damage_dice = 1
         self.damage_modifier = 0
         self.detection_range = 4
-        self.is_intelligent = False  # Instinctual, childlike
-
-        # Status Effect: Pacifying Spores
-        # self.can_pacify = True
-        # self.pacify_dc = 11
-        # self.pacify_duration = 1d4 rounds
-        # Effect: Target becomes stunned
+        self.is_intelligent = False
 
         self.loot_table = [
-            (mushroom, 0.99) # 99% chance to drop meat
+            (mushroom, 0.99)
         ]
 
         self.saving_throw_proficiencies = {
@@ -2149,31 +2253,21 @@ class MyconidSprout(Monster):
 
 class MyconidAdult(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'MA', 'Myconid Adult', (80, 150, 80))  # Darker green/brown cap
+        super().__init__(x, y, 'MA', 'Myconid Adult', (80, 150, 80))
 
         self.hp = 22
         self.max_hp = 22
         self.attack_bonus = 3
         self.armor_class = 12
         self.base_xp = 100
-        self.monster_die_type = 6   # Fist attack (1d6+1)
+        self.monster_die_type = 6
         self.num_damage_dice = 1
         self.damage_modifier = 1
         self.detection_range = 5
-        self.is_intelligent = True  # Can communicate telepathically (via spores)
-
-        # Status Effect: Pacifying Spores
-        # self.can_pacify = True
-        # self.pacify_dc = 12
-        # self.pacify_duration = 1d4 rounds
-        # Effect: Target becomes stunned
-
-        # Rapport Spores (telepathic network)
-        # self.can_share_thoughts = True
-        # Party-wide communication if close
+        self.is_intelligent = True
       
         self.loot_table = [
-            (mushroom, 0.99) # 25% chance to drop meat
+            (mushroom, 0.99)
         ]
 
         self.saving_throw_proficiencies = {
@@ -2187,36 +2281,23 @@ class MyconidAdult(Monster):
 
 class Mezzoloth(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'MZ', 'Mezzoloth', (120, 60, 0))  # Dark brown/orange carapace
+        super().__init__(x, y, 'MZ', 'Mezzoloth', (120, 60, 0))
 
         self.hp = 75
         self.max_hp = 75
         self.attack_bonus = 6
         self.armor_class = 18
         self.base_xp = 1800
-        self.monster_die_type = 6   # Claw attacks
-        self.num_damage_dice = 2    # 2d6+3 per claw
+        self.monster_die_type = 6
+        self.num_damage_dice = 2
         self.damage_modifier = 3
         self.detection_range = 8
-        self.is_intelligent = True  # Tactical mercenary
-
-        # Multiattack: two claw attacks per turn
-
-        # Status Effects / Abilities:
-        # self.can_poison_cloud = True
-        # self.poison_cloud_dc = 14
-        # self.poison_duration = 1 minute
-        # self.poison_damage = "4d10 poison"
-        # (Once per day — fills a 10 ft. radius with toxic gas)
-
-        # Teleport (Innate ability, recharge 4–6)
-        # self.can_teleport = True
-        # Range: 60 ft.
+        self.is_intelligent = True
 
         self.saving_throw_proficiencies = {
-            "STR": True,   # Good Strength saves
+            "STR": True,
             "DEX": False,
-            "CON": True,   # Fiend toughness
+            "CON": True,
             "INT": False,
             "WIS": False,
             "CHA": False,
@@ -2224,39 +2305,31 @@ class Mezzoloth(Monster):
 
 class Gauth(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'GU', 'Gauth', (200, 150, 50))  # Gold/orange orb, distinct from beholder
+        super().__init__(x, y, 'GU', 'Gauth', (200, 150, 50))
 
         self.hp = 67
         self.max_hp = 67
         self.attack_bonus = 5
         self.armor_class = 15
         self.base_xp = 2300
-        self.monster_die_type = 8   # Bite attack (1d8+2)
+        self.monster_die_type = 8
         self.num_damage_dice = 1
         self.damage_modifier = 2
         self.detection_range = 8
-        self.is_intelligent = True  # Scheming, paranoid
-        self.range = 3  # Max range for ranged attacks
+        self.is_intelligent = True
+        self.range = 3
         self.is_ranged = True
-        self.ranged_attack_bonus = 5  # Base ranged attack bonus
-        self.ranged_die_type = 8  # Base die type for ranged attacks
-        self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
-
-        # Traits
-        # Eye Rays (roll d6 each turn, fire 2 rays at random targets):
-        # 1. Devour Magic Ray (suppresses magic item, DC 14)
-        # 2. Enervation Ray (4d8 necrotic, DC 14 half)
-        # 3. Paralyzing Ray (target paralyzed 1 min, DC 14 save)
-        # 4. Fear Ray (frightened for 1 min, DC 14 save)
-        # 5. Sleep Ray (unconscious 1 min, DC 14 save)
-        # 6. Telekinetic Ray (move creature 30 ft, DC 14 resist)
-
-        # Limited Anti-Magic Cone (like beholder, but only 150-degree arc)
-        # self.anti_magic_cone = True
-        # Range: 30 ft.
+        self.ranged_attack_bonus = 5
+        self.ranged_die_type = 8
+        self.ranged_num_dice = 1
+        
+        # Gauth uses medium-range kiting
+        self.can_kite = True
+        self.ideal_kiting_distance = 3
+        self.kiting_attack_threshold = 1
 
         self.loot_table = [
-            (meat, 0.1) # 10% chance to drop meat
+            (meat, 0.1)
         ]        
 
         self.saving_throw_proficiencies = {
@@ -2282,15 +2355,15 @@ class Drider(Monster):
         self.damage_modifier = 3
         self.detection_range = 12
         self.num_damage_dice = 3
-        self.is_intelligent = True # Intelligent enough to flee
+        self.is_intelligent = True
 
         self.loot_table = [
-            (steel_rapier, 0.80) # 80% chance to drop rapier
+            (steel_rapier, 0.80)
         ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,  # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,
@@ -2299,39 +2372,25 @@ class Drider(Monster):
 
 class Arasta(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'AR', 'Arasta', (40, 0, 40))  # Dark purple-black spider goddess
+        super().__init__(x, y, 'AR', 'Arasta', (40, 0, 40))
 
         self.hp = 300
         self.max_hp = 300
         self.attack_bonus = 10
         self.armor_class = 19
         self.base_xp = 33000
-        self.monster_die_type = 12   # 2d12+6 bite or claw
+        self.monster_die_type = 12
         self.num_damage_dice = 2
         self.damage_modifier = 6
         self.detection_range = 10
-        self.is_intelligent = True  # Scheming, divine hatred
+        self.is_intelligent = True
         self.footprint_size = 3
         self.can_swim = True
 
-        # Legendary Resistance (3/day) – auto succeed a failed saving throw
-        # self.legendary_resistances = 3
-
-        # Web of Hair (Recharge 5–6): restrains creatures in a 60 ft. cone
-        # self.web_dc = 18
-        # self.web_duration = 1 minute
-        # self.web_damage = "restrained + poison"
-
-        # Spider Swarm Spawn (lair action): summons 1d4 spider swarms each round
-
-        # Bite attack: 2d12+6 piercing + 4d8 poison (poison DC 18)
         self.can_poison = True
         self.poison_dc = 18
         self.poison_duration = 4
         self.poison_damage_per_turn = 8
-
-        # Mythic Trait (if reduced to 0 HP once, regain 200 HP and new abilities unlock)
-        # Example: Aura of Webs – terrain becomes difficult terrain, enemies slowed.
 
         self.saving_throw_proficiencies = {
             "STR": True,
@@ -2344,54 +2403,43 @@ class Arasta(Monster):
 
 class IntellectDevourer(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'ID', 'Intellect Devourer', (255, 0, 255))  # Bright pink/purple brain-like creature
+        super().__init__(x, y, 'ID', 'Intellect Devourer', (255, 0, 255))
 
         self.hp = 21
         self.max_hp = 21
         self.attack_bonus = 4
         self.armor_class = 12
         self.base_xp = 450
-        self.monster_die_type = 4   # Claw attack (1d4+2)
-        self.num_damage_dice = 2    # Two claws: 2d4+2 each
+        self.monster_die_type = 4
+        self.num_damage_dice = 2
         self.damage_modifier = 2
         self.detection_range = 4
-        self.is_intelligent = True  # Cunning and insidious, but not strategic
-
-        # Add Devour Intellect: force an INT save (DC 12) or target takes 2d10 psychic damage and loses all INT until restored
-        #self.is_ranged = True
-        #self.ranged_attack_bonus = 4  # Base ranged attack bonus
-        #self.range = 5  # Max range for ranged attacks
-        #self.ranged_die_type = 4  # Base die type for ranged attacks
-        #self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
+        self.is_intelligent = True
 
         self.saving_throw_proficiencies = {
             "STR": False,
             "DEX": False,
             "CON": False,
-            "INT": True,  # Proficient in Intelligence saves
+            "INT": True,
             "WIS": False,
             "CHA": False,
         }
 
 class Imp(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'IM', 'Imp', (255, 0, 255))  # Small red devil with wings
+        super().__init__(x, y, 'IM', 'Imp', (255, 0, 255))
 
         self.hp = 10
         self.max_hp = 10
         self.attack_bonus = 2
         self.armor_class = 13
         self.base_xp = 50
-        self.monster_die_type = 4   # Sting attack (1d4+1)
+        self.monster_die_type = 4
         self.num_damage_dice = 1
         self.damage_modifier = 1
         self.detection_range = 6
-        self.is_intelligent = True  # Cunning and mischievous
+        self.is_intelligent = True
 
-        # Shapechanger: can polymorph into a rat, raven, or spider (tiny forms)
-        # self.shapechanger = True
-
-        # Poison Sting: DC 11 CON save or take 3d6 poison damage and become poisoned for 1 hour
         self.can_poison = True
         self.poison_dc = 11
         self.poison_duration = 4  
@@ -2401,7 +2449,7 @@ class Imp(Monster):
             "STR": False,
             "DEX": False,
             "CON": False,
-            "INT": True,   # Proficient in Intelligence saves
+            "INT": True,
             "WIS": False,
             "CHA": False,
         }
@@ -2409,23 +2457,23 @@ class Imp(Monster):
 
 class Wraith(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'WRT', 'Wraith', (0, 0, 0))  # Shadowy, incorporeal undead
+        super().__init__(x, y, 'WRT', 'Wraith', (0, 0, 0))
 
         self.hp = 67
         self.max_hp = 67
         self.attack_bonus = 5
         self.armor_class = 13
         self.base_xp = 1800
-        self.monster_die_type = 8   # Life Drain attack (1d8+2)
+        self.monster_die_type = 8
         self.num_damage_dice = 1
         self.damage_modifier = 2
         self.detection_range = 8
-        self.is_intelligent = False  # Malevolent spirit, not strategic
+        self.is_intelligent = False
         self.can_fly = True
 
         self.saving_throw_proficiencies = {
             "STR": False,
-            "DEX": True,   # Proficient in Dexterity saves
+            "DEX": True,
             "CON": False,
             "INT": False,
             "WIS": False,

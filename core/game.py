@@ -363,7 +363,7 @@ class Game:
 
     MONSTER_SPAWN_TIERS = {
         # 🌱 Early dungeon fodder (CR 1/8 – CR 1/4)
-        (1, 2): [Goblin, Wolf, Imp, GiantRat, MyconidSprout],
+        (1, 2): [Goblin, GoblinArcher, Wolf, Imp, GiantRat, MyconidSprout],
         (3, 4): [Goblin, GoblinArcher, GiantRat, GiantSpider, Wererat, Wolf, MyconidSprout, IntellectDevourer, Imp],
         (5, 5): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf, MyconidAdult, IntellectDevourer],
 
