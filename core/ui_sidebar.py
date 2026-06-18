@@ -73,15 +73,32 @@ def _fill_bar(surface, x: int, y: int, w: int, h: int,
 
 
 def _xp_bar(surface, x: int, y: int, w: int,
-            current_xp: int, xp_needed: int, font):
+            current_xp: int, next_level_xp: int, current_level: int, font):
+    """Draw XP progress bar showing progress within current level tier.
+    
+    Calculates: (XP past current level threshold) / (XP needed for next level)
+    Shows both level-relative and total cumulative XP.
+    """
+    # Import XP_PROGRESSION to get the threshold for current level
+    from entities.player import XP_PROGRESSION
+    
+    
+    current_level_xp = XP_PROGRESSION.get(current_level, 1)
+    next_level_xp_threshold = XP_PROGRESSION.get(current_level + 1, current_level_xp + 1)
+    xp_in_level = current_xp - current_level_xp
+    xp_needed_for_level = next_level_xp_threshold - current_level_xp 
+    
     bar_h = 5
-    pct = current_xp / xp_needed if xp_needed > 0 else 0.0
+    pct = xp_in_level / xp_needed_for_level if xp_needed_for_level > 0 else 0.0
+    pct = max(0.0, min(1.0, pct))  # Clamp to 0-1
+    
     pygame.draw.rect(surface, (30, 30, 38), (x, y, w, bar_h), border_radius=2)
     fill_w = int(w * pct)
     if fill_w > 0:
         pygame.draw.rect(surface, _CYAN, (x, y, fill_w, bar_h), border_radius=2)
+    
     _txt(surface, font,
-         f"XP  {current_xp}/{xp_needed}",
+         f"XP  {xp_in_level}/{xp_needed_for_level}  (total: {current_xp})",
          _TEXT_DIM, x, y + bar_h + 3)
     return y + bar_h + font.get_linesize() + 5
 
@@ -205,7 +222,7 @@ def draw_sidebar(game) -> None:
     y += fN.get_linesize() + 4
 
     # XP bar
-    y = _xp_bar(screen, x0, y, W, player.current_xp, player.xp_to_next_level, fSm)
+    y = _xp_bar(screen, x0, y, W, player.current_xp, player.xp_to_next_level, player.level, fSm)
 
     # Gold
     g_s = fN.render(f"◆ {player.gold} gp", True, _GOLD)

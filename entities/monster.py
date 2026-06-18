@@ -21,12 +21,11 @@ class AI_State(Enum):
     CHASING = 1
     FLEEING = 2
     DESPERATE_FIGHT = 3
-    INVESTIGATE = 4  # New state for investigation
-    KITING = 5  # New state for kiting behavior
+    INVESTIGATE = 4
+    KITING = 5
 
 
 # --- MONSTER GROUP DEFINITIONS ---
-# Maps primary monster type to list of compatible monster types that can spawn together
 MONSTER_GROUPS = {
     # Paired/Pack Monsters
     'Goblin': ['Goblin', 'GoblinArcher'],
@@ -39,7 +38,7 @@ MONSTER_GROUPS = {
     'CentaurArcher': ['Centaur', 'CentaurArcher'],
     'Wolf': ['Wolf', 'Wolf', 'Goblin', 'GoblinArcher'],
     
-    # Solo/Pack Monsters (can appear in small groups of same type)
+    # Solo/Pack Monsters
     'GiantRat': ['GiantRat', 'GiantRat'],
     'Ooze': ['Ooze'],
     'Orc': ['Orc', 'Orc'],
@@ -93,8 +92,8 @@ class Monster:
 
         self.can_swim = False
 
-        self.is_active = False # New attribute: True if monster is awake/active
-        self.sleep_cooldown = 0 # New attribute: Timer for how long to stay asleep        
+        self.is_active = False
+        self.sleep_cooldown = 0        
 
         self.patrol_radius = 12
         self.investigate_turns_left = 4  # Turns left to investigate
@@ -114,20 +113,17 @@ class Monster:
             "CHA": False,
         }
 
-        self.last_known_player_position = None  # New attribute to store last known player position
+        self.last_known_player_position = None
         self.detection_range = 5
        
-        # Physical damage types
         self.damage_modifier = 2
 
-        # Ranged attack attributes
         self.is_ranged = False
         self.ranged_attack_bonus = 0  # Base ranged attack bonus
         self.range = 0  # Max range for ranged attacks
         self.ranged_die_type = 4  # Base die type for ranged attacks
         self.ranged_num_dice = 1  # Number of damage dice for ranged attacks
        
-        # Special attack attributes
         self.can_poison = False
         self.poison_dc = 10
         self.poison_duration = 3
@@ -147,7 +143,7 @@ class Monster:
         self.is_intelligent = False  # Default to False. Set to True for intelligent monsters.
         self.flee_hp_threshold = 0.30  # Flee if monster HP < 25%
         self.player_safe_hp_threshold = 0.60  # Flee if player HP > 60%
-        self.desperate_fight_hp_threshold = 0.50  # Fight if player HP < 40% (and monster HP is also low)
+        self.desperate_fight_hp_threshold = 0.40  # Fight if player HP < 40% (and monster HP is also low)
         self.ai_state = AI_State.CHASING  # Default state
 
         # Kiting behavior for ranged monsters
@@ -166,8 +162,7 @@ class Monster:
 
         self.loot_table = []  # List of (item_template, drop_chance) tuples
         
-        # Fleeing behavior: track consecutive turns where flee fails (monster stuck)
-        self.consecutive_failed_flee_turns = 0  # Counter for failed flee attempts
+        self.consecutive_failed_flee_turns = 0
 
             
 
@@ -179,12 +174,10 @@ class Monster:
 
     def get_saving_throw_bonus(self, ability_name):
         """Calculate the saving throw bonus for the specified ability."""
-        # Get the ability score based on the ability name
-        ability_score = getattr(self, ability_name.lower(), 0)  # Default to 0 if not found
-        modifier = (ability_score - 10) // 2  # Calculate the modifier
-        # Check if the monster has proficiency in this saving throw
+        ability_score = getattr(self, ability_name.lower(), 0)
+        modifier = (ability_score - 10) // 2
         if self.saving_throw_proficiencies.get(ability_name.upper(), False):
-            return modifier + 2  # Assuming a base proficiency bonus of +2 for simplicity
+            return modifier + 2
         return modifier
 
     def roll_initiative(self):
@@ -195,7 +188,7 @@ class Monster:
         """Calculate the Chebyshev distance to another point."""
         dx = abs(self.x - target_x)
         dy = abs(self.y - target_y)
-        return max(dx, dy) # Chebyshev distance (for grid-based movement)
+        return max(dx, dy)
 
 
     def detect_player(self, player, game_instance):
@@ -205,37 +198,27 @@ class Monster:
 
         if distance_to_player <= self.detection_range and is_visible_to_monster:
             self.last_known_player_position = (player.x, player.y)
-            # If monster was investigating or patrolling, switch to chasing
             if self.ai_state != AI_State.CHASING and self.ai_state != AI_State.KITING:
                 self.ai_state = AI_State.CHASING
                 game_instance.message_log.add_message(f"The {self.name} spots you and starts chasing!", self.color)
-            return True  # Player currently detected
+            return True
         else:
-            # Player not currently visible
             if self.last_known_player_position:
-                # Check if monster can still see the last known player position
                 can_see_last_known = game_instance.check_line_of_sight(
                     self.x, self.y,
                     self.last_known_player_position[0], self.last_known_player_position[1]
                 )
                 if not can_see_last_known:
-                    # Monster truly lost track of player
                     self.last_known_player_position = None
-                    # Switch to patrol or investigate as appropriate
                     if self.is_intelligent:
-                        # Start investigating if intelligent
                         if self.ai_state != AI_State.INVESTIGATE:
                             self.ai_state = AI_State.INVESTIGATE
-                            self.investigate_turns_left = 4  # or any suitable default
+                            self.investigate_turns_left = 4
                             game_instance.message_log.add_message(f"The {self.name} loses track of you and starts investigating.", (150, 150, 150))
-                    else:
-                        # Non-intelligent monsters revert to patrolling or idle
-                        pass
                     return False
                 else:
-                    # Still can see last known position, so monster remains aggroed
                     return False
-            return False  # Player not detected at all
+            return False
 
 
     def check_torchlight_in_range(self, game):
@@ -247,11 +230,10 @@ class Monster:
             if source == 'torch':
                 dist = self.distance_to(x, y)
                 if dist <= self.detection_range:
-                    # Player not visible to monster currently
                     if game.fov.get_visibility_type(self.x, self.y) != 'player' and self.ai_state != AI_State.INVESTIGATE:
                         self.last_known_player_position = (x, y)
                         self.ai_state = AI_State.INVESTIGATE
-                        self.investigate_turns_left = 10  # Number of turns to investigate
+                        self.investigate_turns_left = 10
                         game.message_log.add_message(f"The {self.name} notices a flickering light and starts investigating.", self.color)
                         break
 
@@ -269,30 +251,24 @@ class Monster:
         if possible_moves:
             target_x, target_y = random.choice(possible_moves)
             self.move_towards(target_x, target_y, game_map, game)
-        else:
-            pass
 
     def move_towards(self, target_x, target_y, game_map, game):
         """
         Moves the monster one step towards the target using A* pathfinding.
         Handles footprint and destructible tiles.
         """
-        # Pathfinding for multi-tile entities needs to consider their footprint
-        # The astar function already has logic for `moving_entity` and `ignore_destructible`
         path = astar(game_map, (self.x, self.y), (target_x, target_y), 
                      entities=[e for e in game.entities if e != self], 
                      moving_entity=self, 
-                     ignore_destructible=True) # Monsters can smash destructible tiles
+                     ignore_destructible=True)
         if path and len(path) > 1:
-            next_x, next_y = path[1] # Get the next step in the path
-            # Calculate the delta for the move
+            next_x, next_y = path[1]
             dx = next_x - self.x
             dy = next_y - self.y
-            # Check if the monster can move to this next position, handling destructible tiles
             if self.can_move_to(next_x, next_y, game_map, game):
                 self.x = next_x
                 self.y = next_y
-                game.update_fov()  # Update FOV after movement to handle submerging
+                game.update_fov()
                 return True
             else:
                 return False
@@ -302,7 +278,7 @@ class Monster:
     def flee(self, player, game_map, game):
         """
         Attempts to move the monster directly away from the player.
-        Returns True if a move was made, False otherwise.
+        Returns tuple: (success: bool, is_cornered: bool)
         """
         dx = self.x - player.x
         dy = self.y - player.y
@@ -317,11 +293,11 @@ class Monster:
     
         potential_moves = []
         if move_x != 0 and move_y != 0:
-            potential_moves.append((move_x, move_y))  # Diagonal away
+            potential_moves.append((move_x, move_y))
         if move_x != 0:
-            potential_moves.append((move_x, 0))       # Horizontal away
+            potential_moves.append((move_x, 0))
         if move_y != 0:
-            potential_moves.append((0, move_y))       # Vertical away
+            potential_moves.append((0, move_y))
     
         # Track summons whose reach the monster is leaving
         adjacent_summons = []
@@ -330,17 +306,15 @@ class Monster:
                 continue
             if not getattr(entity, 'alive', False) or not getattr(entity, 'blocks_movement', False):
                 continue
-            # Simple adjacency for single-tile summons
             if max(abs(self.x - entity.x), abs(self.y - entity.y)) == 1:
                 adjacent_summons.append(entity)
 
         for check_dx, check_dy in potential_moves:
             new_x, new_y = self.x + check_dx, self.y + check_dy
 
-            # Check footprint clearance instead of just single tile
             if self.can_occupy_position(new_x, new_y, game_map, game.entities, exclusions=[self]):
                 self.x, self.y = new_x, new_y
-                game.update_fov()  # Update FOV after movement
+                game.update_fov()
 
                 # Opportunity attacks from summons that lost adjacency
                 for summon in adjacent_summons:
@@ -350,10 +324,15 @@ class Monster:
                     if not still_adjacent and hasattr(summon, 'opportunity_attack'):
                         summon.opportunity_attack(self, game)
                         if not self.alive:
-                            return True
-                return True  # Successfully fled one step
+                            return (True, False)
+                
+                self.consecutive_failed_flee_turns = 0
+                return (True, False)
     
-        return False  # Could not find a valid tile to flee to
+        # Could not flee - track failure
+        self.consecutive_failed_flee_turns += 1
+        is_cornered = self.consecutive_failed_flee_turns >= 3
+        return (False, is_cornered)
 
     def kite(self, target, game_map, game):
         """
@@ -363,45 +342,37 @@ class Monster:
         """
         distance = self.distance_to(target.x, target.y)
   
-        # If range monster stays at the same position for multiple turns, attack the target if within range
         if distance <= 1 and self.is_ranged:
             self.attack(target, game)
             return True
                 
-        # If target is too close, retreat
         if distance <= self.kiting_attack_threshold:
             self.flee(target, game_map, game)
             return True
 
-        # If target is within attack range and line of sight, attack
         if distance <= self.range and game.check_line_of_sight(self.x, self.y, target.x, target.y):
             self.ranged_attack(target, game)
             return True
         
-        # If target is too far, pursue closer
         if distance > self.kiting_retreat_distance:
             self.move_towards(target.x, target.y, game_map, game)
             return True
         
 
         # Maintain distance: strafe around target at ideal distance
-        # Try to move perpendicular to avoid direct approach
         dx = target.x - self.x
         dy = target.y - self.y
         
-        # Normalize direction vector
         mag = max(abs(dx), abs(dy))
         if mag > 0:
             dx = dx // mag if dx != 0 else 0
             dy = dy // mag if dy != 0 else 0
         
-        # Perpendicular movement options (rotate 90 degrees)
         perpendicular_moves = [
-            (-dy, dx),    # Left strafe
-            (dy, -dx),    # Right strafe
+            (-dy, dx),
+            (dy, -dx),
         ]
         
-        # Choose strafe direction that maintains distance best
         best_move = None
         best_distance_diff = float('inf')
         
@@ -412,13 +383,11 @@ class Monster:
             check_x = self.x + move_dx
             check_y = self.y + move_dy
             
-            # Verify tile is walkable and not blocked
             if not (0 <= check_x < game_map.width and 0 <= check_y < game_map.height):
                 continue
             if not game_map.is_walkable(check_x, check_y):
                 continue
             
-            # Check for blocking entities
             blocked = False
             for entity in game.entities:
                 if entity != self and entity.alive and entity.blocks_movement:
@@ -432,7 +401,6 @@ class Monster:
             if blocked:
                 continue
             
-            # Calculate new distance after move
             new_distance = self.distance_to(check_x, check_y)
             distance_diff = abs(new_distance - self.ideal_kiting_distance)
             
@@ -440,22 +408,18 @@ class Monster:
                 best_distance_diff = distance_diff
                 best_move = (check_x, check_y)
         
-        # Execute best strafe move
         if best_move:
             self.x, self.y = best_move
             game.update_fov()
             self.kiting_turns_since_strafe = 0
             return True
         
-        # If strafing fails, try diagonal retreat while maintaining distance
         self.kiting_turns_since_strafe += 1
         if self.kiting_turns_since_strafe > 2:
-            # Try diagonal away
             for move_dx in [-1, 0, 1]:
                 for move_dy in [-1, 0, 1]:
                     if move_dx == 0 and move_dy == 0:
                         continue
-                    # Favor moves away from target
                     if (move_dx * dx + move_dy * dy) < 0:
                         check_x = self.x + move_dx
                         check_y = self.y + move_dy
@@ -489,10 +453,8 @@ class Monster:
         if target is None or not target.alive:
             return
 
-        # If monster is a boss (footprint_size > 1), check cooldown for telegraphed attack
         if getattr(self, 'footprint_size', 1) > 1:
             if self.attack_cooldown == 0:
-                # Example: choose tiles around the player's current position (3x3) to telegraph
                 telegraphed = []
                 center_x, center_y = target.x, target.y
                 for dy in (-1, 0, 1):
@@ -504,10 +466,8 @@ class Monster:
                 self.telegraph_timer = 3
                 self.attack_cooldown = 5
                 game.message_log.add_message(f"The {self.name} prepares a devastating attack!", (255, 80, 80))
-                return  # Telegraph now; damage will apply after 3 turns
-            # else: fall through to normal attack
+                return
     
-        # Attack roll
         roll1 = random.randint(1, 20)
         roll2 = random.randint(1, 20)
         final_d20_roll = roll1
@@ -527,12 +487,9 @@ class Monster:
             game.message_log.add_message(f"The {self.name} rolls with Disadvantage!", (150, 150, 255))
         attack_roll_total = final_d20_roll + attack_bonus
         
-        # Check for critical hit/fumble
         is_critical_hit = (final_d20_roll == 20)
         is_critical_fumble = (final_d20_roll == 1)
 
-
-        # Adjust target AC for evasion effects
         target_ac = target.armor_class
         if hasattr(target, 'active_status_effects'):
             for effect in target.active_status_effects:
@@ -561,19 +518,16 @@ class Monster:
 
 
         if hit_successful:
-            # Roll damage
             damage_rolls = []
-            for _ in range(self.num_damage_dice * (2 if is_critical_hit else 1)):  # Roll twice for critical hits
+            for _ in range(self.num_damage_dice * (2 if is_critical_hit else 1)):
                 damage_rolls.append(random.randint(1, self.monster_die_type))
 
-            damage_total = sum(damage_rolls) + self.damage_modifier  # Add damage modifier
+            damage_total = sum(damage_rolls) + self.damage_modifier
 
             game.message_log.add_message(f"Rolls {damage_rolls} + {self.damage_modifier} (Damage Modifier) = {damage_total}", (230, 200, 150))
 
-            # Apply damage
             damage_dealt = target.take_damage(damage_total, game)
 
-            # Floating text
             hit_text = FloatingText(target.x, target.y, "HIT!", (255, 255, 0))
             damage_text = FloatingText(target.x, target.y - 0.5, str(damage_dealt), (255, 0, 0))
             game.floating_texts.extend([hit_text, damage_text])
@@ -585,19 +539,17 @@ class Monster:
                 hp_color = (255, 200, 0) if target.hp > target.max_hp * 0.3 else (255, 100, 0)
                 game.message_log.add_message(hp_message, hp_color)
 
-            # --- NEW: Apply Status Effects ---
             if self.can_poison:
                 if not target.make_saving_throw("CON", self.poison_dc, game):
                     target.add_status_effect("Poisoned", self.poison_duration, game, source=self)
             if self.can_acid_burn:
-                if not target.make_saving_throw("DEX", self.acid_burn_dc, game): # Acid often uses Dex save
+                if not target.make_saving_throw("DEX", self.acid_burn_dc, game):
                     target.add_status_effect("AcidBurned", self.acid_burn_duration, game, source=self)
             if self.can_burn:
-                if not target.make_saving_throw("DEX", self.burn_dc, game): # Fire often uses Dex save
+                if not target.make_saving_throw("DEX", self.burn_dc, game):
                     target.add_status_effect("Burning", self.burn_duration, game, source=self)
 
         else:
-            # Miss handling
             miss_messages = [
                 f"The {self.name}'s attack misses!",
                 f"{target.name} dodges the {self.name}'s strike!",
@@ -618,14 +570,12 @@ class Monster:
             miss_text = FloatingText(target.x, target.y, "MISS!", (150, 150, 150))
             game.floating_texts.append(miss_text)
 
-            # Check for Parry counter-attack
             if hasattr(target, 'active_status_effects'):
                 for effect in target.active_status_effects:
                     if isinstance(effect, ParryBuff):
                         game.message_log.add_message(f"{target.name} counters with a devastating riposte!", (255, 255, 0))
-                        # Trigger immediate counter-attack
                         game.handle_player_attack(self, game)
-                        break  # Only counter once per miss
+                        break
 
 
     def ranged_attack(self, target, game):
@@ -638,13 +588,10 @@ class Monster:
 
         game.message_log.add_message(f"The {self.name} takes aim at {target.name}!", (255, 150, 0))
         
-        # Attack roll 
         attack_roll_total = final_d20_roll + self.ranged_attack_bonus
 
-        # Check for critical hit
         is_critical_hit = (final_d20_roll == 20)
         is_critical_fumble = (final_d20_roll == 1)
-
 
         target_ac = target.armor_class
         if hasattr(target, 'active_status_effects'):
@@ -657,7 +604,6 @@ class Monster:
             f"The {self.name} rolls {final_d20_roll} + {self.ranged_attack_bonus} (Attack Bonus) = {attack_roll_total} vs AC {target_ac}",
             (200, 200, 255)
         )
-
 
         hit_successful = False
         if is_critical_hit:
@@ -684,19 +630,16 @@ class Monster:
 
         
         if hit_successful:
-            # Roll damage
             damage_rolls = []
-            for _ in range(self.num_damage_dice * (2 if is_critical_hit else 1)):  # Roll twice for critical hits
+            for _ in range(self.num_damage_dice * (2 if is_critical_hit else 1)):
                 damage_rolls.append(random.randint(1, self.monster_die_type))
 
-            damage_total = sum(damage_rolls) + self.damage_modifier  # Add damage modifier
+            damage_total = sum(damage_rolls) + self.damage_modifier
 
             game.message_log.add_message(f"Rolls {damage_rolls} + {self.damage_modifier} (Damage Modifier) = {damage_total}", (230, 200, 150))
 
-            # Apply damage
             damage_dealt = target.take_damage(damage_total, game)
 
-            # Floating text
             hit_text = FloatingText(target.x, target.y, "HIT!", (255, 255, 0))
             damage_text = FloatingText(target.x, target.y - 0.5, str(damage_dealt), (255, 0, 0))
             game.floating_texts.extend([hit_text, damage_text])
@@ -708,7 +651,6 @@ class Monster:
                 hp_color = (255, 200, 0) if target.hp > target.max_hp * 0.3 else (255, 100, 0)
                 game.message_log.add_message(hp_message, hp_color)
 
-            # --- NEW: Apply Status Effects (Ranged) ---
             if self.can_poison:
                 if not target.make_saving_throw("CON", self.poison_dc, game):
                     target.add_status_effect("Poisoned", self.poison_duration, game, source=self)
@@ -720,7 +662,6 @@ class Monster:
                     target.add_status_effect("Burning", self.burn_duration, game, source=self)
 
         else:
-            # Miss handling
             miss_messages = [
                 f"The {self.name}'s attack misses!",
                 f"{target.name} dodges the {self.name}'s attack!"
@@ -735,11 +676,8 @@ class Monster:
         damage_taken = amount 
         self.hp -= damage_taken
         
-        # --- NEW: If monster takes damage, it knows where the player is ---
         if game_instance and game_instance.player:
-            # Set last_known_player_position to player's current location
             self.last_known_player_position = (game_instance.player.x, game_instance.player.y)
-            # Force AI state to chasing if it's an intelligent monster and not already fleeing/desperate
             if True:
                 self.ai_state = AI_State.CHASING
         if self.hp <= 0:
@@ -748,31 +686,25 @@ class Monster:
             
         return damage_taken
 
-    def die(self, game_instance, killer=None): # Ensure this method accepts game_instance
+    def die(self, game_instance, killer=None):
         """Handle death, drop loot, and return XP value"""
-        # NEW: Create a bloodstain at the entity's position
         bloodstain = Bloodstain(self.x, self.y, game_instance)
         game_instance.bloodstains.append(bloodstain)
 
-        # Check for Blessing of Bloodlust on killer
         if killer and hasattr(killer, 'active_status_effects'):
             for effect in killer.active_status_effects:
                 if effect.name == "Blessing of Bloodlust":
                     heal_amount = effect.hp_restore_on_kill
                     killer.heal(heal_amount)
                     game_instance.message_log.add_message(f"Bloodlust restores {heal_amount} HP!", (255, 0, 0))
-                    # Create floating text for the healing
                     floating_text = FloatingText(killer.x, killer.y, f"+{heal_amount}", (0, 255, 0))
                     game_instance.floating_texts.append(floating_text)
                     break
 
-        # --- Handle Loot Drops ---
         for item_template, drop_chance in self.loot_table:
             if random.random() < drop_chance:
-                # Create a new instance of the item to avoid modifying the template
                 item_vars = {k: v for k, v in vars(item_template).items() if not k.startswith('_')}
                 
-                # Exclude attributes that are not part of the constructor
                 item_vars.pop('owner', None)
                 item_vars.pop('x', None)
                 item_vars.pop('y', None)
@@ -790,23 +722,20 @@ class Monster:
         new_effect = None
         if effect_name == "Poisoned":
             new_effect = Poisoned(duration, source)
-        # Add other status effects here if monsters can get them
         elif effect_name == "AcidBurned":
             new_effect = AcidBurned(duration, source)
-        
         elif effect_name == "Burning":
             new_effect = Burning(duration, source)
         
-        
         if new_effect:
             for existing_effect in self.active_status_effects:
-                if type(existing_effect) is type(new_effect): # Check if it's the same class of effect
+                if type(existing_effect) is type(new_effect):
                     existing_effect.turns_left = new_effect.duration
                     game_instance.message_log.add_message(f"{self.name}'s {new_effect.name} effect is refreshed.", (200, 200, 255))
                     return
             
             self.active_status_effects.append(new_effect)
-            new_effect.apply_effect(self, game_instance) # Call apply_effect immediately upon adding
+            new_effect.apply_effect(self, game_instance)
         else:
             game_instance.message_log.add_message(f"Warning: Attempted to add unknown status effect to monster: {effect_name}", (255, 0, 0))
             print(f"Warning: Attempted to add unknown status effect to monster: {effect_name}")
@@ -816,7 +745,7 @@ class Monster:
         """Processes all active status effects on the monster."""
         effects_to_remove = []
         for effect in self.active_status_effects:
-            effect.apply_effect(self, game_instance) # Ensure apply_effect is called
+            effect.apply_effect(self, game_instance)
             effect.tick_down()
             if effect.turns_left <= 0:
                 effects_to_remove.append(effect)
@@ -846,7 +775,6 @@ class Monster:
 
         for (x1, y1) in self_tiles:
             for (x2, y2) in other_tiles:
-                # Chebyshev distance == 1 means adjacent including diagonals
                 if max(abs(x1 - x2), abs(y1 - y2)) == 1:
                     return True
         return False
@@ -869,7 +797,6 @@ class Monster:
         footprint_tiles = self.get_footprint_tiles()
         adjacent_tiles = set()
 
-        # For each tile in footprint, check the tile in the movement direction
         for (x, y) in footprint_tiles:
             adj_x = x + dx
             adj_y = y + dy
@@ -887,16 +814,13 @@ class Monster:
         current_footprint = self.get_footprint_tiles()
         new_footprint = [(new_x + dx, new_y + dy) for dx in range(size) for dy in range(size)]
 
-        # Calculate movement delta
         dx = new_x - self.x
         dy = new_y - self.y
 
-        # Check map bounds for new footprint
         for (tx, ty) in new_footprint:
             if not (0 <= tx < game_map.width and 0 <= ty < game_map.height):
                 return False
 
-        # Check for blocking entities in new footprint
         for entity in game.entities:
             if entity != self and entity.alive and entity.blocks_movement:
                 for (tx, ty) in new_footprint:
@@ -907,17 +831,14 @@ class Monster:
                         if entity.x == tx and entity.y == ty:
                             return False
 
-        # Identify tiles adjacent to footprint in movement direction
         adjacent_tiles = self.get_adjacent_tiles_in_direction(dx, dy)
 
-        # Destroy destructible tiles in adjacent tiles blocking the way
         for (ax, ay) in adjacent_tiles:
             if not (0 <= ax < game_map.width and 0 <= ay < game_map.height):
                 continue
             tile = game_map.tiles[ay][ax]
             if not game_map.is_walkable(ax, ay):
                 if tile.destructible:
-                    # Destroy the tile
                     game.message_log.add_message(f"The massive {self.name} smashes the {tile.name}!", (255, 165, 0))
                     game_map.tiles[ay][ax] = floor
                     game.minimap_needs_redraw = True
@@ -1002,10 +923,8 @@ class Monster:
                             game.message_log.add_message(f"A {new_food.name} drops from the {tile.name}!", new_food.color)
 
                 else:
-                    # Tile is not walkable and not destructible
                     return False
 
-        # Finally, check that all tiles in new footprint are walkable (after destruction)
         for (tx, ty) in new_footprint:
             tile = game_map.tiles[ty][tx]
             if self.footprint_size == 1 and is_water_tile(tile) and not self.can_swim:
@@ -1024,11 +943,10 @@ class Monster:
         if not self.alive:
             return
 
-        # NEW: Check for player's summoned entities and prioritize attacking them
+        # Check for player's summoned entities and prioritize attacking them
         target_entity = None
         target_distance = float('inf')
 
-        # Look for summoned entities owned by the player
         for entity in game.entities:
             if (hasattr(entity, 'owner') and entity.owner == player and
                 hasattr(entity, 'alive') and entity.alive and
@@ -1038,7 +956,6 @@ class Monster:
                     target_distance = dist
                     target_entity = entity
 
-        # If no summoned entities found, target the player
         if target_entity is None:
             target_entity = player
             target_distance = self.distance_to(player.x, player.y)
@@ -1049,7 +966,6 @@ class Monster:
         if self.telegraph_timer > 0:
             self.telegraph_timer -= 1
             if self.telegraph_timer == 0 and self.pending_telegraph_tiles:
-                # Resolve telegraphed attack
                 for tx, ty in self.pending_telegraph_tiles:
                     if target_entity.x == tx and target_entity.y == ty and target_entity.alive:
                         dmg = max(1, getattr(self, 'damage_modifier', 2) + random.randint(1, 20))
@@ -1059,13 +975,11 @@ class Monster:
         if not self.alive:
             return
 
-        # If monster is not active and has a sleep cooldown, just tick it down and return
         if not self.is_active:
             if self.sleep_cooldown > 0:
                 self.sleep_cooldown -= 1
             return
 
-        # If sleep cooldown reached 0, activate the monster
         if self.sleep_cooldown == 0 and not self.is_active:
             self.is_active = True
             game.message_log.add_message(f"The {self.name} stirs awake!", self.color)
@@ -1073,15 +987,45 @@ class Monster:
         dist_to_player = self.distance_to(player.x, player.y)
         player_detected = self.detect_player(player, game)
 
-        # Check torchlight stimulus to trigger investigate state
         if not player_detected and self.is_intelligent:
             self.check_torchlight_in_range(game)
+
+        # --- IMPROVED: AI STATE MANAGEMENT FOR INTELLIGENT MONSTERS ---
+        if self.is_intelligent and player_detected:
+            self_hp_pct = self.hp_percentage()
+            player_hp_pct = player.hp / player.max_hp if player.max_hp > 0 else 0
+            
+            # State transitions based on health conditions
+            if self_hp_pct < self.flee_hp_threshold:
+                # Monster is badly wounded
+                if player_hp_pct > self.player_safe_hp_threshold:
+                    # Player is relatively healthy - FLEE from combat
+                    if self.ai_state != AI_State.FLEEING:
+                        self.ai_state = AI_State.FLEEING
+                        self.consecutive_failed_flee_turns = 0
+                        game.message_log.add_message(f"The {self.name} attempts to escape!", (255, 150, 0))
+                elif (self_hp_pct < self.desperate_fight_hp_threshold and 
+                      player_hp_pct < self.desperate_fight_hp_threshold):
+                    # Both are critically low - DESPERATE_FIGHT
+                    if self.ai_state != AI_State.DESPERATE_FIGHT:
+                        self.ai_state = AI_State.DESPERATE_FIGHT
+                        self.consecutive_failed_flee_turns = 0
+                        game.message_log.add_message(f"The {self.name} fights desperately for survival!", (255, 100, 100))
+                else:
+                    # Default to chasing if conditions don't match
+                    if self.ai_state not in [AI_State.CHASING, AI_State.KITING]:
+                        self.ai_state = AI_State.CHASING
+                        self.consecutive_failed_flee_turns = 0
+            else:
+                # Monster is healthy enough - reset fleeing if applicable
+                if self.ai_state == AI_State.FLEEING:
+                    self.ai_state = AI_State.CHASING
+                    self.consecutive_failed_flee_turns = 0
 
         # Handle AI states for intelligent monsters
         if self.is_intelligent:
             if self.ai_state == AI_State.INVESTIGATE:
                 if player_detected:
-                    # Player found again, switch to chasing
                     self.ai_state = AI_State.CHASING
                     self.investigate_turns_left = 0
                     game.message_log.add_message(f"The {self.name} re-acquires your scent and resumes chasing!", self.color)
@@ -1104,47 +1048,52 @@ class Monster:
                         self.last_known_player_position = None
                 return
 
-            # KITING STATE - New AI behavior for ranged monsters
+            # KITING STATE
             if self.ai_state == AI_State.KITING:
                 if player_detected:
                     if self.kite(target_entity, game_map, game):
                         return
                 else:
-                    # Lost sight of target, switch to investigating
                     self.ai_state = AI_State.INVESTIGATE
                     self.investigate_turns_left = 4
                     self.last_known_player_position = self.last_known_player_position or (player.x, player.y)
                     game.message_log.add_message(f"The {self.name} loses track of you.", (150, 150, 150))
                 return
 
+            # --- IMPROVED: FLEEING STATE WITH CORNERING DETECTION ---
             if self.ai_state == AI_State.FLEEING:
-                if self.flee(player, game_map, game):
-                    return
-                else:
-                    # Cornered! Monster cannot flee any longer (back against wall, no valid escape moves)
-                    # Switch to attacking instead of continuing to flee
+                fled_success, is_cornered = self.flee(player, game_map, game)
+                
+                if is_cornered:
+                    # Monster is trapped - switch to desperate fight
                     game.message_log.add_message(
                         f"The {self.name} is cornered and fights back viciously!",
                         (255, 100, 100)
                     )
-                    self.ai_state = AI_State.CHASING
-                    # Fall through to CHASING logic below - don't return
+                    self.ai_state = AI_State.DESPERATE_FIGHT
+                    # Fall through to desperate fight logic
+                elif fled_success:
+                    return  # Successfully fled, end turn
+                else:
+                    # Still trying to flee but movement blocked
+                    return
 
+            # --- IMPROVED: DESPERATE_FIGHT STATE ---
             if self.ai_state == AI_State.DESPERATE_FIGHT:
-                game.message_log.add_message(f"The {self.name} is desperate and fights on!", (255, 100, 100))
-
-                if self.is_ranged and target_distance <= self.range and game.check_line_of_sight(self.x, self.y, target_entity.x, target_entity.y):
+                if self.is_ranged and target_distance <= self.range and \
+                   game.check_line_of_sight(self.x, self.y, target_entity.x, target_entity.y):
                     self.ranged_attack(target_entity, game)
                     return
                 elif self.is_adjacent_to(target_entity):
                     self.attack(target_entity, game)
                     return
                 else:
+                    # Charge toward target aggressively
                     path = astar(
                         game_map,
                         (self.x, self.y),
                         (target_entity.x, target_entity.y),
-                        entities=[e for e in game.entities if e != self and e != target_entity and e.alive and e.blocks_movement],
+                        entities=[e for e in game.entities if e != self and e.alive and e.blocks_movement],
                         moving_entity=self
                     )
                     if path and len(path) > 1:
@@ -1211,7 +1160,7 @@ class Monster:
 
                         candidates = []
                         if step_x != 0 and step_y != 0:
-                            candidates.append((self.x + step_x, self.y + step_y))  # diagonal
+                            candidates.append((self.x + step_x, self.y + step_y))
                         if step_x != 0:
                             candidates.append((self.x + step_x, self.y))
                         if step_y != 0:
@@ -1259,7 +1208,6 @@ class Monster:
         size = getattr(self, 'footprint_size', 1)
         if exclusions is None:
             exclusions = []
-        # For single-tile, just defer to the normal checks
         if size <= 1:
             if not (0 <= target_x < game_map.width and 0 <= target_y < game_map.height):
                 return False
@@ -1279,7 +1227,6 @@ class Monster:
                         return False
             return True
 
-        # Multi-tile clearance
         for offset_y in range(size):
             for offset_x in range(size):
                 tile_x = target_x + offset_x
@@ -1302,6 +1249,110 @@ class Monster:
                             return False
         return True
     
+class Mimic(Monster):
+    def __init__(self, x, y, disguise_char, initial_color): 
+        super().__init__(x, y, disguise_char, 'Mimic', initial_color) 
+    
+        self.disguised = True
+        
+        self._disguise_char = disguise_char 
+        self._disguise_color = initial_color 
+        if disguise_char == 'K':
+            self.revealed_char = 'K'
+        elif disguise_char == 'B':
+            self.revealed_char = 'B' 
+        elif disguise_char == 'C':
+            self.revealed_char = 'M' 
+        else:
+            self.revealed_char = 'M' 
+        self.revealed_color = (255, 0, 0) 
+        
+        self.hp = 48
+        self.max_hp = 48
+        self.attack_bonus = 5
+        self.armor_class = 12
+        self.base_xp = 450
+        self.monster_die_type = 8
+        self.blocks_movement = True
+        self.can_acid_burn = True
+        self.acid_burn_dc = 12
+        self.acid_burn_duration = 3
+        self.acid_burn_damage_per_turn = 3
+        self.damage_modifier = 3
+        self.num_damage_dice = 1
+        self.is_intelligent = False 
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        } 
+
+    def take_damage(self, amount, game_instance, damage_type=None):
+        """
+        Mimic's take_damage method.
+        If disguised and takes damage, it reveals itself.
+        """
+        if self.disguised:
+            game_instance.message_log.add_message(f"You strike the {self.name}!", (255, 165, 0))
+            self.reveal(game_instance) 
+            
+        damage_taken = super().take_damage(amount, game_instance, damage_type)
+
+        if not self.alive and not self.disguised:
+            game_instance.message_log.add_message(f"The {self.name} shudders and collapses!", (255, 0, 0))
+
+        return damage_taken
+
+    def reveal(self, game_instance):
+        """Mimic fully reveals its true form."""
+        if self.disguised:
+            print(f"DEBUG: Mimic at ({self.x},{self.y}) revealing. Current char (before change): {self.char}")
+            self.disguised = False
+            
+            self.char = self.revealed_char 
+            self.color = self.revealed_color 
+            
+            game_instance.message_log.add_message("The object suddenly sprouts teeth and eyes! It's a MIMIC!", (255, 0, 0))
+            game_instance.message_log.add_message("Prepare for battle!", (255, 100, 100))
+            print(f"DEBUG: Mimic at ({self.x},{self.y}) revealed. New char: {self.char}, color: {self.color}")
+            self.is_active = True
+            self.ai_state = AI_State.CHASING
+            if self.is_adjacent_to(game_instance.player):
+                self.attack(game_instance.player, game_instance)
+            
+            if self not in game_instance.entities:
+                game_instance.entities.append(self)
+                print(f"DEBUG: Mimic added to game.entities.")
+            if self not in game_instance.turn_order:
+                self.roll_initiative()
+                game_instance.turn_order.append(self)
+                game_instance.turn_order = sorted(game_instance.turn_order, key=lambda e: e.initiative, reverse=True)
+                print(f"DEBUG: Mimic added to game.turn_order.")
+            
+            if self in game_instance.game_map.items_on_ground:
+                game_instance.game_map.items_on_ground.remove(self)
+                print(f"DEBUG: Mimic removed from game_map.items_on_ground upon reveal.")
+            
+            from world.tile import floor
+            game_instance.game_map.tiles[self.y][self.x] = floor
+            print(f"DEBUG: MimicTile at ({self.x},{self.y}) replaced with floor tile.")
+            
+            game_instance.update_fov()
+
+    def take_turn(self, player, game_map, game):
+        """Mimic's turn logic."""
+        if not self.alive:
+            return
+        
+        if self.disguised:
+            return
+        
+        super().take_turn(player, game_map, game)
+
 class Mimic(Monster):
     def __init__(self, x, y, disguise_char, initial_color): 
         super().__init__(x, y, disguise_char, 'Mimic', initial_color) 
@@ -1420,7 +1471,7 @@ class GiantRat(Monster):
         self.max_hp = 7
         self.attack_bonus = 2
         self.armor_class = 12
-        self.base_xp = 25
+        self.base_xp = 250
         self.monster_die_type = 4
         self.damage_modifier = 2
         self.detection_range = 8
@@ -1474,7 +1525,7 @@ class Goblin(Monster):
         self.max_hp = 7
         self.attack_bonus = 2
         self.armor_class = 15
-        self.base_xp = 50
+        self.base_xp = 250
         self.monster_die_type = 6
         self.damage_modifier = 2
         self.detection_range = 6
@@ -1502,7 +1553,7 @@ class GoblinArcher(Monster):
         self.max_hp = 7
         self.attack_bonus = 2
         self.armor_class = 15
-        self.base_xp = 50
+        self.base_xp = 250
         self.monster_die_type = 4
         self.damage_modifier = 2
         self.detection_range = 6

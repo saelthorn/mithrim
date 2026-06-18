@@ -2,6 +2,30 @@ import random
 from core. game import GameState
 from core.inventory import Inventory
 
+# ── D&D 5e XP Progression Table ────────────────────────────────────────────
+XP_PROGRESSION = {
+    1: 0,
+    2: 300,
+    3: 900,
+    4: 2700,
+    5: 6500,
+    6: 14000,
+    7: 23000,
+    8: 34000,
+    9: 48000,
+    10: 64000,
+    11: 85000,
+    12: 100000,
+    13: 120000,
+    14: 140000,
+    15: 165000,
+    16: 195000,
+    17: 225000,
+    18: 265000,
+    19: 305000,
+    20: 355000,
+}
+
 from core.abilities import (
     Parry, SecondWind, SpiritualWeapon, DivineStrike, HealingWord, SummonCelestial, PowerAttack, CunningActionDash, 
     Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, 
@@ -54,9 +78,9 @@ class Player: # This is our base class for playable characters
         self.gold = 50
 
         # Player-specific attributes
-        self.level = 3
-        self.current_xp = 2600
-        self.xp_to_next_level = 2700 # Base XP to level up
+        self.level = 1
+        self.current_xp = 0  # Cumulative XP (player starts at level 1)
+        self.xp_to_next_level = XP_PROGRESSION.get(self.level + 1, float('inf'))  # XP needed for next level
 
         # --- D&D 5e Ability Scores (Base values, will be overridden by subclasses) ---
         self.strength = 10
@@ -449,9 +473,16 @@ class Player: # This is our base class for playable characters
     def attack(self, target):
         return 0 
 
+    def get_next_level_xp_threshold(self):
+        """Return the total XP required to reach the next level (D&D 5e table)."""
+        next_level = self.level + 1
+        if next_level > 20:
+            return float('inf')  # No more leveling after level 20
+        return XP_PROGRESSION.get(next_level, float('inf'))
+
     def gain_xp(self, amount, game_instance=None):
         self.current_xp += amount
-        while self.current_xp >= self.xp_to_next_level:
+        while self.level < 20 and self.current_xp >= self.get_next_level_xp_threshold():
             self.level_up(game_instance)
 
     def take_damage(self, amount, game_instance, damage_type=None): 
@@ -494,9 +525,27 @@ class Player: # This is our base class for playable characters
         return self.hp - old_hp
 
     def level_up(self, game_instance=None):
+        if self.level >= 20:
+            if game_instance:
+                game_instance.message_log.add_message(
+                    "You have reached the maximum level of 20!", (255, 215, 0)
+                )
+            return
+        
         self.level += 1
-        self.current_xp = self.current_xp
-        self.xp_to_next_level = int(self.xp_to_next_level * 1.35) # XP curve
+        
+        if game_instance:
+            next_threshold = self.get_next_level_xp_threshold()
+            if next_threshold != float('inf'):
+                game_instance.message_log.add_message(
+                    f"You have reached level {self.level}! ({self.current_xp}/{next_threshold} XP)",
+                    (0, 255, 255)
+                )
+            else:
+                game_instance.message_log.add_message(
+                    f"You have reached level {self.level}!",
+                    (0, 255, 255)
+                )
 
         if self.level in [5, 9, 13, 17]:
             self.proficiency_bonus += 1
