@@ -83,7 +83,7 @@ def _xp_bar(surface, x: int, y: int, w: int,
     from entities.player import XP_PROGRESSION
     
     
-    current_level_xp = XP_PROGRESSION.get(current_level, 1)
+    current_level_xp = XP_PROGRESSION.get(current_level, 3)  # Default to 3 XP for level 1 if not defined
     next_level_xp_threshold = XP_PROGRESSION.get(current_level + 1, current_level_xp + 1)
     xp_in_level = current_xp - current_level_xp
     xp_needed_for_level = next_level_xp_threshold - current_level_xp 

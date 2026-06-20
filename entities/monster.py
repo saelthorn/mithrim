@@ -1471,7 +1471,7 @@ class GiantRat(Monster):
         self.max_hp = 7
         self.attack_bonus = 2
         self.armor_class = 12
-        self.base_xp = 250
+        self.base_xp = 50
         self.monster_die_type = 4
         self.damage_modifier = 2
         self.detection_range = 8
@@ -1525,7 +1525,7 @@ class Goblin(Monster):
         self.max_hp = 7
         self.attack_bonus = 2
         self.armor_class = 15
-        self.base_xp = 250
+        self.base_xp = 50
         self.monster_die_type = 6
         self.damage_modifier = 2
         self.detection_range = 6
@@ -1553,7 +1553,7 @@ class GoblinArcher(Monster):
         self.max_hp = 7
         self.attack_bonus = 2
         self.armor_class = 15
-        self.base_xp = 250
+        self.base_xp = 50
         self.monster_die_type = 4
         self.damage_modifier = 2
         self.detection_range = 6

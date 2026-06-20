@@ -320,7 +320,6 @@ def handle_prison_door_interaction(player, game_instance):
             )
 
             # Free the nearest unfreed prisoner within 3 tiles of this door.
-            # No reward yet — that comes when the player talks to them.
             for entity in game_instance.entities:
                 if isinstance(entity, PrisonerNPC) and not entity.has_been_freed:
                     chebyshev_dist = max(
@@ -353,6 +352,16 @@ def handle_prison_door_interaction(player, game_instance):
                 "LOCKED!", (255, 80, 80), y_speed=0.5,
             )
         )
+
+        # Chance for monsters to hear the loud commotion from failed break-in
+        alert_chance = 0.40 + (game_instance.current_level * 0.05)
+        alert_chance = min(alert_chance, 0.80)  # Cap at 80%
+
+        if random.random() < alert_chance:
+            game_instance.spawn_monsters_near_prison_alert(
+                neighbour_col, neighbour_row, search_radius=8
+            )
+
         return True     # event consumed even on failure
 
     return False        # no prison door was adjacent

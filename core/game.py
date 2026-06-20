@@ -685,6 +685,78 @@ class Game:
             # For rectangular rooms
             return max(0, (room.x2 - room.x1 - 2)) * max(0, (room.y2 - room.y1 - 2))
 
+    def spawn_monsters_near_prison_alert(self, alert_x, alert_y, search_radius=8):
+        """
+        Spawns nearby monsters that hear a prison door alert.
+        Searches within radius for walkable spawn locations.
+        
+        Args:
+            alert_x, alert_y: Position of the prison door that was opened
+            search_radius: How far away to search for spawn locations
+        """
+        # Get possible monsters for this level
+        possible_monsters = []
+        for level_range, monster_list in self.MONSTER_SPAWN_TIERS.items():
+            if level_range[0] <= self.current_level <= level_range[1]:
+                possible_monsters.extend(monster_list)
+        
+        if not possible_monsters:
+            return
+        
+        # Find nearby valid spawn locations (not right next to door, give player breathing room)
+        spawn_candidates = []
+        for dy in range(-search_radius, search_radius + 1):
+            for dx in range(-search_radius, search_radius + 1):
+                # Don't spawn immediately adjacent to the door
+                if abs(dx) <= 2 and abs(dy) <= 2:
+                    continue
+                
+                check_x = alert_x + dx
+                check_y = alert_y + dy
+                
+                # Bounds check
+                if not (0 <= check_x < self.game_map.width and 0 <= check_y < self.game_map.height):
+                    continue
+                
+                # Walkability and entity checks
+                if not self.game_map.is_walkable(check_x, check_y):
+                    continue
+                if any(e.x == check_x and e.y == check_y and e.alive for e in self.entities):
+                    continue
+                if is_water_tile(self.game_map.tiles[check_y][check_x]):
+                    continue
+                
+                spawn_candidates.append((check_x, check_y))
+        
+        if not spawn_candidates:
+            return
+        
+        # Randomly select 1-2 spawn locations
+        num_to_spawn = random.randint(1, min(2, len(spawn_candidates)))
+        spawn_locations = random.sample(spawn_candidates, num_to_spawn)
+        
+        # Choose primary monster type for this group
+        primary_monster_class = random.choice(possible_monsters)
+        
+        # Spawn monsters
+        spawned_count = 0
+        for spawn_x, spawn_y in spawn_locations:
+            monster = primary_monster_class(spawn_x, spawn_y)
+            self.entities.append(monster)
+            self.turn_order.append(monster)
+            monster.roll_initiative()
+            
+            monster_article = "An" if monster.name[0] in "AEIOUaeiou" else "A"
+            self.message_log.add_message(
+                f"{monster_article} {monster.name} hears the commotion and rushes in!",
+                (255, 100, 100)
+            )
+            spawned_count += 1
+        
+        # Re-sort turn order by initiative
+        if spawned_count > 0:
+            self.turn_order.sort(key=lambda e: e.initiative, reverse=True)
+
     def get_valid_spawn_point_in_room(self, room, game_map, max_attempts=50):
         """Get a valid spawn point within a room's actual interior."""
         from world.dungeon_generator import LShapedRoom
