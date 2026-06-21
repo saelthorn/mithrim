@@ -92,9 +92,10 @@ class Weapon(Item):
 
 class Armor(Item):
     """An item that can be equipped for defense."""
-    def __init__(self, name, char, color, description, ac_bonus, price, category=None):
+    def __init__(self, name, char, color, description, ac_bonus, price, attack_bonus = 0, category=None):
         super().__init__(name, char, color, description, price)
         self.ac_bonus = ac_bonus # Bonus to AC
+        self.attack_bonus = attack_bonus
         self.category = category
 
 class OffHand(Item):
@@ -129,10 +130,11 @@ class Accessory(Item):
 
 class Helmet(Item):
     """A helmet that can be equipped for defense and stat bonuses."""
-    def __init__(self, name, char, color, description, ac_bonus=0, spell_bonus=0, price=10,
+    def __init__(self, name, char, color, description, ac_bonus=0, attack_bonus=0, spell_bonus=0, price=10,
                  perception_bonus=0, intelligence_bonus=0, category=None):
         super().__init__(name, char, color, description, price)
         self.ac_bonus = ac_bonus
+        self.attack_bonus = attack_bonus
         self.spell_bonus = spell_bonus
         self.perception_bonus = perception_bonus   # bonus to passive perception
         self.intelligence_bonus = intelligence_bonus # flat INT bonus while equipped
@@ -141,10 +143,11 @@ class Helmet(Item):
 
 class Boots(Item):
     """Boots that can be equipped for movement and stat bonuses."""
-    def __init__(self, name, char, color, description, ac_bonus=0, price=10,
+    def __init__(self, name, char, color, description, ac_bonus=0, attack_bonus=0, price=10,
                  speed_bonus=0, stealth_bonus=0, dexterity_bonus=0, category=None):
         super().__init__(name, char, color, description, price)
         self.ac_bonus = ac_bonus
+        self.attack_bonus = attack_bonus
         self.speed_bonus = speed_bonus     # reserved for future movement speed
         self.stealth_bonus = stealth_bonus   # bonus to stealth checks
         self.dexterity_bonus = dexterity_bonus  # flat DEX bonus while equipped
@@ -169,8 +172,8 @@ class Tools(Item):
 
 class Junk(Item):
     """A useless piece of wood."""
-    def __init__(self, name, char, color, description=""):
-        super().__init__(name, char, color, description)
+    def __init__(self, name, char, color, description="", price=0):
+        super().__init__(name, char, color, description, price)
 
 
 # --- NEW CHEST CLASS ---
@@ -249,7 +252,8 @@ wood_plank = Junk(
     name="Plank",
     char="pn",
     color=(139, 69, 19),
-    description="Just a useless piece of wood."
+    description="Just a useless piece of wood.",
+    price = 1
 )
 
 
@@ -719,7 +723,7 @@ round_shield = OffHand(
     char="rsh",
     color=(175, 175, 175),
     description="A round shield.",
-    ac_bonus=2,
+    ac_bonus=1,
     price=15,
     category="Shield"
 
@@ -730,7 +734,8 @@ kite_shield = OffHand(
     char="ksh",
     color=(175, 175, 175),
     description="A kite shield.",
-    ac_bonus=3, 
+    ac_bonus=2, 
+    attack_bonus=-1, # Heavier shield that provides more AC but imposes a penalty to attack rolls
     price=35,
     category="Shield"
 )
@@ -740,7 +745,8 @@ tower_shield = OffHand(
     char="tsh",
     color=(175, 175, 175),
     description="A tower shield.",
-    ac_bonus=4, 
+    ac_bonus=3, 
+    attack_bonus=-2, # Heavier shield that provides more AC but imposes a penalty to attack rolls
     price=50,
     category="Shield"
 )
@@ -761,6 +767,7 @@ studded_leather_armor = Armor(
     color=(139, 69, 19),
     description="A studded leather armor.",
     ac_bonus=2,
+    attack_bonus=1,
     price=20,
     category="Light"
 )
@@ -770,8 +777,8 @@ chainmail_armor = Armor(
     char="cha",
     color=(175, 175, 175),
     description="Chainmail armor.",
-    ac_bonus=3, # Adds 1 to base AC
-    price = 10,
+    ac_bonus=2, # Adds 1 to base AC
+    price = 20,
     category="Medium"
 )
 
@@ -780,7 +787,8 @@ half_plate_armor = Armor(
     char="hpa",
     color=(175, 175, 175),
     description="A half plate armor.",
-    ac_bonus=4,
+    ac_bonus=3,
+    attack_bonus=-1, 
     price=30,
     category="Medium"
 )
@@ -790,7 +798,7 @@ scale_mail_armor = Armor(
     char="sma",
     color=(175, 175, 175),
     description="A scale mail armor.",
-    ac_bonus=3,
+    ac_bonus=2,
     price=25,
     category="Medium"
 )
@@ -800,7 +808,8 @@ full_plate_armor = Armor(
     char="fpa",
     color=(175, 175, 175),
     description=("Full plate armor."),
-    ac_bonus=6,
+    ac_bonus=4,
+    attack_bonus=-2, 
     price=50,
     category="Heavy"
 )
@@ -833,7 +842,7 @@ leather_cap = Helmet(
     description="A simple leather cap. Provides minimal protection.",
     ac_bonus=0,
     #perception_bonus=1,
-    price=8,
+    price=10,
     category="Light"
 )
 
@@ -843,7 +852,7 @@ iron_helmet = Helmet(
     color=(160, 160, 160),
     description="A solid iron helmet. Protects the head from blows.",
     ac_bonus=1,
-    price=20,
+    price=15,
     category="Medium"
 )
 
@@ -853,7 +862,7 @@ steel_helmet = Helmet(
     color=(180, 180, 190),
     description="A well-crafted steel helmet.",
     ac_bonus=2,
-    price=35,
+    price=20,
     category="Medium"
 )
 
@@ -863,7 +872,8 @@ great_helm = Helmet(
     color=(200, 200, 210),
     description="A full great helm. Heavy but excellent protection.",
     ac_bonus=3,
-    price=55,
+    attack_bonus=-1, 
+    price=30,
     category="Heavy"
 )
 
@@ -873,8 +883,9 @@ mages_circlet = Helmet(
     color=(120, 80, 200),
     description="An enchanted circlet that sharpens the mind.",
     ac_bonus=0,
+    attack_bonus=0,
     spell_bonus=2,
-    price=60,
+    price=40,
     category="Light"
 )
 
@@ -884,6 +895,7 @@ hood_of_shadows = Helmet(
     color=(50, 50, 70),
     description="A dark hood that aids in concealment.",
     ac_bonus=2,
+    attack_bonus=1,
     #perception_bonus=2,
     price=45,
     category="Light"
@@ -906,7 +918,7 @@ iron_greaves = Boots(
     color=(160, 160, 160),
     description="Iron leg guards. Heavy but protective.",
     ac_bonus=1,
-    price=25,
+    price=20,
     category="Medium"
 )
 
@@ -916,9 +928,10 @@ boots_of_speed = Boots(
     color=(80, 180, 220),
     description="Enchanted boots that make your steps lighter and quicker.",
     ac_bonus=1,
+    attack_bonus=2, 
     #speed_bonus=1,
     #dexterity_bonus=1,
-    price=70,
+    price=40,
     category="Light"
 )
 
@@ -929,7 +942,8 @@ boots_of_stealth = Boots(
     description="Soft-soled boots that muffle your footsteps.",
     ac_bonus=0,
     #stealth_bonus=3,
-    price=50,
+    attack_bonus=1,
+    price=40,
     category="Light"
 )
 
@@ -939,7 +953,8 @@ dwarven_stompers = Boots(
     color=(120, 80, 40),
     description="Thick dwarven-forged boots. Built to last forever.",
     ac_bonus=2,
-    price=45,
+    attack_bonus=-2, 
+    price=40,
     category="Heavy"
 )
 
