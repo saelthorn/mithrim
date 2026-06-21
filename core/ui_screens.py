@@ -156,13 +156,16 @@ def _item_stats(item):
                  ("Two-Handed", "Yes" if item.is_two_handed else "No")]
     elif isinstance(item, Helmet):
         rows += [("AC Bonus", f"+{item.ac_bonus}"),
-                 ("Category", item.category or "—")]
+                 ("Category", item.category or "—"),
+                 ("Spell Bonus", f"+{item.spell_bonus}")]
     elif isinstance(item, Armor):
         rows += [("AC Bonus", f"+{item.ac_bonus}"),
-                 ("Category", item.category or "—")]
+                 ("Category", item.category or "—"),
+                 ("Spell Bonus", f"+{item.spell_bonus}")]
     elif isinstance(item, Boots):
         rows += [("AC Bonus", f"+{item.ac_bonus}"),
-                 ("Category", item.category or "—")]  
+                 ("Category", item.category or "—"),
+                 ("Spell Bonus", f"+{item.spell_bonus}")]  
     elif isinstance(item, FocusItem):
         rows += [("Spell Bonus", f"+{item.spell_bonus}"),
                  ("Category", item.category or "—")]  

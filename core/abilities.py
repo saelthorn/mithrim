@@ -447,7 +447,7 @@ class ThrowKnife(Ability):
         target_ac = getattr(target_monster, "armor_class", 10)
 
         game_instance.message_log.add_message(
-            f"You roll a d20: [{d20_roll}] + [{attack_modifier}] = {attack_roll_total} vs AC {target_ac}",
+            f"You roll a d20: [{d20_roll}] + [{attack_modifier}] Attack Modifier = {attack_roll_total} vs AC {target_ac}",
             (200, 200, 255)
         )
 
@@ -619,15 +619,27 @@ class FireBolt(Ability):
             game_instance.message_log.add_message("Fire Bolt requires a monster target or a destructible object.", (255, 150, 0))
             return False  # Invalid target, do not consume a turn
 
+        # Roll to hit with a d20
+        d20_roll = random.randint(1, 20)
+        attack_modifier = user.spell_bonus
+        attack_roll_total = d20_roll + attack_modifier
+
+        game_instance.message_log.add_message(
+            f"You roll a d20: [{d20_roll}] + [{attack_modifier}] Attack Modifier = {attack_roll_total}",
+            (255, 100, 0)
+        )
+
         # Fire Bolt damage calculation (example: 1d10)
         # Use self.damage_dice for the number of d10s, and add user's spell bonus
         damage_rolls = [random.randint(1, 10) for _ in range(self.damage_dice)] 
         total_damage = sum(damage_rolls) + user.spell_bonus  
 
-        game_instance.message_log.add_message(f"You roll {self.damage_dice}d10 for damage: {damage_rolls} + {user.spell_bonus} (Spell Bonus) = {total_damage}", (255, 100, 0))
-
-        if target_monster and isinstance(target_monster, Monster):
+        if target_monster and isinstance(target_monster, Monster) and attack_roll_total >= getattr(target_monster, "armor_class", 10):
             # Check if the target is specifically a Mimic
+            game_instance.message_log.add_message(f"You roll [{d20_roll}] + [{attack_modifier}] Attack Modifier = {attack_roll_total} vs AC {getattr(target_monster, 'armor_class', 10)}", (255, 100, 0))
+    
+            game_instance.message_log.add_message(f"You roll {self.damage_dice}d10 for damage: {damage_rolls} + {user.spell_bonus} (Spell Bonus) = {total_damage}", (255, 100, 0))
+            
             hit_messages = [
                 f"A searing bolt of fire streaks towards the {target_monster.name}!",
                 f"Flames erupt as your spell connects with the {target_monster.name}!",
@@ -654,8 +666,22 @@ class FireBolt(Ability):
                 xp_gained = target_monster.die(game_instance, killer=user)
                 user.gain_xp(xp_gained, game_instance)  # Use 'user' (player) here
             return True  # Successfully used ability
+        elif target_monster and isinstance(target_monster, Monster) and attack_roll_total < getattr(target_monster, "armor_class", 10):
+            game_instance.message_log.add_message(f"You roll [{d20_roll}] + [{attack_modifier}] Attack Modifier = {attack_roll_total} vs AC {getattr(target_monster, 'armor_class', 10)}", (255, 100, 0))
+                        
+            miss_messages = [
+                f"Your Fire Bolt misses the {target_monster.name}!",
+                f"The {target_monster.name} dodges your fiery attack!",
+                f"The flames from your spell miss the {target_monster.name}!",
+            ]
+            game_instance.message_log.add_message(random.choice(miss_messages), (255, 150, 0))
 
-        elif target_tile.destructible:  # <--- NEW: Check if the tile is destructible
+            miss_text = FloatingText(target_x, target_y, "MISS!", (255, 150, 0))
+            game_instance.floating_texts.append(miss_text)
+            print(f"DEBUG: FireBolt added MISS! FloatingText for {target_tile.name} at ({target_x},{target_y}). List size: {len(game_instance.floating_texts)}")  # <--- ADD THIS DEBUG
+            return True  # Still consume the turn for a miss against a destructible tile
+
+        elif target_tile.destructible and attack_roll_total >= 10:  # <--- NEW: Check if the tile is destructible
             destructible_messages = [
                 f"Your Fire Bolt incinerates the {target_tile.name}!",
                 f"A magical inferno consumes the {target_tile.name}!",
@@ -771,6 +797,14 @@ class FireBolt(Ability):
                 else:
                     game_instance.message_log.add_message(f"The {mimic_entity.name} is already revealed and takes no further damage from smashing its disguise.", (150, 150, 150))
             return True  # Successfully used ability
+        elif target_tile.destructible and attack_roll_total < 10:
+            game_instance.message_log.add_message(f"You roll [{d20_roll}] + [{attack_modifier}] Attack Modifier = {attack_roll_total} vs DC 10", (255, 100, 0))
+            game_instance.message_log.add_message(f"Your Fire Bolt fails to destroy the {target_tile.name}!", (255, 150, 0))
+
+            miss_text = FloatingText(target_x, target_y, "MISS!", (255, 150, 0))
+            game_instance.floating_texts.append(miss_text)
+            print(f"DEBUG: FireBolt added MISS! FloatingText for {target_tile.name} at ({target_x},{target_y}). List size: {len(game_instance.floating_texts)}")  # <--- ADD THIS DEBUG
+            return True  # Still consume the turn for a failed attempt against a destructible tile
         else:
             game_instance.message_log.add_message("Fire Bolt requires a monster target or a destructible object.", (255, 150, 0))
             # --- MISSING FLOATING TEXT FOR MISS/INVALID TARGET ---
@@ -1236,15 +1270,22 @@ class RayOfFrost(Ability):
             game_instance.message_log.add_message("Ray of Frost requires a monster target or a destructible object.", (255, 150, 0))
             return False  # Invalid target, do not consume a turn
 
+        # Roll to hit with d20
+        d20_roll = random.randint(1, 20)
+        attack_modifier = user.spell_bonus
+        attack_roll_total = d20_roll + attack_modifier
+
         # Ray of Frost damage calculation (Xd8 cold damage)
         # Use self.damage_dice for the number of d8s
         damage_rolls = [random.randint(1, 8) for _ in range(self.damage_dice)]   
         total_damage = sum(damage_rolls) + user.spell_bonus
 
-        game_instance.message_log.add_message(f"You roll {self.damage_dice}d8 for damage: {damage_rolls} + {user.spell_bonus} (Spell Bonus) = {total_damage}", (0, 255, 255))
-
-        if target_monster and isinstance(target_monster, Monster):
+        if target_monster and isinstance(target_monster, Monster) and attack_roll_total >= getattr(target_monster, "armor_class", 10):
             # Check if the target is specifically a Mimic
+            game_instance.message_log.add_message(f"You roll [{d20_roll}] + {attack_modifier} = {attack_roll_total} against {target_monster.name}'s AC {getattr(target_monster, 'armor_class', 10)}", (0, 255, 255))
+
+            game_instance.message_log.add_message(f"You roll {self.damage_dice}d8 for damage: {damage_rolls} + {user.spell_bonus} (Spell Bonus) = {total_damage}", (0, 255, 255))
+
             hit_messages = [
                 f"A chilling ray of frost streaks towards the {target_monster.name}!",
                 f"Frost erupts as your spell connects with the {target_monster.name}!",
@@ -1271,8 +1312,23 @@ class RayOfFrost(Ability):
                 xp_gained = target_monster.die(game_instance, killer=user)
                 user.gain_xp(xp_gained, game_instance)  # Use 'user' (player) here
             return True  # Successfully used ability
+        elif target_monster and isinstance(target_monster, Monster) and attack_roll_total < getattr(target_monster, "armor_class", 10):
+            game_instance.message_log.add_message(f"You roll [{d20_roll}] + [{attack_modifier}] Attack Modifier = {attack_roll_total} vs AC {getattr(target_monster, 'armor_class', 10)}", (255, 100, 0))
+            
+            miss_messages = [
+                f"Your Ray of Frost misses the {target_monster.name}!",
+                f"The {target_monster.name} evades your chilling spell!",
+                f"The frost dissipates before reaching the {target_monster.name}!",
+            ]
+            game_instance.message_log.add_message(random.choice(miss_messages), (255, 0, 0))
 
-        elif target_tile.destructible:  # <--- NEW: Check if the tile is destructible
+            # Add FloatingText for "MISS!"
+            miss_text = FloatingText(target_x, target_y, "MISS!", (255, 0, 0))
+            game_instance.floating_texts.append(miss_text)
+
+            return True  
+
+        elif target_tile.destructible and attack_roll_total >= 10:
             destructible_messages = [
                 f"Your Ray of Frost freezes the {target_tile.name}!",
                 f"A magical blizzard consumes the {target_tile.name}!",
@@ -1388,6 +1444,15 @@ class RayOfFrost(Ability):
                 else:
                     game_instance.message_log.add_message(f"The {mimic_entity.name} is already revealed and takes no further damage from smashing its disguise.", (150, 150, 150))
             return True  # Successfully used ability
+        elif target_tile.destructible and attack_roll_total < 10:
+            game_instance.message_log.add_message(f"You roll [{d20_roll}] + [{attack_modifier}] Attack Modifier = {attack_roll_total} vs DC 10", (255, 100, 0))            
+            game_instance.message_log.add_message(f"Your Ray of Frost fails to damage the {target_tile.name}.", (255, 100, 0))
+            
+            # Add FloatingText for "MISS!"
+            miss_text = FloatingText(target_x, target_y, "MISS!", (255, 0, 0))
+            game_instance.floating_texts.append(miss_text)
+            print(f"DEBUG: RayOfFrost added MISS! FloatingText for {target_tile.name} at ({target_x},{target_y}). List size: {len(game_instance.floating_texts)}")  # <--- ADD THIS DEBUG
+            return True
         else:
             game_instance.message_log.add_message("Ray of Frost requires a monster target or a destructible object.", (255, 150, 0))
             # --- MISSING FLOATING TEXT FOR MISS/INVALID TARGET ---

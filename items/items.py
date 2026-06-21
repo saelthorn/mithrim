@@ -92,10 +92,11 @@ class Weapon(Item):
 
 class Armor(Item):
     """An item that can be equipped for defense."""
-    def __init__(self, name, char, color, description, ac_bonus, price, attack_bonus = 0, category=None):
+    def __init__(self, name, char, color, description, ac_bonus, price, attack_bonus = 0, spell_bonus=0, category=None):
         super().__init__(name, char, color, description, price)
         self.ac_bonus = ac_bonus # Bonus to AC
         self.attack_bonus = attack_bonus
+        self.spell_bonus = spell_bonus
         self.category = category
 
 class OffHand(Item):
