@@ -6,7 +6,7 @@ from world.tile import (
     wall, floor, dungeon_grass, dungeon_grass_two,
     dungeon_floor_two, dungeon_floor_three, dungeon_floor_four,
     rubble, cob_web, mushroom, fresh_bones, dungeon_pillar, prison_bars,
-    MimicTile, TrapTile, PrisonDoorTile, pressure_plate
+    MimicTile, TrapTile, PrisonDoorTile, pressure_plate, TombTile
 )
 from items.items import Chest, generate_random_loot
 from entities.monster import Mimic
@@ -16,6 +16,7 @@ from world.water_features import generate_water_features, river, lake, sewer_wat
 
 from world.encounters.prison_cell import generate_prison_cell, is_prison_cell_position, PrisonDoorTile
 from world.encounters.temple_room import generate_circular_temple
+from world.encounters.crypt import generate_crypt, is_crypt_position
 
 
 # ---------------------------------------------------------------------------
@@ -929,6 +930,35 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
                     prison_prisoners.pop(i)
 
     # ------------------------------------------------------------------
+    # 6b. Crypt encounters
+    #     Similar to prison cells but with tombs that spawn skeletons
+    #     or drop treasure when disturbed.
+    # ------------------------------------------------------------------
+    MAX_CRYPT_ROOMS    = 2
+    CRYPT_ROOM_CHANCE  = 0.50
+
+    crypt_candidates = [
+        room for room in rooms
+        if room is not stairs_up_room
+        and room is not stairs_down_room
+        and id(room) not in prison_blocked_sides
+        and (room.x2 - room.x1) >= 8
+        and (room.y2 - room.y1) >= 9
+    ]
+    random.shuffle(crypt_candidates)
+
+    crypt_rooms_placed = 0
+    for candidate in crypt_candidates:
+        if crypt_rooms_placed >= MAX_CRYPT_ROOMS:
+            break
+        if random.random() > CRYPT_ROOM_CHANCE:
+            continue
+
+        tomb_positions = generate_crypt(game_map, candidate, stairs_positions)
+        if tomb_positions is not None:
+            crypt_rooms_placed += 1
+
+    # ------------------------------------------------------------------
     # 7. Repair tunnels that cut through prison-blocked walls
     #
     #    For each prison room, find the column of its outer wall on the
@@ -1078,6 +1108,8 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
                     continue
                 if is_prison_cell_position(game_map, rx, ry):
                     continue   # never overwrite prison bars/door/cell floor
+                if is_crypt_position(game_map, rx, ry):
+                    continue   # never overwrite crypt tombs
                 if game_map.tiles[ry][rx] != tile.floor:
                     continue   # already replaced by pillar, variant, etc.
 
@@ -1119,6 +1151,8 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
                 continue
             if is_prison_cell_position(game_map, chx, chy):
                 continue   # don't place chests inside or on prison tiles
+            if is_crypt_position(game_map, chx, chy):
+                continue   # don't place chests on tomb tiles
             if not game_map.is_walkable(chx, chy):
                 continue
             if any(i.x == chx and i.y == chy for i in game_map.items_on_ground):

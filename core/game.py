@@ -28,6 +28,8 @@ from world.tavern_generator import generate_tavern
 from world.encounters.prison_cell import (
     handle_prison_door_interaction, PrisonDoorTile, is_prison_cell_position
 )
+from world.encounters.crypt import handle_tomb_interaction, is_crypt_position
+
 from entities.player import Player, Fighter, Rogue, Wizard, Cleric
 
 # NEW: Import all monster classes
@@ -38,7 +40,7 @@ from entities.monster import (
     Owlbear, Demogorgon, Grick, GibberingMouther, MindFlayer, Minotaur,
     Wererat, Wolf, Yochlol, Drider, RedSlaad, DeathSlaad, MyconidSprout,
     MyconidAdult, Mezzoloth, Gauth, Arasta, AlphaGrick, IntellectDevourer, 
-    Imp, Wraith
+    Imp, Wraith, TombTapper
 
 )
 
@@ -355,6 +357,7 @@ class Game:
         (7, 'AlphaGrick'),
         (10, 'DeathSlaad'),
         (12, 'MindFlayer'),
+        (13, 'TombTapper'),
         (15, 'Beholder'),
         (18, 'RedDragon'),
         (19, 'Demogorgon'),
@@ -363,7 +366,7 @@ class Game:
 
     MONSTER_SPAWN_TIERS = {
         # 🌱 Early dungeon fodder (CR 1/8 – CR 1/4)
-        (1, 2): [Goblin, GoblinArcher, Wolf, Imp, GiantRat, MyconidSprout],
+        (1, 2): [Goblin, GoblinArcher, Wolf, Imp, GiantRat, MyconidSprout, TombTapper],
         (3, 4): [Goblin, GoblinArcher, GiantRat, GiantSpider, Wererat, Wolf, MyconidSprout, IntellectDevourer, Imp],
         (5, 5): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf, MyconidAdult, IntellectDevourer],
 
@@ -376,7 +379,7 @@ class Game:
         (12, 13): [Troll, Orc, GiantSpider, LargeOoze, Minotaur, GibberingMouther],
 
         # 👁️ Late-mid bosses and horrors (CR 7 – CR 10)
-        (14, 15): [LargeOoze, GiantSpider, GibberingMouther, Gauth, Wraith],
+        (14, 15): [LargeOoze, GiantSpider, GibberingMouther, Gauth, Wraith, TombTapper],
         (16, 16): [Drider, Mezzoloth, Wraith],
 
         # 🔥 High level threats (CR 11 – CR 15)
@@ -384,7 +387,7 @@ class Game:
         (18, 18): [Beholder, MindFlayer, LargeOoze, DeathSlaad, Gauth],
 
         # 🕷️ Endgame / campaign bosses (CR 20+)
-        (19, 19): [],
+        (19, 19): [TombTapper],
         (20, 99): [GiantSpider],
     }
 
@@ -717,7 +720,10 @@ class Game:
                 # Bounds check
                 if not (0 <= check_x < self.game_map.width and 0 <= check_y < self.game_map.height):
                     continue
-                
+
+                if is_crypt_position(self.game_map, check_x, check_y):
+                    continue
+
                 # Walkability and entity checks
                 if not self.game_map.is_walkable(check_x, check_y):
                     continue
@@ -902,6 +908,7 @@ class Game:
                         'Troll': Troll,  # TODO: replace with GoblinKing class when available
                         'Owlbear': Owlbear,
                         'Beholder': Beholder,
+                        'TombTapper': TombTapper,
                         'DeathSlaad': DeathSlaad,
                         'Gauth': Gauth,
                         'AlphaGrick': AlphaGrick,
@@ -1936,7 +1943,7 @@ class Game:
                             # --- MODIFIED START ---
                             # Prioritize picking up items at player's feet
                             if self.handle_item_pickup():
-                                action_taken = True
+                                action_taken = True                             
                             else:
                                 # Check for Altar at player's position (before other interactions)
                                 altar_at_pos = self.get_altar_at(self.player.x, self.player.y)
@@ -1968,6 +1975,9 @@ class Game:
                             # --- Prison door interaction ---
                             if handle_prison_door_interaction(self.player, self):
                                 return True                                
+                            # Check for tomb interaction (FIRST - highest priority)
+                            if handle_tomb_interaction(self.player, self):
+                                action_taken = True  # End player's turn after interacting with tomb
 
                     abilities_list = list(self.player.abilities.values())
 

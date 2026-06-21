@@ -155,6 +155,8 @@ def setup_tile_mapping():
         '.6': (13 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Six 
         '.4': (14 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Four
         '`2': (10 * CELL_DIM, 4 * CELL_DIM), # Dungeon Grass Two
+        'tm': (7 * CELL_DIM, 5 * CELL_DIM),  # Tomb 
+        'otm': (8 * CELL_DIM, 5 * CELL_DIM), # Open Tomb
 
         'pd':  (11 * CELL_DIM, 3 * CELL_DIM),   # Prison Door (closed)
         'pdo': (12 * CELL_DIM, 3 * CELL_DIM),   # Prison Door (open)
@@ -178,8 +180,8 @@ def setup_tile_mapping():
 
         # Mimic disguised as Crate/Barrel (using distinct chars)
         # These should point to your *disguised* mimic graphics (e.g., barrel with eyes)
-        'B': (3 * CELL_DIM, 5 * CELL_DIM),  # Mimic Barrel
         'K': (1 * CELL_DIM, 5 * CELL_DIM),  # Mimic Crate
+        'B': (3 * CELL_DIM, 5 * CELL_DIM),  # Mimic Barrel
         'M': (6 * CELL_DIM, 5 * CELL_DIM),  # Mimic (Generic Revealed Form)
         
         # Pressure Plate / Trap Graphics
@@ -229,6 +231,7 @@ def setup_tile_mapping():
         'IM': (11 * CELL_DIM, 8 * CELL_DIM),  # Imp
         'AG': (11 * CELL_DIM, 9 * CELL_DIM),  # Alpha Grick 
         'WRT': (12 * CELL_DIM, 7 * CELL_DIM), # Wraith
+        'TTP': (12 * CELL_DIM, 9 * CELL_DIM), # Tomb Tapper
 
 
 

@@ -37,8 +37,8 @@ torch = Tile(blocked=True, char='i', color=(153, 76, 0), block_sight=True, name=
 prison_bars = Tile(blocked=True, char='pb', color=(160, 160, 180), block_sight=False, destructible=False, name="Prison Bars",)
 
 # Static Crate and Barrel (using distinct chars)
-crate = Tile(blocked=True, char='k', color=(74, 57, 0), block_sight=False, destructible=True, name="Crate") # <--- CHANGED char to 'k'
-barrel = Tile(blocked=True, char='b', color=(74, 57, 0), block_sight=False, destructible=True, name="Barrel") # <--- char 'b' is fine
+crate = Tile(blocked=True, char='k', color=(74, 57, 0), block_sight=False, destructible=True, name="Crate")
+barrel = Tile(blocked=True, char='b', color=(74, 57, 0), block_sight=False, destructible=True, name="Barrel")
 
 # Tavern tile templates
 tavern_floor = Tile(blocked=False, char=',', color=(139, 69, 19), name="Tavern Floor")
@@ -52,52 +52,79 @@ fireplace = Tile(blocked=True, char='F', color=(255, 69, 0), name="Fireplace")
 tavern_crate = Tile(blocked=False, char='{', color=(139, 69, 19), name="Tavern Crate")
 tavern_barrel = Tile(blocked=False, char='}', color=(139, 69, 19), name="Tavern Barrel")
 
-from world.water_features import river, lake # NEW: Import river and lake tiles
+from world.water_features import river, lake
+
 
 class MimicTile(Tile):
-    def __init__(self, mimic_entity, char, color, name): # 'char' here will be 'K' or 'B'
+    def __init__(self, mimic_entity, char, color, name):
         super().__init__(blocked=True, char=char, color=color, block_sight=False, destructible=True, name=name)
-        self.mimic_entity = mimic_entity # Reference to the actual Mimic monster
+        self.mimic_entity = mimic_entity
 
 
 class TrapTile(Tile):
     def __init__(self, trap_instance, hidden_char, hidden_color, x, y, name="Hidden Trap"):
         super().__init__(blocked=False, char=hidden_char, color=hidden_color, block_sight=False, destructible=False, name=name)
-        self.trap_instance = trap_instance  # Reference to the actual Trap object (e.g., DartTrap)
-        self.original_char = hidden_char  # Store original char for when it's hidden
-        self.original_color = hidden_color  # Store original color
-        self.x = x  # Store x coordinate
-        self.y = y  # Store y coordinate
+        self.trap_instance = trap_instance
+        self.original_char = hidden_char
+        self.original_color = hidden_color
+        self.x = x
+        self.y = y
         self.highlighted = False
 
     def get_display_char(self):
         """Returns the character to display based on trap state."""
         if self.trap_instance.is_hidden:
-            return self.original_char  # Show as floor or whatever it's disguised as
+            return self.original_char
         elif self.trap_instance.is_triggered:
-            return self.trap_instance.char  # Show revealed graphic (e.g., '^')
-        else:  # Revealed but not triggered/disarmed
-            return self.trap_instance.char  # Show revealed graphic (e.g., '^')
+            return self.trap_instance.char
+        else:
+            return self.trap_instance.char
 
     def get_display_color(self):
         """Returns the color to display based on trap state."""
         if self.highlighted:
-            return (255, 255, 0)  # Yellow for highlighted traps
+            return (255, 255, 0)
         if self.trap_instance.is_hidden:
             return self.original_color
         elif self.trap_instance.is_disarmed:
-            return (0, 200, 0)  # Green for disarmed
+            return (0, 200, 0)
         elif self.trap_instance.is_triggered:
-            return (255, 0, 0)  # Red for triggered
+            return (255, 0, 0)
         else:
-            return self.trap_instance.color  # Trap's own color
+            return self.trap_instance.color
+
+
+class TombTile(Tile):
+    """Ancient tomb that can be disturbed to spawn skeletons or drop loot."""
+    def __init__(self):
+        super().__init__(
+            blocked=False,
+            char='tm',
+            color=(150, 130, 120),
+            block_sight=False,
+            destructible=False,
+            name="Tomb",
+        )
+        self.is_disturbed = False
+
+class OpenTombTile(Tile):
+    """Tomb that has already been disturbed. No further interactions."""
+    def __init__(self):
+        super().__init__(
+            blocked=False,
+            char='otm',
+            color=(100, 100, 100),
+            block_sight=False,
+            destructible=False,
+            name="Open Tomb",
+        )
 
 class PrisonDoorTile(Tile):
     """Locked prison door. Can be opened via a skill check."""
     def __init__(self):
         super().__init__(
             blocked=True,
-            char='pd',          # closed-door graphic key
+            char='pd',
             color=(180, 140, 80),
             block_sight=False,
             destructible=False,

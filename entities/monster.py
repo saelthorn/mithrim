@@ -69,6 +69,7 @@ MONSTER_GROUPS = {
     'IntellectDevourer': ['IntellectDevourer', 'IntellectDevourer'],
     'Imp': ['Imp', 'Imp'],
     'Wraith': ['Wraith'],
+    'TombTapper': ['TombTapper']
 }
 
 class Monster:
@@ -141,9 +142,9 @@ class Monster:
 
         # NEW: AI Behavior attributes
         self.is_intelligent = False  # Default to False. Set to True for intelligent monsters.
-        self.flee_hp_threshold = 0.30  # Flee if monster HP < 25%
+        self.flee_hp_threshold = 0.40  # Flee if monster HP < 40%
         self.player_safe_hp_threshold = 0.60  # Flee if player HP > 60%
-        self.desperate_fight_hp_threshold = 0.40  # Fight if player HP < 40% (and monster HP is also low)
+        self.desperate_fight_hp_threshold = 0.50  # Fight if player HP < 50% (and monster HP is also low)
         self.ai_state = AI_State.CHASING  # Default state
 
         # Kiting behavior for ranged monsters
@@ -1000,7 +1001,7 @@ class Monster:
                 # Monster is badly wounded
                 if player_hp_pct > self.player_safe_hp_threshold:
                     # Player is relatively healthy - FLEE from combat
-                    if self.ai_state != AI_State.FLEEING:
+                    if self.ai_state != AI_State.FLEEING and self.ai_state != AI_State.CHASING:
                         self.ai_state = AI_State.FLEEING
                         self.consecutive_failed_flee_turns = 0
                         game.message_log.add_message(f"The {self.name} attempts to escape!", (255, 150, 0))
@@ -2526,6 +2527,35 @@ class Wraith(Monster):
             "STR": False,
             "DEX": True,
             "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+
+
+class TombTapper(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'TTP', 'Tomb Tapper', (128, 0, 128))
+
+        self.hp = 180
+        self.max_hp = 180
+        self.attack_bonus = 3
+        self.armor_class = 12
+        self.base_xp = 700
+        self.monster_die_type = 6
+        self.num_damage_dice = 2
+        self.damage_modifier = 2
+        self.detection_range = 6
+        self.is_intelligent = True
+
+        self.loot_table = [
+            (meat, 0.25)
+        ]
+
+        self.saving_throw_proficiencies = {
+            "STR": True,
+            "DEX": False,
+            "CON": True,
             "INT": False,
             "WIS": False,
             "CHA": False,
