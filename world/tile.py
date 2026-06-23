@@ -98,7 +98,7 @@ class TombTile(Tile):
     """Ancient tomb that can be disturbed to spawn skeletons or drop loot."""
     def __init__(self):
         super().__init__(
-            blocked=False,
+            blocked=True,
             char='tm',
             color=(150, 130, 120),
             block_sight=False,

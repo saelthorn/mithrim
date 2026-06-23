@@ -1,5 +1,5 @@
 import random
-from world.tile import floor, MimicTile, TrapTile
+from world.tile import floor, MimicTile, TrapTile, PrisonDoorTile
 
 from core.status_effects import DivineStrikeBuff, PowerAttackBuff, EvasionBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
 from core.game import GameState
@@ -1124,14 +1124,14 @@ class DetectMagic(Ability):
 
 class MageHand(Ability):
     def __init__(self):
-        super().__init__("Mage Hand", "Summon a spectral hand to trigger traps or pick up items from a distance.", cost=0, cooldown=2)
+        super().__init__("Mage Hand", "Summon a spectral hand to trigger traps, pick up items, or pick prison locks from a distance.", cost=0, cooldown=2)
         self.range = 6  # Max distance the Mage Hand can be controlled
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
             return False
 
-        game_instance.message_log.add_message("Select a target to trigger a trap or pick up an item).", (255, 100, 0))
+        game_instance.message_log.add_message("Select a target to trigger a trap, pick up an item, or pick a prison lock.", (255, 100, 0))
 
         game_instance.game_state = GameState.TARGETING
         game_instance.ability_in_use = self
@@ -1155,6 +1155,90 @@ class MageHand(Ability):
             game_instance.message_log.add_message(f"The Mage Hand triggers the {target_tile.trap_instance.name}!", (255, 255, 0))
             target_tile.trap_instance.trigger(mage_hand_actor, game_instance, target_x, target_y)  # Pass the mage_hand_actor
             return True  # Action successful, end turn
+
+        # Check if the target is a locked prison door
+        if isinstance(target_tile, PrisonDoorTile) and target_tile.is_locked:
+
+            if target_tile.is_open:
+                game_instance.message_log.add_message(
+                    "The prison door is already open.", (150, 150, 150)
+                )
+                return True
+
+            # Mage Hand uses an Arcana (INT) check — no brute force, no noise.
+            int_modifier  = user.get_ability_modifier(user.intelligence)
+            skill_bonus   = int_modifier + user.proficiency_bonus
+            difficulty_class = 14
+
+            die_roll    = random.randint(1, 20)
+            check_total = die_roll + skill_bonus
+
+            game_instance.message_log.add_message(
+                f"The Mage Hand manipulates the prison lock — Arcana Check: "
+                f"[{die_roll}] + {skill_bonus} = {check_total} (DC {difficulty_class})",
+                (200, 200, 255),
+            )
+
+            if check_total >= difficulty_class:
+                # Open the door
+                target_tile.is_open   = True
+                target_tile.is_locked = False
+                target_tile.blocked   = False
+                target_tile.char      = 'pdo'
+
+                success_messages = [
+                    "The spectral fingers work the lock — the door swings open!",
+                    "With an arcane click, the prison door unlocks.",
+                    "The Mage Hand deftly slips the lock. The cell is open.",
+                    "The lock turns without a sound. The door is free.",
+                ]
+                game_instance.message_log.add_message(
+                    random.choice(success_messages), (100, 255, 100)
+                )
+
+                from core.floating_text import FloatingText
+                game_instance.floating_texts.append(
+                    FloatingText(
+                        target_x, target_y,
+                        "OPEN!", (100, 255, 100), y_speed=0.5,
+                    )
+                )
+
+                # Free the nearest unfreed prisoner within 3 tiles of this door.
+                from entities.dungeon_npcs import PrisonerNPC
+                for entity in game_instance.entities:
+                    if isinstance(entity, PrisonerNPC) and not entity.has_been_freed:
+                        chebyshev_dist = max(
+                            abs(entity.x - target_x),
+                            abs(entity.y - target_y),
+                        )
+                        if chebyshev_dist <= 3:
+                            entity.free(user, game_instance)
+                            break
+
+                game_instance.update_fov()
+                return True
+
+            # Failure — the Mage Hand is silent, so no monster alert.
+            failure_messages = [
+                "The spectral fingers fumble against the lock. It doesn't budge.",
+                "The Mage Hand finds no purchase — the lock holds.",
+                "Your arcane touch isn't quite enough to slip the lock.",
+                "The prison lock resists the Mage Hand's delicate probing.",
+            ]
+            game_instance.message_log.add_message(
+                random.choice(failure_messages), (255, 100, 100)
+            )
+
+            from core.floating_text import FloatingText
+            game_instance.floating_texts.append(
+                FloatingText(
+                    target_x, target_y,
+                    "FAILED!", (255, 80, 80), y_speed=0.5,
+                )
+            )
+            return False  # Stay in targeting mode on failure
+
 
         # Check if the target is an item (specifically a potion)
         item_at_target = game_instance.get_interactable_item_at(target_x, target_y)
