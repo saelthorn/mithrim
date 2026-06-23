@@ -215,6 +215,79 @@ class Chest(Item):
         game_instance.message_log.add_message(f"You cannot pick up the {self.name}. It's too heavy!", (255, 0, 0))
         return False  # Prevent pickup            
 
+class LockedChest(Chest):
+    """A chest secured with an iron lock. Requires Thieves' Tools and a Dexterity check to open."""
+    LOCK_DC = 12
+
+    def __init__(self, x, y, contents=None):
+        super().__init__(x, y, contents)
+        self.name = "Locked Chest"
+        self.char = 'LC'
+        self.color = (100, 110, 130)  # Steel-gray, distinct from the warm-brown regular chest
+        self.description = "A sturdy chest secured with an iron lock."
+        self.is_locked = True
+
+    def open(self, opener, game_instance):
+        if self.opened:
+            game_instance.message_log.add_message("This chest is already empty.", (150, 150, 150))
+            return
+
+        if self.is_locked:
+            # Check for Thieves' Tools in the opener's inventory
+            tools = next(
+                (item for item in opener.inventory.items
+                 if isinstance(item, Tools) and item.name == "Thieves' Tools"),
+                None
+            )
+            if tools is None:
+                game_instance.message_log.add_message(
+                    "The chest is locked. You need Thieves' Tools to pick the lock.",
+                    (200, 150, 50)
+                )
+                return
+
+            # Dexterity (Thieves' Tools) check vs DC 12
+            roll = random.randint(1, 20)
+            dex_mod = opener.get_ability_modifier(opener.dexterity)
+            total = roll + dex_mod
+
+            if total >= self.LOCK_DC:
+                game_instance.message_log.add_message(
+                    f"You pick the lock! (rolled {roll}{dex_mod:+d} = {total} vs DC {self.LOCK_DC})",
+                    (255, 215, 0)
+                )
+                self.is_locked = False
+            else:
+                game_instance.message_log.add_message(
+                    f"You fail to pick the lock. (rolled {roll}{dex_mod:+d} = {total} vs DC {self.LOCK_DC})",
+                    (200, 80, 80)
+                )
+                return
+
+        # Lock cleared — open normally
+        game_instance.message_log.add_message("You open the chest...", (255, 215, 0))
+        self.opened = True
+        self.char = 'olc'
+
+        if not self.contents:
+            game_instance.message_log.add_message("It's empty!", (150, 150, 150))
+            return
+
+        items_given = []
+        for item in list(self.contents):
+            if opener.inventory.add_item(item):
+                items_given.append(item.name)
+                self.contents.remove(item)
+            else:
+                game_instance.message_log.add_message(
+                    f"Your inventory is full! You couldn't pick up the {item.name}.", (255, 0, 0)
+                )
+        if items_given:
+            game_instance.message_log.add_message(f"You found: {', '.join(items_given)}!", (0, 255, 0))
+        else:
+            game_instance.message_log.add_message("Your inventory is full, you couldn't take anything.", (255, 0, 0))
+
+
 class CampfireKit(Item):
     def __init__(self):
         super().__init__(name="Campfire Kit", char="cf", color=(255, 140, 0), description="A kit to set up a campfire.", price=25)
@@ -997,4 +1070,13 @@ def generate_random_loot(level_number):
             **{k: v for k, v in chosen_item_template.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
         )
         loot.append(new_item)
+    return loot
+
+
+def generate_locked_loot(level_number):
+    """Better loot for locked chests — always yields 2 items as a reward for picking the lock."""
+    loot = generate_random_loot(level_number)
+    # Guarantee a second item (locked chests should feel rewarding)
+    extra = generate_random_loot(level_number)
+    loot.extend(extra)
     return loot

@@ -8,7 +8,7 @@ from world.tile import (
     rubble, cob_web, mushroom, fresh_bones, dungeon_pillar, prison_bars,
     MimicTile, TrapTile, PrisonDoorTile, pressure_plate, TombTile
 )
-from items.items import Chest, generate_random_loot
+from items.items import Chest, LockedChest, generate_random_loot, generate_locked_loot
 from entities.monster import Mimic
 from world.altar import Altar
 from traps import DartTrap, SpikeTrap, FireTrap, ExplosiveTrap, AcidSprayTrap
@@ -1164,6 +1164,19 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
                     mimic.name = "Disguised Chest Mimic"
                     game_map.tiles[chy][chx] = MimicTile(mimic, 'C', (139, 69, 19), "Chest")
                     game_map.items_on_ground.append(mimic)
+                elif random.random() < 0.30:
+                    if random.random() < 0.15:
+                        # Locked chest mimic — rarer and more dangerous than a regular chest mimic
+                        mimic = Mimic(chx, chy, 'LC', (100, 110, 130))
+                        mimic.name = "Disguised Locked Chest Mimic"
+                        mimic.char = 'LM'  # Revealed form gets its own graphic
+                        game_map.tiles[chy][chx] = MimicTile(mimic, 'LC', (100, 110, 130), "Locked Chest")
+                        game_map.items_on_ground.append(mimic)
+                    else:
+                        # Locked chest — better loot, requires Thieves' Tools to open
+                        locked_chest = LockedChest(chx, chy, contents=generate_locked_loot(level_number))
+                        game_map.items_on_ground.append(locked_chest)
+                        game_map.tiles[chy][chx] = tile.floor   # clear any prop that was here
                 else:
                     chest = Chest(chx, chy, contents=generate_random_loot(level_number))
                     game_map.items_on_ground.append(chest)
