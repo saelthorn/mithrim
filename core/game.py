@@ -3589,6 +3589,32 @@ class Game:
 
 
     def render_tile_highlights(self):
+        # --- Targeting cursor red tint ---
+        # For AoE abilities (those with a 'radius' attribute), tint every tile
+        # within that radius around the cursor.  For single-target abilities,
+        # tint only the cursor tile itself.
+        if self.game_state == GameState.TARGETING:
+            cx, cy = self.targeting_cursor_x, self.targeting_cursor_y
+            aoe_radius = getattr(self.ability_in_use, 'radius', 0)
+            cursor_overlay = pygame.Surface((config.TILE_SIZE, config.TILE_SIZE), pygame.SRCALPHA)
+            cursor_overlay.fill((180, 40, 40, 20))
+
+            if aoe_radius > 0:
+                # Tint all tiles within the AoE radius of the cursor
+                for hy in range(cy - aoe_radius, cy + aoe_radius + 1):
+                    for hx in range(cx - aoe_radius, cx + aoe_radius + 1):
+                        if (hx - cx) ** 2 + (hy - cy) ** 2 > aoe_radius ** 2:
+                            continue
+                        if not self.camera.is_in_viewport(hx, hy):
+                            continue
+                        sx, sy = self.camera.world_to_screen(hx, hy)
+                        self.internal_surface.blit(cursor_overlay, (int(sx * config.TILE_SIZE), int(sy * config.TILE_SIZE)))
+            else:
+                # Single-target: tint only the cursor tile
+                if self.camera.is_in_viewport(cx, cy):
+                    sx, sy = self.camera.world_to_screen(cx, cy)
+                    self.internal_surface.blit(cursor_overlay, (int(sx * config.TILE_SIZE), int(sy * config.TILE_SIZE)))
+
         # Draw per-entity telegraphs every frame to avoid stale global state
         for entity in self.entities:
             tiles = getattr(entity, 'pending_telegraph_tiles', None)          

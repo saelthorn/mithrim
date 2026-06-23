@@ -1657,6 +1657,7 @@ class Wizard(Player):
         self.equipped_helmet = mages_circlet
         self.equipped_armor = robes
         self.equipped_boots = leather_boots
+        self.equipped_focus = spell_book
         
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
         # These calculations MUST happen AFTER race traits are applied.
