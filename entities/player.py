@@ -827,10 +827,18 @@ class Player: # This is our base class for playable characters
             if getattr(item, "name", "").lower() == "throwing knife":
                 return True
         return False
-
+    
     def update_throw_knife_ability(self):
         if self.has_throwing_knife():
-            self.add_scaled_ability("Throwing Knife", ThrowKnife())
+            if "Throwing Knife" not in self.abilities:
+                # Insert "Throwing Knife" at index 4 (5th position) in the ability dict
+                items = list(self.abilities.items())
+                knife_ability = ThrowKnife()
+                if hasattr(knife_ability, 'scale_with_level'):
+                    knife_ability.scale_with_level(self.level)
+                insert_pos = min(4, len(items))
+                items.insert(insert_pos, ("Throwing Knife", knife_ability))
+                self.abilities = dict(items)
         else:
             self.abilities.pop("Throwing Knife", None)
 

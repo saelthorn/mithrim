@@ -1983,7 +1983,7 @@ class Game:
                     elif event.key in (pygame.K_RIGHT, pygame.K_d):
                         dx = 1
                     
-                  
+                
 
                     if dx != 0 or dy != 0:
                         action_taken = self.handle_player_action(dx, dy)

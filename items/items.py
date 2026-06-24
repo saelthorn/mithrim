@@ -223,7 +223,7 @@ class LockedChest(Chest):
     def __init__(self, x, y, contents=None):
         super().__init__(x, y, contents)
         self.name = "Locked Chest"
-        self.char = 'LC'
+        self.char = 'C'
         self.color = (100, 110, 130)  # Steel-gray, distinct from the warm-brown regular chest
         self.description = "A sturdy chest secured with an iron lock."
         self.is_locked = True
