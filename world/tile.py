@@ -1,3 +1,6 @@
+import random
+
+
 class Tile:
     def __init__(self, blocked=True, char="#", color=(255, 255, 255), block_sight=None, destructible=False, name="Tile"):
         self.blocked = blocked
@@ -98,7 +101,7 @@ class TombTile(Tile):
     """Ancient tomb that can be disturbed to spawn skeletons or drop loot."""
     def __init__(self):
         super().__init__(
-            blocked=True,
+            blocked=False,
             char='tm',
             color=(150, 130, 120),
             block_sight=False,
@@ -106,19 +109,8 @@ class TombTile(Tile):
             name="Tomb",
         )
         self.is_disturbed = False
-
-class OpenTombTile(Tile):
-    """Tomb that has already been disturbed. No further interactions."""
-    def __init__(self):
-        super().__init__(
-            blocked=False,
-            char='otm',
-            color=(100, 100, 100),
-            block_sight=False,
-            destructible=False,
-            name="Open Tomb",
-        )
-
+        self.is_not_disturbed = True
+        
 class PrisonDoorTile(Tile):
     """Locked prison door. Can be opened via a skill check."""
     def __init__(self):
@@ -132,3 +124,34 @@ class PrisonDoorTile(Tile):
         )
         self.is_open   = False
         self.is_locked = True
+
+
+class FireElementalTile:
+    """
+    A temporary hazard tile placed by Fireball (and future fire sources).
+
+    The tile wraps the surface it lands on (`underlying_tile`) and restores
+    it automatically when it expires.  Each turn the game calls tick(); any
+    entity standing on a fire tile when that happens takes 1d6 fire damage.
+    """
+
+    def __init__(self, underlying_tile, duration=None):
+        self.underlying_tile = underlying_tile
+        self.turns_remaining  = duration if duration is not None else random.randint(3, 7)
+
+        # Standard tile interface --------------------------------------------------
+        self.char         = 'fire'  # Add a 'fire' entry to TILE_MAPPING in graphics.py
+        self.name         = "Fire"
+        self.blocked      = False   # Walkable but dangerous
+        self.block_sight  = False
+        self.destructible = False
+        self.color        = (255, 100, 0, 0)
+        self.dark_color   = (255, 50, 0, 0)
+
+    def tick(self):
+        """
+        Decrement remaining duration.
+        Returns True when the fire has fully burned out (caller restores underlying tile).
+        """
+        self.turns_remaining -= 1
+        return self.turns_remaining <= 0        

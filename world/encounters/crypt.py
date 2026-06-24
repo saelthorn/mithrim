@@ -1,6 +1,7 @@
 import random
-from world.tile import TombTile, OpenTombTile, floor, wall
+from world.tile import TombTile, floor, wall
 from world.water_features import is_water_tile
+from core.floating_text import FloatingText
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -103,88 +104,111 @@ def handle_tomb_interaction(player, game_instance):
             )
             return True
 
-        # ── Roll for skeleton spawn or item drop ────────────────────────────
-        disturb_roll = random.random()
-        is_skeleton_spawn = disturb_roll < 0.6  # 60% chance for skeleton, 40% for item
 
-        neighbour_tile.is_disturbed = True
+        die_roll = random.randint(1, 20)
+        check_total = die_roll + player.get_ability_modifier(player.strength)
 
-        if is_skeleton_spawn:
-            # ── Spawn skeleton ──────────────────────────────────────────────
-            from entities.monster import Skeleton
-            
-            skeleton = Skeleton(neighbour_col, neighbour_row)
-            skeleton.is_active = True
-            game_instance.entities.append(skeleton)
-            game_instance.turn_order.append(skeleton)
-            skeleton.roll_initiative()
-            game_instance.turn_order.sort(key=lambda e: e.initiative, reverse=True)
+        game_instance.message_log.add_message(
+            f"You open a heavy stone tomb — Athletics (STR): "
+            f"[{die_roll}] + {player.get_ability_modifier(player.strength)} = {check_total}",
+            (200, 200, 255)
+        )
 
-            game_instance.message_log.add_message(
-                "The tomb suddenly cracks open! A skeleton claws its way out!",
-                (200, 100, 100)
-            )
+        if check_total >= 15:
 
-            from core.floating_text import FloatingText
-            game_instance.floating_texts.append(
-                FloatingText(
-                    neighbour_col, neighbour_row,
-                    "SKELETON!", (255, 255, 255), y_speed=0.5,
+            # ── Roll for skeleton spawn or item drop ────────────────────────────
+            disturb_roll = random.random()
+            is_skeleton_spawn = disturb_roll < 0.6  # 60% chance for skeleton, 40% for item
+
+            neighbour_tile.is_disturbed = True
+
+            if is_skeleton_spawn:
+                # ── Spawn skeleton ──────────────────────────────────────────────
+                from entities.monster import Skeleton
+
+                skeleton = Skeleton(neighbour_col, neighbour_row)
+                skeleton.is_active = True
+                game_instance.entities.append(skeleton)
+                game_instance.turn_order.append(skeleton)
+                skeleton.roll_initiative()
+                game_instance.turn_order.sort(key=lambda e: e.initiative, reverse=True)
+
+                game_instance.message_log.add_message(
+                    "The tomb suddenly cracks open! A skeleton claws its way out!",
+                    (200, 100, 100)
                 )
-            )
+
+                game_instance.floating_texts.append(
+                    FloatingText(
+                        neighbour_col - 0.5, neighbour_row,
+                        "SKELETON!", (255, 255, 255), y_speed=0.5,
+                    )
+                )
+            else:
+                # ── Drop treasure ───────────────────────────────────────────────
+                from items.items import (
+                    lesser_healing_potion, greater_healing_potion,
+                    iron_dagger, silver_dagger, bronze_short_sword,
+                    torch
+                )
+
+                treasure_table = [
+                    (lesser_healing_potion, 0.40),
+                    (greater_healing_potion, 0.15),
+                    (silver_dagger, 0.20),
+                    (bronze_short_sword, 0.15),
+                    (torch, 0.10),
+                    (iron_dagger, 0.10)
+                ]
+
+                # Weighted random selection
+                total_weight = sum(weight for _, weight in treasure_table)
+                roll = random.uniform(0, total_weight)
+                cumulative = 0
+                chosen_template = treasure_table[0][0]
+
+                for template, weight in treasure_table:
+                    cumulative += weight
+                    if roll <= cumulative:
+                        chosen_template = template
+                        break
+
+                # Create item instance
+                new_item = chosen_template.__class__(
+                    name=chosen_template.name,
+                    char=chosen_template.char,
+                    color=chosen_template.color,
+                    description=chosen_template.description,
+                    **{k: v for k, v in chosen_template.__dict__.items() 
+                       if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                )
+                new_item.x = neighbour_col
+                new_item.y = neighbour_row
+                game_map.items_on_ground.append(new_item)
+
+                game_instance.message_log.add_message(
+                    f"The tomb opens... revealing a {new_item.name}!",
+                    (100, 200, 100)
+                )
+
+                game_instance.floating_texts.append(
+                    FloatingText(
+                        neighbour_col - 0.5, neighbour_row,
+                        "TREASURE!", (255, 215, 0), y_speed=0.5,
+                    )
+                )
         else:
-            # ── Drop treasure ───────────────────────────────────────────────
-            from items.items import (
-                lesser_healing_potion, greater_healing_potion,
-                iron_dagger, silver_dagger, bronze_short_sword,
-                torch
-            )
-            
-            treasure_table = [
-                (lesser_healing_potion, 0.40),
-                (greater_healing_potion, 0.15),
-                (silver_dagger, 0.20),
-                (bronze_short_sword, 0.15),
-                (torch, 0.10),
-            ]
-
-            # Weighted random selection
-            total_weight = sum(weight for _, weight in treasure_table)
-            roll = random.uniform(0, total_weight)
-            cumulative = 0
-            chosen_template = treasure_table[0][0]
-
-            for template, weight in treasure_table:
-                cumulative += weight
-                if roll <= cumulative:
-                    chosen_template = template
-                    break
-
-            # Create item instance
-            new_item = chosen_template.__class__(
-                name=chosen_template.name,
-                char=chosen_template.char,
-                color=chosen_template.color,
-                description=chosen_template.description,
-                **{k: v for k, v in chosen_template.__dict__.items() 
-                   if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
-            )
-            new_item.x = neighbour_col
-            new_item.y = neighbour_row
-            game_map.items_on_ground.append(new_item)
-
             game_instance.message_log.add_message(
-                f"The tomb opens... revealing a {new_item.name}!",
-                (100, 200, 100)
+                "You strain against the tomb, but it refuses to budge.",
+                (200, 200, 200)
             )
 
-            from core.floating_text import FloatingText
-            game_instance.floating_texts.append(
-                FloatingText(
-                    neighbour_col, neighbour_row,
-                    "TREASURE!", (255, 215, 0), y_speed=0.5,
-                )
+        game_instance.floating_texts.append(
+            FloatingText(
+                neighbour_col, neighbour_row,
+                "FAILED!", (255, 0, 0), y_speed=0.5,
             )
+        )            
 
         game_instance.update_fov()
         return True

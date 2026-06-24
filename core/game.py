@@ -73,7 +73,7 @@ from items.items import (
 )
 
 from core.pathfinding import astar
-from world.tile import floor, dungeon_floor_two, dungeon_floor_three, dungeon_floor_four, MimicTile, TrapTile
+from world.tile import floor, dungeon_floor_two, dungeon_floor_three, dungeon_floor_four, MimicTile, TrapTile, FireElementalTile
 from world.bloodstain import Bloodstain
 from world.altar import Altar
 from world.water_features import river, lake, is_water_tile # NEW: Import water tiles and helper
@@ -162,6 +162,7 @@ class Game:
         self.turn_order = []  # Initialize the turn order list
         self.current_turn_index = 0
         self.bloodstains = []
+        self.active_fire_tiles = []  # Tracks (x, y) positions of active FireElementalTiles
         
         self._recalculate_dimensions() 
         self._init_fonts()
@@ -1218,6 +1219,7 @@ class Game:
     def handle_level_transition(self, direction):
         # Clear entities, items, bloodstains, floating texts, and map tile references before level change
         self.entities.clear()
+        self.active_fire_tiles.clear()  # Fire tiles belong to the old level; discard them
         if hasattr(self, "game_map") and hasattr(self.game_map, "items_on_ground"):
             self.game_map.items_on_ground.clear()
         if hasattr(self, "floating_texts"):
@@ -1438,6 +1440,7 @@ class Game:
             self.update_fov()
             self.player_has_acted = False  # This is correctly reset for player's turn
             self.player_bonus_action_used = False  # Reset bonus action availability on a new player turn
+            self.tick_fire_tiles()  # Advance fire tile durations and deal burn damage
             if random.random() < 0.1:
                 ambient_msgs = [
                     "The dungeon emits an eerie glow...",
@@ -1458,6 +1461,52 @@ class Game:
                 ]
                 self.message_log.add_message(random.choice(ambient_msgs), (180, 180, 180))
 
+
+    def tick_fire_tiles(self):
+        """
+        Called once per player turn.  For every active FireElementalTile:
+          - Deal 1d6 fire damage to any entity standing on it.
+          - Decrement the tile's duration.
+          - Restore the underlying tile when the fire burns out.
+        """
+        from entities.monster import Monster
+
+        still_burning = []
+
+        for (fx, fy) in self.active_fire_tiles:
+            current_tile = self.game_map.tiles[fy][fx]
+
+            # Safety check: something else may have replaced this tile already
+            if not isinstance(current_tile, FireElementalTile):
+                continue
+
+            # Damage any living entity standing on the fire
+            for entity in self.entities:
+                if entity.x == fx and entity.y == fy and getattr(entity, 'alive', False):
+                    fire_damage = random.randint(1, 6)
+                    entity.take_damage(fire_damage, self, damage_type='fire')
+                    self.message_log.add_message(
+                        f"{entity.name} takes {fire_damage} fire damage from the burning ground!",
+                        (255, 100, 0)
+                    )
+                    self.floating_texts.append(
+                        FloatingText(entity.x, entity.y - 0.5, str(fire_damage), (255, 80, 0))
+                    )
+
+                    # Award XP if the fire kills a monster
+                    if not entity.alive and isinstance(entity, Monster):
+                        xp_gained = entity.die(self, killer=self.player)
+                        self.player.gain_xp(xp_gained, self)
+
+            # Advance the fire tile's duration counter
+            expired = current_tile.tick()
+            if expired:
+                self.game_map.tiles[fy][fx] = current_tile.underlying_tile
+                self.minimap_needs_redraw = True
+            else:
+                still_burning.append((fx, fy))
+
+        self.active_fire_tiles = still_burning
 
     def cleanup_entities(self):
         """Remove dead or expired entities/items from the game world."""
@@ -3580,6 +3629,15 @@ class Game:
                     display_char = tile.get_display_char()
                     display_color = tile.get_display_color()
                     graphics.draw_tile(self.internal_surface, draw_x, draw_y, display_char, color_tint=render_color_tint) 
+
+                # Add a subtle animated tint over the fire sprite (already drawn above via tile.char)
+                if isinstance(tile, FireElementalTile):
+                    # The fire sprite was drawn by the graphics.draw_tile call above.
+                    # Just overlay a light flicker tint so the sprite stays visible.
+                    fire_alpha = random.randint(30, 70)
+                    fire_overlay = pygame.Surface((config.TILE_SIZE, config.TILE_SIZE), pygame.SRCALPHA)
+                    fire_overlay.fill((0, 0, 0, fire_alpha))
+                    self.internal_surface.blit(fire_overlay, (int(draw_x), int(draw_y)))
 
                 if full_redraw:
                     self.add_dirty_rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)   

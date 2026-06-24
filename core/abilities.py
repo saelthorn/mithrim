@@ -1046,7 +1046,49 @@ class Fireball(Ability):
                                 game_instance.game_map.items_on_ground.append(new_food)
                                 game_instance.message_log.add_message(f"A {new_food.name} drops from the {target_tile.name}!", new_food.color) 
 
+        # --- Scatter fire elemental tiles across walkable AOE tiles ---
+        self._scatter_fire_tiles(game_instance, target_x, target_y)
+
         return True  # Successfully used ability
+
+    def _scatter_fire_tiles(self, game_instance, target_x, target_y):
+        """
+        Places 3-7 FireElementalTiles on random walkable tiles within the blast radius.
+        Skips tiles that are already on fire, out of bounds, or non-walkable.
+        """
+        from world.tile import FireElementalTile
+
+        # Collect all valid candidates within the AOE circle
+        aoe_candidates = []
+        for fx in range(target_x - self.radius, target_x + self.radius + 1):
+            for fy in range(target_y - self.radius, target_y + self.radius + 1):
+                if not self.is_within_radius(fx, fy, target_x, target_y, self.radius):
+                    continue
+                if not (0 <= fx < game_instance.game_map.width and 0 <= fy < game_instance.game_map.height):
+                    continue
+                current_tile = game_instance.game_map.tiles[fy][fx]
+                if isinstance(current_tile, FireElementalTile):
+                    continue  # Already burning
+                if not game_instance.game_map.is_walkable(fx, fy):
+                    continue
+                aoe_candidates.append((fx, fy))
+
+        if not aoe_candidates:
+            return
+
+        num_fire_tiles = random.randint(3, 7)
+        fire_positions = random.sample(aoe_candidates, min(num_fire_tiles, len(aoe_candidates)))
+
+        for fx, fy in fire_positions:
+            underlying = game_instance.game_map.tiles[fy][fx]
+            fire_tile   = FireElementalTile(underlying_tile=underlying)
+            game_instance.game_map.tiles[fy][fx] = fire_tile
+            game_instance.active_fire_tiles.append((fx, fy))
+
+        game_instance.minimap_needs_redraw = True
+        game_instance.message_log.add_message(
+            f"Flames scatter across the blast zone!", (255, 100, 0)
+        )
 
     def is_within_radius(self, x, y, center_x, center_y, radius):
         """Check if the (x, y) coordinates are within the radius of the center point."""

@@ -164,6 +164,9 @@ def setup_tile_mapping():
 
         '~': (11 * CELL_DIM, 4 * CELL_DIM),  # River (Water) - FIXED: Keep this
         '≈': (11 * CELL_DIM, 4 * CELL_DIM),  # Lake (Water) - FIXED: Distinct position (adjust if your tileset has it elsewhere)
+
+        # Elemental Tiles
+        'fire': (12 * CELL_DIM, 5 * CELL_DIM),  # Fire
         
         # IMPORTANT: Ensure 'C' is your *closed* chest graphic
         'C':  (4 * CELL_DIM, 5 * CELL_DIM),  # Chest (Closed)

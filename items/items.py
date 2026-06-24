@@ -145,10 +145,11 @@ class Helmet(Item):
 class Boots(Item):
     """Boots that can be equipped for movement and stat bonuses."""
     def __init__(self, name, char, color, description, ac_bonus=0, attack_bonus=0, price=10,
-                 speed_bonus=0, stealth_bonus=0, dexterity_bonus=0, category=None):
+                 speed_bonus=0, stealth_bonus=0, dexterity_bonus=0, spell_bonus=0, category=None):
         super().__init__(name, char, color, description, price)
         self.ac_bonus = ac_bonus
         self.attack_bonus = attack_bonus
+        self.spell_bonus = spell_bonus
         self.speed_bonus = speed_bonus     # reserved for future movement speed
         self.stealth_bonus = stealth_bonus   # bonus to stealth checks
         self.dexterity_bonus = dexterity_bonus  # flat DEX bonus while equipped
