@@ -178,13 +178,6 @@ class Imp(SummonedEntity):
             print(f"Warning: Attempted to add unknown status effect: {effect_name}")
 
 
-    def die(self, game_instance):
-        super().die(game_instance)
-        if self.owner and hasattr(self.owner, 'abilities'):
-            summon_ability = self.owner.abilities.get("summon_imp")
-            if summon_ability and summon_ability.current_cooldown == 0:
-                summon_ability.current_cooldown = summon_ability.cooldown
-
     def make_saving_throw(self, save_type, dc, game_instance, source=None):
         """Imps can make saving throws to avoid certain effects."""
         ability_score = getattr(self, save_type, 10)
@@ -333,8 +326,9 @@ class Imp(SummonedEntity):
         if self in game_instance.turn_order:
             game_instance.turn_order.remove(self)
         if self.owner and hasattr(self.owner, 'abilities'):
-            summon_ability = self.owner.abilities.get("summon_imp")
-            if summon_ability and summon_ability.current_cooldown == 0:
+            game_instance.message_log.add_message(f"{self.owner.name}'s summon_imp ability is now on cooldown.", (255, 150, 150))
+            summon_ability = self.owner.abilities.get("Summon Imp")
+            if summon_ability:
                 summon_ability.current_cooldown = summon_ability.cooldown
         game_instance.update_fov()
 
@@ -384,13 +378,6 @@ class Celestial(SummonedEntity):
         else:
             game_instance.message_log.add_message(f"Warning: Attempted to add unknown status effect: {effect_name}", (255, 0, 0))
             print(f"Warning: Attempted to add unknown status effect: {effect_name}")
-
-    def die(self, game_instance):
-        super().die(game_instance)
-        if self.owner and hasattr(self.owner, 'abilities'):
-            summon_ability = self.owner.abilities.get("summon_celestial")
-            if summon_ability and summon_ability.current_cooldown == 0:
-                summon_ability.current_cooldown = summon_ability.cooldown
 
     def make_saving_throw(self, save_type, dc, game_instance, source=None):
         """Celestial Spirits can make saving throws to avoid certain effects."""
@@ -537,8 +524,8 @@ class Celestial(SummonedEntity):
         if self in game_instance.turn_order:
             game_instance.turn_order.remove(self)
         if self.owner and hasattr(self.owner, 'abilities'):
-            summon_ability = self.owner.abilities.get("summon_celestial")
-            if summon_ability and summon_ability.current_cooldown == 0:
+            summon_ability = self.owner.abilities.get("Summons Celestial")
+            if summon_ability:
                 summon_ability.current_cooldown = summon_ability.cooldown
         game_instance.update_fov()                  
 
@@ -587,14 +574,6 @@ class SpiritualWeaponEntity(SummonedEntity):
         else:
             game_instance.message_log.add_message(f"Warning: Attempted to add unknown status effect: {effect_name}", (255, 0, 0))
             print(f"Warning: Attempted to add unknown status effect: {effect_name}")
-
-    def die(self, game_instance):
-        """Handles the Spiritual Weapon vanishing."""
-        super().die(game_instance)
-        if self.owner and hasattr(self.owner, 'abilities'):
-            summon_ability = self.owner.abilities.get("spiritual_weapon")
-            if summon_ability and summon_ability.current_cooldown == 0:
-                summon_ability.current_cooldown = summon_ability.cooldown
 
     def make_saving_throw(self, save_type, dc, game_instance, source=None):
         """Spiritual Weapon can make saving throws to avoid certain effects, though it typically doesn't."""
@@ -728,7 +707,7 @@ class SpiritualWeaponEntity(SummonedEntity):
         if self in game_instance.turn_order:
             game_instance.turn_order.remove(self)
         if self.owner and hasattr(self.owner, 'abilities'):
-            summon_ability = self.owner.abilities.get("spiritual_weapon")
-            if summon_ability and summon_ability.current_cooldown == 0:
+            summon_ability = self.owner.abilities.get("Spiritual Weapon")
+            if summon_ability:
                 summon_ability.current_cooldown = summon_ability.cooldown
         game_instance.update_fov()

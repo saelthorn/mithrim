@@ -2069,9 +2069,9 @@ class SpiritualWeapon(Ability):
         self.spiritual_weapon_proficiency_bonus = 2
 
     def use(self, user, game_instance):
-        if not super().use(user, game_instance):
+        if not self.can_use(user, game_instance):
             return False
-        
+
         existing_weapon = None
         for entity in game_instance.entities:
             if isinstance(entity, SpiritualWeaponEntity) and entity.owner == user:
