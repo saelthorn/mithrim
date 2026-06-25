@@ -29,7 +29,8 @@ XP_PROGRESSION = {
 from core.abilities import (
     Parry, SecondWind, SpiritualWeapon, DivineStrike, HealingWord, SummonCelestial, PowerAttack, CunningActionDash, 
     Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, 
-    ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp, PreciseStrike, PrepTime, CureWounds, SacredFlame
+    ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp, PreciseStrike, PrepTime, CureWounds, SacredFlame,
+    MagicMissile
 )
 
 from core.status_effects import (
@@ -690,18 +691,28 @@ class Player: # This is our base class for playable characters
                 self.trigger_ambush(game_instance)
                 return True  # Resting was interrupted by ambush
         else:
-            need_fire_msgs = [
-                "You must be near a campfire to safely rest.",
-                "The dungeon’s chill forbids rest without firelight.",
-                "A campfire’s warmth is needed before you can settle down.",
-                "You can’t rest here — too dark, too cold, too dangerous.",
-                "Without a campfire, rest slips beyond reach..."
+            self.hp = min(self.max_hp, self.hp + self.max_hp // 3)  # Recover half max HP
+            for effect in list(self.active_status_effects):
+                effect.on_end(self, game_instance)
+            campfire_msgs = [
+                f"{self.name} rests, but without a campfire, only half their strength returns...",
+                f"The chill of the dungeon seeps in, and {self.name} can only recover partially...",
+                f"Without the warmth of a fire, {self.name} regains only half their vitality...",
+                f"{self.name} tries to rest, but the darkness and cold limit their recovery...",
             ]
-            game_instance.message_log.add_message(random.choice(need_fire_msgs), (255, 0, 0))
-            return False  # Cannot rest if not adjacent to a campfire
-        
+            game_instance.message_log.add_message(random.choice(campfire_msgs), (255, 255, 0))
 
-        return True  # Indicate successful resting
+            if random.random() < 0.6:  # 60% chance for ambush even without a campfire
+                ambush_msgs = [
+                    "The dungeon's shadows are restless... an ambush!",
+                    "A sudden noise! Enemies have found you in the dark!",
+                    "The quiet is broken by a sinister presence — prepare for battle!",
+                    "You feel eyes on you... and then, the attack comes!",
+                    "The darkness conceals many threats, and one has chosen this moment!"
+                ]
+                game_instance.message_log.add_message(random.choice(ambush_msgs), (255, 0, 0))
+                self.trigger_ambush(game_instance)
+                return True  # Resting was interrupted by ambush
 
 
     def trigger_ambush(self, game_instance):
@@ -1688,7 +1699,7 @@ class Wizard(Player):
         self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus + self.equipped_weapon.attack_bonus
         
         # Wizard abilities (e.g., Spellcasting - will be complex)
-        # self.abilities["spellcasting"] = Spellcasting()
+        self.abilities["Magic Missile"] = MagicMissile()
         self.abilities["Fire Bolt"] = FireBolt()
         self.abilities["Ray of Frost"] = RayOfFrost()
         self.abilities["Misty Step"] = MistyStep()
@@ -1818,6 +1829,7 @@ class Sorcerer(Player):
         self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus + self.equipped_weapon.attack_bonus
 
         # Sorcerer abilities
+        self.abilities["Magic Missile"] = MagicMissile()
         self.abilities["Fire Bolt"] = FireBolt()
         self.abilities["Ray of Frost"] = RayOfFrost()
         self.abilities["Misty Step"] = MistyStep()

@@ -367,7 +367,7 @@ class Game:
 
     MONSTER_SPAWN_TIERS = {
         # 🌱 Early dungeon fodder (CR 1/8 – CR 1/4)
-        (1, 2): [Goblin, GoblinArcher, Wolf, Imp, GiantRat, MyconidSprout, TombTapper],
+        (1, 2): [Goblin, GoblinArcher, Wolf, Imp, GiantRat, MyconidSprout,],
         (3, 4): [Goblin, GoblinArcher, GiantRat, GiantSpider, Wererat, Wolf, MyconidSprout, IntellectDevourer, Imp],
         (5, 5): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf, MyconidAdult, IntellectDevourer],
 
@@ -1983,7 +1983,9 @@ class Game:
                     elif event.key in (pygame.K_RIGHT, pygame.K_d):
                         dx = 1
                     
-                
+                    if event.key == pygame.K_t:
+                        self.message_log.add_message("You skip a turn...", (200, 200, 255))
+                        action_taken = True
 
                     if dx != 0 or dy != 0:
                         action_taken = self.handle_player_action(dx, dy)

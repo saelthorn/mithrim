@@ -2122,3 +2122,153 @@ class SpiritualWeapon(Ability):
         """
         additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
         self.damage_dice = 1 + additional_dice
+
+
+class MagicMissile(Ability):
+    def __init__(self):
+        super().__init__("Magic Missile", "Launch 3 magical darts that automatically hit a target within 6 tiles.", cooldown=5)
+        self.range = 6
+        self.damage_dice = 1        # Number of d4s per dart (scales with level)
+        self.number_of_missiles = 3 # Darts per cast (scales with level)
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+
+        # Helper: footprint-aware visibility
+        def is_entity_visible(ent):
+            allowed = ['player', 'torch', 'darkvision']
+            size = getattr(ent, 'footprint_size', 1)
+            if size > 1:
+                for oy in range(size):
+                    for ox in range(size):
+                        if game_instance.fov.get_visibility_type(ent.x + ox, ent.y + oy) in allowed:
+                            return True
+                return False
+            return game_instance.fov.get_visibility_type(ent.x, ent.y) in allowed
+
+        # Helper: footprint-aware distance (min distance to any occupied tile)
+        def distance_to_entity(ent):
+            size = getattr(ent, 'footprint_size', 1)
+            if size > 1:
+                best = None
+                for oy in range(size):
+                    for ox in range(size):
+                        d = user.distance_to(ent.x + ox, ent.y + oy)
+                        if best is None or d < best:
+                            best = d
+                return best if best is not None else 9999
+            return user.distance_to(ent.x, ent.y)
+
+        # Find monster targets within range (footprint-aware)
+        monster_targets = []
+        for entity in game_instance.entities:
+            if isinstance(entity, Monster) and entity.alive:
+                distance = distance_to_entity(entity)
+                if distance <= self.range:
+                    if is_entity_visible(entity):
+                        monster_targets.append(entity)
+
+        # Auto-target the closest monster, or fall back to manual targeting
+        if monster_targets:
+            target = min(monster_targets, key=lambda m: user.distance_to(m.x, m.y))
+            game_instance.game_state = GameState.TARGETING
+            game_instance.ability_in_use = self
+            game_instance.targeting_ability_range = self.range
+            game_instance.targeting_cursor_x = target.x
+            game_instance.targeting_cursor_y = target.y
+            game_instance.message_log.add_message(
+                f"{user.name} conjures Magic Missile! Auto-targeting {target.name}.", (180, 120, 255)
+            )
+        else:
+            game_instance.message_log.add_message(
+                f"{user.name} conjures Magic Missile! No enemies in range.", (180, 120, 255)
+            )
+            game_instance.game_state = GameState.TARGETING
+            game_instance.ability_in_use = self
+            game_instance.targeting_ability_range = self.range
+            game_instance.targeting_cursor_x = user.x
+            game_instance.targeting_cursor_y = user.y
+
+        return True
+
+    def execute_on_target(self, user, game_instance, target_x, target_y):
+        """
+        Fires all Magic Missile darts at the selected target.
+        Magic Missile always hits — no attack roll required.
+        """
+        # Visibility and line-of-sight checks
+        if not game_instance.fov.get_visibility_type(target_x, target_y) in ['player', 'torch', 'darkvision']:
+            game_instance.message_log.add_message("You cannot target that location — it is out of sight!", (255, 0, 0))
+            return False
+
+        if not game_instance.check_line_of_sight(user.x, user.y, target_x, target_y):
+            game_instance.message_log.add_message(f"A wall blocks your missiles to {target_x}, {target_y}!", (255, 0, 0))
+            return False
+
+        target_monster = game_instance.get_target_at(target_x, target_y)
+        target_tile = game_instance.game_map.tiles[target_y][target_x]
+
+        # Must target a monster (Magic Missile doesn't work on empty tiles or destructible objects)
+        if not (target_monster and isinstance(target_monster, Monster)):
+            game_instance.message_log.add_message("Magic Missile requires a monster target.", (255, 150, 0))
+            game_instance.floating_texts.append(FloatingText(target_x, target_y, "INVALID!", (255, 0, 0)))
+            return False
+
+        # Fire each dart — Magic Missile always hits, no attack roll
+        game_instance.message_log.add_message(
+            f"{user.name} launches {self.number_of_missiles} magical darts at {target_monster.name}!",
+            (180, 120, 255)
+        )
+
+        total_damage_dealt = 0
+        for dart_num in range(1, self.number_of_missiles + 1):
+            # Stop early if the monster dies mid-volley
+            if not target_monster.alive:
+                game_instance.message_log.add_message(
+                    f"{target_monster.name} is slain before all darts land!", (180, 120, 255)
+                )
+                break
+
+            damage_rolls = [random.randint(1, 4) for _ in range(self.damage_dice)]
+            dart_damage = sum(damage_rolls) + 1  # D&D 5e: each dart deals 1d4+1
+
+            dart_messages = [
+                f"Dart {dart_num} streaks into {target_monster.name}!",
+                f"A shimmering dart pierces {target_monster.name}!",
+                f"Dart {dart_num} strikes true!",
+            ]
+            game_instance.message_log.add_message(random.choice(dart_messages), (180, 120, 255))
+            game_instance.message_log.add_message(
+                f"  Dart {dart_num}: {self.damage_dice}d4 {damage_rolls} + [1] Force Damage = {dart_damage} damage",
+                (200, 160, 255)
+            )
+
+            damage_dealt = target_monster.take_damage(dart_damage, game_instance)
+            total_damage_dealt += damage_dealt
+
+            game_instance.floating_texts.append(FloatingText(target_monster.x, target_monster.y, "HIT!", (180, 120, 255)))
+            game_instance.floating_texts.append(FloatingText(target_monster.x, target_monster.y - 0.5, str(damage_dealt), (200, 100, 255)))
+
+        # Summary and death check
+        game_instance.message_log.add_message(
+            f"Magic Missile deals {total_damage_dealt} total damage to {target_monster.name}! "
+            f"({target_monster.hp}/{target_monster.max_hp} HP remaining)",
+            (180, 120, 255)
+        )
+
+        if not target_monster.alive:
+            xp_gained = target_monster.die(game_instance, killer=user)
+            user.gain_xp(xp_gained, game_instance)
+
+        return True
+
+    def scale_with_level(self, player_level):
+        """
+        Scales Magic Missile with player level.
+        Gains one extra dart every 5 levels (base 3 darts).
+        Gains one extra damage die every 5 levels (base 1d4+1 per dart).
+        """
+        extra = (player_level - 1) // 5
+        self.number_of_missiles = 3 + extra
+        self.damage_dice = 1 + extra
