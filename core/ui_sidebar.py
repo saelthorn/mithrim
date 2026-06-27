@@ -20,9 +20,12 @@ _ORANGE      = (176,  96,  42)   # ember orange
 _RED_LO      = (148,  42,  42)   # dark blood red
 _YEL_MID     = (168, 148,  54)   # old brass
 _GRN_HI      = ( 72, 132,  78)   # swamp/alchemy green
-_PUR_LO      = (100,  40, 120)   # deep madness purple
-_PUR_HI      = (160,  80, 200)   # vivid sanity purple
+_PUR_LO      = (58,  34,  72)    # muted abyssal violet
+_PUR_HI      = (112,  78, 138)   # cursed amethyst
 
+_HUNGER_FULL = (156, 118, 52)   # Warm bronze
+_HUNGER_OK = (132, 102, 46)      # Faded ochre
+_HUNGER_LOW = (170, 116, 42)     # Burnt amber
 
 # ── Tiny helpers ────────────────────────────────────────────────────────────
 
@@ -249,7 +252,7 @@ def draw_sidebar(game) -> None:
 
     # Hunger color by threshold
     hun = getattr(player, "hunger", 100)
-    hun_col = _RED_LO if hun < 20 else _YEL_MID if hun < 50 else _GRN_HI
+    hun_col = _HUNGER_LOW if hun < 20 else _HUNGER_OK if hun < 50 else _HUNGER_FULL
     _fill_bar(screen, x0, y, W, bar_h,
               hun, 100, hun_col,
               text=f"Hunger  {hun} / 100", font=fSm)
