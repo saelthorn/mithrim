@@ -146,6 +146,13 @@ class Player: # This is our base class for playable characters
         self.hunger_threshold = 25  # Increase threshold for hunger warnings
         self.turns_since_last_hunger_decrease = 0 
 
+        # --- Sanity ---
+        self.sanity = 100           # Current sanity (0-100)
+        self.max_sanity = 100       # Maximum sanity
+        self.sanity_change_rate = 1 # Amount gained/lost per sanity tick
+        self.sanity_threshold = 50  # Sanity at or below this triggers the damage penalty
+        self.turns_since_last_sanity_change = 0  # Tick counter (same cadence as hunger)
+
         self.spell_bonus = 0  # Bonus to spell attack rolls and save DCs
         self.attack_power = 0  # Base attack power
         self.attack_bonus = 0  
@@ -208,6 +215,51 @@ class Player: # This is our base class for playable characters
                 ]
                 game_instance.message_log.add_message(random.choice(hunger_death_msgs), (255, 0, 0))
                 self.die(game_instance)  # Call the die method and pass game_instance
+
+    def has_torch_lit(self):
+        """Return True if the player currently has an active Torchlight effect (torch equipped and burning)."""
+        return any(effect.name == "Torchlight" for effect in self.active_status_effects)
+
+    def update_sanity(self, game_instance):
+        """
+        Update sanity each turn:
+        - Torch equipped  → sanity regenerates slowly
+        - No torch        → sanity drains slowly
+        Sanity ≤ 50%      → player takes 50% extra damage from enemies (checked in take_damage).
+        Eating food also restores sanity (handled in eat_food).
+        """
+        self.turns_since_last_sanity_change += 1
+        if self.turns_since_last_sanity_change < 4:
+            return  # Only tick every 4 turns (same cadence as hunger)
+
+        self.turns_since_last_sanity_change = 0
+
+        if self.has_torch_lit():
+            # Torch provides light and psychological comfort — regenerate sanity
+            if self.sanity < self.max_sanity:
+                self.sanity = min(self.max_sanity, self.sanity + self.sanity_change_rate)
+        else:
+            # Darkness wears on the mind — drain sanity
+            if self.sanity > 0:
+                self.sanity = max(0, self.sanity - self.sanity_change_rate)
+
+            # Warn the player at key thresholds
+            if self.sanity <= 25 and self.sanity > 0:
+                low_sanity_msgs = [
+                    f"{self.name} feels a creeping dread gnawing at their mind...",
+                    f"The darkness presses in — {self.name}'s grip on reality thins...",
+                    f"{self.name} hears whispers in the dark that shouldn't be there...",
+                    f"Shadows twist and writhe at the edge of {self.name}'s vision...",
+                    f"{self.name}'s hands tremble — the darkness is winning..."
+                ]
+                game_instance.message_log.add_message(random.choice(low_sanity_msgs), (180, 80, 200))
+            elif self.sanity <= self.sanity_threshold:
+                mid_sanity_msgs = [
+                    f"The dark unnerves {self.name}. Equip a torch to steady your mind.",
+                    f"{self.name} feels unsettled — the absence of light takes its toll...",
+                    f"Without light, {self.name}'s courage wavers...",
+                ]
+                game_instance.message_log.add_message(random.choice(mid_sanity_msgs), (160, 80, 180))
 
     def equip_to_quick_bar(self, item, slot_key, game_instance):
         # Ensure item is in inventory before trying to equip it
@@ -315,7 +367,12 @@ class Player: # This is our base class for playable characters
             return False
     
         self.hunger = min(self.hunger + food_item.healing_value, 100)  # Restore hunger, max 100
-    
+
+        # Food also steadies the mind — restore a small amount of sanity
+        sanity_restored = 10
+        if self.sanity < self.max_sanity:
+            self.sanity = min(self.max_sanity, self.sanity + sanity_restored)
+
         eat_msgs = [
             f"{self.name} eats the {food_item.name} and feels more satiated!",
             f"{self.name} devours the {food_item.name}, easing the pangs of hunger...",
@@ -498,6 +555,15 @@ class Player: # This is our base class for playable characters
                 (100, 255, 100)
             )
 
+        # Sanity penalty: low sanity means the player is too rattled to defend properly
+        if self.sanity <= self.sanity_threshold:
+            original_damage = damage_taken
+            damage_taken = int(damage_taken * 1.5)
+            game_instance.message_log.add_message(
+                f"{self.name}'s shattered nerves leave them exposed! ({original_damage} → {damage_taken})",
+                (180, 80, 200)
+            )
+
         evasion_buff = None
         for effect in self.active_status_effects:
             if isinstance(effect, EvasionBuff):
@@ -662,6 +728,7 @@ class Player: # This is our base class for playable characters
         if campfire_kit and self.is_adjacent_to(campfire_kit):
             # Fully recover HP and remove status effects
             self.hp = self.max_hp
+            self.sanity = self.max_sanity  # Campfire rest fully restores sanity
             for effect in list(self.active_status_effects):
                 effect.on_end(self, game_instance)
             self.active_status_effects.clear()  # Remove all status effects after processing on_end
@@ -692,6 +759,7 @@ class Player: # This is our base class for playable characters
                 return True  # Resting was interrupted by ambush
         else:
             self.hp = min(self.max_hp, self.hp + self.max_hp // 3)  # Recover half max HP
+            self.sanity = min(self.max_sanity, self.sanity + 20)     # Partial sanity recovery
             for effect in list(self.active_status_effects):
                 effect.on_end(self, game_instance)
             campfire_msgs = [

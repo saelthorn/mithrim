@@ -1392,6 +1392,7 @@ class Game:
             current_acting_entity.process_status_effects(self)
             if current_acting_entity == self.player:
                 self.player.update_hunger(self)  # Decrease hunger each turn
+                self.player.update_sanity(self)  # Update sanity (torch/darkness effect)
                 if self.player.hunger < self.player.hunger_threshold:
                     hunger_msgs = [
                         f"{self.player.name}'s stomach growls hungrily...",

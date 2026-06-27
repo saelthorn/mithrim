@@ -20,6 +20,8 @@ _ORANGE      = (176,  96,  42)   # ember orange
 _RED_LO      = (148,  42,  42)   # dark blood red
 _YEL_MID     = (168, 148,  54)   # old brass
 _GRN_HI      = ( 72, 132,  78)   # swamp/alchemy green
+_PUR_LO      = (100,  40, 120)   # deep madness purple
+_PUR_HI      = (160,  80, 200)   # vivid sanity purple
 
 
 # ── Tiny helpers ────────────────────────────────────────────────────────────
@@ -251,6 +253,15 @@ def draw_sidebar(game) -> None:
     _fill_bar(screen, x0, y, W, bar_h,
               hun, 100, hun_col,
               text=f"Hunger  {hun} / 100", font=fSm)
+    y += bar_h + 5
+
+    # Sanity color by threshold — purple hues; drops to deep purple when below 50%
+    san     = getattr(player, "sanity", 100)
+    san_max = getattr(player, "max_sanity", 100)
+    san_col = _PUR_LO if san <= san_max * 0.5 else _PUR_HI
+    _fill_bar(screen, x0, y, W, bar_h,
+              san, san_max, san_col,
+              text=f"Sanity  {san} / {san_max}", font=fSm)
     y += bar_h + 12
 
     # ════════════════════════════════════════════════════════════════════
