@@ -287,15 +287,39 @@ class Player: # This is our base class for playable characters
         return True
 
 
+    def _auto_refill_quick_bar_slot(self, slot_key, game_instance):
+        """After a quick bar slot is cleared, pull the next matching item from inventory.
+
+        Slot 'q' -> next Torch (OffHand named 'Torch')
+        Slot 'e' -> next Potion
+        """
+        SLOT_FILTERS = {
+            'q': lambda i: isinstance(i, OffHand) and i.name == "Torch",
+            'e': lambda i: isinstance(i, Potion),
+        }
+
+        filter_fn = SLOT_FILTERS.get(slot_key)
+        if filter_fn is None:
+            return  # No auto-refill rule for this slot
+
+        next_item = next((i for i in self.inventory.items if filter_fn(i)), None)
+        if next_item:
+            self.inventory.remove_item(next_item)
+            self.quick_bar[slot_key] = next_item
+            game_instance.message_log.add_message(
+                f"{next_item.name} auto-equipped to Quick Bar [{slot_key.upper()}].", (180, 200, 100)
+            )
+
     def use_quick_bar_item(self, slot_key, game_instance):
         item = self.quick_bar.get(slot_key)
         if item:
             # Try to use the item (consume or activate)
             if self.use_item(item, game_instance):
-                # If item was consumed (Potion or Food), clear the slot
+                # If item was consumed (Potion or Food), clear the slot then refill from inventory
                 if isinstance(item, (Potion, Food)):
                     self.quick_bar[slot_key] = None
                     game_instance.message_log.add_message(f"{item.name} consumed from Quick Bar slot '{slot_key}'.", (100, 255, 100))
+                    self._auto_refill_quick_bar_slot(slot_key, game_instance)
                 return True
             # If not consumable, try to equip it (Weapon, Armor, OffHand, Accessory)
             elif isinstance(item, (Weapon, Armor, OffHand, Accessory)):
@@ -328,6 +352,8 @@ class Player: # This is our base class for playable characters
                             f"{item.name} equipped from Quick Bar slot '{slot_key}'.",
                             (100, 255, 100)
                         )
+                        # Slot is now empty — refill it from inventory if possible
+                        self._auto_refill_quick_bar_slot(slot_key, game_instance)
                     return True
                 else:
                     # equip_item handles error messages

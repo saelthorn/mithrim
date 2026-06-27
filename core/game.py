@@ -16,6 +16,7 @@ class GameState:
     LINEAGE_SELECTION = "lineage_selection"
     CLASS_SELECTION = "class_selection"
     TRADE = "trade"
+    CHEST_MENU = "chest_menu"  # Locked chest interaction menu
     GAME_OVER = "game_over" # NEW: Add GAME_OVER state
 
 
@@ -183,6 +184,7 @@ class Game:
         self._recalculate_dimensions()
 
         self.ability_in_use = None
+        self._chest_menu_target = None  # Locked chest awaiting player's choice
         self.targeting_ability_range = 0
         self.targeting_cursor_x = 0
         self.targeting_cursor_y = 0
@@ -452,6 +454,7 @@ class Game:
         self.player = chosen_class(0, 0, player_char, self.character_name, player_color)
         self.player.race = chosen_race
         self.player.race.apply_traits(self.player, self)
+        self.player.inventory.game_instance = self
  
         # Merge racial bonuses (avoid duplicates already added by apply_traits)
         for res in chosen_race.damage_resistances:
@@ -763,6 +766,92 @@ class Game:
         # Re-sort turn order by initiative
         if spawned_count > 0:
             self.turn_order.sort(key=lambda e: e.initiative, reverse=True)
+
+    def _handle_smash_chest(self, chest):
+        """
+        Player attempts to smash open a locked chest with brute force.
+
+        Mechanics (D&D 5e flavour):
+          - DC 14 Strength check to break it open.
+          - Success:  chest opens, but one item is destroyed by the impact.
+          - Failure:  player takes 1d4 bludgeoning damage from the rebound.
+          - Either way the noise has a chance to trigger a monster ambush
+            (60% on success because of the loud crack; 35% on failure from
+            the repeated banging).
+        """
+        str_roll  = random.randint(1, 20)
+        str_mod   = self.player.get_ability_modifier(self.player.strength)
+        str_total = str_roll + str_mod
+        SMASH_DC  = 14
+
+        self.message_log.add_message(
+            f"You heave your weight against the chest! "
+            f"(STR {str_roll}{str_mod:+d} = {str_total} vs DC {SMASH_DC})",
+            (200, 150, 80)
+        )
+
+        if str_total >= SMASH_DC:
+            # --- Success ---
+            self.message_log.add_message(
+                "The chest splinters open with a CRACK!", (255, 200, 80)
+            )
+            chest.is_locked = False
+            chest.opened    = True
+            chest.char      = 'olc'
+
+            if chest.contents:
+                # Destroy one random item — it didn't survive the smash
+                destroyed = random.choice(chest.contents)
+                chest.contents.remove(destroyed)
+                self.message_log.add_message(
+                    f"The {destroyed.name} is crushed in the wreckage.", (180, 100, 60)
+                )
+
+            # Give remaining loot
+            if chest.contents:
+                items_given = []
+                for item in list(chest.contents):
+                    if self.player.inventory.add_item(item):
+                        items_given.append(item.name)
+                        chest.contents.remove(item)
+                    else:
+                        self.message_log.add_message(
+                            f"Your inventory is full! You couldn't pick up the {item.name}.",
+                            (255, 0, 0)
+                        )
+                if items_given:
+                    self.message_log.add_message(
+                        f"You salvage: {', '.join(items_given)}.", (0, 220, 100)
+                    )
+            else:
+                self.message_log.add_message("Nothing survived the smash.", (150, 150, 150))
+
+            ambush_chance = 0.60
+
+        else:
+            # --- Failure ---
+            splinter_dmg = random.randint(1, 4)
+            self.player.hp = max(0, self.player.hp - splinter_dmg)
+            self.message_log.add_message(
+                f"The chest holds! You recoil from the impact, taking {splinter_dmg} damage.",
+                (220, 80, 80)
+            )
+            if self.player.hp <= 0:
+                self.game_state = GameState.GAME_OVER
+
+            ambush_chance = 0.35
+
+        # --- Noise check — may attract nearby monsters ---
+        ambush_roll = random.random()
+        if ambush_roll < ambush_chance:
+            self.message_log.add_message(
+                "The commotion draws unwanted attention...", (255, 80, 80)
+            )
+            self.spawn_monsters_near_prison_alert(chest.x, chest.y, search_radius=8)
+        else:
+            self.message_log.add_message(
+                "The dungeon stays quiet... for now.", (120, 120, 120)
+            )
 
     def get_valid_spawn_point_in_room(self, room, game_map, max_attempts=50):
         """Get a valid spawn point within a room's actual interior."""
@@ -1657,6 +1746,29 @@ class Game:
                             if event.unicode:  # Check if the event has a unicode character
                                 self.message_log.current_input += event.unicode  # Append the character to the current input
 
+                # --- Locked Chest Menu ---
+                elif self.game_state == GameState.CHEST_MENU:
+                    if event.key == pygame.K_1:
+                        # Option 1: Pick the lock
+                        self.game_state = self._previous_game_state
+                        if self._chest_menu_target:
+                            self._chest_menu_target.open(self.player, self)
+                        self._chest_menu_target = None
+                        action_taken = True
+                    elif event.key == pygame.K_2:
+                        # Option 2: Smash the chest
+                        self.game_state = self._previous_game_state
+                        if self._chest_menu_target:
+                            self._handle_smash_chest(self._chest_menu_target)
+                        self._chest_menu_target = None
+                        action_taken = True
+                    elif event.key in (pygame.K_3, pygame.K_ESCAPE):
+                        # Option 3: Leave it alone
+                        self.message_log.add_message("You step back from the chest.", (150, 150, 150))
+                        self.game_state = self._previous_game_state
+                        self._chest_menu_target = None
+                    return True  # Consume all input while menu is open
+
                 else:
                     if event.key == pygame.K_SLASH:  # Enter key to submit input
                         if self.message_log.show_input_area:  # Check if input area is visible
@@ -2018,7 +2130,13 @@ class Game:
                                         # If no adjacent entity, check for chests at player's position
                                         chest_at_pos = self.get_chest_at(self.player.x, self.player.y)
                                         if chest_at_pos:
-                                            chest_at_pos.open(self.player, self)
+                                            if isinstance(chest_at_pos, LockedChest) and chest_at_pos.is_locked:
+                                                # Show the interaction choice menu instead of opening directly
+                                                self._chest_menu_target = chest_at_pos
+                                                self._previous_game_state = self.game_state
+                                                self.game_state = GameState.CHEST_MENU
+                                            else:
+                                                chest_at_pos.open(self.player, self)
                                             action_taken = True
                                         else:
                                             self.message_log.add_message("Nothing to interact with here.", (150, 150, 150))
@@ -3544,6 +3662,10 @@ class Game:
             pygame.display.flip() # Ensure this is drawn over everything
             return # Exit render function early during fade-out to prevent drawing underlying game
 
+        # Locked chest interaction menu — drawn over the dungeon, under nothing else
+        if self.game_state == GameState.CHEST_MENU and self._chest_menu_target:
+            self.render_chest_menu(self._chest_menu_target)
+
         # NEW: Render game over screen if in GAME_OVER state
         if self.game_state == GameState.GAME_OVER:
             self.render_game_over_screen()
@@ -3564,6 +3686,59 @@ class Game:
 
         self.dirty_rects.clear()
 
+
+    def render_chest_menu(self, chest):
+        """
+        Draws a compact choice popup over the dungeon when the player examines a locked chest.
+        Keys: [1] Pick the Lock  [2] Smash It  [3] / ESC  Leave it
+        """
+        try:
+            font_title = pygame.font.SysFont("consolas", 16, bold=True)
+            font_body  = pygame.font.SysFont("consolas", 14)
+        except Exception:
+            font_title = pygame.font.Font(None, 18)
+            font_body  = pygame.font.Font(None, 16)
+
+        # --- Layout ---
+        PAD   = 14
+        W     = 440
+        H     = 180
+        sx    = (config.GAME_AREA_WIDTH - W) // 2
+        sy    = (config.SCREEN_HEIGHT   - H) // 2
+
+        # Dark semi-transparent background
+        bg = pygame.Surface((W, H), pygame.SRCALPHA)
+        bg.fill((10, 8, 14, 220))
+        self.screen.blit(bg, (sx, sy))
+
+        # Steel-gray border (matches LockedChest color)
+        pygame.draw.rect(self.screen, (100, 110, 130), (sx, sy, W, H), 2, border_radius=4)
+
+        # Title
+        title_surf = font_title.render("  Locked Chest", True, (200, 180, 100))
+        self.screen.blit(title_surf, (sx + PAD, sy + PAD))
+
+        # Divider
+        pygame.draw.line(
+            self.screen, (60, 60, 75),
+            (sx + PAD, sy + PAD + 22), (sx + W - PAD, sy + PAD + 22)
+        )
+
+        # Options
+        options = [
+            ("[1] Pick the Lock",  "DEX check  DC 12 (Thieves' Tools required)", (160, 200, 255)),
+            ("[2] Smash It Open",  "STR check  DC 14 (Attracts monsters)", (255, 160, 100)),
+            ("[3] Leave it Alone", "ESC also cancels",                     (150, 150, 150)),
+        ]
+
+        y = sy + PAD + 32
+        for header, sub, color in options:
+            h_surf = font_body.render(header, True, color)
+            s_surf = font_body.render(f"    {sub}", True, (90, 90, 100))
+            self.screen.blit(h_surf, (sx + PAD, y))
+            y += font_body.get_linesize() + 1
+            self.screen.blit(s_surf, (sx + PAD, y))
+            y += font_body.get_linesize() + 6
 
     def render_game_over_screen(self):
         # Render background overlay with fade-in alpha after the title text

@@ -205,12 +205,12 @@ def handle_tomb_interaction(player, game_instance):
                 (200, 200, 200)
             )
 
-        game_instance.floating_texts.append(
-            FloatingText(
-                neighbour_col, neighbour_row,
-                "FAILED!", (255, 0, 0), y_speed=0.5,
-            )
-        )            
+            game_instance.floating_texts.append(
+                FloatingText(
+                    neighbour_col, neighbour_row,
+                    "FAILED!", (255, 0, 0), y_speed=0.5,
+                )
+            )            
 
         game_instance.update_fov()
         return True

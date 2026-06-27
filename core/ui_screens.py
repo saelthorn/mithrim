@@ -572,7 +572,7 @@ def render_inventory_menu_popup(game):
         ("[U]  Use",           False),
         ("[E]  Equip / Unequip", False),
         ("[D]  Drop",          False),
-        ("[Q/F]  Quick Bar",   False),
+        ("[Q/E]  Quick Bar",   False),
         ("[C]  Cancel",        True),
     ]:
         is_use = "Use" in label and isinstance(item, CampfireKit)

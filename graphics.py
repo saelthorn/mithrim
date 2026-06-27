@@ -173,7 +173,7 @@ def setup_tile_mapping():
         'O':  (5 * CELL_DIM, 5 * CELL_DIM),  # Open Chest
         # Locked chest variants — adjust all three coords to match your tileset
         'LC':  (3 * CELL_DIM, 10 * CELL_DIM),  # Locked Chest (closed)
-        'olc': (4 * CELL_DIM, 6 * CELL_DIM),  # Locked Chest (opened)
+        'olc': (5 * CELL_DIM, 5 * CELL_DIM),  # Locked Chest (opened)
         'LM':  (5 * CELL_DIM, 6 * CELL_DIM),  # Locked Chest Mimic (revealed)
         'c': (3 * CELL_DIM, 3 * CELL_DIM),  # Chair (Tavern)
         't': (4 * CELL_DIM, 3 * CELL_DIM),  # Table (Tavern)

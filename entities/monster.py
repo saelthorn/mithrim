@@ -1424,6 +1424,9 @@ class Mimic(Monster):
             
             game_instance.message_log.add_message("The object suddenly sprouts teeth and eyes! It's a MIMIC!", (255, 0, 0))
             game_instance.message_log.add_message("Prepare for battle!", (255, 100, 100))
+
+            floatingtext = FloatingText(self.x, self.y, "MIMIC!", (255, 0, 0))
+            game_instance.floating_texts.append(floatingtext)
             print(f"DEBUG: Mimic at ({self.x},{self.y}) revealed. New char: {self.char}, color: {self.color}")
             # Activate the mimic so it can take turns immediately after reveal
             self.is_active = True
@@ -1557,7 +1560,7 @@ class GoblinArcher(Monster):
         self.base_xp = 50
         self.monster_die_type = 4
         self.damage_modifier = 2
-        self.detection_range = 6
+        self.detection_range = 5
         self.num_damage_dice = 1
         self.is_ranged = True
         self.ranged_attack_bonus = 2

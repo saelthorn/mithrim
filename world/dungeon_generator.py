@@ -1164,7 +1164,7 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
                     mimic.name = "Disguised Chest Mimic"
                     game_map.tiles[chy][chx] = MimicTile(mimic, 'C', (139, 69, 19), "Chest")
                     game_map.items_on_ground.append(mimic)
-                elif random.random() < 0.30:
+                elif random.random() < 0.60:
                     if random.random() < 0.15:
                         # Locked chest mimic — rarer and more dangerous than a regular chest mimic
                         mimic = Mimic(chx, chy, 'LC', (100, 110, 130))
