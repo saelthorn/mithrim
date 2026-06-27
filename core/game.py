@@ -62,7 +62,7 @@ from core.message_log import MessageBox
 from core.status_effects import ParryBuff, PowerAttackBuff, DivineStrikeBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
 
 from items.items import (
-    Potion, Weapon, Armor, Chest, LockedChest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
+    Potion, Weapon, Armor, OffHand, Chest, LockedChest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
     bread, mushroom, CampfireKit, torch, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, 
     iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, 
     apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail, 
@@ -1801,8 +1801,8 @@ class Game:
                             # but it doesn't necessarily mean the player's turn is consumed.
                             # The message is already logged by use_quick_bar_item.
                             pass
-                    elif event.key == pygame.K_f:
-                        if self.player.use_quick_bar_item('f', self):
+                    elif event.key == pygame.K_e:
+                        if self.player.use_quick_bar_item('e', self):
                             action_taken = True
                         else:
                             pass
@@ -2271,6 +2271,20 @@ class Game:
                 return item
         return None
 
+    def _auto_equip_quick_bar(self, item):
+        """After picking up a torch or potion, auto-place it in the matching quick bar slot if empty.
+        
+        Slot Q → Torch (OffHand with name 'Torch')
+        Slot F → any Potion
+        """
+        is_torch  = isinstance(item, OffHand) and item.name == "Torch"
+        is_potion = isinstance(item, Potion)
+
+        if is_torch and self.player.quick_bar.get('q') is None:
+            self.player.equip_to_quick_bar(item, 'q', self)
+        elif is_potion and self.player.quick_bar.get('e') is None:
+            self.player.equip_to_quick_bar(item, 'e', self)
+
     def handle_item_pickup(self):
         """Check for items at player's position and pick them up."""
         items_at_player_pos = [item for item in self.game_map.items_on_ground if item.x == self.player.x and item.y == self.player.y and not isinstance(item, Monster)]
@@ -2290,6 +2304,8 @@ class Game:
                 self.player.update_thieves_tools_ability()
                 self.player.update_guard_ability()
                 self.player.update_holy_symbol_abilities()
+                # Auto-slot torches into Q and potions into E when those slots are free
+                self._auto_equip_quick_bar(item_to_pick_up)
                 self.update_fov() # Update FOV to reflect item removal
                 return True
             else:
@@ -2373,8 +2389,8 @@ class Game:
                 action_taken_in_menu = False
             else:
                 self.message_log.add_message(f"Cannot equip {self.selected_inventory_item.name} to Quick Bar (Q).", (255, 100, 100))
-        elif key == pygame.K_f: # New key for quick bar slot 'f'
-            if self.player.equip_to_quick_bar(self.selected_inventory_item, 'f', self):
+        elif key == pygame.K_e: # New key for quick bar slot 'f'
+            if self.player.equip_to_quick_bar(self.selected_inventory_item, 'e', self):
                 self.player.update_throw_knife_ability()
                 self.player.update_spellbook_abilities()
                 self.player.update_thieves_tools_ability()

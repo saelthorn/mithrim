@@ -164,7 +164,7 @@ class Player: # This is our base class for playable characters
         
         self.quick_bar = {
             'q': None,  # Slot for 'q' key
-            'f': None   # Slot for 'f' key
+            'e': None   # Slot for 'e' key
         }
 
 

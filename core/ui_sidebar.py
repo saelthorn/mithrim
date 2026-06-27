@@ -277,7 +277,7 @@ def draw_sidebar(game) -> None:
     _quick_slot(screen, fKy, fSm, x0,           y, slot_w, slot_h,
                 "q", player.quick_bar.get("q"))
     _quick_slot(screen, fKy, fSm, x0 + slot_w + 4, y, slot_w, slot_h,
-                "f", player.quick_bar.get("f"))
+                "e", player.quick_bar.get("e"))
     y += slot_h + 12
 
     # ════════════════════════════════════════════════════════════════════
@@ -368,20 +368,17 @@ def _build_controls(game) -> list[str]:
             controls.append(f"F → talk to {npc.name}")
         controls += ["arrows/WASD  move", "I  inventory", "C  character"]
     elif gs == "dungeon":
-        sd = game.check_stairs_interaction()
-        if sd:
-            controls.append(f"{'<' if sd == 'up' else '>'}  {'ascend' if sd == 'up' else 'descend'}")
         npc = game.check_dungeon_npc_interaction()
         if npc:
             controls.append(f"F → {npc.name}")
         else:
-            controls.append("SPACE  attack / pick up")
-        controls += ["arrows/WASD  move", "1-9  abilities",
-                     "I  inventory", "C  character", "Q/F  quick bar"]
+            controls.append("SPACE  attack / pick up / interact")
+        controls += ["T  skip turn", "R  rest",
+                     "I  inventory", "C  character sheet", ]
     elif gs == "inventory":
         controls += ["I  close", "↑↓  navigate", "Enter  select"]
     elif gs == "inventory_menu":
-        controls += ["U  use", "E  equip", "D  drop", "C  cancel"]
+        controls += ["U  use", "E  equip", "D  drop", "C  cancel", "Q/E  equip to Quick Bar"]
     elif gs == "character_menu":
         controls += ["C  close", "I  inventory"]
     elif gs == "trade":
