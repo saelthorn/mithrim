@@ -1,5 +1,5 @@
 import random
-from world.tile import TombTile, floor, wall
+from world.tile import TombTile, DisturbedTombTile, floor, wall
 from world.water_features import is_water_tile
 from core.floating_text import FloatingText
 
@@ -56,7 +56,8 @@ def generate_crypt(game_map, room, stairs_positions):
                 (x, y) not in stairs_positions.values()):
                 tomb_candidates.append((x, y))
 
-    if not tomb_candidates:
+    # Need at least 2 candidates to satisfy randint(2, ...)
+    if len(tomb_candidates) < 2:
         return None
 
     # Place 2-4 tombs randomly
@@ -121,6 +122,7 @@ def handle_tomb_interaction(player, game_instance):
             is_skeleton_spawn = disturb_roll < 0.6  # 60% chance for skeleton, 40% for item
 
             neighbour_tile.is_disturbed = True
+            game_map.tiles[neighbour_row][neighbour_col] = DisturbedTombTile()
 
             if is_skeleton_spawn:
                 # ── Spawn skeleton ──────────────────────────────────────────────

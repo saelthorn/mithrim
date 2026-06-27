@@ -1676,7 +1676,6 @@ class Wizard(Player):
         self.equipped_helmet = mages_circlet
         self.equipped_armor = robes
         self.equipped_boots = leather_boots
-        self.equipped_focus = spell_book
         
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
         # These calculations MUST happen AFTER race traits are applied.
@@ -1736,13 +1735,13 @@ class Cleric(Player):
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
         self.inventory.add_item(torch)
-        self.inventory.add_item(holy_symbol)
 
         self.equipped_weapon = steel_mace
         self.equipped_off_hand = kite_shield
         self.equipped_helmet = leather_cap
         self.equipped_armor = scale_mail_armor
         self.equipped_boots = leather_boots
+        self.equipped_focus = holy_symbol
         
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
         # These calculations MUST happen

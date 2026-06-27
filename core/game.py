@@ -292,7 +292,7 @@ class Game:
  
             # ── Dragonborn lineages ────────────────────────────────────────
             ("Red Dragonborn",   "Fighter"): ("RDF", (180,  40,  20)),
-            ("Red Dragonborn",   "Rogue"):   ("RDR", (160,  30,  10)),
+            ("Red Dragonborn",   "Rogue"):   ("DBR", (160,  30,  10)),
             ("Red Dragonborn",   "Wizard"):  ("RDW", (220,  60,  30)),
             ("Red Dragonborn",   "Cleric"):  ("RDC", (255, 200,  60)),
             ("Blue Dragonborn",  "Fighter"): ("BDF", ( 40,  80, 200)),

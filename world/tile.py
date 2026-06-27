@@ -101,7 +101,7 @@ class TombTile(Tile):
     """Ancient tomb that can be disturbed to spawn skeletons or drop loot."""
     def __init__(self):
         super().__init__(
-            blocked=False,
+            blocked=True,
             char='tm',
             color=(150, 130, 120),
             block_sight=False,
@@ -110,7 +110,22 @@ class TombTile(Tile):
         )
         self.is_disturbed = False
         self.is_not_disturbed = True
-        
+
+
+class DisturbedTombTile(Tile):
+    """A tomb that has already been opened — uses the 'otm' (Open Tomb) sprite."""
+    def __init__(self):
+        super().__init__(
+            blocked=False,
+            char='otm',
+            color=(110, 95, 85),
+            block_sight=False,
+            destructible=False,
+            name="Disturbed Tomb",
+        )
+        self.is_disturbed = True
+
+
 class PrisonDoorTile(Tile):
     """Locked prison door. Can be opened via a skill check."""
     def __init__(self):
@@ -154,4 +169,4 @@ class FireElementalTile:
         Returns True when the fire has fully burned out (caller restores underlying tile).
         """
         self.turns_remaining -= 1
-        return self.turns_remaining <= 0        
+        return self.turns_remaining <= 0
