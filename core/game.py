@@ -3800,113 +3800,169 @@ class Game:
     def render_shop_menu(self):
         """
         Draws the merchant shop overlay.
-        ↑↓ navigate  TAB switch buy/sell  ENTER confirm  ESC close
+        ↑↓ navigate  TAB switch buy/sell  ENTER confirm  ESC / F close
+
+        Layout is fully dynamic: the panel width fits the longest item name,
+        and the row count scales to fill ~75 % of the screen height.
         """
         merchant = self._shop_menu_merchant
         if not merchant:
             return
 
         try:
-            font_title = pygame.font.SysFont("consolas", 16, bold=True)
-            font_body  = pygame.font.SysFont("consolas", 13)
-            font_small = pygame.font.SysFont("consolas", 12)
+            font_title = pygame.font.SysFont("consolas", 18, bold=True)
+            font_body  = pygame.font.SysFont("consolas", 15)
+            font_small = pygame.font.SysFont("consolas", 13)
         except Exception:
-            font_title = pygame.font.Font(None, 18)
-            font_body  = pygame.font.Font(None, 15)
-            font_small = pygame.font.Font(None, 14)
+            font_title = pygame.font.Font(None, 20)
+            font_body  = pygame.font.Font(None, 17)
+            font_small = pygame.font.Font(None, 15)
 
-        PAD      = 12
-        W        = 480
-        MAX_ROWS = 10
-        ROW_H    = font_body.get_linesize() + 3
+        PAD   = 16
+        ROW_H = font_body.get_linesize() + 5
 
-        # Total height: title + divider + tabs + divider + rows + footer divider + footer
-        H = PAD + 20 + 6 + font_body.get_linesize() + 4 + 6 + MAX_ROWS * ROW_H + 4 + font_small.get_linesize() + PAD
+        # ── Dynamic width ─────────────────────────────────────────────────
+        # Measure the widest item name in both lists so the panel never clips.
+        all_names = (
+            [item.name for item in merchant.items_for_sale]
+            + [item.name for item in self.player.inventory.items]
+        )
+        max_name_px = max(
+            (font_body.size(f"  >  {n}")[0] for n in all_names),
+            default=0
+        )
+        price_col_w  = font_body.size("9999 gp")[0] + PAD
+        min_w        = font_title.size(f"  {merchant.name}")[0] + font_small.size("Gold: 99999 gp  ")[0] + PAD * 3
+        W = max(560, min_w, max_name_px + price_col_w + PAD * 3)
+        W = min(W, config.GAME_AREA_WIDTH - PAD * 4)   # never wider than the game area
+
+        # ── Dynamic row count ─────────────────────────────────────────────
+        # Fixed chrome: title-row + div + tab-row + div + footer-div + footer
+        CHROME_H = (PAD                          # top padding
+                    + font_title.get_linesize()  # title
+                    + 6                          # divider gap
+                    + font_body.get_linesize()   # tab row
+                    + 8                          # divider gap
+                    + 6                          # pre-footer divider gap
+                    + font_small.get_linesize()  # footer
+                    + PAD)                       # bottom padding
+        available_h = int(config.SCREEN_HEIGHT * 0.80)
+        MAX_ROWS    = max(6, (available_h - CHROME_H) // ROW_H)
+        H           = CHROME_H + MAX_ROWS * ROW_H
 
         sx = (config.GAME_AREA_WIDTH - W) // 2
         sy = (config.SCREEN_HEIGHT   - H) // 2
 
-        # --- Background + border ---
+        # ── Background + double border ────────────────────────────────────
         bg = pygame.Surface((W, H), pygame.SRCALPHA)
-        bg.fill((10, 8, 14, 225))
+        bg.fill((12, 9, 18, 235))
         self.screen.blit(bg, (sx, sy))
-        pygame.draw.rect(self.screen, (180, 150, 60), (sx, sy, W, H), 2, border_radius=4)
+        pygame.draw.rect(self.screen, (120, 100, 40), (sx, sy, W, H), 1, border_radius=6)
+        pygame.draw.rect(self.screen, (200, 165, 70), (sx + 2, sy + 2, W - 4, H - 4), 1, border_radius=5)
 
-        # --- Title row ---
-        title_surf = font_title.render(f"  {merchant.name}", True, (255, 215, 80))
-        gold_surf  = font_small.render(f"Gold: {self.player.gold} gp  ", True, (255, 215, 80))
-        self.screen.blit(title_surf, (sx + PAD, sy + PAD))
-        self.screen.blit(gold_surf,  (sx + W - gold_surf.get_width() - PAD, sy + PAD + 2))
+        # ── Title row ─────────────────────────────────────────────────────
+        cur_y      = sy + PAD
+        title_surf = font_title.render(f"  {merchant.name}", True, (255, 220, 90))
+        gold_text  = f"Gold: {self.player.gold} gp"
+        gold_surf  = font_body.render(gold_text, True, (220, 190, 60))
+        self.screen.blit(title_surf, (sx + PAD, cur_y))
+        self.screen.blit(gold_surf,  (sx + W - gold_surf.get_width() - PAD, cur_y + 2))
+        cur_y += font_title.get_linesize() + 4
 
-        # --- Divider ---
-        div1_y = sy + PAD + 24
-        pygame.draw.line(self.screen, (80, 70, 30), (sx + PAD, div1_y), (sx + W - PAD, div1_y))
+        # ── Divider ───────────────────────────────────────────────────────
+        pygame.draw.line(self.screen, (90, 75, 30), (sx + PAD, cur_y), (sx + W - PAD, cur_y))
+        cur_y += 6
 
-        # --- Mode tabs ---
-        tab_y    = div1_y + 4
-        buy_col  = (255, 215, 80) if self._shop_mode == "buy"  else (90, 90, 90)
-        sell_col = (255, 215, 80) if self._shop_mode == "sell" else (90, 90, 90)
-        buy_tab  = font_body.render("[ BUY ]",  True, buy_col)
-        sell_tab = font_body.render("[ SELL ]", True, sell_col)
-        hint_tab = font_small.render("TAB to switch", True, (70, 70, 70))
-        self.screen.blit(buy_tab,  (sx + PAD, tab_y))
-        self.screen.blit(sell_tab, (sx + PAD + buy_tab.get_width() + 14, tab_y))
-        self.screen.blit(hint_tab, (sx + W - hint_tab.get_width() - PAD, tab_y + 2))
+        # ── Mode tabs ─────────────────────────────────────────────────────
+        is_buy   = self._shop_mode == "buy"
+        buy_col  = (255, 220, 80) if is_buy  else (75, 75, 75)
+        sell_col = (255, 220, 80) if not is_buy else (75, 75, 75)
+        buy_surf  = font_body.render("[ BUY ]",  True, buy_col)
+        sell_surf = font_body.render("[ SELL ]", True, sell_col)
+        tab_hint  = font_small.render("TAB to switch", True, (65, 65, 65))
 
-        # --- Divider ---
-        div2_y = tab_y + font_body.get_linesize() + 4
-        pygame.draw.line(self.screen, (80, 70, 30), (sx + PAD, div2_y), (sx + W - PAD, div2_y))
+        # Underline the active tab
+        active_surf = buy_surf if is_buy else sell_surf
+        active_x    = sx + PAD if is_buy else sx + PAD + buy_surf.get_width() + 16
+        pygame.draw.line(
+            self.screen, (220, 180, 60),
+            (active_x, cur_y + active_surf.get_height()),
+            (active_x + active_surf.get_width(), cur_y + active_surf.get_height()),
+            2
+        )
+        self.screen.blit(buy_surf,  (sx + PAD, cur_y))
+        self.screen.blit(sell_surf, (sx + PAD + buy_surf.get_width() + 16, cur_y))
+        self.screen.blit(tab_hint,  (sx + W - tab_hint.get_width() - PAD, cur_y + 3))
+        cur_y += font_body.get_linesize() + 6
 
-        # --- Item list ---
-        items = merchant.items_for_sale if self._shop_mode == "buy" else self.player.inventory.items
+        # ── Divider ───────────────────────────────────────────────────────
+        pygame.draw.line(self.screen, (90, 75, 30), (sx + PAD, cur_y), (sx + W - PAD, cur_y))
+        cur_y += 4
+        list_start_y = cur_y
+
+        # ── Item list ─────────────────────────────────────────────────────
+        items = merchant.items_for_sale if is_buy else self.player.inventory.items
         sel   = self._shop_selected_index
 
-        # Scroll so the selected item stays visible
         scroll_top = max(0, sel - MAX_ROWS // 2)
         scroll_top = min(scroll_top, max(0, len(items) - MAX_ROWS))
         visible    = items[scroll_top : scroll_top + MAX_ROWS]
 
-        list_y = div2_y + 4
         for i, item in enumerate(visible):
             actual_idx = scroll_top + i
-            is_sel = (actual_idx == sel)
+            is_sel     = (actual_idx == sel)
+            row_y      = list_start_y + i * ROW_H
 
-            # Highlight row background
+            # Highlighted row background
             if is_sel:
-                row_bg = pygame.Surface((W - PAD * 2, ROW_H), pygame.SRCALPHA)
-                row_bg.fill((60, 50, 10, 180))
-                self.screen.blit(row_bg, (sx + PAD, list_y))
+                row_bg = pygame.Surface((W - PAD * 2, ROW_H - 1), pygame.SRCALPHA)
+                row_bg.fill((70, 55, 10, 200))
+                self.screen.blit(row_bg, (sx + PAD, row_y))
+
+            # Alternating subtle stripe for unselected rows
+            elif i % 2 == 0:
+                stripe = pygame.Surface((W - PAD * 2, ROW_H - 1), pygame.SRCALPHA)
+                stripe.fill((255, 255, 255, 8))
+                self.screen.blit(stripe, (sx + PAD, row_y))
 
             pointer  = ">" if is_sel else " "
-            name_col = (255, 240, 160) if is_sel else (200, 200, 200)
+            name_col = (255, 245, 160) if is_sel else (210, 210, 210)
 
-            if self._shop_mode == "buy":
+            if is_buy:
                 price_val = item.price
                 price_str = f"{price_val} gp"
-                price_col = (100, 220, 100) if self.player.gold >= price_val else (200, 80, 80)
+                price_col = (90, 210, 90) if self.player.gold >= price_val else (210, 70, 70)
             else:
                 price_val = item.price // 2
                 price_str = f"{price_val} gp"
-                price_col = (100, 200, 255)
+                price_col = (90, 190, 255)
 
-            name_surf  = font_body.render(f" {pointer} {item.name}", True, name_col)
+            # Scroll indicator arrows when list overflows
+            if i == 0 and scroll_top > 0:
+                arrow_surf = font_small.render("▲ more", True, (130, 130, 80))
+                self.screen.blit(arrow_surf, (sx + W - arrow_surf.get_width() - PAD, row_y))
+            elif i == len(visible) - 1 and (scroll_top + MAX_ROWS) < len(items):
+                arrow_surf = font_small.render("▼ more", True, (130, 130, 80))
+                self.screen.blit(arrow_surf, (sx + W - arrow_surf.get_width() - PAD, row_y + ROW_H // 2))
+
+            name_surf  = font_body.render(f"  {pointer}  {item.name}", True, name_col)
             price_surf = font_body.render(price_str, True, price_col)
-            self.screen.blit(name_surf,  (sx + PAD, list_y))
-            self.screen.blit(price_surf, (sx + W - price_surf.get_width() - PAD, list_y))
-            list_y += ROW_H
+            self.screen.blit(name_surf,  (sx + PAD, row_y + 2))
+            self.screen.blit(price_surf, (sx + W - price_surf.get_width() - PAD, row_y + 2))
 
-        # Empty-list message
+        # Empty-list placeholder
         if not items:
-            empty_msg = "Nothing for sale." if self._shop_mode == "buy" else "Your inventory is empty."
-            empty_surf = font_body.render(empty_msg, True, (90, 90, 90))
-            self.screen.blit(empty_surf, (sx + PAD * 2, list_y))
+            empty_msg  = "Nothing for sale." if is_buy else "Your inventory is empty."
+            empty_surf = font_body.render(empty_msg, True, (80, 80, 80))
+            self.screen.blit(empty_surf, (sx + PAD * 2, list_start_y + ROW_H))
 
-        # --- Footer ---
+        # ── Footer ────────────────────────────────────────────────────────
         footer_y = sy + H - font_small.get_linesize() - PAD
-        pygame.draw.line(self.screen, (80, 70, 30), (sx + PAD, footer_y - 4), (sx + W - PAD, footer_y - 4))
-        hint = "↑↓ Navigate   ENTER Confirm   ESC / F  Close"
-        hint_surf = font_small.render(hint, True, (80, 80, 80))
-        self.screen.blit(hint_surf, (sx + PAD, footer_y))
+        pygame.draw.line(self.screen, (90, 75, 30), (sx + PAD, footer_y - 5), (sx + W - PAD, footer_y - 5))
+        hint      = "↑↓ Navigate    ENTER Confirm    TAB Switch    ESC / F  Close"
+        hint_surf = font_small.render(hint, True, (85, 85, 85))
+        # Centre the hint
+        self.screen.blit(hint_surf, (sx + (W - hint_surf.get_width()) // 2, footer_y))
 
     def render_game_over_screen(self):        # Render background overlay with fade-in alpha after the title text
         if self.death_screen_animation_phase >= 1:
