@@ -1,3 +1,4 @@
+import copy
 import random
 
 from core.game import GameState
@@ -1044,40 +1045,93 @@ thieves_tools = Tools(
 )
 
 
-# Example function to create random loot for a chest
-def generate_random_loot(level_number):
-    loot = []
-    # Basic loot pool
-    loot_pool = [
-        lesser_healing_potion, greater_healing_potion, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor,
-        robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, 
-        apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail,
-        round_shield, kite_shield, tower_shield, torch, throwing_knife, spell_book, holy_symbol, flameheart_short_sword, 
-        flameheart_flail, scale_mail_armor, full_plate_armor, robes_of_protection,
-        leather_cap, iron_helmet, steel_helmet, great_helm, mages_circlet, hood_of_shadows,
-        leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,
-    ]
+# ── Loot Tables ───────────────────────────────────────────────────────────────
 
-    # Add 1-3 random items
-    num_items = random.randint(1, 2)
-    for _ in range(num_items):
-        chosen_item_template = random.choice(loot_pool)
-        # Create a new instance of the item
-        new_item = chosen_item_template.__class__(
-            name=chosen_item_template.name,
-            char=chosen_item_template.char,
-            color=chosen_item_template.color,
-            description=chosen_item_template.description,
-            **{k: v for k, v in chosen_item_template.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
-        )
-        loot.append(new_item)
-    return loot
+# Tier 1: Common gear found in early floors (levels 1-3)
+_LOOT_TIER_1 = [
+    lesser_healing_potion, lesser_healing_potion,  # weighted up — potions are common
+    torch, torch,
+    mushroom, carrot, green_apple, bread,
+    wood_plank,
+    iron_dagger, bronze_short_sword, iron_short_sword,
+    oak_staff, iron_hammer,
+    padded_armor, robes, leather_cap, leather_boots,
+    round_shield,
+    throwing_knife, thieves_tools,
+]
+
+# Tier 2: Uncommon gear found in mid floors (levels 3-5)
+_LOOT_TIER_2 = [
+    lesser_healing_potion, greater_healing_potion,
+    fromage, meat, bread,
+    silver_dagger, iron_long_sword, steel_long_sword,
+    steel_rapier, steel_battle_axe, pole_arm,
+    steel_mace, dwarven_flail, glass_orb,
+    studded_leather_armor, chainmail_armor, scale_mail_armor,
+    kite_shield, round_shield,
+    iron_helmet, steel_helmet, iron_greaves,
+    boots_of_stealth,
+    spell_book, holy_symbol,
+]
+
+# Tier 3: Rare gear found in deep floors (levels 5+)
+_LOOT_TIER_3 = [
+    greater_healing_potion, greater_healing_potion,
+    flameheart_short_sword, flameheart_flail,
+    steel_maul, dwarven_battle_axe, adamantine_long_sword,
+    dragonsbane_warhammer, duelists_rapier,
+    apprentices_staff, staff_of_magi, sturdy_quarterstaff,
+    orb_of_chaos,
+    half_plate_armor, full_plate_armor, robes_of_protection,
+    tower_shield, kite_shield,
+    great_helm, mages_circlet, hood_of_shadows,
+    boots_of_speed, dwarven_stompers,
+    spell_book, holy_symbol,
+]
+
+
+def _copy_item(template):
+    """Return a clean deep copy of an item template."""
+    item = copy.deepcopy(template)
+    item.owner = None
+    item.x = -1
+    item.y = -1
+    return item
+
+
+def _pick_from_tiers(level_number):
+    """Pick one item from a tier appropriate for the given dungeon level."""
+    if level_number <= 2:
+        weights = [80, 18, 2]
+    elif level_number <= 4:
+        weights = [45, 40, 15]
+    else:
+        weights = [15, 35, 50]
+
+    tier = random.choices([_LOOT_TIER_1, _LOOT_TIER_2, _LOOT_TIER_3], weights=weights, k=1)[0]
+    return _copy_item(random.choice(tier))
+
+
+def generate_random_loot(level_number):
+    """Generate loot for a regular chest.
+
+    ~20% chance the chest is empty.
+    Otherwise drops 1-2 items weighted toward the current dungeon tier.
+    """
+    # Empty chest — nothing found
+    if random.random() < 0.20:
+        return []
+
+    num_items = random.choices([1, 2], weights=[70, 30], k=1)[0]
+    return [_pick_from_tiers(level_number) for _ in range(num_items)]
 
 
 def generate_locked_loot(level_number):
-    """Better loot for locked chests — always yields 2 items as a reward for picking the lock."""
-    loot = generate_random_loot(level_number)
-    # Guarantee a second item (locked chests should feel rewarding)
-    extra = generate_random_loot(level_number)
-    loot.extend(extra)
-    return loot
+    """Better loot for locked chests — always at least 1 item, skewed toward higher tiers.
+
+    Locked chests should feel rewarding for spending Thieves' Tools and passing the DC check.
+    """
+    # Locked chests always have something (never empty) and lean toward tier 2/3
+    boosted_level = level_number + 2
+    num_items = random.choices([1, 2, 3], weights=[30, 50, 20], k=1)[0]
+    return [_pick_from_tiers(boosted_level) for _ in range(num_items)]
