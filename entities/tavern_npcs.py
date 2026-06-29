@@ -104,24 +104,12 @@ class Merchant(NPC):
                 self.items_for_sale.append(new_item)
 
     def offer_trade(self, player, game):
-        """Handle the trading logic with the player."""
-        game.message_log.add_message(f"{self.name}: Welcome, traveler! Care to browse my wares?", (0, 255, 0))
-        game.message_log.add_message("Items for sale:", (200, 200, 255))
-
-        # Display items for sale
-        for item in self.items_for_sale:
-            game.message_log.add_message(f"{item.name} - {item.price} gold", (255, 255, 255))
-
-        # Allow player to buy or sell
-        game.message_log.add_message("Type 'buy {item}' to buy and 'sell {item}' to sell.", (200, 200, 255))
-        game.message_log.add_message("Or use 'buy all food', 'sell all weapons', or 'sell all armor'.", (200, 200, 255))
-        game.message_log.add_message("Type your input:", (200, 200, 255))
-        game.message_log.add_message(" ", (200, 200, 255))
-
-        # Set the game state to trade temporarily
-        game.game_state = GameState.TRADE  # Set game state to trade
-        game.message_log.show_input_area = True  # Show input area for trade input
-        game.message_log.current_input = ""  # Clear input when activating the input area
+        """Open the shop menu overlay instead of the legacy text-input trade flow."""
+        game._previous_game_state  = game.game_state
+        game._shop_menu_merchant   = self
+        game._shop_selected_index  = 0
+        game._shop_mode            = "buy"
+        game.game_state            = GameState.SHOP_MENU
 
 
 
@@ -165,18 +153,21 @@ class Merchant(NPC):
             if item.name.lower() == item_name.lower():
                 if player.gold >= item.price:
                     player.gold -= item.price
-    
-                    # Create a new instance of the item to add to player inventory
-                    new_item = item.__class__(
-                        name=item.name,
-                        char=item.char,
-                        color=item.color,
-                        description=item.description,
-                        **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
-                    )
-    
+
+                    # CampfireKit has no-arg __init__; everything else uses the generic clone
+                    if isinstance(item, CampfireKit):
+                        new_item = CampfireKit()
+                    else:
+                        new_item = item.__class__(
+                            name=item.name,
+                            char=item.char,
+                            color=item.color,
+                            description=item.description,
+                            **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                        )
+
                     if player.inventory.add_item(new_item):
-                        self.items_for_sale.remove(item)  # Remove the original from merchant
+                        self.items_for_sale.remove(item)
                         player.update_throw_knife_ability()
                         player.update_spellbook_abilities()
                         player.update_guard_ability()
@@ -302,6 +293,3 @@ def create_tavern_npcs(game_map, door_position, game_instance):
         npcs.append(tavern_healer)
 
     return npcs
-
-
-

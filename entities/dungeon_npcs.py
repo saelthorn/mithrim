@@ -137,24 +137,12 @@ class DungeonMerchant(NPC):
                 self.items_for_sale.append(new_item)
 
     def offer_trade(self, player, game):
-        """Handle the trading logic with the player."""
-        game.message_log.add_message(f"{self.name}: Welcome, traveler! Care to browse my wares?", (0, 255, 0))
-        game.message_log.add_message("Items for sale:", (200, 200, 255))
-
-        # Display items for sale
-        for item in self.items_for_sale:
-            game.message_log.add_message(f"{item.name} - {item.price} gold", (255, 255, 255))
-
-        # Allow player to buy or sell
-        game.message_log.add_message("Type 'buy {item}' to buy and 'sell {item}' to sell.", (200, 200, 255))
-        game.message_log.add_message("Or use 'buy all food', 'sell all weapons' or 'sell all armor'.", (200, 200, 255))
-        game.message_log.add_message("Type your input:", (200, 200, 255))
-        game.message_log.add_message(" ", (200, 200, 255))
-
-        # Set the game state to trade temporarily
-        game.game_state = GameState.TRADE  # Set game state to trade
-        game.message_log.show_input_area = True  # Show input area for trade input
-        game.message_log.current_input = ""  # Clear input when activating the input area
+        """Open the shop menu overlay instead of the legacy text-input trade flow."""
+        game._previous_game_state  = game.game_state
+        game._shop_menu_merchant   = self
+        game._shop_selected_index  = 0
+        game._shop_mode            = "buy"
+        game.game_state            = GameState.SHOP_MENU
 
 
 
@@ -404,4 +392,3 @@ class PrisonerNPC(NPC):
                 f"Inventory full! The {self.reward_item.name} drops to the floor.",
                 self.reward_item.color,
             )
-

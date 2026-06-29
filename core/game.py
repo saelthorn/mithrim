@@ -17,6 +17,7 @@ class GameState:
     CLASS_SELECTION = "class_selection"
     TRADE = "trade"
     CHEST_MENU = "chest_menu"  # Locked chest interaction menu
+    SHOP_MENU  = "shop_menu"   # Merchant shop overlay
     GAME_OVER = "game_over" # NEW: Add GAME_OVER state
 
 
@@ -185,6 +186,9 @@ class Game:
 
         self.ability_in_use = None
         self._chest_menu_target = None  # Locked chest awaiting player's choice
+        self._shop_menu_merchant = None   # Active merchant for shop overlay
+        self._shop_selected_index = 0     # Highlighted item index in shop
+        self._shop_mode = "buy"           # "buy" or "sell"
         self.targeting_ability_range = 0
         self.targeting_cursor_x = 0
         self.targeting_cursor_y = 0
@@ -1769,6 +1773,11 @@ class Game:
                         self._chest_menu_target = None
                     return True  # Consume all input while menu is open
 
+                # --- Shop Menu ---
+                elif self.game_state == GameState.SHOP_MENU:
+                    self.handle_shop_menu_input(event.key)
+                    return True
+
                 else:
                     if event.key == pygame.K_SLASH:  # Enter key to submit input
                         if self.message_log.show_input_area:  # Check if input area is visible
@@ -1904,7 +1913,7 @@ class Game:
                             return True  # Consume event
 
                 # --- Quick Bar Key Presses ---
-                if self.game_state not in [GameState.CHARACTER_CREATION, GameState.CLASS_SELECTION, GameState.GAME_OVER, GameState.TRADE]:
+                if self.game_state not in [GameState.CHARACTER_CREATION, GameState.CLASS_SELECTION, GameState.GAME_OVER, GameState.TRADE, GameState.SHOP_MENU]:
                     if event.key == pygame.K_q:
                         if self.player.use_quick_bar_item('q', self):
                             action_taken = True
@@ -2239,7 +2248,51 @@ class Game:
             return # Input handled 
 
 
-    def handle_text_input(self, input_text):
+    def handle_shop_menu_input(self, key):
+        """Handles keyboard input while the shop overlay is open."""
+        merchant = self._shop_menu_merchant
+        if not merchant:
+            self.game_state = self._previous_game_state
+            return
+
+        # Current item list depends on mode
+        buy_items  = merchant.items_for_sale
+        sell_items = self.player.inventory.items
+        items      = buy_items if self._shop_mode == "buy" else sell_items
+
+        if key in (pygame.K_UP, pygame.K_w):
+            self._shop_selected_index = max(0, self._shop_selected_index - 1)
+
+        elif key in (pygame.K_DOWN, pygame.K_s):
+            self._shop_selected_index = min(len(items) - 1, self._shop_selected_index + 1)
+
+        elif key == pygame.K_TAB:
+            # Switch between buy and sell tabs
+            self._shop_mode = "sell" if self._shop_mode == "buy" else "buy"
+            self._shop_selected_index = 0
+
+        elif key == pygame.K_RETURN:
+            if not items or not (0 <= self._shop_selected_index < len(items)):
+                return
+            selected = items[self._shop_selected_index]
+            if self._shop_mode == "buy":
+                result = merchant.buy_item(self.player, selected.name)
+                self.message_log.add_message(result, (255, 240, 160))
+                # Clamp index if the list shrank after a purchase
+                self._shop_selected_index = max(0, min(self._shop_selected_index, len(merchant.items_for_sale) - 1))
+            else:
+                result = merchant.sell_item(self.player, selected.name)
+                self.message_log.add_message(result, (160, 240, 255))
+                self._shop_selected_index = max(0, min(self._shop_selected_index, len(self.player.inventory.items) - 1))
+
+        elif key in (pygame.K_ESCAPE, pygame.K_f):
+            # Close the shop and return to the previous game state
+            self.game_state = self._previous_game_state
+            self._shop_menu_merchant = None
+            self._shop_selected_index = 0
+            self._shop_mode = "buy"
+
+    def handle_text_input(self, input_text):        
         """Handles text input from the player."""
         input_text = input_text.lower()
 
@@ -3666,6 +3719,10 @@ class Game:
         if self.game_state == GameState.CHEST_MENU and self._chest_menu_target:
             self.render_chest_menu(self._chest_menu_target)
 
+        # Merchant shop overlay — drawn over the dungeon, under nothing else
+        if self.game_state == GameState.SHOP_MENU and self._shop_menu_merchant:
+            self.render_shop_menu()
+
         # NEW: Render game over screen if in GAME_OVER state
         if self.game_state == GameState.GAME_OVER:
             self.render_game_over_screen()
@@ -3740,8 +3797,118 @@ class Game:
             self.screen.blit(s_surf, (sx + PAD, y))
             y += font_body.get_linesize() + 6
 
-    def render_game_over_screen(self):
-        # Render background overlay with fade-in alpha after the title text
+    def render_shop_menu(self):
+        """
+        Draws the merchant shop overlay.
+        ↑↓ navigate  TAB switch buy/sell  ENTER confirm  ESC close
+        """
+        merchant = self._shop_menu_merchant
+        if not merchant:
+            return
+
+        try:
+            font_title = pygame.font.SysFont("consolas", 16, bold=True)
+            font_body  = pygame.font.SysFont("consolas", 13)
+            font_small = pygame.font.SysFont("consolas", 12)
+        except Exception:
+            font_title = pygame.font.Font(None, 18)
+            font_body  = pygame.font.Font(None, 15)
+            font_small = pygame.font.Font(None, 14)
+
+        PAD      = 12
+        W        = 480
+        MAX_ROWS = 10
+        ROW_H    = font_body.get_linesize() + 3
+
+        # Total height: title + divider + tabs + divider + rows + footer divider + footer
+        H = PAD + 20 + 6 + font_body.get_linesize() + 4 + 6 + MAX_ROWS * ROW_H + 4 + font_small.get_linesize() + PAD
+
+        sx = (config.GAME_AREA_WIDTH - W) // 2
+        sy = (config.SCREEN_HEIGHT   - H) // 2
+
+        # --- Background + border ---
+        bg = pygame.Surface((W, H), pygame.SRCALPHA)
+        bg.fill((10, 8, 14, 225))
+        self.screen.blit(bg, (sx, sy))
+        pygame.draw.rect(self.screen, (180, 150, 60), (sx, sy, W, H), 2, border_radius=4)
+
+        # --- Title row ---
+        title_surf = font_title.render(f"  {merchant.name}", True, (255, 215, 80))
+        gold_surf  = font_small.render(f"Gold: {self.player.gold} gp  ", True, (255, 215, 80))
+        self.screen.blit(title_surf, (sx + PAD, sy + PAD))
+        self.screen.blit(gold_surf,  (sx + W - gold_surf.get_width() - PAD, sy + PAD + 2))
+
+        # --- Divider ---
+        div1_y = sy + PAD + 24
+        pygame.draw.line(self.screen, (80, 70, 30), (sx + PAD, div1_y), (sx + W - PAD, div1_y))
+
+        # --- Mode tabs ---
+        tab_y    = div1_y + 4
+        buy_col  = (255, 215, 80) if self._shop_mode == "buy"  else (90, 90, 90)
+        sell_col = (255, 215, 80) if self._shop_mode == "sell" else (90, 90, 90)
+        buy_tab  = font_body.render("[ BUY ]",  True, buy_col)
+        sell_tab = font_body.render("[ SELL ]", True, sell_col)
+        hint_tab = font_small.render("TAB to switch", True, (70, 70, 70))
+        self.screen.blit(buy_tab,  (sx + PAD, tab_y))
+        self.screen.blit(sell_tab, (sx + PAD + buy_tab.get_width() + 14, tab_y))
+        self.screen.blit(hint_tab, (sx + W - hint_tab.get_width() - PAD, tab_y + 2))
+
+        # --- Divider ---
+        div2_y = tab_y + font_body.get_linesize() + 4
+        pygame.draw.line(self.screen, (80, 70, 30), (sx + PAD, div2_y), (sx + W - PAD, div2_y))
+
+        # --- Item list ---
+        items = merchant.items_for_sale if self._shop_mode == "buy" else self.player.inventory.items
+        sel   = self._shop_selected_index
+
+        # Scroll so the selected item stays visible
+        scroll_top = max(0, sel - MAX_ROWS // 2)
+        scroll_top = min(scroll_top, max(0, len(items) - MAX_ROWS))
+        visible    = items[scroll_top : scroll_top + MAX_ROWS]
+
+        list_y = div2_y + 4
+        for i, item in enumerate(visible):
+            actual_idx = scroll_top + i
+            is_sel = (actual_idx == sel)
+
+            # Highlight row background
+            if is_sel:
+                row_bg = pygame.Surface((W - PAD * 2, ROW_H), pygame.SRCALPHA)
+                row_bg.fill((60, 50, 10, 180))
+                self.screen.blit(row_bg, (sx + PAD, list_y))
+
+            pointer  = ">" if is_sel else " "
+            name_col = (255, 240, 160) if is_sel else (200, 200, 200)
+
+            if self._shop_mode == "buy":
+                price_val = item.price
+                price_str = f"{price_val} gp"
+                price_col = (100, 220, 100) if self.player.gold >= price_val else (200, 80, 80)
+            else:
+                price_val = item.price // 2
+                price_str = f"{price_val} gp"
+                price_col = (100, 200, 255)
+
+            name_surf  = font_body.render(f" {pointer} {item.name}", True, name_col)
+            price_surf = font_body.render(price_str, True, price_col)
+            self.screen.blit(name_surf,  (sx + PAD, list_y))
+            self.screen.blit(price_surf, (sx + W - price_surf.get_width() - PAD, list_y))
+            list_y += ROW_H
+
+        # Empty-list message
+        if not items:
+            empty_msg = "Nothing for sale." if self._shop_mode == "buy" else "Your inventory is empty."
+            empty_surf = font_body.render(empty_msg, True, (90, 90, 90))
+            self.screen.blit(empty_surf, (sx + PAD * 2, list_y))
+
+        # --- Footer ---
+        footer_y = sy + H - font_small.get_linesize() - PAD
+        pygame.draw.line(self.screen, (80, 70, 30), (sx + PAD, footer_y - 4), (sx + W - PAD, footer_y - 4))
+        hint = "↑↓ Navigate   ENTER Confirm   ESC / F  Close"
+        hint_surf = font_small.render(hint, True, (80, 80, 80))
+        self.screen.blit(hint_surf, (sx + PAD, footer_y))
+
+    def render_game_over_screen(self):        # Render background overlay with fade-in alpha after the title text
         if self.death_screen_animation_phase >= 1:
             overlay_surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
             overlay_surface.fill((0, 0, 0, self.death_screen_bg_alpha))
