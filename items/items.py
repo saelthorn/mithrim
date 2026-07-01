@@ -1091,8 +1091,24 @@ _LOOT_TIER_3 = [
 
 
 def _copy_item(template):
-    """Return a clean deep copy of an item template."""
-    item = copy.deepcopy(template)
+    """Return a clean deep copy of an item template.
+
+    Loot tier lists reuse the same module-level item objects that players
+    start out equipped with (e.g. iron_short_sword, torch). If one of those
+    templates is ever picked up off the ground, on_pickup() sets its
+    `owner` to the picking Player directly on the shared template — so the
+    template can end up permanently pointing at a live Player/game_instance
+    (which holds pygame Font/Surface objects copy.deepcopy can't handle).
+    Detach `owner` before copying and restore it right after, so we only
+    ever copy the item's own data, never whoever happens to be holding it.
+    """
+    original_owner = template.owner
+    template.owner = None
+    try:
+        item = copy.deepcopy(template)
+    finally:
+        template.owner = original_owner
+
     item.owner = None
     item.x = -1
     item.y = -1

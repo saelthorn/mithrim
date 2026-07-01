@@ -61,8 +61,10 @@ from entities.races import (
 from entities.summons import MageHandEntity, SummonedEntity
 from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
 from core.message_log import MessageBox
-from core.status_effects import ParryBuff, PowerAttackBuff, DivineStrikeBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
-
+from core.status_effects import (
+    ParryBuff, PowerAttackBuff, DivineStrikeBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness, 
+    PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
+)
 from items.items import (
     Potion, Weapon, Armor, OffHand, Chest, LockedChest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
     bread, mushroom, CampfireKit, torch, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, 
@@ -192,6 +194,7 @@ class Game:
         self.targeting_ability_range = 0
         self.targeting_cursor_x = 0
         self.targeting_cursor_y = 0
+        self.missile_darts_remaining = 0  # Per-cast dart counter for Magic Missile
             
         self.message_log.add_message("Welcome to the dungeon!", (100, 255, 255))
         
@@ -2243,6 +2246,7 @@ class Game:
             self.message_log.add_message("Targeting cancelled.", (150, 150, 150))
             self.game_state = self._previous_game_state # Return to previous state (DUNGEON)
             self.ability_in_use = None # Clear the ability
+            self.missile_darts_remaining = 0  # Clear Magic Missile dart counter
             self.player_has_acted = False # Player didn't act if cancelled
             self.player.current_action_state = None # <--- THIS LINE MUST BE HERE
             return # Input handled 
@@ -2356,7 +2360,14 @@ class Game:
 
         # Pass the confirmed target coordinates to the ability's execute_on_target method
         # This method will contain the specific logic for each ability.
-        if self.ability_in_use.execute_on_target(self.player, self, target_x, target_y):
+        result = self.ability_in_use.execute_on_target(self.player, self, target_x, target_y)
+
+        if result == "next_dart":
+            # Magic Missile per-dart targeting: dart landed, more darts remain.
+            # Stay in TARGETING so the player can aim the next dart.
+            print("DEBUG: ability_in_use.execute_on_target returned 'next_dart'. Staying in TARGETING for next dart.")
+            return  # Keep game_state as TARGETING, ability_in_use intact
+        elif result:
             print("DEBUG: ability_in_use.execute_on_target returned True. Resetting state.")
             # If the ability successfully executed its effect, then reset targeting state.
             should_end_turn = not getattr(self.ability_in_use, "is_bonus_action", False)
@@ -2364,10 +2375,10 @@ class Game:
                 self.player_bonus_action_used = True
             self._reset_targeting_state(end_turn=should_end_turn)
         else:
-            print("DEBUG: ability_in_use.execute_on_target returned False. Staying in targeting mode.") # <--- ADD THIS
+            print("DEBUG: ability_in_use.execute_on_target returned False. Staying in targeting mode.")
             # If execute_on_target returns False, it means the target was invalid for that ability
             # (e.g., Fire Bolt on empty tile, Misty Step on blocked tile). Stay in targeting mode.
-            pass # Message already handled by ability.execute_on_target
+            pass  # Message already handled by ability.execute_on_target
 
     def _reset_targeting_state(self, end_turn=True):
         """Cleans up targeting-related state vars and optionally ends the player's turn."""
@@ -2376,6 +2387,7 @@ class Game:
         self.targeting_ability_range = 0
         self.targeting_cursor_x = 0 # Reset cursor position
         self.targeting_cursor_y = 0
+        self.missile_darts_remaining = 0  # Clear Magic Missile dart counter
         self.player.current_action_state = None # <--- THIS IS THE CRITICAL FIX FOR MISTY STEP
 
         if end_turn:
@@ -3676,6 +3688,18 @@ class Game:
                          config.TILE_SIZE),
                         cursor_width
                     )
+
+                # Magic Missile: show which dart the player is currently aiming
+                from core.abilities import MagicMissile as _MagicMissile
+                if isinstance(self.ability_in_use, _MagicMissile) and self.missile_darts_remaining > 0:
+                    darts_total = self.ability_in_use.number_of_missiles
+                    current_dart = darts_total - self.missile_darts_remaining + 1
+                    dart_label = f"Dart {current_dart}/{darts_total}"
+                    font = pygame.font.SysFont(None, 18)
+                    label_surf = font.render(dart_label, True, (220, 180, 255))
+                    label_x = screen_x * config.TILE_SIZE
+                    label_y = screen_y * config.TILE_SIZE - label_surf.get_height() - 2
+                    self.internal_surface.blit(label_surf, (label_x, label_y))
 
             # Scale and blit the internal game area surface to the main screen
             available_width = config.GAME_AREA_WIDTH

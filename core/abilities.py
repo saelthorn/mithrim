@@ -2126,7 +2126,7 @@ class SpiritualWeapon(Ability):
 
 class MagicMissile(Ability):
     def __init__(self):
-        super().__init__("Magic Missile", "Launch 3 magical darts that automatically hit a target within 6 tiles.", cooldown=5)
+        super().__init__("Magic Missile", "Launch 3 magical darts that automatically hit. Each dart may target independently.", cooldown=5)
         self.range = 6
         self.damage_dice = 1        # Number of d4s per dart (scales with level)
         self.number_of_missiles = 3 # Darts per cast (scales with level)
@@ -2147,7 +2147,7 @@ class MagicMissile(Ability):
                 return False
             return game_instance.fov.get_visibility_type(ent.x, ent.y) in allowed
 
-        # Helper: footprint-aware distance (min distance to any occupied tile)
+        # Helper: footprint-aware distance
         def distance_to_entity(ent):
             size = getattr(ent, 'footprint_size', 1)
             if size > 1:
@@ -2164,103 +2164,121 @@ class MagicMissile(Ability):
         monster_targets = []
         for entity in game_instance.entities:
             if isinstance(entity, Monster) and entity.alive:
-                distance = distance_to_entity(entity)
-                if distance <= self.range:
-                    if is_entity_visible(entity):
-                        monster_targets.append(entity)
+                if distance_to_entity(entity) <= self.range and is_entity_visible(entity):
+                    monster_targets.append(entity)
 
-        # Auto-target the closest monster, or fall back to manual targeting
+        # Initialise the per-cast dart counter on the game instance
+        game_instance.missile_darts_remaining = self.number_of_missiles
+
+        # Set up targeting mode, auto-cursor on the nearest monster if available
+        game_instance.game_state = GameState.TARGETING
+        game_instance.ability_in_use = self
+        game_instance.targeting_ability_range = self.range
+
         if monster_targets:
             target = min(monster_targets, key=lambda m: user.distance_to(m.x, m.y))
-            game_instance.game_state = GameState.TARGETING
-            game_instance.ability_in_use = self
-            game_instance.targeting_ability_range = self.range
             game_instance.targeting_cursor_x = target.x
             game_instance.targeting_cursor_y = target.y
             game_instance.message_log.add_message(
-                f"{user.name} conjures Magic Missile! Auto-targeting {target.name}.", (180, 120, 255)
+                f"{user.name} conjures Magic Missile! "
+                f"Aim dart 1/{self.number_of_missiles} — auto-targeting {target.name}.",
+                (180, 120, 255)
             )
         else:
-            game_instance.message_log.add_message(
-                f"{user.name} conjures Magic Missile! No enemies in range.", (180, 120, 255)
-            )
-            game_instance.game_state = GameState.TARGETING
-            game_instance.ability_in_use = self
-            game_instance.targeting_ability_range = self.range
             game_instance.targeting_cursor_x = user.x
             game_instance.targeting_cursor_y = user.y
+            game_instance.message_log.add_message(
+                f"{user.name} conjures Magic Missile! Aim dart 1/{self.number_of_missiles}.",
+                (180, 120, 255)
+            )
 
-        return True
+        return True  # Indicate successful initiation of targeting
 
     def execute_on_target(self, user, game_instance, target_x, target_y):
         """
-        Fires all Magic Missile darts at the selected target.
-        Magic Missile always hits — no attack roll required.
+        Fires ONE dart at the chosen target per call.
+        Magic Missile always hits — no attack roll required (D&D 5e rules).
+
+        Return values (read by execute_targeted_ability in game.py):
+          False        — invalid target; stay in TARGETING mode, don't consume a dart
+          "next_dart"  — dart landed, more darts remain; stay in TARGETING for the next dart
+          True         — last dart landed; exit TARGETING normally and end the turn
         """
-        # Visibility and line-of-sight checks
+        # --- Validity checks (stay in targeting mode on failure, don't spend a dart) ---
         if not game_instance.fov.get_visibility_type(target_x, target_y) in ['player', 'torch', 'darkvision']:
-            game_instance.message_log.add_message("You cannot target that location — it is out of sight!", (255, 0, 0))
+            game_instance.message_log.add_message(
+                f"You cannot attack {target_x}, {target_y} because it is out of sight!", (255, 0, 0)
+            )
             return False
 
         if not game_instance.check_line_of_sight(user.x, user.y, target_x, target_y):
-            game_instance.message_log.add_message(f"A wall blocks your missiles to {target_x}, {target_y}!", (255, 0, 0))
+            game_instance.message_log.add_message(
+                f"A wall blocks your dart to {target_x}, {target_y}!", (255, 0, 0)
+            )
             return False
 
         target_monster = game_instance.get_target_at(target_x, target_y)
-        target_tile = game_instance.game_map.tiles[target_y][target_x]
 
-        # Must target a monster (Magic Missile doesn't work on empty tiles or destructible objects)
         if not (target_monster and isinstance(target_monster, Monster)):
-            game_instance.message_log.add_message("Magic Missile requires a monster target.", (255, 150, 0))
-            game_instance.floating_texts.append(FloatingText(target_x, target_y, "INVALID!", (255, 0, 0)))
-            return False
-
-        # Fire each dart — Magic Missile always hits, no attack roll
-        game_instance.message_log.add_message(
-            f"{user.name} launches {self.number_of_missiles} magical darts at {target_monster.name}!",
-            (180, 120, 255)
-        )
-
-        total_damage_dealt = 0
-        for dart_num in range(1, self.number_of_missiles + 1):
-            # Stop early if the monster dies mid-volley
-            if not target_monster.alive:
-                game_instance.message_log.add_message(
-                    f"{target_monster.name} is slain before all darts land!", (180, 120, 255)
-                )
-                break
-
-            damage_rolls = [random.randint(1, 4) for _ in range(self.damage_dice)]
-            dart_damage = sum(damage_rolls) + 1  # D&D 5e: each dart deals 1d4+1
-
-            dart_messages = [
-                f"Dart {dart_num} streaks into {target_monster.name}!",
-                f"A shimmering dart pierces {target_monster.name}!",
-                f"Dart {dart_num} strikes true!",
-            ]
-            game_instance.message_log.add_message(random.choice(dart_messages), (180, 120, 255))
             game_instance.message_log.add_message(
-                f"  Dart {dart_num}: {self.damage_dice}d4 {damage_rolls} + [1] Force Damage = {dart_damage} damage",
-                (200, 160, 255)
+                "Magic Missile requires a monster target.", (255, 150, 0)
             )
+            game_instance.floating_texts.append(FloatingText(target_x, target_y, "INVALID!", (255, 0, 0)))
+            return False  # Invalid target, stay in targeting mode
 
-            damage_dealt = target_monster.take_damage(dart_damage, game_instance)
-            total_damage_dealt += damage_dealt
+        # --- Fire the dart (always hits) ---
+        darts_remaining = getattr(game_instance, 'missile_darts_remaining', 1)
+        dart_number = self.number_of_missiles - darts_remaining + 1
 
-            game_instance.floating_texts.append(FloatingText(target_monster.x, target_monster.y, "HIT!", (180, 120, 255)))
-            game_instance.floating_texts.append(FloatingText(target_monster.x, target_monster.y - 0.5, str(damage_dealt), (200, 100, 255)))
+        damage_rolls = [random.randint(1, 4) for _ in range(self.damage_dice)]
+        total_damage = sum(damage_rolls) + 1  # D&D 5e: 1d4+1 per dart
 
-        # Summary and death check
+        dart_messages = [
+            f"A shimmering dart streaks into {target_monster.name}!",
+            f"Dart {dart_number} pierces {target_monster.name} with unerring precision!",
+            f"A bolt of pure magic slams into {target_monster.name}!",
+        ]
+        game_instance.message_log.add_message(random.choice(dart_messages), (180, 120, 255))
         game_instance.message_log.add_message(
-            f"Magic Missile deals {total_damage_dealt} total damage to {target_monster.name}! "
-            f"({target_monster.hp}/{target_monster.max_hp} HP remaining)",
+            f"Dart {dart_number}/{self.number_of_missiles}: {self.damage_dice}d4 {damage_rolls} + [1] Force = {total_damage} damage",
+            (200, 160, 255)
+        )
+
+        damage_dealt = target_monster.take_damage(total_damage, game_instance)
+
+        game_instance.message_log.add_message(
+            f"Magic Missile strikes {target_monster.name} for {damage_dealt} damage! "
+            f"({target_monster.hp}/{target_monster.max_hp} HP)",
             (180, 120, 255)
         )
+
+        # Add FloatingText for "HIT!" and damage dealt
+        hit_text = FloatingText(target_monster.x, target_monster.y, "HIT!", (180, 120, 255))
+        game_instance.floating_texts.append(hit_text)
+
+        damage_text = FloatingText(target_monster.x, target_monster.y - 0.5, str(damage_dealt), (200, 100, 255))
+        game_instance.floating_texts.append(damage_text)
 
         if not target_monster.alive:
             xp_gained = target_monster.die(game_instance, killer=user)
             user.gain_xp(xp_gained, game_instance)
 
+        # --- Decrement the dart counter and decide what to do next ---
+        game_instance.missile_darts_remaining = darts_remaining - 1
+
+        if game_instance.missile_darts_remaining > 0:
+            # More darts left — keep cursor on last target as a convenience default
+            next_dart_num = dart_number + 1
+            game_instance.targeting_cursor_x = target_x
+            game_instance.targeting_cursor_y = target_y
+            game_instance.message_log.add_message(
+                f"Aim dart {next_dart_num}/{self.number_of_missiles} "
+                f"— {game_instance.missile_darts_remaining} dart(s) remaining.",
+                (180, 120, 255)
+            )
+            return "next_dart"  # Signal game.py to stay in TARGETING for the next dart
+
+        # All darts fired — normal exit, turn ends
         return True
 
     def scale_with_level(self, player_level):
