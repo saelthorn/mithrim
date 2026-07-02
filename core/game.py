@@ -19,6 +19,7 @@ class GameState:
     CHEST_MENU = "chest_menu"  # Locked chest interaction menu
     SHOP_MENU  = "shop_menu"   # Merchant shop overlay
     GAME_OVER = "game_over" # NEW: Add GAME_OVER state
+    OVERWORLD = "overworld"  # Cellular-automata overworld map (dungeon_generator's sibling)
 
 
 from core.fov import FOV
@@ -27,6 +28,7 @@ from core.ui_screens import render_inventory_screen, render_inventory_menu_popup
 from world.map import GameMap
 from world.dungeon_generator import generate_dungeon
 from world.tavern_generator import generate_tavern
+from world.world_generator import generate_overworld
 from world.encounters.prison_cell import (
     handle_prison_door_interaction, PrisonDoorTile, is_prison_cell_position
 )
@@ -176,6 +178,13 @@ class Game:
         self._previous_game_state = None
         self.current_level = 1  
         self.max_level_reached = 1
+
+        # Overworld: generated once and cached (rather than regenerated) so terrain,
+        # water features, and dungeon entrance placement stay put between delves.
+        self.overworld_map = None
+        self.overworld_player_pos = None
+        self.dungeon_entrance_positions = []
+        self.entered_dungeon_from_overworld = False
         self.player_has_acted = False
         self.player_bonus_action_used = False
         self.message_log = MessageBox(
@@ -668,6 +677,65 @@ class Game:
         self.message_log.add_message("Walk to the door (+) and press any movement key to enter the dungeon!", (150, 150, 255))
         self.minimap_needs_redraw = True # New map, redraw minimap
     
+
+    def generate_overworld_map(self):
+        """
+        Enter the overworld. The map itself is only generated once — on repeat
+        visits (e.g. climbing back out of a dungeon) we just restore the cached
+        map and drop the player back where they went in, the same way stepping
+        out of a dungeon room doesn't regenerate that room.
+        """
+        self.game_state = GameState.OVERWORLD
+        self._previous_game_state = GameState.OVERWORLD
+
+        if self.overworld_map is None:
+            # Sized to feel like a real overworld rather than another dungeon floor —
+            # noticeably larger than a generate_level() dungeon map (120x100).
+            self.overworld_map = GameMap(240, 200)
+            overworld_info = generate_overworld(self.overworld_map)
+            self.dungeon_entrance_positions = overworld_info["dungeon_entrances"]
+            self.overworld_player_pos = self._find_overworld_start_position()
+
+        self.game_map = self.overworld_map
+        self.fov = FOV(self.game_map)
+
+        self.player.x, self.player.y = self.overworld_player_pos
+
+        # --- Initial camera snap, same approach as generate_tavern() ---
+        ideal_x = float(self.player.x) - (self.camera.viewport_width / 2.0)
+        ideal_y = float(self.player.y) - (self.camera.viewport_height / 2.0)
+        ideal_x = max(0.0, min(ideal_x, float(self.game_map.width - self.camera.viewport_width)))
+        ideal_y = max(0.0, min(ideal_y, float(self.game_map.height - self.camera.viewport_height)))
+        self.camera.x = ideal_x
+        self.camera.y = ideal_y
+        self.camera.target_x = float(self.player.x)
+        self.camera.target_y = float(self.player.y)
+
+        self.entities = [self.player]
+        self.turn_order = []
+        self.current_turn_index = 0
+        self.update_fov()
+
+        self.message_log.add_message("=== THE OVERWORLD ===", (240, 240, 240))
+        self.message_log.add_message("Walk onto a dungeon entrance to descend.", (150, 150, 255))
+        self.minimap_needs_redraw = True  # New map, redraw minimap
+
+    def _find_overworld_start_position(self):
+        """Find an open grass tile nearest the center of the overworld map to spawn on."""
+        from world.tile import grass
+
+        width, height = self.overworld_map.width, self.overworld_map.height
+        center_x, center_y = width // 2, height // 2
+
+        for radius in range(max(width, height)):
+            for dx in range(-radius, radius + 1):
+                for dy in range(-radius, radius + 1):
+                    x, y = center_x + dx, center_y + dy
+                    if 0 <= x < width and 0 <= y < height:
+                        if self.overworld_map.tiles[y][x] is grass:
+                            return x, y
+
+        return center_x, center_y  # Fallback — shouldn't happen on a real map
 
     def is_point_in_room_interior(self, room, x, y):
         """Check if a point (x, y) is within the actual interior of a room."""
@@ -1339,8 +1407,12 @@ class Game:
             self.message_log.add_message(f"Going up to level {new_level}...", (100, 200, 255))
             self.generate_level(new_level, spawn_on_stairs_up=True)
         elif direction == 'up' and self.current_level == 1:
-            self.message_log.add_message("Returning to tavern...", (100, 200, 255))
-            self.generate_tavern()
+            if self.entered_dungeon_from_overworld:
+                self.message_log.add_message("You climb back out into the open air...", (100, 200, 255))
+                self.generate_overworld_map()
+            else:
+                self.message_log.add_message("Returning to tavern...", (100, 200, 255))
+                self.generate_tavern()
 
 
     def update_fov(self):
@@ -1855,6 +1927,12 @@ class Game:
                         return True # Consume event, don't process other game states  
 
 
+                    # --- Overworld access (temporary: until a proper tavern exit exists) ---
+                    if event.key == pygame.K_o and self.game_state == GameState.TAVERN:
+                        self.message_log.add_message("You step outside into the overworld...", (100, 200, 255))
+                        self.generate_overworld_map()
+                        return True  # Consume event, don't process other game states
+
                     # --- Inventory Navigation ---
                     if self.game_state == GameState.INVENTORY:
                         GRID_COLS = 5  # Must match COLS in ui_screens.py
@@ -1999,12 +2077,12 @@ class Game:
                         return True # Consume event, stay in targeting mode                
                     
                 
-                if self.game_state not in [GameState.DUNGEON, GameState.TAVERN]:
+                if self.game_state not in [GameState.DUNGEON, GameState.TAVERN, GameState.OVERWORLD]:
                     continue
 
-                # --- Player's turn logic (for Dungeon and Tavern) ---
+                # --- Player's turn logic (for Dungeon, Tavern, and Overworld) ---
                 # This block will now be reached if TARGETING was cancelled and game_state reverted.
-                can_player_act_this_turn = (self.game_state == GameState.TAVERN) or \
+                can_player_act_this_turn = (self.game_state in (GameState.TAVERN, GameState.OVERWORLD)) or \
                                            (self.get_current_entity() == self.player and not self.player_has_acted)
 
                 if not can_player_act_this_turn:
@@ -2690,6 +2768,7 @@ class Game:
 
         if self.game_state == GameState.TAVERN:
             if (new_x, new_y) == self.door_position:
+                self.entered_dungeon_from_overworld = False
                 self.message_log.add_message("You enter the dark dungeon...", (100, 255, 100))
                 self.generate_level(1)
                 return True
@@ -2707,6 +2786,30 @@ class Game:
                 return True
             self.message_log.add_message("You can't move there.", (255, 150, 0))
             return False
+
+        elif self.game_state == GameState.OVERWORLD:
+            if not (0 <= new_x < self.game_map.width and 0 <= new_y < self.game_map.height):
+                self.message_log.add_message("You can't go that way.", (255, 150, 0))
+                return False
+
+            if (new_x, new_y) in self.dungeon_entrance_positions:
+                # Remember where the player stood so climbing back out drops them here.
+                self.overworld_player_pos = (self.player.x, self.player.y)
+                self.entered_dungeon_from_overworld = True
+                self.message_log.add_message("You descend into the dungeon...", (100, 255, 100))
+                self.generate_level(1)
+                return True
+
+            if not self.game_map.is_walkable(new_x, new_y):
+                self.message_log.add_message("You can't move there.", (255, 150, 0))
+                return False
+
+            self.player.x = new_x
+            self.player.y = new_y
+            self.update_fov()
+            self.camera.target_x = float(self.player.x)
+            self.camera.target_y = float(self.player.y)
+            return True
 
         elif self.game_state == GameState.DUNGEON:
             # Prevent out-of-bounds movement before accessing the tile grid.
@@ -3504,7 +3607,7 @@ class Game:
 
 
         # NEW: Only update camera and process turns if player exists and game is in an active state
-        if self.player and (self.game_state == GameState.DUNGEON or self.game_state == GameState.TAVERN or self.game_state == GameState.TARGETING): # Include TARGETING
+        if self.player and (self.game_state == GameState.DUNGEON or self.game_state == GameState.TAVERN or self.game_state == GameState.OVERWORLD or self.game_state == GameState.TARGETING): # Include TARGETING
             # If in targeting mode for Mage Hand, camera should follow the cursor
             if self.game_state == GameState.TARGETING and self.ability_in_use and isinstance(self.ability_in_use, MageHand):
                 self.camera.update(self.targeting_cursor_x, self.targeting_cursor_y, self.game_map.width, self.game_map.height)
