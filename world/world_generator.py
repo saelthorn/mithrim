@@ -1,25 +1,102 @@
+import math
 import random
 from world.tile import grass, tall_grass, tree, dungeon_entrance
 from world.water_features import river, lake, is_water_tile
 
 
 # ---------------------------------------------------------------------------
-# Cellular automata terrain generation
+# Perlin noise
 #
-# Same broad idea as the room/tunnel carving in dungeon_generator.py, but
-# instead of hand-placed rectangles we grow organic terrain by repeatedly
-# smoothing a random noise grid. `True` in these grids means "solid"
-# (a tree, for our purposes) and `False` means "open" (walkable grass).
+# A small, dependency-free 2D Perlin noise implementation (Ken Perlin's
+# "improved" fade curve), layered into fractal Brownian motion (fBm) for
+# multi-frequency detail. This is the *base layer* the overworld is built
+# from — low-frequency noise lays out where the land and water go, and
+# higher-frequency noise lays out where the forests go. Cellular automata
+# (below) is then used purely as a post-processing pass on top of it, to
+# smooth the raw noise into organic-looking coastlines and tree lines
+# instead of leaving it as speckled noise.
 # ---------------------------------------------------------------------------
 
-def _seed_noise(width, height, fill_prob):
-    """Return a boolean grid seeded with random noise at the given fill probability."""
-    return [[random.random() < fill_prob for _ in range(width)] for _ in range(height)]
+def _build_permutation_table():
+    """A shuffled 0-255 permutation table, doubled so lookups never need to wrap."""
+    perm = list(range(256))
+    random.shuffle(perm)
+    return perm + perm
 
+
+def _fade(t):
+    return t * t * t * (t * (t * 6 - 15) + 10)
+
+
+def _lerp(t, a, b):
+    return a + t * (b - a)
+
+
+def _gradient(hash_value, x, y):
+    """Pick one of 8 gradient directions based on the low bits of the hash."""
+    h = hash_value & 7
+    u = x if h < 4 else y
+    v = y if h < 4 else x
+    return (u if h & 1 == 0 else -u) + (v if h & 2 == 0 else -v)
+
+
+def _perlin(perm, x, y):
+    """Sample 2D Perlin noise at (x, y). Returns a value roughly in [-1, 1]."""
+    xi, yi = int(math.floor(x)) & 255, int(math.floor(y)) & 255
+    xf, yf = x - math.floor(x), y - math.floor(y)
+    u, v = _fade(xf), _fade(yf)
+
+    aa = perm[perm[xi] + yi]
+    ab = perm[perm[xi] + yi + 1]
+    ba = perm[perm[xi + 1] + yi]
+    bb = perm[perm[xi + 1] + yi + 1]
+
+    top = _lerp(u, _gradient(aa, xf, yf), _gradient(ba, xf - 1, yf))
+    bottom = _lerp(u, _gradient(ab, xf, yf - 1), _gradient(bb, xf - 1, yf - 1))
+    return _lerp(v, top, bottom)
+
+
+def _fractal_noise(perm, x, y, octaves, persistence, lacunarity):
+    """Layer several octaves of Perlin noise (fBm) for more natural-looking detail."""
+    total, amplitude, frequency, max_amplitude = 0.0, 1.0, 1.0, 0.0
+    for _ in range(octaves):
+        total += _perlin(perm, x * frequency, y * frequency) * amplitude
+        max_amplitude += amplitude
+        amplitude *= persistence
+        frequency *= lacunarity
+    return total / max_amplitude  # normalized back to roughly [-1, 1]
+
+
+def _generate_noise_mask(width, height, scale, threshold, octaves=4, persistence=0.5, lacunarity=2.0):
+    """
+    Sample fractal Perlin noise across the whole map and threshold it into a
+    boolean grid. `scale` controls feature size (bigger = larger, smoother
+    blobs — use this for continents/lakes vs. forest patches), `threshold`
+    controls roughly how much of the map ends up True.
+    """
+    perm = _build_permutation_table()
+    return [
+        [
+            _fractal_noise(perm, x / scale, y / scale, octaves, persistence, lacunarity) < threshold
+            for x in range(width)
+        ]
+        for y in range(height)
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Cellular automata post-processing
+#
+# Same broad idea as the room/tunnel carving in dungeon_generator.py, but
+# instead of hand-placed rectangles we clean up a boolean grid by repeatedly
+# smoothing it — here that grid comes from thresholded Perlin noise (above)
+# rather than raw random fill, so the smoothing turns noisy blob edges into
+# organic-looking coastlines and tree lines.
+# ---------------------------------------------------------------------------
 
 def _count_solid_neighbors(grid, x, y, width, height):
     """Count solid cells in the 8 tiles surrounding (x, y). Out-of-bounds counts as solid
-    so that forests naturally thicken toward the edge of the map instead of fraying out."""
+    so that terrain naturally thickens toward the edge of the map instead of fraying out."""
     count = 0
     for ny in range(y - 1, y + 2):
         for nx in range(x - 1, x + 2):
@@ -48,22 +125,46 @@ def _smooth(grid, width, height, birth_limit, death_limit):
     return new_grid
 
 
-def _run_cellular_automata(width, height, fill_prob, iterations, birth_limit=4, death_limit=3):
-    """Seed a noise grid and smooth it repeatedly to produce organic terrain clusters."""
-    grid = _seed_noise(width, height, fill_prob)
+def _smooth_mask(grid, width, height, iterations, birth_limit=4, death_limit=3):
+    """Repeatedly apply the CA smoothing pass to an existing boolean grid (post-processing)."""
     for _ in range(iterations):
         grid = _smooth(grid, width, height, birth_limit, death_limit)
     return grid
 
 
+def _generate_landmass_and_forest_masks(width, height, water_threshold=-0.18, tree_threshold=0.0,
+                                         water_iterations=4, tree_iterations=4):
+    """
+    Build the two terrain masks the overworld is made of:
+      - water_mask: low-frequency noise -> a handful of large lakes/seas
+      - tree_mask:  higher-frequency noise -> smaller, more numerous forest patches
+    Both start as thresholded Perlin noise, then get smoothed by cellular
+    automata so their edges read as coastlines/tree lines instead of static.
+    """
+    # Low-frequency noise (large scale divisor) -> big, smooth landmasses.
+    water_scale = max(width, height) / 6
+    water_mask = _generate_noise_mask(width, height, scale=water_scale, threshold=water_threshold)
+    water_mask = _smooth_mask(water_mask, width, height, water_iterations)
+
+    # Higher-frequency noise (small scale divisor) -> tighter forest clusters.
+    tree_scale = max(width, height) / 14
+    tree_mask = _generate_noise_mask(width, height, scale=tree_scale, threshold=tree_threshold)
+    tree_mask = _smooth_mask(tree_mask, width, height, tree_iterations)
+
+    return water_mask, tree_mask
+
+
 # ---------------------------------------------------------------------------
-# Water features
+# Rivers
 #
+# The noise+CA pass above handles broad lakes/seas; rivers are a separate,
+# more linear feature so we keep the original meandering random-walk
+# generator for them rather than trying to coax noise into thin lines.
 # world/water_features.py was written with dungeons in mind (it replaces
-# `floor`/`wall` tiles), so we don't reuse its generation functions directly.
-# Instead we borrow its river/lake tile templates and drop them onto open
-# ground the same way, so both dungeons and the overworld render water the
-# same way (and is_water_tile() keeps working everywhere).
+# `floor`/`wall` tiles), so we don't reuse its generation functions directly
+# — we borrow its river tile template and drop it onto open ground the same
+# way, so both dungeons and the overworld render water the same way (and
+# is_water_tile() keeps working everywhere).
 # ---------------------------------------------------------------------------
 
 def _generate_overworld_river(game_map, min_length=25):
@@ -105,54 +206,24 @@ def _generate_overworld_river(game_map, min_length=25):
     return river_tiles
 
 
-def _generate_overworld_lake(game_map, center_x, center_y):
-    """Grow an irregular lake around a chosen center point, mirroring _generate_lake()
-    from water_features.py but operating on open overworld ground instead of floor/wall."""
-    lake_tiles = []
-    width, height = game_map.width, game_map.height
+def _place_rivers(game_map, river_chance, max_rivers=None):
+    """Scatter a few meandering rivers across the overworld map, on top of the
+    noise-generated lakes/seas.
 
-    width_radius = random.randint(4, 9)
-    height_radius = random.randint(4, 8)
-
-    for y in range(center_y - height_radius - 2, center_y + height_radius + 3):
-        for x in range(center_x - width_radius - 2, center_x + width_radius + 3):
-            if not (0 <= x < width and 0 <= y < height):
-                continue
-            dx = x - center_x
-            dy = y - center_y
-            noise = random.uniform(-0.6, 0.3)
-            distance_squared = (dx ** 2) / (width_radius ** 2) + (dy ** 2) / (height_radius ** 2) + noise
-            if distance_squared <= 1.0:
-                game_map.tiles[y][x] = lake
-                lake_tiles.append((x, y))
-
-    return lake_tiles
-
-
-def _place_water_features(game_map, water_feature_chance, max_features=None):
-    """Scatter rivers/lakes across the overworld map.
-
-    max_features defaults to a count scaled off map area (roughly one feature
-    per 12,000 tiles, minimum 2) so a bigger overworld doesn't end up looking
-    sparser than a small one — pass an explicit number to override this.
+    max_rivers defaults to a count scaled off map area (roughly one river per
+    24,000 tiles, minimum 1) — pass an explicit number to override this.
     """
-    water_tiles = []
+    river_tiles = []
     width, height = game_map.width, game_map.height
 
-    if max_features is None:
-        max_features = max(2, (width * height) // 12000)
+    if max_rivers is None:
+        max_rivers = max(1, (width * height) // 24000)
 
-    for _ in range(max_features):
-        if random.random() > water_feature_chance:
-            continue
-        if random.random() < 0.5:
-            water_tiles.extend(_generate_overworld_river(game_map))
-        else:
-            cx = random.randint(width // 4, (width * 3) // 4)
-            cy = random.randint(height // 4, (height * 3) // 4)
-            water_tiles.extend(_generate_overworld_lake(game_map, cx, cy))
+    for _ in range(max_rivers):
+        if random.random() < river_chance:
+            river_tiles.extend(_generate_overworld_river(game_map))
 
-    return water_tiles
+    return river_tiles
 
 
 # ---------------------------------------------------------------------------
@@ -206,12 +277,14 @@ def _place_dungeon_entrances(game_map, num_entrances, min_spacing=15):
 # Entry point
 # ---------------------------------------------------------------------------
 
-def generate_overworld(game_map, num_dungeon_entrances=None, water_feature_chance=0.8,
-                        tree_fill_prob=0.45, tree_iterations=5):
+def generate_overworld(game_map, num_dungeon_entrances=None, river_chance=0.8,
+                        water_threshold=-0.18, tree_threshold=0.0):
     """
-    Populate game_map with an overworld: open ground dotted with cellular-automata
-    forest clusters, a handful of water features, and dungeon entrances scattered
-    across it.
+    Populate game_map with an overworld:
+      1. Perlin noise lays out the base land/water layout and forest cover.
+      2. Cellular automata smooths both into organic-looking coastlines/tree lines.
+      3. A few meandering rivers are carved on top.
+      4. Dungeon entrances are scattered across the open ground.
 
     num_dungeon_entrances defaults to a count scaled off map area (roughly one
     entrance per 6,000 tiles, minimum 5) — pass an explicit number to override this.
@@ -224,26 +297,29 @@ def generate_overworld(game_map, num_dungeon_entrances=None, water_feature_chanc
     if num_dungeon_entrances is None:
         num_dungeon_entrances = max(5, (width * height) // 6000)
 
-    # 1. Base ground layer — everything starts as walkable grass.
-    for y in range(height):
-        for x in range(width):
-            game_map.tiles[y][x] = grass
+    # 1 & 2. Noise-driven land/water and forest masks, cleaned up by cellular automata.
+    water_mask, tree_mask = _generate_landmass_and_forest_masks(
+        width, height, water_threshold=water_threshold, tree_threshold=tree_threshold
+    )
 
-    # 2. Cellular automata pass for tree clusters/forests.
-    tree_grid = _run_cellular_automata(width, height, fill_prob=tree_fill_prob,
-                                        iterations=tree_iterations)
+    # 3. Paint the base terrain from those masks — water takes priority over trees
+    #    (a tree can't grow in the middle of a lake), everything else is open ground.
     for y in range(height):
         for x in range(width):
-            if tree_grid[y][x]:
+            if water_mask[y][x]:
+                game_map.tiles[y][x] = lake
+            elif tree_mask[y][x]:
                 game_map.tiles[y][x] = tree
             elif random.random() < 0.08:
                 # Scatter some tall grass through the open areas for visual variety.
                 game_map.tiles[y][x] = tall_grass
+            else:
+                game_map.tiles[y][x] = grass
 
-    # 3. Water features — rivers and lakes carved into the open ground.
-    water_tiles = _place_water_features(game_map, water_feature_chance)
+    # 4. Rivers — meandering, carved on top of the noise-generated terrain.
+    river_tiles = _place_rivers(game_map, river_chance)
 
-    # 4. Dungeon entrances, spaced apart so they don't cluster.
+    # 5. Dungeon entrances, spaced apart so they don't cluster.
     dungeon_entrances = _place_dungeon_entrances(game_map, num_dungeon_entrances)
 
     # Future hooks: towns, roads, and other points of interest get layered in
@@ -251,6 +327,6 @@ def generate_overworld(game_map, num_dungeon_entrances=None, water_feature_chanc
     # record their positions for game.py to react to.
 
     return {
-        "water_tiles": water_tiles,
+        "water_tiles": river_tiles,
         "dungeon_entrances": dungeon_entrances,
     }

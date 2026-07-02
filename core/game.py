@@ -691,7 +691,7 @@ class Game:
         if self.overworld_map is None:
             # Sized to feel like a real overworld rather than another dungeon floor —
             # noticeably larger than a generate_level() dungeon map (120x100).
-            self.overworld_map = GameMap(240, 200)
+            self.overworld_map = GameMap(140, 100)
             overworld_info = generate_overworld(self.overworld_map)
             self.dungeon_entrance_positions = overworld_info["dungeon_entrances"]
             self.overworld_player_pos = self._find_overworld_start_position()
@@ -1770,7 +1770,7 @@ class Game:
                         self.message_log.scroll_down()
                         return True
 
-                if game_area_hit and self.game_state in (GameState.DUNGEON, GameState.TAVERN, GameState.TARGETING):
+                if game_area_hit and self.game_state in (GameState.DUNGEON, GameState.OVERWORLD, GameState.TAVERN, GameState.TARGETING):
                     if wheel_delta > 0:
                         self.change_zoom(config.ZOOM_STEP)
                         return True

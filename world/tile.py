@@ -59,7 +59,7 @@ tavern_barrel = Tile(blocked=False, char='}', color=(139, 69, 19), name="Tavern 
 grass = Tile(blocked=False, char='`', color=(60, 140, 40), name="Grass")
 tall_grass = Tile(blocked=False, char='`2', color=(40, 110, 30), block_sight=True, name="Tall Grass")
 tree = Tile(blocked=True, char='*', color=(25, 80, 35), block_sight=True, destructible=False, name="Tree")
-dungeon_entrance = Tile(blocked=False, char='dd', color=(230, 192, 0), name="Dungeon Entrance")
+dungeon_entrance = Tile(blocked=False, char='>', color=(230, 192, 0), name="Dungeon Entrance")
 
 from world.water_features import river, lake
 
