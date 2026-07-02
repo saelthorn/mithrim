@@ -1,6 +1,6 @@
 import math
 import random
-from world.tile import grass, tall_grass, tree, dungeon_entrance
+from world.tile import grass, tall_grass, tree, dungeon_entrance, road, ground
 from world.water_features import river, lake, is_water_tile
 
 
@@ -241,7 +241,7 @@ def _is_valid_entrance_spot(game_map, x, y):
     tile = game_map.tiles[y][x]
     if is_water_tile(tile):
         return False
-    return tile is grass  # keep entrances off tall grass/tree tiles for visibility
+    return tile is ground  # keep entrances off tall grass/tree tiles for visibility
 
 
 def _place_dungeon_entrances(game_map, num_entrances, min_spacing=15):
@@ -274,11 +274,77 @@ def _place_dungeon_entrances(game_map, num_entrances, min_spacing=15):
 
 
 # ---------------------------------------------------------------------------
+# Roads
+#
+# A handful of roads wander out from dungeon entrances toward the nearest
+# map edge, using the same "mostly straight, occasionally nudged" walk as
+# _generate_overworld_river. They're a visual and navigational cue that the
+# world keeps going past the border — walking off the edge of the map is
+# what actually generates/loads the next chunk over (see game.py).
+# ---------------------------------------------------------------------------
+
+def _nearest_edge_direction(x, y, width, height):
+    """Return the cardinal direction ('N', 'S', 'E', or 'W') of the closest map edge."""
+    distance_to_edge = {
+        'N': y,
+        'S': (height - 1) - y,
+        'W': x,
+        'E': (width - 1) - x,
+    }
+    return min(distance_to_edge, key=distance_to_edge.get)
+
+
+def _generate_road(game_map, start_x, start_y, min_length=10):
+    """Carve a single wandering road from (start_x, start_y) out toward the nearest
+    map edge. Shaped like _generate_overworld_river's walk, but aimed at whichever
+    edge is closest and left running until it actually reaches the border rather
+    than stopping after a fixed number of steps."""
+    width, height = game_map.width, game_map.height
+    road_tiles = []
+
+    direction = _nearest_edge_direction(start_x, start_y, width, height)
+    dx, dy = {'N': (0, -1), 'S': (0, 1), 'E': (1, 0), 'W': (-1, 0)}[direction]
+
+    # Step away from the entrance first so the road doesn't overwrite it.
+    x, y = start_x + dx, start_y + dy
+
+    steps = 0
+    max_steps = width + height  # generous upper bound so the walk always terminates
+    while 0 <= x < width and 0 <= y < height and steps < max_steps:
+        if not is_water_tile(game_map.tiles[y][x]):
+            game_map.tiles[y][x] = road
+            road_tiles.append((x, y))
+
+        # Mostly follow the chosen direction, with occasional sideways drift —
+        # same feel as the river's wander, just aimed at an edge instead of a room.
+        if dx:
+            x += dx
+            y += random.choice([-1, 0, 0, 1])
+        else:
+            y += dy
+            x += random.choice([-1, 0, 0, 1])
+        steps += 1
+
+    if len(road_tiles) < min_length:
+        return []  # too short to bother keeping
+    return road_tiles
+
+
+def _place_roads(game_map, entrance_positions, road_chance=0.8):
+    """Grow a road out toward the map edge from some of the dungeon entrances."""
+    road_tiles = []
+    for x, y in entrance_positions:
+        if random.random() < road_chance:
+            road_tiles.extend(_generate_road(game_map, x, y))
+    return road_tiles
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
 def generate_overworld(game_map, num_dungeon_entrances=None, river_chance=0.8,
-                        water_threshold=-0.18, tree_threshold=0.0):
+                        water_threshold=-0.12, tree_threshold=0.0):
     """
     Populate game_map with an overworld:
       1. Perlin noise lays out the base land/water layout and forest cover.
@@ -313,8 +379,11 @@ def generate_overworld(game_map, num_dungeon_entrances=None, river_chance=0.8,
             elif random.random() < 0.08:
                 # Scatter some tall grass through the open areas for visual variety.
                 game_map.tiles[y][x] = tall_grass
+            # elif random.random() < 0.12:
+            #     # Scatter a few small grass patches for visual variety.
+            #     game_map.tiles[y][x] = grass
             else:
-                game_map.tiles[y][x] = grass
+                game_map.tiles[y][x] = ground
 
     # 4. Rivers — meandering, carved on top of the noise-generated terrain.
     river_tiles = _place_rivers(game_map, river_chance)
@@ -322,11 +391,16 @@ def generate_overworld(game_map, num_dungeon_entrances=None, river_chance=0.8,
     # 5. Dungeon entrances, spaced apart so they don't cluster.
     dungeon_entrances = _place_dungeon_entrances(game_map, num_dungeon_entrances)
 
-    # Future hooks: towns, roads, and other points of interest get layered in
-    # here the same way dungeon entrances are — pick valid spots, place tiles,
+    # 6. Roads leading out from some dungeon entrances toward the map edge —
+    #    a visual hint (and future route) toward whatever lies past the border.
+    road_tiles = _place_roads(game_map, dungeon_entrances)
+
+    # Future hooks: towns and other points of interest get layered in here the
+    # same way dungeon entrances and roads are — pick valid spots, place tiles,
     # record their positions for game.py to react to.
 
     return {
         "water_tiles": river_tiles,
         "dungeon_entrances": dungeon_entrances,
+        "road_tiles": road_tiles,
     }

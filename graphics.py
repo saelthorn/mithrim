@@ -165,6 +165,14 @@ def setup_tile_mapping():
         '~': (11 * CELL_DIM, 4 * CELL_DIM),  # River (Water) - FIXED: Keep this
         '≈': (11 * CELL_DIM, 4 * CELL_DIM),  # Lake (Water) - FIXED: Distinct position (adjust if your tileset has it elsewhere)
 
+
+        # Overworld Tiles
+        'tre': (0 * CELL_DIM, 18 * CELL_DIM),  # Tree
+        'grd': (1 * CELL_DIM, 17 * CELL_DIM),  # Ground
+        '`3': (2 * CELL_DIM, 18 * CELL_DIM),  # Tall Grass
+        'rd': (0 * CELL_DIM, 3 * CELL_DIM),  # Road
+
+
         # Elemental Tiles
         'fire': (12 * CELL_DIM, 5 * CELL_DIM),  # Fire
         

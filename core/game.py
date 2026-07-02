@@ -91,6 +91,13 @@ INTERNAL_WIDTH = 800
 INTERNAL_HEIGHT = 600
 ASPECT_RATIO = INTERNAL_WIDTH / INTERNAL_HEIGHT
 
+# Every overworld chunk is generated at this fixed size (bigger than a
+# generate_level() dungeon map, which is 120x100) so it feels expansive.
+# Walking off the edge of one chunk generates/restores its neighbor at the
+# same size, so the "grid of chunks" tiles together seamlessly.
+OVERWORLD_CHUNK_WIDTH = 140
+OVERWORLD_CHUNK_HEIGHT = 100
+
 
 class Camera:
     def __init__(self, screen_width, screen_height, tile_size, message_log_height):
@@ -179,9 +186,12 @@ class Game:
         self.current_level = 1  
         self.max_level_reached = 1
 
-        # Overworld: generated once and cached (rather than regenerated) so terrain,
-        # water features, and dungeon entrance placement stay put between delves.
-        self.overworld_map = None
+        # Overworld: an unbounded grid of chunks. Each chunk is generated once and
+        # cached (rather than regenerated) so terrain, water, and dungeon entrance
+        # placement stay put whether you're returning from a dungeon delve or
+        # walking back into a chunk you've already explored.
+        self.overworld_chunks = {}  # (chunk_x, chunk_y) -> {"map": GameMap, "dungeon_entrances": [...]}
+        self.overworld_chunk_coord = (0, 0)
         self.overworld_player_pos = None
         self.dungeon_entrance_positions = []
         self.entered_dungeon_from_overworld = False
@@ -678,26 +688,46 @@ class Game:
         self.minimap_needs_redraw = True # New map, redraw minimap
     
 
-    def generate_overworld_map(self):
+    def generate_overworld_map(self, chunk_coord=None, spawn_pos=None):
         """
-        Enter the overworld. The map itself is only generated once — on repeat
-        visits (e.g. climbing back out of a dungeon) we just restore the cached
-        map and drop the player back where they went in, the same way stepping
-        out of a dungeon room doesn't regenerate that room.
+        Enter the overworld at the given chunk (defaulting to whichever chunk the
+        player is currently in). Each chunk is only generated once — on repeat
+        visits (e.g. climbing back out of a dungeon, or walking back the way you
+        came) we just restore the cached map, the same way stepping out of a
+        dungeon room doesn't regenerate that room.
+
+        spawn_pos, if given, drops the player at that exact tile — used when
+        walking off the edge of one chunk into the next. Otherwise the player
+        is placed back wherever they last stood in this chunk (e.g. climbing
+        out of a dungeon), or near the center of the map on a first visit.
         """
         self.game_state = GameState.OVERWORLD
         self._previous_game_state = GameState.OVERWORLD
 
-        if self.overworld_map is None:
+        if chunk_coord is None:
+            chunk_coord = self.overworld_chunk_coord
+        entering_new_chunk = chunk_coord != self.overworld_chunk_coord
+        self.overworld_chunk_coord = chunk_coord
+
+        if chunk_coord not in self.overworld_chunks:
             # Sized to feel like a real overworld rather than another dungeon floor —
             # noticeably larger than a generate_level() dungeon map (120x100).
-            self.overworld_map = GameMap(140, 100)
-            overworld_info = generate_overworld(self.overworld_map)
-            self.dungeon_entrance_positions = overworld_info["dungeon_entrances"]
-            self.overworld_player_pos = self._find_overworld_start_position()
+            chunk_map = GameMap(OVERWORLD_CHUNK_WIDTH, OVERWORLD_CHUNK_HEIGHT)
+            overworld_info = generate_overworld(chunk_map)
+            self.overworld_chunks[chunk_coord] = {
+                "map": chunk_map,
+                "dungeon_entrances": overworld_info["dungeon_entrances"],
+            }
 
-        self.game_map = self.overworld_map
+        chunk = self.overworld_chunks[chunk_coord]
+        self.game_map = chunk["map"]
+        self.dungeon_entrance_positions = chunk["dungeon_entrances"]
         self.fov = FOV(self.game_map)
+
+        if spawn_pos is not None:
+            self.overworld_player_pos = spawn_pos
+        elif entering_new_chunk or self.overworld_player_pos is None:
+            self.overworld_player_pos = self._find_overworld_start_position()
 
         self.player.x, self.player.y = self.overworld_player_pos
 
@@ -717,14 +747,14 @@ class Game:
         self.update_fov()
 
         self.message_log.add_message("=== THE OVERWORLD ===", (240, 240, 240))
-        self.message_log.add_message("Walk onto a dungeon entrance to descend.", (150, 150, 255))
+        self.message_log.add_message("Walk onto a dungeon entrance to descend, or off the map's edge to keep exploring.", (150, 150, 255))
         self.minimap_needs_redraw = True  # New map, redraw minimap
 
     def _find_overworld_start_position(self):
-        """Find an open grass tile nearest the center of the overworld map to spawn on."""
+        """Find an open grass tile nearest the center of the current overworld chunk to spawn on."""
         from world.tile import grass
 
-        width, height = self.overworld_map.width, self.overworld_map.height
+        width, height = self.game_map.width, self.game_map.height
         center_x, center_y = width // 2, height // 2
 
         for radius in range(max(width, height)):
@@ -732,7 +762,7 @@ class Game:
                 for dy in range(-radius, radius + 1):
                     x, y = center_x + dx, center_y + dy
                     if 0 <= x < width and 0 <= y < height:
-                        if self.overworld_map.tiles[y][x] is grass:
+                        if self.game_map.tiles[y][x] is grass:
                             return x, y
 
         return center_x, center_y  # Fallback — shouldn't happen on a real map
@@ -2789,8 +2819,26 @@ class Game:
 
         elif self.game_state == GameState.OVERWORLD:
             if not (0 <= new_x < self.game_map.width and 0 <= new_y < self.game_map.height):
-                self.message_log.add_message("You can't go that way.", (255, 150, 0))
-                return False
+                # Walked off the edge of this chunk — step into whichever neighboring
+                # chunk lies in that direction (generating it on first visit), entering
+                # from the matching opposite edge so the two chunks feel contiguous.
+                cx, cy = self.overworld_chunk_coord
+                if new_x < 0:
+                    next_chunk = (cx - 1, cy)
+                    spawn_pos = (OVERWORLD_CHUNK_WIDTH - 1, self.player.y)
+                elif new_x >= self.game_map.width:
+                    next_chunk = (cx + 1, cy)
+                    spawn_pos = (0, self.player.y)
+                elif new_y < 0:
+                    next_chunk = (cx, cy - 1)
+                    spawn_pos = (self.player.x, OVERWORLD_CHUNK_HEIGHT - 1)
+                else:
+                    next_chunk = (cx, cy + 1)
+                    spawn_pos = (self.player.x, 0)
+
+                self.message_log.add_message("You venture into uncharted territory...", (150, 200, 255))
+                self.generate_overworld_map(chunk_coord=next_chunk, spawn_pos=spawn_pos)
+                return True
 
             if (new_x, new_y) in self.dungeon_entrance_positions:
                 # Remember where the player stood so climbing back out drops them here.
