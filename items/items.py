@@ -1,3 +1,4 @@
+import copy
 import random
 
 from core.game import GameState
@@ -36,6 +37,9 @@ class Item:
         
     def on_drop(self, dropper, game_instance):
         """Called when the item is dropped."""
+        if self.name.lower() == "torch":
+            self.remaining_torchlight_duration = 0        
+
         game_instance.message_log.add_message(f"You drop the {self.name}.", self.color)
         dropper.inventory.remove_item(self)
         # Place on map at dropper's position
@@ -61,6 +65,7 @@ class Potion(Item):
         
         user.inventory.remove_item(self) # Remove after use
         game_instance.message_log.add_message(f"The {self.name} is consumed.", (150, 150, 150))
+        return True
 
 
 class Food(Item):
@@ -76,35 +81,92 @@ class Food(Item):
 
 class Weapon(Item):
     """An item that can be equipped for combat."""
-    def __init__(self, name, char, color, description, damage_dice, damage_modifier, price, attack_bonus=0, is_two_handed=False, category=None):
+    def __init__(self, name, char, color, description, damage_dice, damage_modifier, price, attack_bonus=0, spell_bonus=0, is_two_handed=False, category=None):
         super().__init__(name, char, color, description, price)
         self.damage_dice = damage_dice # e.g., "1d6", "2d4"
         self.damage_modifier = damage_modifier
         self.attack_bonus = attack_bonus # Bonus to hit
+        self.spell_bonus = spell_bonus
         self.is_two_handed = is_two_handed
         self.category = category
 
 
 class Armor(Item):
     """An item that can be equipped for defense."""
-    def __init__(self, name, char, color, description, ac_bonus, price, category=None):
+    def __init__(self, name, char, color, description, ac_bonus, price, attack_bonus = 0, spell_bonus=0, category=None):
         super().__init__(name, char, color, description, price)
         self.ac_bonus = ac_bonus # Bonus to AC
+        self.attack_bonus = attack_bonus
+        self.spell_bonus = spell_bonus
         self.category = category
 
 class OffHand(Item):
-    def __init__(self, name, char, color, description, price, defense_bonus=0, attack_bonus=0, damage_dice=None, damage_modifier=0, category=None):
+    def __init__(self, name, char, color, description, price, ac_bonus=0, attack_bonus=0, spell_bonus=0, damage_dice=None, damage_modifier=0, category=None, remaining_duration=250):
         super().__init__(name, char, color, description, price)
-        self.defense_bonus = defense_bonus  # Bonus to armor class if it's a shield
+        self.ac_bonus = ac_bonus  # Bonus to armor class if it's a shield
         self.attack_bonus = attack_bonus  # Bonus to attack rolls if it's a weapon
+        self.spell_bonus = spell_bonus  # Bonus to spell attacks if it's a magic item
         self.damage_dice = damage_dice  # Damage dice for one-handed weapons (e.g., "1d6")
         self.damage_modifier = damage_modifier  # Additional damage modifier
         self.category = category
+        self.remaining_duration = remaining_duration # For items like torch that have limited duration when equipped
 
     def use(self, user, game_instance):
         """Define how the item is used, if applicable."""
         # Implement specific use logic for off-hand items if needed
         pass
+
+class Accessory(Item):
+    def __init__(self, name, char, color, description, price, ac_bonus=0, attack_bonus=0, damage_bonus=0, hp_bonus=0, skill_bonus=None, category=None):
+        super().__init__(name, char, color, description, price)
+        self.ac_bonus = ac_bonus  # Bonus to armor class
+        self.attack_bonus = attack_bonus  # Bonus to attack rolls
+        self.damage_bonus = damage_bonus  # Bonus to damage
+        self.hp_bonus = hp_bonus  # Bonus to max HP
+        self.skill_bonus = skill_bonus  # Dict like {"investigation": 2} for skill bonuses
+        self.category = category
+
+    def use(self, user, game_instance):
+        """Define how the item is used, if applicable."""
+        pass
+
+class Helmet(Item):
+    """A helmet that can be equipped for defense and stat bonuses."""
+    def __init__(self, name, char, color, description, ac_bonus=0, attack_bonus=0, spell_bonus=0, price=10,
+                 perception_bonus=0, intelligence_bonus=0, category=None):
+        super().__init__(name, char, color, description, price)
+        self.ac_bonus = ac_bonus
+        self.attack_bonus = attack_bonus
+        self.spell_bonus = spell_bonus
+        self.perception_bonus = perception_bonus   # bonus to passive perception
+        self.intelligence_bonus = intelligence_bonus # flat INT bonus while equipped
+        self.category = category
+
+
+class Boots(Item):
+    """Boots that can be equipped for movement and stat bonuses."""
+    def __init__(self, name, char, color, description, ac_bonus=0, attack_bonus=0, price=10,
+                 speed_bonus=0, stealth_bonus=0, dexterity_bonus=0, spell_bonus=0, category=None):
+        super().__init__(name, char, color, description, price)
+        self.ac_bonus = ac_bonus
+        self.attack_bonus = attack_bonus
+        self.spell_bonus = spell_bonus
+        self.speed_bonus = speed_bonus     # reserved for future movement speed
+        self.stealth_bonus = stealth_bonus   # bonus to stealth checks
+        self.dexterity_bonus = dexterity_bonus  # flat DEX bonus while equipped
+        self.category = category
+
+
+class FocusItem(Item):
+    """An arcane or divine focus that boosts spell attack rolls and save DCs."""
+    def __init__(self, name, char, color, description, spell_bonus=0, price=10,
+                 intelligence_bonus=0, wisdom_bonus=0, category=None):
+        super().__init__(name, char, color, description, price)
+        self.spell_bonus = spell_bonus        # added to spell_bonus stat
+        self.intelligence_bonus = intelligence_bonus
+        self.wisdom_bonus = wisdom_bonus
+        self.category = category
+
 
 class Tools(Item):
     """An item that can be used in certain situations"""
@@ -113,8 +175,8 @@ class Tools(Item):
 
 class Junk(Item):
     """A useless piece of wood."""
-    def __init__(self, name, char, color, description=""):
-        super().__init__(name, char, color, description)
+    def __init__(self, name, char, color, description="", price=0):
+        super().__init__(name, char, color, description, price)
 
 
 # --- NEW CHEST CLASS ---
@@ -155,6 +217,79 @@ class Chest(Item):
         game_instance.message_log.add_message(f"You cannot pick up the {self.name}. It's too heavy!", (255, 0, 0))
         return False  # Prevent pickup            
 
+class LockedChest(Chest):
+    """A chest secured with an iron lock. Requires Thieves' Tools and a Dexterity check to open."""
+    LOCK_DC = 12
+
+    def __init__(self, x, y, contents=None):
+        super().__init__(x, y, contents)
+        self.name = "Locked Chest"
+        self.char = 'C'
+        self.color = (100, 110, 130)  # Steel-gray, distinct from the warm-brown regular chest
+        self.description = "A sturdy chest secured with an iron lock."
+        self.is_locked = True
+
+    def open(self, opener, game_instance):
+        if self.opened:
+            game_instance.message_log.add_message("This chest is already empty.", (150, 150, 150))
+            return
+
+        if self.is_locked:
+            # Check for Thieves' Tools in the opener's inventory
+            tools = next(
+                (item for item in opener.inventory.items
+                 if isinstance(item, Tools) and item.name == "Thieves' Tools"),
+                None
+            )
+            if tools is None:
+                game_instance.message_log.add_message(
+                    "The chest is locked. You need Thieves' Tools to pick the lock.",
+                    (200, 150, 50)
+                )
+                return
+
+            # Dexterity (Thieves' Tools) check vs DC 12
+            roll = random.randint(1, 20)
+            dex_mod = opener.get_ability_modifier(opener.dexterity)
+            total = roll + dex_mod
+
+            if total >= self.LOCK_DC:
+                game_instance.message_log.add_message(
+                    f"You pick the lock! (rolled {roll}{dex_mod:+d} = {total} vs DC {self.LOCK_DC})",
+                    (255, 215, 0)
+                )
+                self.is_locked = False
+            else:
+                game_instance.message_log.add_message(
+                    f"You fail to pick the lock. (rolled {roll}{dex_mod:+d} = {total} vs DC {self.LOCK_DC})",
+                    (200, 80, 80)
+                )
+                return
+
+        # Lock cleared — open normally
+        game_instance.message_log.add_message("You open the chest...", (255, 215, 0))
+        self.opened = True
+        self.char = 'olc'
+
+        if not self.contents:
+            game_instance.message_log.add_message("It's empty!", (150, 150, 150))
+            return
+
+        items_given = []
+        for item in list(self.contents):
+            if opener.inventory.add_item(item):
+                items_given.append(item.name)
+                self.contents.remove(item)
+            else:
+                game_instance.message_log.add_message(
+                    f"Your inventory is full! You couldn't pick up the {item.name}.", (255, 0, 0)
+                )
+        if items_given:
+            game_instance.message_log.add_message(f"You found: {', '.join(items_given)}!", (0, 255, 0))
+        else:
+            game_instance.message_log.add_message("Your inventory is full, you couldn't take anything.", (255, 0, 0))
+
+
 class CampfireKit(Item):
     def __init__(self):
         super().__init__(name="Campfire Kit", char="cf", color=(255, 140, 0), description="A kit to set up a campfire.", price=25)
@@ -164,7 +299,7 @@ class CampfireKit(Item):
         """Use the campfire kit to drop it at the player's position and emit light."""
         if self.uses_left > 0:
             
-            if game_instance.game_state in [GameState.INVENTORY, GameState.INVENTORY_MENU]:
+            if game_instance.game_state in [GameState.INVENTORY, GameState.INVENTORY_MENU, GameState.DUNGEON]:
                 game_instance.message_log.add_message("Closing inventory to drop the campfire kit.", (150, 150, 150))
                 game_instance.selected_inventory_item = None  # Reset selected item
 
@@ -193,7 +328,8 @@ wood_plank = Junk(
     name="Plank",
     char="pn",
     color=(139, 69, 19),
-    description="Just a useless piece of wood."
+    description="Just a useless piece of wood.",
+    price = 1
 )
 
 
@@ -218,6 +354,8 @@ greater_healing_potion = Potion(
     price = 20
 )
 
+
+
 meat = Food(
     name="Meat",
     description="A meat from unknown origin, chewy but full of taste.",
@@ -225,6 +363,15 @@ meat = Food(
     price=15,
     char="met",
     color=(255, 0, 0)
+)
+
+carrot = Food(
+    name="Carrot",
+    description="A crunchy vegetable that has a sweet and earthy flavor.",
+    healing_value=15,
+    price=5,
+    char="crt",
+    color=(143, 188, 143)
 )
 
 green_apple = Food(
@@ -265,17 +412,17 @@ mushroom = Food(
 
 
 WEAPON_CATEGORIES = {
-    "dagger": ["Iron Dagger", "Silver Dagger"],
-    "orb": ["Glass Orb", "Orb of Chaos"],
-    "shortsword": ["Iron Short Sword", "Bronze Short Sword", "Flameheart Short Sword"],
-    "longsword": ["Steel Long Sword", "Iron Long Sword", "Adamantine Long Sword"],
-    "quarterstaff": ["Oak Staff", "Apprentice's Staff", "Staff of the Magi"],
-    "battleaxe": ["Steel Battle Axe", "Dwarven Battle Axe"],
-    "polearm": ["Polearm"],
-    "rapier": ["Steel Rapier", "Duelists Rapier"],
-    "hammer": ["Iron Hammer", "Dragonsbane Warhammer", "Steel Maul"],
-    "mace": ["Steel Mace"],
-    "flail": ["Dwarven Flail", "Flameheart Flail"],
+    "Dagger": ["Iron Dagger", "Silver Dagger"],
+    "Orb": ["Glass Orb", "Orb of Chaos"],
+    "Shortsword": ["Iron Short Sword", "Bronze Short Sword", "Flameheart Short Sword"],
+    "Longsword": ["Steel Long Sword", "Iron Long Sword", "Adamantine Long Sword"],
+    "Quarterstaff": ["Oak Staff", "Apprentice's Staff", "Staff of the Magi"],
+    "Battleaxe": ["Steel Battle Axe", "Dwarven Battle Axe"],
+    "Polearm": ["Polearm"],
+    "Rapier": ["Steel Rapier", "Duelists Rapier"],
+    "Hammer": ["Iron Hammer", "Dragonsbane Warhammer", "Steel Maul"],
+    "Mace": ["Steel Mace"],
+    "Flail": ["Dwarven Flail", "Flameheart Flail"],
 }
 
 torch = OffHand(
@@ -283,9 +430,47 @@ torch = OffHand(
     char='th', 
     color=(255, 140, 0), 
     description="A burning torch that can be held in your off-hand. Provides extra light.", 
-    price=10
+    damage_modifier=1,
+    attack_bonus=0,
+    price=10,
+    remaining_duration=350
 )
 
+throwing_knife = OffHand(
+    name="Throwing Knife",
+    char="thr", # Using same char as other weapons for now
+    color=(180, 180, 180),
+    description="A small knife designed for throwing.",
+    damage_dice="1d4",
+    damage_modifier=1,
+    attack_bonus=2,
+    price = 10,
+    category="Dagger"
+)
+
+spell_book = FocusItem(
+    name="Spell Book",
+    char="spb",
+    color=(120, 0, 220),
+    description="A wizard's spell book that enables advanced spellcasting.",
+    spell_bonus=4,
+    #intelligence_bonus=2,
+
+    price=50,
+    category="Spellbook"
+)
+
+holy_symbol = FocusItem(
+    name="Holy Symbol",
+    char="hsy",
+    color=(255, 255, 0),
+    description="A sacred symbol of great power.",
+    spell_bonus=4,
+    #wisdom_bonus=2,
+
+    price=40,
+    category="Holy Symbol",
+)
 
 iron_dagger = OffHand(
     name="Iron Dagger",
@@ -293,10 +478,10 @@ iron_dagger = OffHand(
     color=(180, 180, 180),
     description="A small, light blade.",
     damage_dice="1d4",
-    damage_modifier=1,
+    damage_modifier=2,
     attack_bonus=1,
     price = 15,
-    category="dagger"
+    category="Dagger"
 )
 
 silver_dagger = OffHand(
@@ -305,10 +490,10 @@ silver_dagger = OffHand(
     color=(180, 180, 180),
     description="A silver blade.",
     damage_dice="1d4",
-    damage_modifier=2,
+    damage_modifier=3,
     attack_bonus=3,
-    price = 20,
-    category="dagger"
+    price = 30,
+    category="Dagger"
 )
 
 glass_orb = OffHand(
@@ -317,10 +502,10 @@ glass_orb = OffHand(
     color=(200, 200, 200),
     description="A glass orb.",
     damage_dice="1d4",
-    damage_modifier=1,
+    spell_bonus=1,
     attack_bonus=1,
     price=20,
-    category="orb"
+    category="Orb"
 )
 
 orb_of_chaos = OffHand(
@@ -329,10 +514,10 @@ orb_of_chaos = OffHand(
     color=(200, 200, 200),
     description="An orb that brings chaos.",
     damage_dice="1d4",
-    damage_modifier=2,
+    spell_bonus=3,
     attack_bonus=4,
-    price=20,
-    category="orb"
+    price=40,
+    category="Orb"
 )
 
 iron_short_sword = Weapon(
@@ -344,7 +529,7 @@ iron_short_sword = Weapon(
     damage_modifier=0,
     attack_bonus=0,
     price = 10,
-    category="shortsword"
+    category="Shortsword"
 )
 
 flameheart_short_sword = Weapon(
@@ -356,7 +541,7 @@ flameheart_short_sword = Weapon(
     damage_modifier=2,
     attack_bonus=2,
     price = 30,
-    category="shortsword"
+    category="Shortsword"
 )
 
 bronze_short_sword = Weapon(
@@ -364,11 +549,11 @@ bronze_short_sword = Weapon(
     char="bss",
     color=(150, 150, 150),
     description="An old bronze shortsword.",
-    damage_dice="1d4",
+    damage_dice="1d6",
     damage_modifier=0,
     attack_bonus=0,
     price = 5,
-    category="shortsword"
+    category="Shortsword"
 )
 
 
@@ -377,11 +562,11 @@ iron_long_sword = Weapon(
     char="lns",
     color=(150, 150, 150),
     description="A adventurer's sword.",
-    damage_dice="1d6",
+    damage_dice="1d8",
     damage_modifier=0,
     attack_bonus=1,
     price = 15,
-    category="longsword"
+    category="Longsword"
 )
 
 steel_long_sword = Weapon(
@@ -389,11 +574,11 @@ steel_long_sword = Weapon(
     char="sls",
     color=(150, 150, 150),
     description="A steel longsword.",
-    damage_dice="1d6",
+    damage_dice="1d8",
     damage_modifier=1,
     attack_bonus=2,
     price = 25,
-    category="longsword"
+    category="Longsword"
 )
 
 adamantine_long_sword = Weapon(
@@ -405,7 +590,7 @@ adamantine_long_sword = Weapon(
     damage_modifier=4,
     attack_bonus=2,
     price = 50,
-    category="longsword"
+    category="Longsword"
 )
 
 
@@ -414,11 +599,11 @@ steel_battle_axe = Weapon(
     char="sba",
     color=(150, 150, 150),
     description="Steel battle axe.",
-    damage_dice="1d6",
+    damage_dice="1d12",
     damage_modifier=1,
     attack_bonus=0,
     price = 15,
-    category="battleaxe"
+    category="Battleaxe"
 )
 
 dwarven_battle_axe = Weapon(
@@ -426,12 +611,12 @@ dwarven_battle_axe = Weapon(
     char="dba",
     color=(150, 150, 150),
     description="A dwarven battle tested axe.",
-    damage_dice="1d8",
+    damage_dice="1d12",
     damage_modifier=1,
     attack_bonus=3,
     price = 30,
     is_two_handed=True,
-    category="battleaxe"
+    category="Battleaxe"
 )
 
 pole_arm = Weapon(
@@ -439,12 +624,12 @@ pole_arm = Weapon(
     char="pla",
     color=(150, 150, 150),
     description="A battle tested axe.",
-    damage_dice="1d6",
+    damage_dice="1d10",
     damage_modifier=1,
     attack_bonus=2,
     price = 25,
     is_two_handed=True,
-    category="polearm"
+    category="Polearm"
 )
 
 oak_staff = Weapon(
@@ -455,8 +640,9 @@ oak_staff = Weapon(
     damage_dice="1d6",
     damage_modifier=0,
     attack_bonus=1,
+    spell_bonus=1,
     price = 20,
-    category="quarterstaff"
+    category="Quarterstaff"
 )
 
 apprentices_staff = Weapon(
@@ -467,8 +653,9 @@ apprentices_staff = Weapon(
     damage_dice="1d6",
     damage_modifier=2,
     attack_bonus=1,
+    spell_bonus=2,
     price = 30,
-    category="quarterstaff"
+    category="Quarterstaff"
 )
 
 staff_of_magi = Weapon(
@@ -479,8 +666,22 @@ staff_of_magi = Weapon(
     damage_dice="1d6",
     damage_modifier=4,
     attack_bonus=1,
+    spell_bonus=3,
     price = 50,
-    category="quarterstaff"
+    category="Quarterstaff"
+)
+
+sturdy_quarterstaff = Weapon(
+    name="Sturdy Quarterstaff",
+    char="qst",
+    color=(139, 69, 19),
+    description="A sturdy wooden staff.",
+    damage_dice="1d6",
+    damage_modifier=2,
+    attack_bonus=3,
+    spell_bonus=0,
+    price = 20,
+    category="Quarterstaff"
 )
 
 steel_rapier = Weapon(
@@ -488,11 +689,11 @@ steel_rapier = Weapon(
     char="srp",
     color=(175, 175, 175),
     description="Steel rapier.",
-    damage_dice="1d6",
+    damage_dice="1d8",
     damage_modifier=1,
     attack_bonus=0,
     price=20,
-    category="rapier"
+    category="Rapier"
 )
 
 duelists_rapier = Weapon(
@@ -500,11 +701,11 @@ duelists_rapier = Weapon(
     char="dlr",
     color=(175, 175, 175),
     description="A duelists rapier.",
-    damage_dice="2d6",
+    damage_dice="2d8",
     damage_modifier=2,
     attack_bonus=1,
-    price=40,
-    category="rapier"
+    price=60,
+    category="Rapier"
 )
 
 iron_hammer = OffHand(
@@ -512,11 +713,11 @@ iron_hammer = OffHand(
     char="irh",
     color=(175, 175, 175),
     description="A iron hammer.",
-    damage_dice="1d6",
+    damage_dice="1d8",
     damage_modifier=1,
     attack_bonus=0,
     price=15,
-    category="hammer"
+    category="Hammer"
 )
 
 dragonsbane_warhammer = Weapon(
@@ -524,12 +725,12 @@ dragonsbane_warhammer = Weapon(
     char="dbw",
     color=(175, 175, 175),
     description="A warhammer that has seen the end of countless dragons.",
-    damage_dice="1d8",
-    damage_modifier=3,
+    damage_dice="2d8",
+    damage_modifier=4,
     attack_bonus=3,
-    price=50,
+    price=70,
     is_two_handed=True,
-    category="hammer"
+    category="Hammer"
 )
 
 steel_maul = Weapon(
@@ -537,12 +738,12 @@ steel_maul = Weapon(
     char="mul",
     color=(175, 175, 175),
     description="A steel maul.",
-    damage_dice="1d8",
+    damage_dice="2d6",
     damage_modifier=2,
     attack_bonus=1,
     price=30,
     is_two_handed=True,
-    category="hammer"
+    category="Hammer"
 )
 
 steel_mace = Weapon(
@@ -554,7 +755,7 @@ steel_mace = Weapon(
     damage_modifier=1,
     attack_bonus=1,
     price=25,
-    category="mace"
+    category="Mace"
 )
 
 dwarven_flail = Weapon(
@@ -562,11 +763,11 @@ dwarven_flail = Weapon(
     char="dwf",
     color=(200, 200, 200),
     description="A dwarven flail.",
-    damage_dice="1d6",
+    damage_dice="1d8",
     damage_modifier=2,
     attack_bonus=1,
     price=35,
-    category="flail"
+    category="Flail"
 )
 
 flameheart_flail = Weapon(
@@ -574,11 +775,11 @@ flameheart_flail = Weapon(
     char="fhf",
     color=(200, 200, 200),
     description="A flameheart flail.",
-    damage_dice="1d6",
+    damage_dice="1d8",
     damage_modifier=4,
     attack_bonus=2,
     price=50,
-    category="flail"
+    category="Flail"
 )
 
 
@@ -586,11 +787,11 @@ flameheart_flail = Weapon(
 
 
 ARMOR_CATEGORIES = {
-    "light": ["Padded Armor", "Studded Leather Armor", "Robes", "Robes of Protection"],
-    "medium": ["Chainmail Armor", "Half Plate Armor"],
-    "heavy": ["Full Plate Armor"],
+    "Light": ["Padded Armor", "Studded Leather Armor", "Robes", "Robes of Protection", "Leather Cap", "Mage's Circlet", "Hood of Shadows", "Leather Boots", "Boots of Stealth", "Boots of Speed"],
+    "Medium": ["Chainmail Armor", "Half Plate Armor", "Scale Mail Armor", "Iron Helmet", "Steel Helmet", "Iron Greaves"],
+    "Heavy": ["Full Plate Armor", "Great Helm", "Dwarven Stompers"],
 
-    "shield": ["Round Shield", "Kite Shield", "Tower Shield"]
+    "Shield": ["Round Shield", "Kite Shield", "Tower Shield"]
 }
 
 round_shield = OffHand(
@@ -598,9 +799,9 @@ round_shield = OffHand(
     char="rsh",
     color=(175, 175, 175),
     description="A round shield.",
-    defense_bonus=1, # Adds 1 to base AC
+    ac_bonus=1,
     price=15,
-    category="shield"
+    category="Shield"
 
 )
 
@@ -609,9 +810,10 @@ kite_shield = OffHand(
     char="ksh",
     color=(175, 175, 175),
     description="A kite shield.",
-    defense_bonus=2, 
+    ac_bonus=2, 
+    attack_bonus=-1, # Heavier shield that provides more AC but imposes a penalty to attack rolls
     price=35,
-    category="shield"
+    category="Shield"
 )
 
 tower_shield = OffHand(
@@ -619,9 +821,10 @@ tower_shield = OffHand(
     char="tsh",
     color=(175, 175, 175),
     description="A tower shield.",
-    defense_bonus=3, 
+    ac_bonus=3, 
+    attack_bonus=-2, # Heavier shield that provides more AC but imposes a penalty to attack rolls
     price=50,
-    category="shield"
+    category="Shield"
 )
 
 padded_armor = Armor(
@@ -631,7 +834,7 @@ padded_armor = Armor(
     description="Light leather armor.",
     ac_bonus=1, # Adds 1 to base AC
     price = 10,
-    category="light"
+    category="Light"
 )
 
 studded_leather_armor = Armor(
@@ -640,8 +843,9 @@ studded_leather_armor = Armor(
     color=(139, 69, 19),
     description="A studded leather armor.",
     ac_bonus=2,
+    attack_bonus=1,
     price=20,
-    category="light"
+    category="Light"
 )
 
 chainmail_armor = Armor(
@@ -649,9 +853,9 @@ chainmail_armor = Armor(
     char="cha",
     color=(175, 175, 175),
     description="Chainmail armor.",
-    ac_bonus=3, # Adds 1 to base AC
-    price = 10,
-    category="medium"
+    ac_bonus=2, # Adds 1 to base AC
+    price = 20,
+    category="Medium"
 )
 
 half_plate_armor = Armor(
@@ -659,9 +863,20 @@ half_plate_armor = Armor(
     char="hpa",
     color=(175, 175, 175),
     description="A half plate armor.",
-    ac_bonus=4,
+    ac_bonus=3,
+    attack_bonus=-1, 
     price=30,
-    category="medium"
+    category="Medium"
+)
+
+scale_mail_armor = Armor(
+    name="Scale Mail Armor",
+    char="sma",
+    color=(175, 175, 175),
+    description="A scale mail armor.",
+    ac_bonus=2,
+    price=25,
+    category="Medium"
 )
 
 full_plate_armor = Armor(
@@ -669,9 +884,10 @@ full_plate_armor = Armor(
     char="fpa",
     color=(175, 175, 175),
     description=("Full plate armor."),
-    ac_bonus=6,
+    ac_bonus=4,
+    attack_bonus=-2, 
     price=50,
-    category="heavy"
+    category="Heavy"
 )
 
 robes = Armor(
@@ -681,7 +897,7 @@ robes = Armor(
     description="Simple cloth robes.",
     ac_bonus=0, # Robes typically provide no AC bonus, relying on Dex
     price = 10,
-    category="light"
+    category="Light"
 )
 
 robes_of_protection = Armor(
@@ -691,8 +907,134 @@ robes_of_protection = Armor(
     description="A robe infused with protection magic.",
     ac_bonus=4,
     price=40,
-    category="light"
+    category="Light"
 )
+
+# ── Helmets ──────────────────────────────────────────────────────────────────
+leather_cap = Helmet(
+    name="Leather Cap",
+    char="lc",
+    color=(139, 100, 60),
+    description="A simple leather cap. Provides minimal protection.",
+    ac_bonus=0,
+    #perception_bonus=1,
+    price=10,
+    category="Light"
+)
+
+iron_helmet = Helmet(
+    name="Iron Helmet",
+    char="ih",
+    color=(160, 160, 160),
+    description="A solid iron helmet. Protects the head from blows.",
+    ac_bonus=1,
+    price=15,
+    category="Medium"
+)
+
+steel_helmet = Helmet(
+    name="Steel Helmet",
+    char="sh",
+    color=(180, 180, 190),
+    description="A well-crafted steel helmet.",
+    ac_bonus=2,
+    price=20,
+    category="Medium"
+)
+
+great_helm = Helmet(
+    name="Great Helm",
+    char="gh",
+    color=(200, 200, 210),
+    description="A full great helm. Heavy but excellent protection.",
+    ac_bonus=3,
+    attack_bonus=-1, 
+    price=30,
+    category="Heavy"
+)
+
+mages_circlet = Helmet(
+    name="Mage's Circlet",
+    char="mc",
+    color=(120, 80, 200),
+    description="An enchanted circlet that sharpens the mind.",
+    ac_bonus=0,
+    attack_bonus=0,
+    spell_bonus=2,
+    price=40,
+    category="Light"
+)
+
+hood_of_shadows = Helmet(
+    name="Hood of Shadows",
+    char="hs",
+    color=(50, 50, 70),
+    description="A dark hood that aids in concealment.",
+    ac_bonus=2,
+    attack_bonus=1,
+    #perception_bonus=2,
+    price=45,
+    category="Light"
+)
+
+# ── Boots ─────────────────────────────────────────────────────────────────────
+leather_boots = Boots(
+    name="Leather Boots",
+    char="lb",
+    color=(139, 100, 60),
+    description="Simple leather boots. Light and comfortable.",
+    ac_bonus=0,
+    price=10,
+    category="Light"
+)
+
+iron_greaves = Boots(
+    name="Iron Greaves",
+    char="ig",
+    color=(160, 160, 160),
+    description="Iron leg guards. Heavy but protective.",
+    ac_bonus=1,
+    price=20,
+    category="Medium"
+)
+
+boots_of_speed = Boots(
+    name="Boots of Speed",
+    char="bs",
+    color=(80, 180, 220),
+    description="Enchanted boots that make your steps lighter and quicker.",
+    ac_bonus=1,
+    attack_bonus=2, 
+    #speed_bonus=1,
+    #dexterity_bonus=1,
+    price=40,
+    category="Light"
+)
+
+boots_of_stealth = Boots(
+    name="Boots of Stealth",
+    char="bst",
+    color=(40, 40, 55),
+    description="Soft-soled boots that muffle your footsteps.",
+    ac_bonus=0,
+    #stealth_bonus=3,
+    attack_bonus=1,
+    price=40,
+    category="Light"
+)
+
+dwarven_stompers = Boots(
+    name="Dwarven Stompers",
+    char="ds",
+    color=(120, 80, 40),
+    description="Thick dwarven-forged boots. Built to last forever.",
+    ac_bonus=2,
+    attack_bonus=-2, 
+    price=40,
+    category="Heavy"
+)
+
+# ── Focus Items ───────────────────────────────────────────────────────────────
 
 thieves_tools = Tools(
     name="Thieves' Tools",
@@ -703,28 +1045,109 @@ thieves_tools = Tools(
 )
 
 
-# Example function to create random loot for a chest
-def generate_random_loot(level_number):
-    loot = []
-    # Basic loot pool
-    loot_pool = [
-        lesser_healing_potion, greater_healing_potion, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor,
-        robes, iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, 
-        apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail,
-        round_shield, kite_shield, tower_shield, torch
-    ]
+# ── Loot Tables ───────────────────────────────────────────────────────────────
 
-    # Add 1-3 random items
-    num_items = random.randint(1, 2)
-    for _ in range(num_items):
-        chosen_item_template = random.choice(loot_pool)
-        # Create a new instance of the item
-        new_item = chosen_item_template.__class__(
-            name=chosen_item_template.name,
-            char=chosen_item_template.char,
-            color=chosen_item_template.color,
-            description=chosen_item_template.description,
-            **{k: v for k, v in chosen_item_template.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
-        )
-        loot.append(new_item)
-    return loot
+# Tier 1: Common gear found in early floors (levels 1-3)
+_LOOT_TIER_1 = [
+    lesser_healing_potion, lesser_healing_potion,  # weighted up — potions are common
+    torch, torch,
+    mushroom, carrot, green_apple, bread,
+    wood_plank,
+    iron_dagger, bronze_short_sword, iron_short_sword,
+    oak_staff, iron_hammer,
+    padded_armor, robes, leather_cap, leather_boots,
+    round_shield,
+    throwing_knife, thieves_tools,
+]
+
+# Tier 2: Uncommon gear found in mid floors (levels 3-5)
+_LOOT_TIER_2 = [
+    lesser_healing_potion, greater_healing_potion,
+    fromage, meat, bread,
+    silver_dagger, iron_long_sword, steel_long_sword,
+    steel_rapier, steel_battle_axe, pole_arm,
+    steel_mace, dwarven_flail, glass_orb,
+    studded_leather_armor, chainmail_armor, scale_mail_armor,
+    kite_shield, round_shield,
+    iron_helmet, steel_helmet, iron_greaves,
+    boots_of_stealth,
+    spell_book, holy_symbol,
+]
+
+# Tier 3: Rare gear found in deep floors (levels 5+)
+_LOOT_TIER_3 = [
+    greater_healing_potion, greater_healing_potion,
+    flameheart_short_sword, flameheart_flail,
+    steel_maul, dwarven_battle_axe, adamantine_long_sword,
+    dragonsbane_warhammer, duelists_rapier,
+    apprentices_staff, staff_of_magi, sturdy_quarterstaff,
+    orb_of_chaos,
+    half_plate_armor, full_plate_armor, robes_of_protection,
+    tower_shield, kite_shield,
+    great_helm, mages_circlet, hood_of_shadows,
+    boots_of_speed, dwarven_stompers,
+    spell_book, holy_symbol,
+]
+
+
+def _copy_item(template):
+    """Return a clean deep copy of an item template.
+
+    Loot tier lists reuse the same module-level item objects that players
+    start out equipped with (e.g. iron_short_sword, torch). If one of those
+    templates is ever picked up off the ground, on_pickup() sets its
+    `owner` to the picking Player directly on the shared template — so the
+    template can end up permanently pointing at a live Player/game_instance
+    (which holds pygame Font/Surface objects copy.deepcopy can't handle).
+    Detach `owner` before copying and restore it right after, so we only
+    ever copy the item's own data, never whoever happens to be holding it.
+    """
+    original_owner = template.owner
+    template.owner = None
+    try:
+        item = copy.deepcopy(template)
+    finally:
+        template.owner = original_owner
+
+    item.owner = None
+    item.x = -1
+    item.y = -1
+    return item
+
+
+def _pick_from_tiers(level_number):
+    """Pick one item from a tier appropriate for the given dungeon level."""
+    if level_number <= 2:
+        weights = [80, 18, 2]
+    elif level_number <= 4:
+        weights = [45, 40, 15]
+    else:
+        weights = [15, 35, 50]
+
+    tier = random.choices([_LOOT_TIER_1, _LOOT_TIER_2, _LOOT_TIER_3], weights=weights, k=1)[0]
+    return _copy_item(random.choice(tier))
+
+
+def generate_random_loot(level_number):
+    """Generate loot for a regular chest.
+
+    ~20% chance the chest is empty.
+    Otherwise drops 1-2 items weighted toward the current dungeon tier.
+    """
+    # Empty chest — nothing found
+    if random.random() < 0.20:
+        return []
+
+    num_items = random.choices([1, 2], weights=[70, 30], k=1)[0]
+    return [_pick_from_tiers(level_number) for _ in range(num_items)]
+
+
+def generate_locked_loot(level_number):
+    """Better loot for locked chests — always at least 1 item, skewed toward higher tiers.
+
+    Locked chests should feel rewarding for spending Thieves' Tools and passing the DC check.
+    """
+    # Locked chests always have something (never empty) and lean toward tier 2/3
+    boosted_level = level_number + 2
+    num_items = random.choices([1, 2, 3], weights=[30, 50, 20], k=1)[0]
+    return [_pick_from_tiers(boosted_level) for _ in range(num_items)]

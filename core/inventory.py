@@ -2,12 +2,20 @@ class Inventory:
     def __init__(self, capacity):
         self.capacity = capacity
         self.items = []
+        self.game_instance = None  # Set by the game after player creation
 
     def add_item(self, item):
         if len(self.items) >= self.capacity:
             return False  # Inventory is full
         self.items.append(item)
         item.owner = self.owner  # Set the item's owner (e.g., the player)
+
+        # After adding, auto-fill any empty quick bar slots that match this item
+        if self.game_instance and hasattr(self.owner, 'quick_bar'):
+            for slot_key, slot_item in self.owner.quick_bar.items():
+                if slot_item is None:
+                    self.owner._auto_refill_quick_bar_slot(slot_key, self.game_instance)
+
         return True
 
     def remove_item(self, item):

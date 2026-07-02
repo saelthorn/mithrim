@@ -2,7 +2,14 @@ import random
 import pygame
 
 from core.game import GameState
-from items.items import torch, lesser_healing_potion, greater_healing_potion, apprentices_staff, half_plate_armor, meat, green_apple, fromage, bread, mushroom, silver_dagger, iron_short_sword, adamantine_long_sword, staff_of_magi, duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, chainmail_armor, robes, CampfireKit, Food
+from items.items import (
+    torch, throwing_knife, lesser_healing_potion, kite_shield, greater_healing_potion, apprentices_staff, half_plate_armor, 
+    meat, green_apple, fromage, bread, carrot, spell_book, holy_symbol, mushroom, silver_dagger, iron_short_sword, adamantine_long_sword, staff_of_magi, 
+    duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, steel_long_sword, steel_battle_axe, oak_staff, padded_armor, 
+    chainmail_armor, robes, scale_mail_armor, sturdy_quarterstaff, leather_cap, iron_helmet, steel_helmet, hood_of_shadows, great_helm, mages_circlet, leather_boots, 
+    iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,CampfireKit, Food, Weapon, Helmet, Armor, Boots, OffHand
+)
+
 from entities.dungeon_npcs import DungeonHealer 
 from entities.base_entity import NPC
 
@@ -23,6 +30,9 @@ class Bartender(NPC):
 
 class Merchant(NPC):
     def __init__(self, x, y):
+        self.x1 = x
+        self.y1 = y
+
         dialogue = [
             "Welcome to my tavern shop! Looking for something special?",
             "I have some fine goods and tasty treats.",
@@ -43,8 +53,10 @@ class Merchant(NPC):
         default_items = [
             CampfireKit(),
             lesser_healing_potion,
+            throwing_knife,
             meat,
             bread,
+            carrot,
             fromage,
             torch,
         ]
@@ -53,7 +65,13 @@ class Merchant(NPC):
             (silver_dagger, 0.5),
             (steel_long_sword, 0.4),
             (half_plate_armor, 0.45),
+            (scale_mail_armor, 0.4),
+            (sturdy_quarterstaff, 0.4),
             (apprentices_staff, 0.45),
+            (kite_shield, 0.4),
+            (greater_healing_potion, 0.3),
+            (spell_book, 0.25),
+            (holy_symbol, 0.25),
             # Add more tavern-specific items and chances if desired
         ]
 
@@ -86,43 +104,73 @@ class Merchant(NPC):
                 self.items_for_sale.append(new_item)
 
     def offer_trade(self, player, game):
-        """Handle the trading logic with the player."""
-        game.message_log.add_message(f"{self.name}: Welcome, traveler! Care to browse my wares?", (0, 255, 0))
-        game.message_log.add_message("Items for sale:", (200, 200, 255))
-
-        # Display items for sale
-        for item in self.items_for_sale:
-            game.message_log.add_message(f"{item.name} - {item.price} gold", (255, 255, 255))
-
-        # Allow player to buy or sell
-        game.message_log.add_message("Type 'buy {item}' to buy and 'sell {item}' to sell.", (200, 200, 255))
-        game.message_log.add_message("Type your input:", (200, 200, 255))
-        game.message_log.add_message(" ", (200, 200, 255))
-
-        # Set the game state to trade temporarily
-        game.game_state = GameState.TRADE  # Set game state to trade
-        game.message_log.show_input_area = True  # Show input area for trade input
-        game.message_log.current_input = ""  # Clear input when activating the input area
+        """Open the shop menu overlay instead of the legacy text-input trade flow."""
+        game._previous_game_state  = game.game_state
+        game._shop_menu_merchant   = self
+        game._shop_selected_index  = 0
+        game._shop_mode            = "buy"
+        game.game_state            = GameState.SHOP_MENU
 
 
 
     def buy_item(self, player, item_name):
+        if item_name == "all food":
+            food_items = [item for item in self.items_for_sale if isinstance(item, Food)]
+            if not food_items:
+                return "No food items are available for sale."
+
+            purchased_items = []
+            total_cost = 0
+            for item in list(food_items):
+                if player.gold < item.price:
+                    continue
+
+                new_item = item.__class__(
+                    name=item.name,
+                    char=item.char,
+                    color=item.color,
+                    description=item.description,
+                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                )
+
+                if player.inventory.add_item(new_item):
+                    player.gold -= item.price
+                    total_cost += item.price
+                    purchased_items.append(item.name)
+                    self.items_for_sale.remove(item)
+                else:
+                    break
+
+            if not purchased_items:
+                return "You couldn't buy any food. Check your gold or inventory space."
+            item_list = ", ".join(purchased_items)
+            player.update_throw_knife_ability()
+            player.update_spellbook_abilities()
+            player.update_guard_ability()
+            return f"You bought {len(purchased_items)} food items for {total_cost} gold: {item_list}."
+
         for item in self.items_for_sale:
             if item.name.lower() == item_name.lower():
                 if player.gold >= item.price:
                     player.gold -= item.price
-    
-                    # Create a new instance of the item to add to player inventory
-                    new_item = item.__class__(
-                        name=item.name,
-                        char=item.char,
-                        color=item.color,
-                        description=item.description,
-                        **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
-                    )
-    
+
+                    # CampfireKit has no-arg __init__; everything else uses the generic clone
+                    if isinstance(item, CampfireKit):
+                        new_item = CampfireKit()
+                    else:
+                        new_item = item.__class__(
+                            name=item.name,
+                            char=item.char,
+                            color=item.color,
+                            description=item.description,
+                            **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                        )
+
                     if player.inventory.add_item(new_item):
-                        self.items_for_sale.remove(item)  # Remove the original from merchant
+                        self.items_for_sale.remove(item)
+                        player.update_throw_knife_ability()
+                        player.update_spellbook_abilities()
+                        player.update_guard_ability()
                         return f"You bought {item.name}!"
                     else:
                         return "Your inventory is full!"
@@ -133,12 +181,47 @@ class Merchant(NPC):
 
 
     def sell_item(self, player, item_name):
-        """Logic to sell an item."""
+        """Logic to sell an item or multiple items."""
+        # Handle bulk selling
+        if item_name == "all weapons":
+            weapons = [item for item in player.inventory.items if isinstance(item, (Weapon, OffHand))]
+            if not weapons:
+                return "You don't have any weapons to sell."
+            total_gold = 0
+            for item in weapons:
+                player.inventory.remove_item(item)
+                total_gold += item.price // 2
+                self.items_for_sale.append(item)
+            player.gold += total_gold
+            player.update_throw_knife_ability()
+            player.update_spellbook_abilities()
+            player.update_guard_ability()
+            return f"You sold {len(weapons)} weapon(s) for {total_gold} gold!"
+        
+        if item_name == "all armors":
+            armor_items = [item for item in player.inventory.items if isinstance(item, (Helmet, Armor, Boots))]
+            if not armor_items:
+                return "You don't have any armor to sell."
+            total_gold = 0
+            for item in armor_items:
+                player.inventory.remove_item(item)
+                total_gold += item.price 
+                self.items_for_sale.append(item)
+            player.gold += total_gold
+            player.update_throw_knife_ability()
+            player.update_spellbook_abilities()
+            player.update_guard_ability()
+            return f"You sold {len(armor_items)} armor item(s) for {total_gold} gold!"
+        
+        # Handle single item selling
         for item in player.inventory.items:  # Access the player's inventory items
             if item.name.lower() == item_name.lower():  # Case insensitive comparison
                 player.inventory.remove_item(item)  # Remove the item from the player's inventory
                 player.gold += item.price // 2  # Assuming the merchant pays half the price
                 self.items_for_sale.append(item)  # Add the item back to the merchant's inventory
+                player.update_throw_knife_ability()
+                player.update_spellbook_abilities()
+                player.update_guard_ability()
                 return f"You sold {item.name}!"
         return "Item not found in your inventory."
 
@@ -147,6 +230,9 @@ class Merchant(NPC):
 
 class Patron(NPC):
     def __init__(self, x, y, name):
+        self.x1 = x
+        self.y1 = y        
+        
         dialogue = [
             "I heard there's treasure deep in the dungeon.",
             "The monsters have been getting stronger lately.",
@@ -207,6 +293,3 @@ def create_tavern_npcs(game_map, door_position, game_instance):
         npcs.append(tavern_healer)
 
     return npcs
-
-
-

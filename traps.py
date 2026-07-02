@@ -23,7 +23,6 @@ class Trap:
         """Reveals the trap to the player."""
         if self.is_hidden:
             self.is_hidden = False
-            game_instance.message_log.add_message(f"You notice a {self.name} at ({x},{y})!", self.color)
             # Add floating text for "TRAP!"
             game_instance.floating_texts.append(FloatingText(x, y, "TRAP!", (255, 100, 0)))
             # The tile itself will be updated in render_map_with_fov based on is_hidden state
