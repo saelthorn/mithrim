@@ -59,11 +59,10 @@ tavern_barrel = Tile(blocked=False, char='}', color=(139, 69, 19), name="Tavern 
 road = Tile(blocked=False, char='rd', color=(128, 128, 128), name="Road")
 ground = Tile(blocked=False, char='grd', color=(100, 100, 100), name="Ground")
 grass = Tile(blocked=False, char='`2', color=(60, 140, 40), name="Grass")
-tall_grass = Tile(blocked=False, char='`3', color=(40, 110, 30), block_sight=True, name="Tall Grass")
-tree = Tile(blocked=True, char='tre', color=(25, 80, 35), block_sight=True, destructible=False, name="Tree")
+tall_grass = Tile(blocked=False, char='`3', color=(40, 110, 30), name="Tall Grass")
+tree = Tile(blocked=False, char='tre', color=(25, 80, 35), block_sight=True, destructible=False, name="Tree")
 dungeon_entrance = Tile(blocked=False, char='>', color=(230, 192, 0), name="Dungeon Entrance")
 
-from world.water_features import river, lake
 
 
 class MimicTile(Tile):

@@ -1,8 +1,76 @@
 import math
+import heapq
 import random
 from world.tile import grass, tall_grass, tree, dungeon_entrance, road, ground
 from world.water_features import river, lake, is_water_tile
 
+
+
+DEEP_WATER = 0.28
+SHALLOW_WATER = 0.34
+PLAINS = 0.60
+HILLS = 0.78
+
+BIOME_OCEAN = "ocean"
+BIOME_BEACH = "beach"
+BIOME_PLAINS = "plains"
+BIOME_FOREST = "forest"
+BIOME_SWAMP = "swamp"
+BIOME_HILLS = "hills"
+BIOME_MOUNTAINS = "mountains"
+
+
+class HeightMap:
+    """
+    Stores the elevation of every tile.
+    Values are normalized between 0.0 and 1.0.
+    """
+
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+
+        self.values = [
+            [0.0 for _ in range(width)]
+            for _ in range(height)
+        ]
+
+    def get(self, x, y):
+        return self.values[y][x]
+
+    def set(self, x, y, value):
+        self.values[y][x] = value
+
+
+class PointOfInterest:
+
+    def __init__(
+        self,
+        name,
+        tile,
+        min_spacing,
+        score_function
+    ):
+        self.name = name
+        self.tile = tile
+        self.min_spacing = min_spacing
+        self.score_function = score_function
+
+def _biome(height, moisture):
+    if height < DEEP_WATER:
+        return BIOME_OCEAN
+    if height < SHALLOW_WATER:
+        return BIOME_BEACH
+    if height >= HILLS:
+        return BIOME_MOUNTAINS
+    if height >= PLAINS:
+        return BIOME_HILLS
+    if moisture > 0.72:
+        return BIOME_SWAMP
+    if moisture > 0.50:
+        return BIOME_FOREST
+
+    return BIOME_PLAINS
 
 # ---------------------------------------------------------------------------
 # Perlin noise
@@ -22,6 +90,81 @@ def _build_permutation_table():
     perm = list(range(256))
     random.shuffle(perm)
     return perm + perm
+
+
+def _distance(a, b):
+    return abs(a[0]-b[0]) + abs(a[1]-b[1])
+
+
+def _heuristic(a, b):
+    return abs(a[0]-b[0]) + abs(a[1]-b[1])
+
+
+def _nearest_edge_tile(x, y, width, height):
+
+    distances = {
+        (x, 0): y,
+        (x, height-1): height-1-y,
+        (0, y): x,
+        (width-1, y): width-1-x
+    }
+
+    return min(distances, key=distances.get)
+
+
+def _nearest_tile(game_map, start, predicate, max_radius=20):
+
+    sx, sy = start
+
+    best = None
+    best_dist = float("inf")
+
+    for y in range(max(0, sy-max_radius), min(game_map.height, sy+max_radius+1)):
+        for x in range(max(0, sx-max_radius), min(game_map.width, sx+max_radius+1)):
+
+            if predicate(game_map.tiles[y][x]):
+
+                d = abs(x-sx)+abs(y-sy)
+
+                if d < best_dist:
+                    best_dist = d
+                    best = (x, y)
+
+    return best
+
+def _find_path(game_map, heightmap, start, goal):
+    open_set = []
+    heapq.heappush(open_set, (0, start))
+    came_from = {}
+    g_score = {start: 0}
+
+    while open_set:
+        _, current = heapq.heappop(open_set)
+        if current == goal:
+            path = []
+            while current in came_from:
+                path.append(current)
+                current = came_from[current]
+            path.append(start)
+            path.reverse()
+            return path
+        cx, cy = current
+
+        for nx, ny in _neighbors(cx, cy, heightmap.width, heightmap.height):
+            cost = _movement_cost(game_map, nx, ny)
+
+            if cost is None:
+                continue
+
+            tentative = g_score[current] + cost
+
+            if tentative < g_score.get((nx, ny), float("inf")):
+                came_from[(nx, ny)] = current
+                g_score[(nx, ny)] = tentative
+                f = tentative + _heuristic((nx, ny), goal)
+                heapq.heappush(open_set, (f, (nx, ny)))
+
+    return []
 
 
 def _fade(t):
@@ -67,22 +210,95 @@ def _fractal_noise(perm, x, y, octaves, persistence, lacunarity):
     return total / max_amplitude  # normalized back to roughly [-1, 1]
 
 
-def _generate_noise_mask(width, height, scale, threshold, octaves=4, persistence=0.5, lacunarity=2.0):
+def _generate_heightmap(width, height, scale, octaves=5, persistence=0.5, lacunarity=2.0,):
     """
-    Sample fractal Perlin noise across the whole map and threshold it into a
-    boolean grid. `scale` controls feature size (bigger = larger, smoother
-    blobs — use this for continents/lakes vs. forest patches), `threshold`
-    controls roughly how much of the map ends up True.
+    Generates a normalized heightmap.
+    Values range from 0.0 to 1.0.
     """
     perm = _build_permutation_table()
-    return [
-        [
-            _fractal_noise(perm, x / scale, y / scale, octaves, persistence, lacunarity) < threshold
-            for x in range(width)
-        ]
-        for y in range(height)
-    ]
+    heightmap = HeightMap(width, height)
 
+    for y in range(height):
+        for x in range(width):
+            value = _fractal_noise(
+                perm,
+                x / scale,
+                y / scale,
+                octaves,
+                persistence,
+                lacunarity,
+            )
+
+            # convert from [-1,1] -> [0,1]
+            value = (value + 1.0) / 2.0
+
+            heightmap.set(x, y, value)
+
+    return heightmap
+
+
+def _generate_moisture_map(width, height, scale, octaves=4, persistence=0.5, lacunarity=2.0,):
+    """
+    Generates a normalized moisture map.
+    Values range from 0.0 to 1.0.
+    """
+    perm = _build_permutation_table()
+    moisture = HeightMap(width, height)
+
+    for y in range(height):
+        for x in range(width):
+            value = _fractal_noise(
+                perm,
+                x / scale,
+                y / scale,
+                octaves,
+                persistence,
+                lacunarity
+            )
+
+            value = (value + 1) / 2
+            moisture.set(x, y, value)
+
+    return moisture
+
+
+def _score_dungeon_location(game_map, heightmap, moisture, x, y):
+    score = 0
+    biome = _biome(
+        heightmap.get(x, y),
+        moisture.get(x, y)
+    )
+
+    if biome == BIOME_SWAMP:
+        score -= 25
+    elif biome == BIOME_MOUNTAINS:
+        score += 40
+    elif biome == BIOME_FOREST:
+        score += 15
+
+    # Forest nearby
+    forest = _nearest_tile(
+        game_map,
+        (x, y),
+        lambda t: t == tree,
+        max_radius=8
+    )
+
+    if forest:
+        score += 15
+
+    # River nearby
+    river_pos = _nearest_tile(
+        game_map,
+        (x, y),
+        is_water_tile,
+        max_radius=10
+    )
+
+    if river_pos:
+        score += 10
+
+    return score
 
 # ---------------------------------------------------------------------------
 # Cellular automata post-processing
@@ -132,28 +348,6 @@ def _smooth_mask(grid, width, height, iterations, birth_limit=4, death_limit=3):
     return grid
 
 
-def _generate_landmass_and_forest_masks(width, height, water_threshold=-0.18, tree_threshold=0.0,
-                                         water_iterations=4, tree_iterations=4):
-    """
-    Build the two terrain masks the overworld is made of:
-      - water_mask: low-frequency noise -> a handful of large lakes/seas
-      - tree_mask:  higher-frequency noise -> smaller, more numerous forest patches
-    Both start as thresholded Perlin noise, then get smoothed by cellular
-    automata so their edges read as coastlines/tree lines instead of static.
-    """
-    # Low-frequency noise (large scale divisor) -> big, smooth landmasses.
-    water_scale = max(width, height) / 6
-    water_mask = _generate_noise_mask(width, height, scale=water_scale, threshold=water_threshold)
-    water_mask = _smooth_mask(water_mask, width, height, water_iterations)
-
-    # Higher-frequency noise (small scale divisor) -> tighter forest clusters.
-    tree_scale = max(width, height) / 14
-    tree_mask = _generate_noise_mask(width, height, scale=tree_scale, threshold=tree_threshold)
-    tree_mask = _smooth_mask(tree_mask, width, height, tree_iterations)
-
-    return water_mask, tree_mask
-
-
 # ---------------------------------------------------------------------------
 # Rivers
 #
@@ -167,61 +361,84 @@ def _generate_landmass_and_forest_masks(width, height, water_threshold=-0.18, tr
 # is_water_tile() keeps working everywhere).
 # ---------------------------------------------------------------------------
 
-def _generate_overworld_river(game_map, min_length=25):
-    """Carve a wandering river across the map using a simple random walk."""
+def _find_river_sources(heightmap, count):
+    """
+    Choose random high-elevation tiles as river sources.
+    """
+    candidates = []
+
+    for y in range(heightmap.height):
+        for x in range(heightmap.width):
+            if heightmap.get(x, y) >= HILLS:
+                candidates.append((x, y))
+    random.shuffle(candidates)
+
+    return candidates[:count]
+
+
+def _neighbors(x, y, width, height):
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            if dx == 0 and dy == 0:
+                continue
+            nx = x + dx
+            ny = y + dy
+
+            if 0 <= nx < width and 0 <= ny < height:
+                yield nx, ny
+
+
+def _lowest_neighbor(heightmap, x, y):
+    current = heightmap.get(x, y)
+    best = None
+    best_height = current
+
+    for nx, ny in _neighbors(x, y, heightmap.width, heightmap.height):
+        h = heightmap.get(nx, ny)
+        if h < best_height:
+            best_height = h
+            best = (nx, ny)
+
+    return best                
+
+def _generate_overworld_river(game_map, heightmap, source, min_length=20):
+    x, y = source
     river_tiles = []
-    width, height = game_map.width, game_map.height
+    visited = set()
 
-    # Start somewhere along one edge and generally walk toward the opposite edge.
-    if random.random() < 0.5:
-        x, y = random.randint(0, width - 1), 0
-        dir_y = 1
-    else:
-        x, y = 0, random.randint(0, height - 1)
-        dir_y = 0
-
-    steps = 0
-    max_steps = width + height  # generous upper bound so the walk always terminates
-    while 0 <= x < width and 0 <= y < height and steps < max_steps:
-        game_map.tiles[y][x] = river
+    while True:
+        if (x, y) in visited:
+            break
+        visited.add((x, y))
         river_tiles.append((x, y))
+        game_map.tiles[y][x] = river
 
-        # Give the river some width so it doesn't read as a single-tile scratch.
-        for wx, wy in [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]:
-            if 0 <= wx < width and 0 <= wy < height and random.random() < 0.3:
-                game_map.tiles[wy][wx] = river
-                river_tiles.append((wx, wy))
+        # reached ocean/lake
+        if heightmap.get(x, y) < SHALLOW_WATER:
+            break
 
-        # Wander toward the far edge with some horizontal drift.
-        if dir_y:
-            y += 1
-            x += random.choice([-1, 0, 0, 1])
-        else:
-            x += 1
-            y += random.choice([-1, 0, 0, 1])
-        steps += 1
+        nxt = _lowest_neighbor(heightmap, x, y)
+        if nxt is None:
+            break
+        x, y = nxt
 
     if len(river_tiles) < min_length:
-        return []  # too short to bother keeping — caller can retry
+        return []
+
     return river_tiles
 
-
-def _place_rivers(game_map, river_chance, max_rivers=None):
-    """Scatter a few meandering rivers across the overworld map, on top of the
-    noise-generated lakes/seas.
-
-    max_rivers defaults to a count scaled off map area (roughly one river per
-    24,000 tiles, minimum 1) — pass an explicit number to override this.
-    """
+def _place_rivers(game_map, heightmap, river_count):
     river_tiles = []
-    width, height = game_map.width, game_map.height
+    sources = _find_river_sources(heightmap, river_count)
 
-    if max_rivers is None:
-        max_rivers = max(1, (width * height) // 24000)
-
-    for _ in range(max_rivers):
-        if random.random() < river_chance:
-            river_tiles.extend(_generate_overworld_river(game_map))
+    for source in sources:
+        river_tiles.extend(
+            _generate_overworld_river(
+                game_map,
+                heightmap,
+                source
+            )
+        )
 
     return river_tiles
 
@@ -244,34 +461,43 @@ def _is_valid_entrance_spot(game_map, x, y):
     return tile is ground  # keep entrances off tall grass/tree tiles for visibility
 
 
-def _place_dungeon_entrances(game_map, num_entrances, min_spacing=15):
-    """Scatter dungeon entrances across open ground, rejecting spots too close to
-    an entrance already placed so they don't cluster together."""
-    width, height = game_map.width, game_map.height
+def _place_pois(game_map, heightmap, moisture, poi, count):
+    candidates = []
+
+    for y in range(game_map.height):
+        for x in range(game_map.width):
+            if not game_map.is_walkable(x, y):
+                continue
+            score = poi.score_function(
+                game_map,
+                heightmap,
+                moisture,
+                x,
+                y
+            )
+            candidates.append((score, x, y))
+
+    candidates.sort(reverse=True)
     placed = []
 
-    attempts = num_entrances * 40  # generous retry budget for a sparse map
-    for _ in range(attempts):
-        if len(placed) >= num_entrances:
+    for score, x, y in candidates:
+        if len(placed) >= count:
             break
 
-        x = random.randint(0, width - 1)
-        y = random.randint(0, height - 1)
-        if not _is_valid_entrance_spot(game_map, x, y):
-            continue
+        too_close = False
 
-        too_close = any(
-            abs(x - px) + abs(y - py) < min_spacing
-            for px, py in placed
-        )
+        for px, py in placed:
+            if _distance((x, y), (px, py)) < poi.min_spacing:
+                too_close = True
+                break
+
         if too_close:
             continue
 
-        game_map.tiles[y][x] = dungeon_entrance
+        game_map.tiles[y][x] = poi.tile
         placed.append((x, y))
 
     return placed
-
 
 # ---------------------------------------------------------------------------
 # Roads
@@ -282,6 +508,27 @@ def _place_dungeon_entrances(game_map, num_entrances, min_spacing=15):
 # world keeps going past the border — walking off the edge of the map is
 # what actually generates/loads the next chunk over (see game.py).
 # ---------------------------------------------------------------------------
+def _movement_cost(game_map, x, y):
+
+    tile = game_map.tiles[y][x]
+
+    if tile == lake:
+        return None
+
+    if tile == river:
+        return None
+
+    if tile == tree:
+        return 6
+
+    if tile == tall_grass:
+        return 2
+
+    if tile == road:
+        return 1
+
+    return 1
+
 
 def _nearest_edge_direction(x, y, width, height):
     """Return the cardinal direction ('N', 'S', 'E', or 'W') of the closest map edge."""
@@ -294,57 +541,43 @@ def _nearest_edge_direction(x, y, width, height):
     return min(distance_to_edge, key=distance_to_edge.get)
 
 
-def _generate_road(game_map, start_x, start_y, min_length=10):
-    """Carve a single wandering road from (start_x, start_y) out toward the nearest
-    map edge. Shaped like _generate_overworld_river's walk, but aimed at whichever
-    edge is closest and left running until it actually reaches the border rather
-    than stopping after a fixed number of steps."""
-    width, height = game_map.width, game_map.height
+def _generate_road(game_map, heightmap, start):
+    goal = _nearest_edge_tile(
+        start[0],
+        start[1],
+        game_map.width,
+        game_map.height
+    )
+
+    path = _find_path(game_map, heightmap, start, goal)
     road_tiles = []
-
-    direction = _nearest_edge_direction(start_x, start_y, width, height)
-    dx, dy = {'N': (0, -1), 'S': (0, 1), 'E': (1, 0), 'W': (-1, 0)}[direction]
-
-    # Step away from the entrance first so the road doesn't overwrite it.
-    x, y = start_x + dx, start_y + dy
-
-    steps = 0
-    max_steps = width + height  # generous upper bound so the walk always terminates
-    while 0 <= x < width and 0 <= y < height and steps < max_steps:
+    for x, y in path:
         if not is_water_tile(game_map.tiles[y][x]):
-            game_map.tiles[y][x] = road
+            if game_map.tiles[y][x] is not dungeon_entrance:
+                game_map.tiles[y][x] = road
             road_tiles.append((x, y))
 
-        # Mostly follow the chosen direction, with occasional sideways drift —
-        # same feel as the river's wander, just aimed at an edge instead of a room.
-        if dx:
-            x += dx
-            y += random.choice([-1, 0, 0, 1])
-        else:
-            y += dy
-            x += random.choice([-1, 0, 0, 1])
-        steps += 1
-
-    if len(road_tiles) < min_length:
-        return []  # too short to bother keeping
     return road_tiles
 
 
-def _place_roads(game_map, entrance_positions, road_chance=0.8):
-    """Grow a road out toward the map edge from some of the dungeon entrances."""
-    road_tiles = []
-    for x, y in entrance_positions:
-        if random.random() < road_chance:
-            road_tiles.extend(_generate_road(game_map, x, y))
-    return road_tiles
+def _place_roads(game_map, heightmap, entrances):
+    roads = []
+    for entrance in entrances:
+        roads.extend(
+            _generate_road(
+                game_map,
+                heightmap,
+                entrance
+            )
+        )
+    return roads
 
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
-def generate_overworld(game_map, num_dungeon_entrances=None, river_chance=0.8,
-                        water_threshold=-0.12, tree_threshold=0.0):
+def generate_overworld(game_map, num_dungeon_entrances=None):
     """
     Populate game_map with an overworld:
       1. Perlin noise lays out the base land/water layout and forest cover.
@@ -361,45 +594,95 @@ def generate_overworld(game_map, num_dungeon_entrances=None, river_chance=0.8,
     width, height = game_map.width, game_map.height
 
     if num_dungeon_entrances is None:
-        num_dungeon_entrances = max(5, (width * height) // 6000)
+        num_dungeon_entrances = max(4, (width * height) // 6000) 
 
     # 1 & 2. Noise-driven land/water and forest masks, cleaned up by cellular automata.
-    water_mask, tree_mask = _generate_landmass_and_forest_masks(
-        width, height, water_threshold=water_threshold, tree_threshold=tree_threshold
+    heightmap = _generate_heightmap(
+        width,
+        height,
+        scale=max(width, height) / 6,
     )
+
+    moisture = _generate_moisture_map(
+        width,
+        height,
+        scale=max(width, height) / 10
+    )    
+    
 
     # 3. Paint the base terrain from those masks — water takes priority over trees
     #    (a tree can't grow in the middle of a lake), everything else is open ground.
+
     for y in range(height):
         for x in range(width):
-            if water_mask[y][x]:
+            elevation = heightmap.get(x, y)
+            biome = _biome(
+                elevation,
+                moisture.get(x, y)
+            )
+
+            if biome == BIOME_OCEAN:
                 game_map.tiles[y][x] = lake
-            elif tree_mask[y][x]:
-                game_map.tiles[y][x] = tree
-            elif random.random() < 0.08:
-                # Scatter some tall grass through the open areas for visual variety.
-                game_map.tiles[y][x] = tall_grass
-            # elif random.random() < 0.12:
-            #     # Scatter a few small grass patches for visual variety.
-            #     game_map.tiles[y][x] = grass
-            else:
+            elif biome == BIOME_BEACH:
                 game_map.tiles[y][x] = ground
+            elif biome == BIOME_MOUNTAINS:
+                game_map.tiles[y][x] = tree   # you'll need a mountain tile
+            elif biome == BIOME_HILLS:
+                if moisture.get(x, y) > 0.55:
+                    game_map.tiles[y][x] = tree
+                else:
+                    game_map.tiles[y][x] = ground
+            elif biome == BIOME_FOREST:
+                game_map.tiles[y][x] = tree
+            elif biome == BIOME_SWAMP:
+                game_map.tiles[y][x] = tall_grass
+            else:
+                if random.random() < 0.08:
+                    game_map.tiles[y][x] = tall_grass
+                else:
+                    game_map.tiles[y][x] = ground
+
 
     # 4. Rivers — meandering, carved on top of the noise-generated terrain.
-    river_tiles = _place_rivers(game_map, river_chance)
+    river_count = max(1, (width * height) // 25000)
+
+    river_tiles = _place_rivers(
+        game_map,
+        heightmap,
+        river_count
+    )
 
     # 5. Dungeon entrances, spaced apart so they don't cluster.
-    dungeon_entrances = _place_dungeon_entrances(game_map, num_dungeon_entrances)
+    dungeon_poi = PointOfInterest(
+        name="Dungeon",
+        tile=dungeon_entrance,
+        min_spacing=18,
+        score_function=_score_dungeon_location
+    )
+
+    dungeon_entrances = _place_pois(
+        game_map,
+        heightmap,
+        moisture,
+        dungeon_poi,
+        num_dungeon_entrances
+    )
 
     # 6. Roads leading out from some dungeon entrances toward the map edge —
     #    a visual hint (and future route) toward whatever lies past the border.
-    road_tiles = _place_roads(game_map, dungeon_entrances)
+    road_tiles = _place_roads(
+        game_map,
+        heightmap,
+        dungeon_entrances
+    )
 
     # Future hooks: towns and other points of interest get layered in here the
     # same way dungeon entrances and roads are — pick valid spots, place tiles,
     # record their positions for game.py to react to.
 
     return {
+        "heightmap": heightmap,
+        "moisture": moisture,
         "water_tiles": river_tiles,
         "dungeon_entrances": dungeon_entrances,
         "road_tiles": road_tiles,

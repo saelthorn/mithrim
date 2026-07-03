@@ -168,7 +168,7 @@ def setup_tile_mapping():
 
         # Overworld Tiles
         'tre': (0 * CELL_DIM, 18 * CELL_DIM),  # Tree
-        'grd': (1 * CELL_DIM, 17 * CELL_DIM),  # Ground
+        'grd': (1 * CELL_DIM, 18 * CELL_DIM),  # Ground
         '`3': (2 * CELL_DIM, 18 * CELL_DIM),  # Tall Grass
         'rd': (0 * CELL_DIM, 3 * CELL_DIM),  # Road
 
