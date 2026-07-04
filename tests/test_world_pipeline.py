@@ -9,6 +9,7 @@ world_generator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(world_generator)
 
 from world import world_map as world_map_module
+from world.tile import wall
 
 
 def test_generate_chunk_context_has_stage_data():
@@ -79,3 +80,40 @@ def test_forest_generator_adds_nature_features():
     world_generator.ForestGenerator().apply(game_map, heightmap, moisture, set())
 
     assert any(tile is world_generator.pond for row in game_map.tiles for tile in row)
+
+
+def test_structure_generator_places_blueprint_tiles():
+    class DummyGameMap:
+        width = 10
+        height = 10
+        tiles = [[world_generator.ground for _ in range(10)] for _ in range(10)]
+
+    game_map = DummyGameMap()
+    from world.structures import place_structure, get_structure_blueprint
+
+    blueprint = get_structure_blueprint("witch_hut")
+    placed = place_structure(game_map, "witch_hut", 1, 1)
+
+    assert blueprint is not None
+    assert blueprint.name == "Witch Hut"
+    assert placed is not None
+    assert game_map.tiles[2][2] is not world_generator.ground
+    assert game_map.tiles[3][3] is not world_generator.ground
+
+
+def test_generate_chunk_context_places_structure_on_plains_chunk():
+    class DummyGameMap:
+        width = 20
+        height = 20
+        tiles = [[world_generator.ground for _ in range(20)] for _ in range(20)]
+
+    game_map = DummyGameMap()
+    world_generator.generate_chunk_context(
+        game_map,
+        (0, 0),
+        321,
+        biome=world_generator.ChunkBiome.PLAINS,
+        ChunkBiome=world_generator.ChunkBiome,
+    )
+
+    assert any(tile is wall for row in game_map.tiles for tile in row)
