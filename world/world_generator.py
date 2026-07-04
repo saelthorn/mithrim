@@ -28,7 +28,7 @@ from world.tile import (
     dead_forest,
 )
 from world.water_features import river, lake, is_water_tile
-from world.structures import place_structure_at_anchor
+from world.structures import place_structure_at_anchor, get_structure_blueprint
 
 
 DEEP_WATER = 0.12
@@ -323,9 +323,6 @@ class PlainsGenerator(TerrainGenerator):
 
         x, y = random.choice(candidates)
         landmark = random.choice(["Ruined Farm", "Caravan Camp", "Standing Stones", "Windmill"])
-        structure_id = {"Windmill": "windmill"}.get(landmark)
-        if structure_id is not None:
-            return [(x, y, landmark, structure_id)]        
         game_map.tiles[y][x] = ground
         return [(x, y, landmark)]
 
@@ -1526,6 +1523,89 @@ def _place_pois(game_map, heightmap, moisture, poi, count):
 # Entry point
 # ---------------------------------------------------------------------------
 
+# Minimum number of empty tiles kept between two town buildings' footprints.
+TOWN_BUILDING_GAP = 2
+
+
+def _anchor_offset(size_a, size_b, gap):
+    """
+    Distance to add to one building's anchor coordinate to get the anchor
+    coordinate of a second building placed directly after it (to the right,
+    or below, depending on whether this is used for x or y), leaving at
+    least `gap` empty tiles between their two footprints.
+
+    place_structure_at_anchor centers a building on its anchor using
+    `origin = anchor - size // 2`, so this mirrors that math rather than
+    guessing at spacing with hand-picked offsets.
+    """
+    return (size_a - size_a // 2) + gap + (size_b // 2)
+
+
+def _place_town(game_map, chunk_coord, biome):
+    """
+    Attempt to place a small town — one tavern, one shop, and a handful of
+    houses, clustered together — in this chunk.
+
+    Not every chunk gets a town: like the single biome_structure fallback
+    below, this is a cheap deterministic "roll" based on the chunk's
+    coordinates so towns show up now and then rather than on every screen.
+    Mountain chunks are skipped since cliffs/ridges break up the terrain
+    too much for a clean town layout.
+
+    The tavern is placed first and anchors the rest of the layout; if it
+    doesn't fit anywhere nearby, we give up on the town entirely rather
+    than scattering a shop or houses with nothing around them. The shop
+    and houses are positioned using each building's actual footprint size
+    (from its blueprint) plus TOWN_BUILDING_GAP, so buildings stay at
+    least a tile apart instead of relying on hand-picked offsets. Note
+    place_structure_at_anchor may still nudge a building a tile or two to
+    find clear ground, so this spacing is a target, not an absolute
+    guarantee.
+    """
+    width, height = game_map.width, game_map.height
+
+    if biome == ChunkBiome.MOUNTAINS:
+        return []
+    if (chunk_coord[0] * 13 + chunk_coord[1] * 7) % 5 != 0:
+        return []
+
+    anchor_x = width // 2 + (chunk_coord[0] % 5) - 2
+    anchor_y = height // 2 + (chunk_coord[1] % 5) - 2
+
+    tavern_bp = get_structure_blueprint("tavern")
+    shop_bp = get_structure_blueprint("shop")
+    house_bp = get_structure_blueprint("house")
+
+    tavern_w, tavern_h = len(tavern_bp.tile_map[0]), len(tavern_bp.tile_map)
+    shop_w, shop_h = len(shop_bp.tile_map[0]), len(shop_bp.tile_map)
+    house_w, house_h = len(house_bp.tile_map[0]), len(house_bp.tile_map)
+
+    town_buildings = []
+
+    tavern = place_structure_at_anchor(game_map, "tavern", anchor_x, anchor_y)
+    if not tavern:
+        return []
+    town_buildings.append(("tavern", tavern))
+
+    # Shop sits to the right of the tavern, on the same row.
+    shop_anchor_x = anchor_x + _anchor_offset(tavern_w, shop_w, TOWN_BUILDING_GAP)
+    shop = place_structure_at_anchor(game_map, "shop", shop_anchor_x, anchor_y)
+    if shop:
+        town_buildings.append(("shop", shop))
+
+    # Houses form a row below the tavern/shop row, spaced the same way.
+    houses_row_y = anchor_y + _anchor_offset(max(tavern_h, shop_h), house_h, TOWN_BUILDING_GAP)
+    house_spacing = _anchor_offset(house_w, house_w, TOWN_BUILDING_GAP)
+    house_anchors_x = [anchor_x - house_spacing, anchor_x, anchor_x + house_spacing]
+
+    for house_anchor_x in house_anchors_x:
+        house = place_structure_at_anchor(game_map, "house", house_anchor_x, houses_row_y)
+        if house:
+            town_buildings.append(("house", house))
+
+    return town_buildings
+
+
 def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_map=None, num_dungeon_entrances=None, debug_heightmap_path=None, ChunkBiome=None):
     """Build a staged context for one overworld chunk, exposing the pipeline
     phases clearly while preserving the existing terrain-generation behavior."""
@@ -1640,7 +1720,19 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
             continue
         place_structure_at_anchor(game_map, structure_id, anchor_x, anchor_y)
 
-    if not any(tile is not None and getattr(tile, "name", "") in {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Windmill"} for row in game_map.tiles for tile in row):
+    # Towns are placed after the landmark structures above (and after the
+    # mountain ridges) so ridges can't carve through a building, and so a
+    # town has first pick of the map's central area before the single
+    # biome_structure fallback below claims it.
+    town_buildings = _place_town(game_map, chunk_coord, biome)
+    flavor["has_town"] = bool(town_buildings)
+
+    structure_names = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
+    has_any_structure = any(
+        tile is not None and getattr(tile, "name", "") in structure_names
+        for row in game_map.tiles for tile in row
+    )
+    if not has_any_structure:
         biome_structure = {
             ChunkBiome.SWAMP: "witch_hut",
             ChunkBiome.MOUNTAINS: "watch_tower",
@@ -1665,6 +1757,7 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
         "infrastructure": road_tiles,
         "population": population,
         "flavor": flavor,
+        "town_buildings": town_buildings,
     }
 
 
@@ -1701,8 +1794,5 @@ def generate_overworld(game_map, chunk_coord, world_seed, biome, world_map=None,
         "infrastructure": context["infrastructure"],
         "population": context["population"],
         "flavor": context["flavor"],
+        "town_buildings": context["town_buildings"],
     }
-
-
-
-
