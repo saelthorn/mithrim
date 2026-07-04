@@ -173,6 +173,21 @@ def setup_tile_mapping():
         '`3': (2 * CELL_DIM, 18 * CELL_DIM),  # Tall Grass
         'mnt': (3 * CELL_DIM, 18 * CELL_DIM),  # Mountain
 
+        'cl': (1 * CELL_DIM, 18 * CELL_DIM),  # Clearing
+        'GT': (5 * CELL_DIM, 18 * CELL_DIM),  # Giant Tree
+        'pn': (6 * CELL_DIM, 18 * CELL_DIM),  # Pond
+        'ff': (7 * CELL_DIM, 18 * CELL_DIM),  # Flower Field
+        'cf': (8 * CELL_DIM, 18 * CELL_DIM),  # Cliff
+        'vy': (9 * CELL_DIM, 18 * CELL_DIM),  # Valley
+        'wf': (10 * CELL_DIM, 18 * CELL_DIM), # Waterfall
+        'sc': (11 * CELL_DIM, 18 * CELL_DIM), # Scree
+        'rg': (12 * CELL_DIM, 18 * CELL_DIM), # Ridge
+        'md': (13 * CELL_DIM, 18 * CELL_DIM), # Meadow
+        'rk': (14 * CELL_DIM, 18 * CELL_DIM), # Rock Formation
+        'mp': (15 * CELL_DIM, 18 * CELL_DIM), # Marsh Pool
+        'rs': (16 * CELL_DIM, 18 * CELL_DIM), # Reeds
+        'df': (17 * CELL_DIM, 18 * CELL_DIM), # Dead Forest
+
 
         # Elemental Tiles
         'fire': (12 * CELL_DIM, 5 * CELL_DIM),  # Fire

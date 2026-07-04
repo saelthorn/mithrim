@@ -64,6 +64,22 @@ tree = Tile(blocked=False, char='tre', color=(25, 80, 35), block_sight=True, des
 dungeon_entrance = Tile(blocked=False, char='>', color=(230, 192, 0), name="Dungeon Entrance")
 mountain = Tile(blocked=True, char='mnt', color=(100, 100, 100), block_sight=True, destructible=False, name="Mountain")
 
+# Overworld terrain decoration (non-POI nature features)
+clearing = Tile(blocked=False, char='cl', color=(220, 200, 120), name="Clearing")
+giant_tree = Tile(blocked=False, char='GT', color=(15, 50, 20), block_sight=True, name="Giant Tree")
+pond = Tile(blocked=False, char='pn', color=(80, 140, 180), name="Pond")
+flower_field = Tile(blocked=False, char='ff', color=(180, 90, 170), name="Flower Field")
+cliff = Tile(blocked=False, char='cf', color=(150, 140, 140), name="Cliff")
+valley = Tile(blocked=False, char='vy', color=(120, 150, 100), name="Valley")
+waterfall = Tile(blocked=False, char='wf', color=(90, 140, 220), name="Waterfall")
+scree = Tile(blocked=False, char='sc', color=(140, 130, 115), name="Scree")
+ridge = Tile(blocked=False, char='rg', color=(140, 110, 90), name="Ridge")
+meadow = Tile(blocked=False, char='md', color=(120, 180, 80), name="Meadow")
+rock_formation = Tile(blocked=False, char='rk', color=(160, 160, 160), name="Rock Formation")
+marsh_pool = Tile(blocked=False, char='mp', color=(80, 150, 110), name="Marsh Pool")
+reeds = Tile(blocked=False, char='rs', color=(70, 140, 80), name="Reeds")
+dead_forest = Tile(blocked=False, char='df', color=(90, 100, 70), name="Dead Forest")
+
 
 class MimicTile(Tile):
     def __init__(self, mimic_entity, char, color, name):

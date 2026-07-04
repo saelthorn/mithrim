@@ -1,16 +1,48 @@
 import math
 import heapq
 import random
+import struct
+import zlib
 from core.game import ChunkBiome
-from world.tile import grass, tall_grass, tree, dungeon_entrance, road, ground, mountain
+from world.tile import (
+    grass,
+    tall_grass,
+    tree,
+    dungeon_entrance,
+    road,
+    ground,
+    mountain,
+    clearing,
+    giant_tree,
+    pond,
+    flower_field,
+    cliff,
+    valley,
+    waterfall,
+    scree,
+    ridge,
+    meadow,
+    rock_formation,
+    marsh_pool,
+    reeds,
+    dead_forest,
+)
 from world.water_features import river, lake, is_water_tile
 
 
 
-DEEP_WATER = 0.28
-SHALLOW_WATER = 0.34
-PLAINS = 0.60
-HILLS = 0.78
+DEEP_WATER = 0.12
+SHALLOW_WATER = 0.18
+PLAINS = 0.55
+HILLS = 0.75
+
+# How strongly a chunk's local elevation/moisture noise is pulled toward the
+# coarse, world-scale value WorldMap recorded for that chunk (see
+# _bias_grid_toward_world_value). Elevation is biased harder than moisture —
+# mountain ranges and coastlines reading as continuous across chunks matters
+# more than moisture doing the same.
+WORLD_ELEVATION_BIAS_STRENGTH = 0.35
+WORLD_MOISTURE_BIAS_STRENGTH = 0.20
 
 BIOME_OCEAN = "ocean"
 BIOME_BEACH = "beach"
@@ -140,6 +172,35 @@ class HeightMap:
         self.values[y][x] = value
 
 
+class FlowField:
+    """
+    Stores, for every tile, which single downhill neighbor water flows to
+    (`direction`) and how much flow has accumulated there from all its
+    upstream tiles (`volume`). Both are computed once in _generate_flow_field()
+    and then just read everywhere else, so river accumulation and river
+    painting always agree on the exact same path.
+    """
+
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+
+        self.direction = [[None for _ in range(width)] for _ in range(height)]
+        self.volume = [[1 for _ in range(width)] for _ in range(height)]
+
+    def get_direction(self, x, y):
+        return self.direction[y][x]
+
+    def set_direction(self, x, y, target):
+        self.direction[y][x] = target
+
+    def get_volume(self, x, y):
+        return self.volume[y][x]
+
+    def add_volume(self, x, y, amount):
+        self.volume[y][x] += amount
+
+
 class RegionMap:
     def __init__(self, width, height):
         self.width = width
@@ -179,6 +240,235 @@ class Region:
         self.tiles = []
         self.center = None
         self.points_of_interest = []
+
+
+class TerrainGenerator:
+    def terrain_tags(self):
+        return ()
+
+    def decorate(self, game_map, heightmap, moisture, river_positions):
+        return
+
+    def apply(self, game_map, heightmap, moisture, river_positions):
+        raise NotImplementedError
+
+
+class PlainsGenerator(TerrainGenerator):
+    def terrain_tags(self):
+        return ("open_grass", "scattered_trees", "gentle_hills")
+
+    def apply(self, game_map, heightmap, moisture, river_positions):
+        river_tiles = set(river_positions or ())
+        width, height = game_map.width, game_map.height
+
+        for y in range(height):
+            for x in range(width):
+                h = heightmap.get(x, y)
+                m = moisture.get(x, y)
+
+                if (x, y) in river_tiles:
+                    game_map.tiles[y][x] = ground
+                elif h > 0.78:
+                    game_map.tiles[y][x] = tall_grass
+                elif h > 0.60:
+                    game_map.tiles[y][x] = grass
+                elif m > 0.70 and (x + y) % 9 == 0:
+                    game_map.tiles[y][x] = tree
+                else:
+                    game_map.tiles[y][x] = ground
+
+        self.decorate(game_map, heightmap, moisture, river_positions)
+
+    def decorate(self, game_map, heightmap, moisture, river_positions):
+        river_tiles = set(river_positions or ())
+        width, height = game_map.width, game_map.height
+
+        for y in range(height):
+            for x in range(width):
+                if (x, y) in river_tiles:
+                    continue
+                tile = game_map.tiles[y][x]
+                h = heightmap.get(x, y)
+                m = moisture.get(x, y)
+
+                if tile not in {ground, grass, tall_grass}:
+                    continue
+
+                if h > 0.82 and (x * 7 + y * 13 + 3) % 11 == 0:
+                    game_map.tiles[y][x] = rock_formation
+                elif m > 0.62 and (x * 11 + y * 5) % 15 == 0:
+                    game_map.tiles[y][x] = meadow
+                elif h > 0.70 and (x * 3 + y * 7) % 19 == 0:
+                    game_map.tiles[y][x] = ridge
+
+
+class ForestGenerator(TerrainGenerator):
+    def terrain_tags(self):
+        return ("forests", "rolling_hills", "streams")
+
+    def apply(self, game_map, heightmap, moisture, river_positions):
+        river_tiles = set(river_positions or ())
+        width, height = game_map.width, game_map.height
+
+        for y in range(height):
+            for x in range(width):
+                h = heightmap.get(x, y)
+                m = moisture.get(x, y)
+
+                if (x, y) in river_tiles:
+                    game_map.tiles[y][x] = ground
+                elif h > 0.80:
+                    game_map.tiles[y][x] = tree
+                elif h > 0.66:
+                    game_map.tiles[y][x] = tall_grass
+                elif m > 0.62 and (x + y) % 5 == 0:
+                    game_map.tiles[y][x] = tree
+                else:
+                    game_map.tiles[y][x] = grass
+
+        self.decorate(game_map, heightmap, moisture, river_positions)
+
+    def decorate(self, game_map, heightmap, moisture, river_positions):
+        river_tiles = set(river_positions or ())
+        width, height = game_map.width, game_map.height
+
+        for y in range(height):
+            for x in range(width):
+                if (x, y) in river_tiles:
+                    continue
+                tile = game_map.tiles[y][x]
+                h = heightmap.get(x, y)
+                m = moisture.get(x, y)
+
+                if tile not in {grass, tall_grass, ground, tree}:
+                    continue
+
+                if m > 0.84 and h < 0.40 and (x * 5 + y * 7) % 13 == 0:
+                    game_map.tiles[y][x] = pond
+                elif tile is tree and (x * 3 + y * 5) % 17 == 0:
+                    game_map.tiles[y][x] = giant_tree
+                elif m > 0.72 and (x * 7 + y * 3) % 19 == 0:
+                    game_map.tiles[y][x] = flower_field
+                elif h < 0.55 and (x * 11 + y * 5) % 23 == 0:
+                    game_map.tiles[y][x] = clearing
+
+
+class SwampGenerator(TerrainGenerator):
+    def terrain_tags(self):
+        return ("shallow_lakes", "mud_grass", "dead_trees")
+
+    def apply(self, game_map, heightmap, moisture, river_positions):
+        river_tiles = set(river_positions or ())
+        width, height = game_map.width, game_map.height
+
+        for y in range(height):
+            for x in range(width):
+                h = heightmap.get(x, y)
+                m = moisture.get(x, y)
+
+                if (x, y) in river_tiles:
+                    game_map.tiles[y][x] = ground
+                elif m > 0.82 and h < 0.50:
+                    game_map.tiles[y][x] = lake
+                elif m > 0.65:
+                    game_map.tiles[y][x] = grass
+                elif h > 0.72:
+                    game_map.tiles[y][x] = tree
+                else:
+                    game_map.tiles[y][x] = ground
+
+        self.decorate(game_map, heightmap, moisture, river_positions)
+
+    def decorate(self, game_map, heightmap, moisture, river_positions):
+        river_tiles = set(river_positions or ())
+        width, height = game_map.width, game_map.height
+
+        for y in range(height):
+            for x in range(width):
+                if (x, y) in river_tiles:
+                    continue
+                tile = game_map.tiles[y][x]
+                h = heightmap.get(x, y)
+                m = moisture.get(x, y)
+
+                if tile not in {ground, grass, tree, lake}:
+                    continue
+
+                if m > 0.84 and h < 0.45 and (x * 9 + y * 4) % 11 == 0:
+                    game_map.tiles[y][x] = marsh_pool
+                elif tile is tree and (x * 5 + y * 7) % 13 == 0:
+                    game_map.tiles[y][x] = dead_forest
+                elif m > 0.70 and (x * 7 + y * 3) % 17 == 0:
+                    game_map.tiles[y][x] = reeds
+
+
+class MountainGenerator(TerrainGenerator):
+    def terrain_tags(self):
+        return ("cliffs", "plateaus", "caves", "pine_forests")
+
+    def apply(self, game_map, heightmap, moisture, river_positions):
+        river_tiles = set(river_positions or ())
+        width, height = game_map.width, game_map.height
+
+        for y in range(height):
+            for x in range(width):
+                h = heightmap.get(x, y)
+                m = moisture.get(x, y)
+
+                if (x, y) in river_tiles:
+                    game_map.tiles[y][x] = ground
+                elif h > 0.90:
+                    game_map.tiles[y][x] = mountain
+                elif h > 0.78:
+                    game_map.tiles[y][x] = ground
+                elif h > 0.65 and m > 0.50:
+                    game_map.tiles[y][x] = tree
+                else:
+                    game_map.tiles[y][x] = grass
+
+        self.decorate(game_map, heightmap, moisture, river_positions)
+
+    def decorate(self, game_map, heightmap, moisture, river_positions):
+        river_tiles = set(river_positions or ())
+        width, height = game_map.width, game_map.height
+
+        for y in range(height):
+            for x in range(width):
+                if (x, y) in river_tiles:
+                    continue
+                tile = game_map.tiles[y][x]
+                h = heightmap.get(x, y)
+                m = moisture.get(x, y)
+
+                if tile not in {ground, grass, tree, mountain}:
+                    continue
+
+                if h > 0.90 and (x * 7 + y * 11) % 13 == 0:
+                    game_map.tiles[y][x] = cliff
+                elif h > 0.80 and (x * 5 + y * 9) % 17 == 0:
+                    game_map.tiles[y][x] = scree
+                elif h < 0.45 and (x * 3 + y * 7) % 19 == 0:
+                    game_map.tiles[y][x] = valley
+                elif h > 0.72 and m > 0.40 and (x * 11 + y * 3) % 23 == 0:
+                    game_map.tiles[y][x] = waterfall
+                elif tile is tree and (x * 4 + y * 6) % 29 == 0:
+                    game_map.tiles[y][x] = ridge
+
+
+def get_terrain_generator(biome):
+    if biome is None:
+        return PlainsGenerator
+
+    if biome in {ChunkBiome.FOREST, ChunkBiome.FOREST.value}:
+        return ForestGenerator
+    if biome in {ChunkBiome.SWAMP, ChunkBiome.SWAMP.value}:
+        return SwampGenerator
+    if biome in {ChunkBiome.MOUNTAINS, ChunkBiome.MOUNTAINS.value}:
+        return MountainGenerator
+    if biome in {ChunkBiome.PLAINS, ChunkBiome.PLAINS.value}:
+        return PlainsGenerator
+
+    return PlainsGenerator
 
 
 def _biome(height, moisture):
@@ -407,33 +697,118 @@ def _fractal_noise(perm, x, y, octaves, persistence, lacunarity):
     return total / max_amplitude  # normalized back to roughly [-1, 1]
 
 
-def _generate_heightmap(perm, chunk_x, chunk_y, width, height, scale, octaves=5, persistence=0.5, lacunarity=2.0,):
+def _generate_mountain_ridges(width, height):
     """
-    Generates a normalized heightmap.
-    Values range from 0.0 to 1.0.
+    Creates several long mountain ridges.
+
+    These are NOT mountains yet.
+    They're just polylines that later become elevation.
     """
-    #perm = _build_permutation_table()
+    ridges = []
+
+    ridge_count = max(3, (width * height) // 20000)
+
+    for _ in range(ridge_count):
+        x = random.randint(width // 5, width * 4 // 5)
+        y = random.randint(height // 5, height * 4 // 5)
+
+        angle = random.uniform(0, math.pi * 2)
+        ridge = []
+
+        length = random.randint(
+            min(width, height) // 3,
+            min(width, height) // 2
+        )
+
+        for _ in range(length):
+            ridge.append((int(x), int(y)))
+            # slowly bend
+            angle += random.uniform(-0.25, 0.25)
+
+            x += math.cos(angle)
+            y += math.sin(angle)
+
+            if x < 2 or x >= width - 2:
+                break
+            if y < 2 or y >= height - 2:
+                break
+
+        ridges.append(ridge)
+
+    return ridges
+
+
+def _generate_ridge_heightmap(width, height):
+    """
+    Builds a heightmap from mountain ridges instead of Perlin noise.
+    """
+    ridges = _generate_mountain_ridges(width, height)
     heightmap = HeightMap(width, height)
+    max_radius = max(width, height) * 0.30
 
     for y in range(height):
         for x in range(width):
-            world_x = chunk_x * width + x
-            world_y = chunk_y * height + y
-            value = _fractal_noise(
-                perm,
-                world_x / scale,
-                world_y / scale,
-                octaves,
-                persistence,
-                lacunarity,
-            )
+            elevation = 0.0
 
-            # convert from [-1,1] -> [0,1]
-            value = (value + 1.0) / 2.0
+            for ridge in ridges:
+                nearest = float("inf")
+                for rx, ry in ridge:
+                    d = math.hypot(rx - x, ry - y)
+
+                    if d < nearest:
+                        nearest = d
+
+                if nearest < max_radius:
+                    influence = 1.0 - (nearest / max_radius)
+                    elevation += influence ** 2
+
+            heightmap.set(x, y, elevation)
+
+    _normalize_heightmap(heightmap)
+
+    return heightmap
+
+
+def _normalize_heightmap(heightmap):
+
+    minimum = float("inf")
+    maximum = float("-inf")
+
+    for row in heightmap.values:
+        for value in row:
+            minimum = min(minimum, value)
+            maximum = max(maximum, value)
+
+    scale = maximum - minimum
+
+    if scale == 0:
+        return
+
+    for y in range(heightmap.height):
+        for x in range(heightmap.width):
+
+            value = heightmap.get(x, y)
+
+            value = value * 0.85 + 0.08
 
             heightmap.set(x, y, value)
 
-    return heightmap
+
+def _bias_grid_toward_world_value(grid, world_value, strength):
+    """
+    Nudge every tile in a HeightMap-like grid (elevation or moisture) toward
+    a single coarse, world-scale value for this chunk, so a chunk sampled
+    from a world-map mountain range trends mountainous locally too, and a
+    chunk sampled from a wet region trends moister — instead of every
+    chunk's terrain being decided independently of its neighbors.
+    `strength` controls how hard the world value pulls; the local Perlin
+    detail is only shifted, not replaced, so per-chunk variation survives.
+    """
+    for y in range(grid.height):
+        for x in range(grid.width):
+            local_value = grid.get(x, y)
+            biased = local_value + (world_value - 0.5) * strength
+            grid.set(x, y, min(1.0, max(0.0, biased)))
 
 
 def _generate_moisture_map(perm, chunk_x, chunk_y, width, height, scale, octaves=4, persistence=0.5, lacunarity=2.0,):
@@ -499,6 +874,18 @@ def _score_dungeon_location(game_map, heightmap, moisture, x, y):
     if river_pos:
         score += 10
 
+    # Road nearby — an entrance that already sits close to the trunk road
+    # network needs a shorter (cheaper, less land-scarring) spur to reach it.
+    road_pos = _nearest_tile(
+        game_map,
+        (x, y),
+        lambda t: t is road,
+        max_radius=12
+    )
+
+    if road_pos:
+        score += 10
+
     return score
 
 # ---------------------------------------------------------------------------
@@ -552,30 +939,26 @@ def _smooth_mask(grid, width, height, iterations, birth_limit=4, death_limit=3):
 # ---------------------------------------------------------------------------
 # Rivers
 #
-# The noise+CA pass above handles broad lakes/seas; rivers are a separate,
-# more linear feature so we keep the original meandering random-walk
-# generator for them rather than trying to coax noise into thin lines.
+# Rivers are derived from a flow field: every tile picks a single downhill
+# neighbor to drain into, and flow volume accumulates from high ground down
+# to low ground. Wherever enough volume piles up, that's a river.
+#
+# The key fix here vs. the old approach: a tile's downhill neighbor involves
+# a random choice (to make rivers meander instead of running bone-straight),
+# so it must be rolled exactly ONCE per tile and then reused everywhere.
+# The previous code called that random pick separately during accumulation
+# and again during painting, so the two steps frequently disagreed about
+# which way a tile's water was flowing — volume would accumulate along one
+# path while the painted river wandered off along another, producing rivers
+# that broke, forked randomly, or didn't line up with their own source of
+# flow at all. FlowField.direction fixes that by caching the choice.
+#
 # world/water_features.py was written with dungeons in mind (it replaces
 # `floor`/`wall` tiles), so we don't reuse its generation functions directly
 # — we borrow its river tile template and drop it onto open ground the same
 # way, so both dungeons and the overworld render water the same way (and
 # is_water_tile() keeps working everywhere).
 # ---------------------------------------------------------------------------
-
-def _find_river_sources(heightmap, count):
-    """
-    Choose random high-elevation tiles as river sources.
-    """
-    candidates = []
-
-    for y in range(heightmap.height):
-        for x in range(heightmap.width):
-            if heightmap.get(x, y) >= HILLS:
-                candidates.append((x, y))
-    random.shuffle(candidates)
-
-    return candidates[:count]
-
 
 def _neighbors(x, y, width, height):
     for dy in (-1, 0, 1):
@@ -589,67 +972,304 @@ def _neighbors(x, y, width, height):
                 yield nx, ny
 
 
-def _lowest_neighbor(heightmap, x, y):
+def _pick_downhill_neighbor(heightmap, x, y):
+    """
+    Pick the neighbor this tile's water flows toward.
+
+    Instead of always taking the single lowest neighbor, we randomly choose
+    between several near-steepest candidates so rivers meander naturally
+    rather than cutting a perfectly straight line downhill. This is called
+    exactly once per tile (from _generate_flow_field) and the result is
+    cached, so every later step agrees on the answer.
+    """
     current = heightmap.get(x, y)
-    best = None
-    best_height = current
+    candidates = []
 
     for nx, ny in _neighbors(x, y, heightmap.width, heightmap.height):
-        h = heightmap.get(nx, ny)
-        if h < best_height:
-            best_height = h
-            best = (nx, ny)
+        drop = current - heightmap.get(nx, ny)
 
-    return best                
+        if drop > 0:
+            candidates.append((drop, nx, ny))
 
-def _generate_overworld_river(game_map, heightmap, source, min_length=20):
-    x, y = source
+    if not candidates:
+        return None
+
+    best_drop = max(candidates)[0]
+    good = [
+        (nx, ny)
+        for drop, nx, ny in candidates
+        if drop >= best_drop * 0.75
+    ]
+
+    return random.choice(good)
+
+
+def _generate_flow_field(heightmap):
+    """
+    Build the flow field in two passes:
+
+      1. Give every tile its (single, cached) downhill direction. This can be
+         done in any order — one tile's choice doesn't depend on any other.
+      2. Walk tiles from highest to lowest, adding each tile's accumulated
+         volume onto whatever it flows toward. Processing high-to-low
+         guarantees that by the time we reach a tile, every one of its
+         upstream neighbors has already contributed its volume.
+    """
+    flow = FlowField(heightmap.width, heightmap.height)
+    tiles_by_height = []
+
+    for y in range(heightmap.height):
+        for x in range(heightmap.width):
+            flow.set_direction(x, y, _pick_downhill_neighbor(heightmap, x, y))
+            tiles_by_height.append((heightmap.get(x, y), x, y))
+
+    tiles_by_height.sort(reverse=True)
+
+    for _, x, y in tiles_by_height:
+        target = flow.get_direction(x, y)
+        if target is None:
+            continue
+
+        tx, ty = target
+        flow.add_volume(tx, ty, flow.get_volume(x, y))
+
+    return flow
+
+
+def _river_width(volume):
+    """Returns the radius of the river based on accumulated flow volume."""
+    if volume < 25:
+        return 0      # not a river
+    if volume < 60:
+        return 1      # narrow stream
+    if volume < 120:
+        return 2      # medium river
+    if volume < 250:
+        return 3      # large river
+
+    return 4          # huge river
+
+
+def _river_tile_positions(flow_field):
+    """
+    Work out every tile covered by river geometry, purely from the flow
+    field — no game_map involved yet. Splitting this out from the actual
+    tile-painting lets the caller fold river positions into the moisture map
+    (rivers make nearby land wetter) before biomes are painted, while the
+    actual carving of `river` tiles onto the map still happens afterward
+    (see _carve_rivers), since biome painting would otherwise overwrite it.
+    """
+    width, height = flow_field.width, flow_field.height
+    positions = set()
+
+    for y in range(height):
+        for x in range(width):
+            radius = _river_width(flow_field.get_volume(x, y))
+            if radius == 0:
+                continue
+
+            direction = flow_field.get_direction(x, y)
+            if direction is None:
+                continue
+
+            dx, dy = direction[0] - x, direction[1] - y
+            perp_x, perp_y = -dy, dx  # perpendicular to flow, gives the river its width
+
+            for i in range(-radius, radius + 1):
+                rx, ry = x + perp_x * i, y + perp_y * i
+                if 0 <= rx < width and 0 <= ry < height:
+                    positions.add((rx, ry))
+
+    return positions
+
+
+def _carve_rivers(game_map, river_positions):
+    """
+    Paint river tiles onto the map on top of whatever biome was already
+    painted there. Lakes take precedence — a river runs into a lake rather
+    than replacing it.
+    """
     river_tiles = []
-    visited = set()
 
-    while True:
-        if (x, y) in visited:
-            break
-        visited.add((x, y))
-        river_tiles.append((x, y))
+    for x, y in river_positions:
+        if game_map.tiles[y][x] is lake:
+            continue
         game_map.tiles[y][x] = river
-
-        # reached ocean/lake
-        if heightmap.get(x, y) < SHALLOW_WATER:
-            break
-
-        nxt = _lowest_neighbor(heightmap, x, y)
-        if nxt is None:
-            break
-        x, y = nxt
-
-    if len(river_tiles) < min_length:
-        return []
+        river_tiles.append((x, y))
 
     return river_tiles
 
-def _place_rivers(game_map, heightmap, river_count):
-    river_tiles = []
-    sources = _find_river_sources(heightmap, river_count)
 
-    for source in sources:
-        river_tiles.extend(
-            _generate_overworld_river(
-                game_map,
-                heightmap,
-                source
-            )
+def _edge_midpoint(width, height, direction):
+    """The tile at the midpoint of one edge of the chunk, used as the fixed
+    point a major river connects to so it lines up with the matching edge
+    of whichever neighboring chunk it continues into."""
+    if direction == "N":
+        return (width // 2, 0)
+    if direction == "S":
+        return (width // 2, height - 1)
+    if direction == "W":
+        return (0, height // 2)
+    return (width - 1, height // 2)  # "E"
+
+
+def _carve_major_river(game_map, heightmap, edges, radius=2):
+    """
+    Force a wide river connecting the given edge(s) of this chunk.
+
+    The flow-field river generated above (_river_tile_positions/_carve_rivers)
+    is purely local to a single chunk's heightmap, so it has no way to know
+    that a river should continue into the next chunk over. This carves a
+    guaranteed river between the WorldMap-provided edge crossings instead,
+    so a world-scale river reliably lines up on both sides of a chunk
+    boundary. It's routed with the same A* pathfinder as roads, so it still
+    bends around whatever terrain the local heightmap produced.
+    """
+    width, height = game_map.width, game_map.height
+    waypoints = [_edge_midpoint(width, height, direction) for direction in edges]
+
+    if len(waypoints) == 1:
+        # A source or a mouth — only one edge is fixed, so run the river to
+        # this chunk's lowest point rather than to a second edge.
+        lowest_point = min(
+            ((x, y) for y in range(height) for x in range(width)),
+            key=lambda point: heightmap.get(*point),
         )
+        waypoints.append(lowest_point)
+
+    river_tiles = []
+
+    for start, goal in zip(waypoints, waypoints[1:]):
+        path = _find_path(game_map, heightmap, start, goal)
+
+        for x, y in path:
+            for nx in range(max(0, x - radius), min(width, x + radius + 1)):
+                for ny in range(max(0, y - radius), min(height, y + radius + 1)):
+                    if _distance((x, y), (nx, ny)) > radius:
+                        continue
+                    if game_map.tiles[ny][nx] is lake:
+                        continue
+                    game_map.tiles[ny][nx] = river
+                    river_tiles.append((nx, ny))
 
     return river_tiles
+
+
+def _apply_river_moisture(moisture, river_positions, radius=6, boost=0.4):
+    """Rivers make nearby land moister, encouraging forest/swamp instead of plains."""
+    width, height = moisture.width, moisture.height
+
+    for rx, ry in river_positions:
+        for y in range(max(0, ry - radius), min(height, ry + radius + 1)):
+            for x in range(max(0, rx - radius), min(width, rx + radius + 1)):
+                dist = _distance((x, y), (rx, ry))
+                if dist > radius:
+                    continue
+
+                falloff = 1 - (dist / radius)
+                moisture.set(x, y, min(1.0, moisture.get(x, y) + boost * falloff))
 
 
 # ---------------------------------------------------------------------------
-# Dungeon entrances
+# Roads
 #
-# For now these are the only "points of interest" the world generator drops
-# onto the map. Towns, camps, and other structures can be added the same
-# way later — pick valid open tiles, keep them spaced apart, mark them.
+# Roads are laid down as a backbone network connecting each region to its
+# nearest neighboring region, using A* pathfinding (replacing the old biased
+# random walk) so they take sensible routes around water and rough terrain.
+# This runs *before* points of interest are placed so that POI placement can
+# take "is this near a road?" into account, and so newly-placed POIs have
+# something to connect a short spur road to (see _connect_to_road_network).
+# ---------------------------------------------------------------------------
+def _movement_cost(game_map, x, y):
+
+    tile = game_map.tiles[y][x]
+
+    if tile == lake:
+        return None
+
+    if tile == river:
+        return None
+
+    if tile == tree:
+        return 6
+
+    if tile == tall_grass:
+        return 2
+
+    if tile == road:
+        return 1
+
+    return 1
+
+
+def _paint_road_path(game_map, heightmap, start, goal):
+    """Pathfind from start to goal and paint the route as road, skipping water
+    and dungeon entrances (an entrance tile stays an entrance, not a road)."""
+    path = _find_path(game_map, heightmap, start, goal)
+    road_tiles = []
+
+    for x, y in path:
+        if is_water_tile(game_map.tiles[y][x]):
+            continue
+        if game_map.tiles[y][x] is not dungeon_entrance:
+            game_map.tiles[y][x] = road
+        road_tiles.append((x, y))
+
+    return road_tiles
+
+
+def _generate_trunk_roads(game_map, heightmap, regions):
+    """
+    Lay down a backbone road network by connecting each region's center to
+    its nearest neighboring region's center. Runs before POIs are placed —
+    see the module-level comment above — so it only has region centers to
+    work from, not dungeon entrances.
+    """
+    centers = [region.center for region in regions if region.center is not None]
+    connected_pairs = set()
+    road_tiles = []
+
+    for center in centers:
+        nearest = min(
+            (other for other in centers if other != center),
+            key=lambda other: _distance(center, other),
+            default=None
+        )
+        if nearest is None:
+            continue
+
+        pair = frozenset({center, nearest})
+        if pair in connected_pairs:
+            continue
+        connected_pairs.add(pair)
+
+        road_tiles.extend(_paint_road_path(game_map, heightmap, center, nearest))
+
+    return road_tiles
+
+
+def _connect_to_road_network(game_map, heightmap, start, road_tiles):
+    """
+    Connect a point to the nearest existing road tile with a short spur,
+    falling back to the map edge if no road exists yet (e.g. a region-sparse
+    or very small map).
+    """
+    goal = min(road_tiles, key=lambda tile: _distance(start, tile)) if road_tiles else None
+
+    if goal is None:
+        goal = _nearest_edge_tile(start[0], start[1], game_map.width, game_map.height)
+
+    return _paint_road_path(game_map, heightmap, start, goal)
+
+
+# ---------------------------------------------------------------------------
+# Points of interest
+#
+# Dungeon entrances are, for now, the only points of interest the world
+# generator drops onto the map. Towns, camps, and other structures can be
+# added the same way later — pick valid open tiles, keep them spaced apart,
+# mark them. POIs are placed after roads exist, so each one can be scored on
+# (and afterward spurred onto) the existing road network.
 # ---------------------------------------------------------------------------
 
 def _is_valid_entrance_spot(game_map, x, y):
@@ -700,106 +1320,139 @@ def _place_pois(game_map, heightmap, moisture, poi, count):
 
     return placed
 
+
 # ---------------------------------------------------------------------------
-# Roads
+# Heightmap PNG export
 #
-# A handful of roads wander out from dungeon entrances toward the nearest
-# map edge, using the same "mostly straight, occasionally nudged" walk as
-# _generate_overworld_river. They're a visual and navigational cue that the
-# world keeps going past the border — walking off the edge of the map is
-# what actually generates/loads the next chunk over (see game.py).
+# A small debug/visualization helper: dumps a HeightMap out as a single PNG
+# so the raw noise can be eyeballed without running the full game. Written
+# by hand with `struct` + `zlib` (both stdlib) instead of adding an image
+# library dependency — same "no new dependencies" approach as the Perlin
+# noise implementation above.
 # ---------------------------------------------------------------------------
-def _movement_cost(game_map, x, y):
 
-    tile = game_map.tiles[y][x]
-
-    if tile == lake:
-        return None
-
-    if tile == river:
-        return None
-
-    if tile == tree:
-        return 6
-
-    if tile == tall_grass:
-        return 2
-
-    if tile == road:
-        return 1
-
-    return 1
+# Elevation -> color stops, reusing the same thresholds as _biome() so the
+# preview image lines up with what actually gets painted onto the map.
+# _HEIGHTMAP_COLOR_STOPS = [
+#     (0.00,          (20, 40, 120)),    # deep water
+#     (DEEP_WATER,    (40, 90, 200)),    # shallow water
+#     (SHALLOW_WATER, (194, 178, 128)),  # beach
+#     (PLAINS * 0.6,  (90, 160, 60)),    # plains / lowlands
+#     (PLAINS,        (60, 110, 40)),    # forest-ish green
+#     (HILLS,         (120, 100, 70)),   # hills
+#     (1.00,          (235, 235, 240)),  # mountain peaks
+# ]
 
 
-def _nearest_edge_direction(x, y, width, height):
-    """Return the cardinal direction ('N', 'S', 'E', or 'W') of the closest map edge."""
-    distance_to_edge = {
-        'N': y,
-        'S': (height - 1) - y,
-        'W': x,
-        'E': (width - 1) - x,
-    }
-    return min(distance_to_edge, key=distance_to_edge.get)
+# def _lerp_color(t, color_a, color_b):
+#     return tuple(
+#         round(_lerp(t, a, b))
+#         for a, b in zip(color_a, color_b)
+#     )
 
 
-def _generate_road(game_map, heightmap, start):
-    goal = _nearest_edge_tile(
-        start[0],
-        start[1],
-        game_map.width,
-        game_map.height
-    )
+# def _elevation_to_color(value):
+#     """Map a normalized elevation value in [0.0, 1.0] to an (r, g, b) color."""
+#     value = min(1.0, max(0.0, value))
 
-    path = _find_path(game_map, heightmap, start, goal)
-    road_tiles = []
-    for x, y in path:
-        if not is_water_tile(game_map.tiles[y][x]):
-            if game_map.tiles[y][x] is not dungeon_entrance:
-                game_map.tiles[y][x] = road
-            road_tiles.append((x, y))
+#     for (low, low_color), (high, high_color) in zip(_HEIGHTMAP_COLOR_STOPS, _HEIGHTMAP_COLOR_STOPS[1:]):
+#         if value <= high:
+#             span = high - low
+#             t = 0.0 if span == 0 else (value - low) / span
+#             return _lerp_color(t, low_color, high_color)
 
-    return road_tiles
+#     return _HEIGHTMAP_COLOR_STOPS[-1][1]
 
 
-def _place_roads(game_map, heightmap, entrances):
-    roads = []
-    for entrance in entrances:
-        roads.extend(
-            _generate_road(
-                game_map,
-                heightmap,
-                entrance
-            )
-        )
-    return roads
+# def _write_png(path, width, height, pixel_rows):
+#     """
+#     Write an uncompressed-filter RGB PNG from raw pixel data.
+#     pixel_rows: list of `height` rows, each a flat list of `width * 3` ints (0-255).
+#     """
+
+#     def chunk(chunk_type, data):
+#         return (
+#             struct.pack(">I", len(data))
+#             + chunk_type
+#             + data
+#             + struct.pack(">I", zlib.crc32(chunk_type + data))
+#         )
+
+#     signature = b"\x89PNG\r\n\x1a\n"
+
+#     header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)  # 8-bit RGB, no filter/interlace
+
+#     # Each scanline is prefixed with a filter-type byte (0 = "none").
+#     raw = bytearray()
+#     for row in pixel_rows:
+#         raw.append(0)
+#         raw.extend(row)
+
+#     compressed = zlib.compress(bytes(raw), level=9)
+
+#     png = (
+#         signature
+#         + chunk(b"IHDR", header)
+#         + chunk(b"IDAT", compressed)
+#         + chunk(b"IEND", b"")
+#     )
+
+#     with open(path, "wb") as f:
+#         f.write(png)
+
+
+# def save_heightmap_png(heightmap, path="heightmap.png"):
+#     """
+#     Render a HeightMap (values in [0.0, 1.0]) out to a color-coded PNG at
+#     `path`, using the same elevation bands as the biome logic so it reads
+#     like a preview of the generated terrain. Handy for eyeballing the noise
+#     without needing to run the game.
+#     """
+#     pixel_rows = []
+
+#     for y in range(heightmap.height):
+#         row = []
+#         for x in range(heightmap.width):
+#             r, g, b = _elevation_to_color(heightmap.get(x, y))
+#             row.extend((r, g, b))
+#         pixel_rows.append(row)
+
+#     _write_png(path, heightmap.width, heightmap.height, pixel_rows)
+
+#     return path
 
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
-def generate_overworld(game_map, chunk_coord, world_seed, biome, num_dungeon_entrances=None):
-    """
-    Generate a new overworld map, filling in the game_map.tiles array with
-    terrain tiles, and returning a dictionary of metadata about the generated
-    world.
-    """
-    perm = _build_permutation_table(world_seed)
+def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_map=None, num_dungeon_entrances=None, debug_heightmap_path=None, ChunkBiome=None):
+    """Build a staged context for one overworld chunk, exposing the pipeline
+    phases clearly while preserving the existing terrain-generation behavior."""
+    if ChunkBiome is None:
+        from core.game import ChunkBiome as _ChunkBiome
+        ChunkBiome = _ChunkBiome
 
+    if biome is None:
+        biome = ChunkBiome.PLAINS
+
+    perm = _build_permutation_table(world_seed)
     width, height = game_map.width, game_map.height
 
     if num_dungeon_entrances is None:
-        num_dungeon_entrances = max(4, (width * height) // 6000) 
+        num_dungeon_entrances = max(1, (width * height) // 6000)
 
-    # 1 & 2. Noise-driven land/water and forest masks, cleaned up by cellular automata.
-    heightmap = _generate_heightmap(
-        perm,
-        chunk_coord[0],
-        chunk_coord[1],
-        width,
-        height,
-        scale=max(width, height) / 6,
-    )
+    # 1. Region generator: coarse regional identity and region boundaries.
+    heightmap = _generate_ridge_heightmap(width, height)
+    if world_map is not None:
+        _bias_grid_toward_world_value(
+            heightmap,
+            world_map.elevation_at(chunk_coord),
+            WORLD_ELEVATION_BIAS_STRENGTH,
+        )
+
+    flow_field = _generate_flow_field(heightmap)
+    river_positions = _river_tile_positions(flow_field)
 
     moisture = _generate_moisture_map(
         perm,
@@ -808,79 +1461,287 @@ def generate_overworld(game_map, chunk_coord, world_seed, biome, num_dungeon_ent
         width,
         height,
         scale=max(width, height) / 10
-    )    
-    
+    )
+
+    if world_map is not None:
+        _bias_grid_toward_world_value(
+            moisture,
+            world_map.moisture_at(chunk_coord),
+            WORLD_MOISTURE_BIAS_STRENGTH,
+        )
+
+    _apply_river_moisture(moisture, river_positions)
+    region_map, regions = _generate_regions(game_map, heightmap, moisture)
+
+    # 2. Chunk generator: paint terrain with biome-specific terrain rules.
+    terrain_generator = get_terrain_generator(biome)()
+    terrain_generator.apply(game_map, heightmap, moisture, river_positions)
+
+    river_tiles = _carve_rivers(game_map, river_positions)
+
+    if world_map is not None:
+        major_river_edges = world_map.river_edges_at(chunk_coord)
+        if major_river_edges:
+            river_tiles.extend(_carve_major_river(game_map, heightmap, major_river_edges))
+
+    # 3. Landmark generator: dungeon entrances and future POIs.
+    dungeon_poi = PointOfInterest(
+        name="Dungeon",
+        tile=dungeon_entrance,
+        min_spacing=18,
+        score_function=_score_dungeon_location
+    )
+    dungeon_entrances = _place_pois(
+        game_map,
+        heightmap,
+        moisture,
+        dungeon_poi,
+        num_dungeon_entrances
+    )
+
+    # 4. Infrastructure: roads and trails.
+    road_tiles = _generate_trunk_roads(game_map, heightmap, regions)
+    for entrance in dungeon_entrances:
+        road_tiles.extend(_connect_to_road_network(game_map, heightmap, entrance, road_tiles))
+
+    # 5. Population: reserved for creatures, NPC travelers, and encounters.
+    population = []
+
+    # 6. Flavor: biome, region name, and scene-level tags.
+    region_name = None
+    if world_map is not None:
+        region_name = world_map.region_name_at(chunk_coord)
+    if region_name is None:
+        region_name = f"{getattr(biome, 'value', str(biome)).title()} Region"
+
+    flavor = {
+        "biome": getattr(biome, "value", str(biome)),
+        "region_name": region_name,
+        "terrain_tags": list(terrain_generator.terrain_tags()),
+        "has_major_river": bool(world_map and world_map.river_edges_at(chunk_coord)),
+        "river_edges": list(world_map.river_edges_at(chunk_coord)) if world_map else [],
+    }
+
+    if world_map is not None:
+        world_map.set_region_name(chunk_coord, region_name)
+        world_map.set_flavor(chunk_coord, flavor)
+
+    ridges = _generate_mountain_ridges(width, height)
+    for ridge in ridges:
+        for x, y in ridge:
+            game_map.tiles[y][x] = mountain
+
+    return {
+        "heightmap": heightmap,
+        "flow_field": flow_field,
+        "moisture": moisture,
+        "water_tiles": river_tiles,
+        "dungeon_entrances": dungeon_entrances,
+        "road_tiles": road_tiles,
+        "region_map": region_map,
+        "regions": regions,
+        "landmarks": dungeon_entrances,
+        "infrastructure": road_tiles,
+        "population": population,
+        "flavor": flavor,
+    }
+
+
+def generate_overworld(game_map, chunk_coord, world_seed, biome, world_map=None, num_dungeon_entrances=None, debug_heightmap_path=None):
+    """
+    Generate a new overworld map, filling in the game_map.tiles array with
+    terrain tiles, and returning a dictionary of metadata about the generated
+    world.
+
+    This now delegates to generate_chunk_context() so the generation pipeline
+    is organized into explicit stages while preserving the existing game
+    behavior and return values.
+    """
+    context = generate_chunk_context(
+        game_map,
+        chunk_coord,
+        world_seed,
+        biome=biome,
+        world_map=world_map,
+        num_dungeon_entrances=num_dungeon_entrances,
+        debug_heightmap_path=debug_heightmap_path,
+    )
+
+    return {
+        "heightmap": context["heightmap"],
+        "flow_field": context["flow_field"],
+        "moisture": context["moisture"],
+        "water_tiles": context["water_tiles"],
+        "dungeon_entrances": context["dungeon_entrances"],
+        "road_tiles": context["road_tiles"],
+        "region_map": context["region_map"],
+        "regions": context["regions"],
+        "landmarks": context["landmarks"],
+        "infrastructure": context["infrastructure"],
+        "population": context["population"],
+        "flavor": context["flavor"],
+    }
+
+
+def _generate_overworld_legacy(game_map, chunk_coord, world_seed, biome, world_map=None, num_dungeon_entrances=None, debug_heightmap_path=None):
+    """
+    Generate a new overworld map, filling in the game_map.tiles array with
+    terrain tiles, and returning a dictionary of metadata about the generated
+    world.
+
+    `world_map`, if given, is the persistent, coarse WorldMap covering the
+    whole game world (see world.world_map). When present, this chunk's local
+    elevation and moisture noise are sampled and pulled toward the matching
+    world-scale values for this chunk, and any world-scale river crossing
+    this chunk is forced through on the correct edges — so both terrain and
+    rivers agree with whatever's already been generated in neighboring
+    chunks, with the local Perlin noise still supplying per-chunk detail on
+    top. Without it (e.g. existing callers, or tests), generation falls back
+    to being purely local to this one chunk.
+
+    If `debug_heightmap_path` is given, the raw heightmap is also written out
+    as a PNG at that path (see save_heightmap_png) for quick visual checks.
+    """
+    perm = _build_permutation_table(world_seed)
+
+    width, height = game_map.width, game_map.height
+
+    if num_dungeon_entrances is None:
+        num_dungeon_entrances = max(1, (width * height) // 6000)
+
+    # 1. Heightmap — the noise-driven elevation grid everything else builds
+    #    on. Local Perlin detail is generated first, then pulled toward the
+    #    coarse world-scale elevation WorldMap already recorded for this
+    #    chunk (if any), so this chunk's terrain reads as local detail added
+    #    on top of the world map rather than being decided in isolation.
+    heightmap = _generate_ridge_heightmap(width, height)
+
+
+    bins = [0] * 10
+
+    for row in heightmap.values:
+        for h in row:
+            bins[min(int(h * 10), 9)] += 1
+
+    print("Height Distribution")
+
+    for i, count in enumerate(bins):
+        print(f"{i/10:.1f}-{(i+1)/10:.1f}: {count}")
+
+
+    highest = 0
+    lowest = 1
+
+    for row in heightmap.values:
+        highest = max(highest, max(row))
+        lowest = min(lowest, min(row))
+
+    print("Height:", lowest, highest)
+
+    count = 0
+
+    for row in heightmap.values:
+        for h in row:
+            if h >= HILLS:
+                count += 1
+
+    print("Mountain tiles:", count)
+
+    if world_map is not None:
+        _bias_grid_toward_world_value(
+            heightmap,
+            world_map.elevation_at(chunk_coord),
+            WORLD_ELEVATION_BIAS_STRENGTH,
+        )
+
+    # if debug_heightmap_path is not None:
+    #     save_heightmap_png(heightmap, debug_heightmap_path)
+
+    # 2. Flow field — every tile's downhill direction plus how much flow has
+    #    accumulated there, computed once so later steps can't disagree on it.
+    flow_field = _generate_flow_field(heightmap)
+
+    # 3. Rivers — worked out from the flow field alone, before any tiles are
+    #    painted, so the moisture pass below can use them.
+    river_positions = _river_tile_positions(flow_field)
+
+    # 4. Moisture — same idea as the heightmap: local noise first, then
+    #    pulled toward this chunk's coarse world-scale moisture, then
+    #    boosted near rivers so nearby land leans toward forest/swamp
+    #    instead of plains.
+    moisture = _generate_moisture_map(
+        perm,
+        chunk_coord[0],
+        chunk_coord[1],
+        width,
+        height,
+        scale=max(width, height) / 10
+    )
+
+    if world_map is not None:
+        _bias_grid_toward_world_value(
+            moisture,
+            world_map.moisture_at(chunk_coord),
+            WORLD_MOISTURE_BIAS_STRENGTH,
+        )
+
+    _apply_river_moisture(moisture, river_positions)
+
     region_map, regions = _generate_regions(
         game_map,
         heightmap,
         moisture
-    )    
+    )
 
+    # 5. Biomes — paint the base terrain from heightmap + moisture. Water
+    #    takes priority over trees (a tree can't grow in the middle of a
+    #    lake), everything else is open ground.
     settings = BIOME_SETTINGS[biome]
 
     forest_chance = settings["forest_chance"]
     grass_chance = settings["grass_chance"]
-    height_offset = settings["height_offset"]    
-
-    # 3. Paint the base terrain from those masks — water takes priority over trees
-    #    (a tree can't grow in the middle of a lake), everything else is open ground.
+    height_offset = settings["height_offset"]
 
     for y in range(height):
         for x in range(width):
-            elevation = min(
-                1.0,
-                max(
-                    0.0,
-                    heightmap.get(x, y) + height_offset
-                )
-            )
+            h = heightmap.get(x, y)
 
-            # moisture_value = moisture.get(x, y) * moisture_scale
-            biome = _biome(
-                elevation,
-                moisture.get(x, y)
-            )
-
-            if biome == BIOME_OCEAN:
-                game_map.tiles[y][x] = lake
-            elif biome == BIOME_BEACH:
+            if h > 0.90:
+                game_map.tiles[y][x] = mountain
+            elif h > 0.80:
+                game_map.tiles[y][x] = mountain
+            elif h > 0.70:
+                game_map.tiles[y][x] = tree
+            elif h > 0.60:
+                game_map.tiles[y][x] = tall_grass
+            elif h > 0.50:
+                game_map.tiles[y][x] = grass
+            elif h > 0.35:
                 game_map.tiles[y][x] = ground
-            elif biome == BIOME_MOUNTAINS:
-                game_map.tiles[y][x] = mountain   # you'll need a mountain tile
-            elif biome == BIOME_HILLS:
-                if moisture.get(x, y) > 0.55:
-                    game_map.tiles[y][x] = tree
-                else:
-                    game_map.tiles[y][x] = ground
-            elif biome == BIOME_FOREST:
-            
-                if random.random() < forest_chance:
-                    game_map.tiles[y][x] = tree
-                else:
-                    game_map.tiles[y][x] = ground
-            elif biome == BIOME_SWAMP:
-            
-                if random.random() < grass_chance:
-                    game_map.tiles[y][x] = tall_grass
-                else:
-                    game_map.tiles[y][x] = ground
             else:
-                if random.random() < 0.08:
-                    game_map.tiles[y][x] = tall_grass
-                else:
-                    game_map.tiles[y][x] = ground
+                game_map.tiles[y][x] = lake
 
 
-    # 4. Rivers — meandering, carved on top of the noise-generated terrain.
-    river_count = max(1, (width * height) // 25000)
+    # Now that biomes are painted, carve the rivers on top of them (lakes
+    # still take precedence — see _carve_rivers).
+    river_tiles = _carve_rivers(game_map, river_positions)
 
-    river_tiles = _place_rivers(
-        game_map,
-        heightmap,
-        river_count
-    )
+    # 5b. Major rivers — if the WorldMap says a world-scale river crosses
+    # this chunk, force it through on the correct edge(s) so it connects up
+    # with the matching river in whichever neighboring chunks it also
+    # crosses. This is independent of (and carved on top of) the purely
+    # local river above.
+    if world_map is not None:
+        major_river_edges = world_map.river_edges_at(chunk_coord)
+        if major_river_edges:
+            river_tiles.extend(_carve_major_river(game_map, heightmap, major_river_edges))
 
-    # 5. Dungeon entrances, spaced apart so they don't cluster.
+    # 6. Roads — a trunk network connecting regions, laid before POIs so POI
+    #    placement can favor spots near an existing road.
+    road_tiles = _generate_trunk_roads(game_map, heightmap, regions)
+
+    # 7. POIs — dungeon entrances, spaced apart so they don't cluster, then
+    #    each spurred onto the road network.
     dungeon_poi = PointOfInterest(
         name="Dungeon",
         tile=dungeon_entrance,
@@ -896,24 +1757,28 @@ def generate_overworld(game_map, chunk_coord, world_seed, biome, num_dungeon_ent
         num_dungeon_entrances
     )
 
-    # 6. Roads leading out from some dungeon entrances toward the map edge —
-    #    a visual hint (and future route) toward whatever lies past the border.
-    road_tiles = _place_roads(
-        game_map,
-        heightmap,
-        dungeon_entrances
-    )
+    for entrance in dungeon_entrances:
+        road_tiles.extend(
+            _connect_to_road_network(game_map, heightmap, entrance, road_tiles)
+        )
+
+    ridges = _generate_mountain_ridges(width, height)
+
+    for ridge in ridges:
+        for x, y in ridge:
+            game_map.tiles[y][x] = mountain
 
     # Future hooks: towns and other points of interest get layered in here the
-    # same way dungeon entrances and roads are — pick valid spots, place tiles,
-    # record their positions for game.py to react to.
+    # same way dungeon entrances are — pick valid spots, place tiles, record
+    # their positions for game.py to react to.
 
     return {
         "heightmap": heightmap,
+        "flow_field": flow_field,
         "moisture": moisture,
         "water_tiles": river_tiles,
         "dungeon_entrances": dungeon_entrances,
         "road_tiles": road_tiles,
         "region_map": region_map,
-        "regions": regions,        
+        "regions": regions,
     }

@@ -88,6 +88,7 @@ from world.map import GameMap
 from world.dungeon_generator import generate_dungeon
 from world.tavern_generator import generate_tavern
 from world.world_generator import generate_overworld
+from world.world_map import generate_world_map
 from world.encounters.prison_cell import (
     handle_prison_door_interaction, PrisonDoorTile, is_prison_cell_position
 )
@@ -251,6 +252,12 @@ class Game:
         # walking back into a chunk you've already explored.
         self.world_seed = random.randint(0, 999999999)
         #self.world_seed = 12345
+        # Coarse, persistent world-scale terrain (elevation/biome/major rivers),
+        # one cell per chunk. Cheap to generate up front, and consulted by
+        # generate_overworld() whenever an individual chunk is generated so
+        # neighboring chunks agree on biome and rivers cross chunk boundaries
+        # cleanly instead of stopping dead at the edge. See world/world_map.py.
+        self.world_map = generate_world_map(self.world_seed)
         self.overworld_chunks = {}  # (chunk_x, chunk_y) -> {"map": GameMap, "dungeon_entrances": [...]}
         self.overworld_chunk_coord = (0, 0)
         self.overworld_player_pos = None
@@ -789,7 +796,8 @@ class Game:
                 chunk_map,
                 chunk_coord=chunk_coord,
                 world_seed=self.world_seed,
-                biome=biome
+                biome=biome,
+                world_map=self.world_map,
             )
             self.overworld_chunks[chunk_coord] = {
                 "map": chunk_map,
@@ -856,42 +864,18 @@ class Game:
         return center_x, center_y  # Fallback — shouldn't happen on a real map
 
     def get_chunk_biome(self, coord):
-
+        """
+        Look up this chunk's biome from the persistent world map, so
+        neighboring chunks agree on terrain the same way they now agree on
+        rivers, instead of each chunk's biome being a random walk from
+        whichever neighbor happened to be generated first (the old
+        BIOME_CONNECTIONS approach — kept below, now unused, in case we ever
+        want chunk-local biome variation layered on top of the world map).
+        """
         if coord in self.chunk_biomes:
             return self.chunk_biomes[coord]
 
-        x, y = coord
-
-        neighbors = []
-
-        for dx, dy in [
-            (-1,0),
-            (1,0),
-            (0,-1),
-            (0,1)
-        ]:
-
-            n = (x+dx, y+dy)
-
-            if n in self.chunk_biomes:
-                neighbors.append(self.chunk_biomes[n])
-
-        # First chunk
-        if not neighbors:
-            biome = random.choice([
-                ChunkBiome.PLAINS,
-                ChunkBiome.FOREST,
-                ChunkBiome.HILLS,
-            ])
-
-        else:
-
-            parent = random.choice(neighbors)
-
-            biome = random.choice(
-                BIOME_CONNECTIONS[parent]
-            )
-
+        biome = self.world_map.biome_at(coord)
         self.chunk_biomes[coord] = biome
 
         return biome
