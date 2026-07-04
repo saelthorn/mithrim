@@ -1,7 +1,8 @@
 import math
 import heapq
 import random
-from world.tile import grass, tall_grass, tree, dungeon_entrance, road, ground
+from core.game import ChunkBiome
+from world.tile import grass, tall_grass, tree, dungeon_entrance, road, ground, mountain
 from world.water_features import river, lake, is_water_tile
 
 
@@ -18,6 +19,91 @@ BIOME_FOREST = "forest"
 BIOME_SWAMP = "swamp"
 BIOME_HILLS = "hills"
 BIOME_MOUNTAINS = "mountains"
+
+REGION_PREFIXES = [
+    "Ashen",
+    "Golden",
+    "Frozen",
+    "Whispering",
+    "Emerald",
+    "Broken",
+    "Ancient",
+    "Black",
+    "Silent",
+    "Storm",
+    "Iron",
+    "Scarlet",
+]
+
+REGION_SUFFIX = {
+    BIOME_FOREST: [
+        "Forest",
+        "Woods",
+        "Grove"
+    ],
+
+    BIOME_PLAINS: [
+        "Plains",
+        "Fields",
+        "Lowlands"
+    ],
+
+    BIOME_HILLS: [
+        "Hills",
+        "Highlands"
+    ],
+
+    BIOME_MOUNTAINS: [
+        "Peaks",
+        "Mountains",
+        "Range"
+    ],
+
+    BIOME_SWAMP: [
+        "Marsh",
+        "Bog",
+        "Fen"
+    ],
+
+    BIOME_OCEAN: [
+        "Sea"
+    ]
+}
+
+
+BIOME_SETTINGS = {
+
+    ChunkBiome.PLAINS: {
+        "forest_chance": 0.10,
+        "grass_chance": 0.08,
+        "height_offset": 0.00,
+    },
+
+    ChunkBiome.FOREST: {
+        "forest_chance": 0.85,
+        "grass_chance": 0.05,
+        "height_offset": 0.00,
+    },
+
+    ChunkBiome.SWAMP: {
+        "forest_chance": 0.40,
+        "grass_chance": 0.60,
+        "height_offset": -0.03,
+    },
+
+    ChunkBiome.HILLS: {
+        "forest_chance": 0.35,
+        "grass_chance": 0.08,
+        "height_offset": 0.08,
+    },
+
+    ChunkBiome.MOUNTAINS: {
+        "forest_chance": 0.15,
+        "grass_chance": 0.02,
+        "height_offset": 0.18,
+    },
+
+}
 
 
 class HeightMap:
@@ -42,6 +128,22 @@ class HeightMap:
         self.values[y][x] = value
 
 
+class RegionMap:
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+        self.values = [
+            [-1 for _ in range(width)]
+            for _ in range(height)
+        ]
+
+    def get(self, x, y):
+        return self.values[y][x]
+
+    def set(self, x, y, region):
+        self.values[y][x] = region
+
+
 class PointOfInterest:
 
     def __init__(
@@ -55,6 +157,17 @@ class PointOfInterest:
         self.tile = tile
         self.min_spacing = min_spacing
         self.score_function = score_function
+
+class Region:
+    def __init__(self, id, name, biome):
+        self.id = id
+        self.name = name
+        self.biome = biome
+
+        self.tiles = []
+        self.center = None
+        self.points_of_interest = []
+
 
 def _biome(height, moisture):
     if height < DEEP_WATER:
@@ -71,6 +184,76 @@ def _biome(height, moisture):
         return BIOME_FOREST
 
     return BIOME_PLAINS
+
+
+def _random_region_name(biome):
+    prefix = random.choice(REGION_PREFIXES)
+
+    suffix = random.choice(
+        REGION_SUFFIX.get(
+            biome,
+            ["Wilds"]
+        )
+    )
+
+    return f"{prefix} {suffix}"
+
+
+def _generate_region_seeds(width, height, count):
+    seeds = []
+
+    for i in range(count):
+        x = random.randrange(width)
+        y = random.randrange(height)
+
+        seeds.append((i, x, y))
+
+    return seeds
+
+
+def _generate_regions(game_map, heightmap, moisture):
+    width = game_map.width
+    height = game_map.height
+
+    region_count = max(6, width * height // 12000)
+
+    seeds = _generate_region_seeds(
+        width,
+        height,
+        region_count
+    )
+
+    region_map = RegionMap(width, height)
+    regions = {}
+
+    for region_id, sx, sy in seeds:
+        biome = _biome(
+            heightmap.get(sx, sy),
+            moisture.get(sx, sy)
+        )
+        region = Region(
+            region_id,
+            _random_region_name(biome),
+            biome
+        )
+        region.center = (sx, sy)
+        regions[region_id] = region
+
+
+    for y in range(height):
+        for x in range(width):
+            nearest = min(
+                seeds,
+                key=lambda s:
+                (x-s[1])**2 + (y-s[2])**2
+            )
+            region_id = nearest[0]
+            region_map.set(x, y, region_id)
+            regions[region_id].tiles.append((x, y))
+
+
+    return region_map, list(regions.values())
+
 
 # ---------------------------------------------------------------------------
 # Perlin noise
@@ -577,19 +760,11 @@ def _place_roads(game_map, heightmap, entrances):
 # Entry point
 # ---------------------------------------------------------------------------
 
-def generate_overworld(game_map, num_dungeon_entrances=None):
+def generate_overworld(game_map, biome, num_dungeon_entrances=None):
     """
-    Populate game_map with an overworld:
-      1. Perlin noise lays out the base land/water layout and forest cover.
-      2. Cellular automata smooths both into organic-looking coastlines/tree lines.
-      3. A few meandering rivers are carved on top.
-      4. Dungeon entrances are scattered across the open ground.
-
-    num_dungeon_entrances defaults to a count scaled off map area (roughly one
-    entrance per 6,000 tiles, minimum 5) — pass an explicit number to override this.
-
-    Returns a dict describing what was placed, so game.py can wire up things like
-    "walking onto a dungeon_entrance tile starts generate_dungeon()".
+    Generate a new overworld map, filling in the game_map.tiles array with
+    terrain tiles, and returning a dictionary of metadata about the generated
+    world.
     """
     width, height = game_map.width, game_map.height
 
@@ -609,13 +784,32 @@ def generate_overworld(game_map, num_dungeon_entrances=None):
         scale=max(width, height) / 10
     )    
     
+    region_map, regions = _generate_regions(
+        game_map,
+        heightmap,
+        moisture
+    )    
+
+    settings = BIOME_SETTINGS[biome]
+
+    forest_chance = settings["forest_chance"]
+    grass_chance = settings["grass_chance"]
+    height_offset = settings["height_offset"]    
 
     # 3. Paint the base terrain from those masks — water takes priority over trees
     #    (a tree can't grow in the middle of a lake), everything else is open ground.
 
     for y in range(height):
         for x in range(width):
-            elevation = heightmap.get(x, y)
+            elevation = min(
+                1.0,
+                max(
+                    0.0,
+                    heightmap.get(x, y) + height_offset
+                )
+            )
+
+            # moisture_value = moisture.get(x, y) * moisture_scale
             biome = _biome(
                 elevation,
                 moisture.get(x, y)
@@ -626,16 +820,24 @@ def generate_overworld(game_map, num_dungeon_entrances=None):
             elif biome == BIOME_BEACH:
                 game_map.tiles[y][x] = ground
             elif biome == BIOME_MOUNTAINS:
-                game_map.tiles[y][x] = tree   # you'll need a mountain tile
+                game_map.tiles[y][x] = mountain   # you'll need a mountain tile
             elif biome == BIOME_HILLS:
                 if moisture.get(x, y) > 0.55:
                     game_map.tiles[y][x] = tree
                 else:
                     game_map.tiles[y][x] = ground
             elif biome == BIOME_FOREST:
-                game_map.tiles[y][x] = tree
+            
+                if random.random() < forest_chance:
+                    game_map.tiles[y][x] = tree
+                else:
+                    game_map.tiles[y][x] = ground
             elif biome == BIOME_SWAMP:
-                game_map.tiles[y][x] = tall_grass
+            
+                if random.random() < grass_chance:
+                    game_map.tiles[y][x] = tall_grass
+                else:
+                    game_map.tiles[y][x] = ground
             else:
                 if random.random() < 0.08:
                     game_map.tiles[y][x] = tall_grass
@@ -686,4 +888,6 @@ def generate_overworld(game_map, num_dungeon_entrances=None):
         "water_tiles": river_tiles,
         "dungeon_entrances": dungeon_entrances,
         "road_tiles": road_tiles,
+        "region_map": region_map,
+        "regions": regions,        
     }

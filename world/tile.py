@@ -62,7 +62,7 @@ grass = Tile(blocked=False, char='`2', color=(60, 140, 40), name="Grass")
 tall_grass = Tile(blocked=False, char='`3', color=(40, 110, 30), name="Tall Grass")
 tree = Tile(blocked=False, char='tre', color=(25, 80, 35), block_sight=True, destructible=False, name="Tree")
 dungeon_entrance = Tile(blocked=False, char='>', color=(230, 192, 0), name="Dungeon Entrance")
-
+mountain = Tile(blocked=True, char='mnt', color=(100, 100, 100), block_sight=True, destructible=False, name="Mountain")
 
 
 class MimicTile(Tile):

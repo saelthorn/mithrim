@@ -3,6 +3,7 @@ import random
 import config
 import math 
 import tracemalloc      # Lifesaver
+from enum import Enum
 
 
 class GameState:
@@ -20,6 +21,64 @@ class GameState:
     SHOP_MENU  = "shop_menu"   # Merchant shop overlay
     GAME_OVER = "game_over" # NEW: Add GAME_OVER state
     OVERWORLD = "overworld"  # Cellular-automata overworld map (dungeon_generator's sibling)
+
+
+
+class ChunkBiome(Enum):
+    PLAINS = "plains"
+    FOREST = "forest"
+    SWAMP = "swamp"
+    HILLS = "hills"
+    MOUNTAINS = "mountains"
+    DESERT = "desert"
+    TUNDRA = "tundra"
+
+
+BIOME_CONNECTIONS = {
+
+    ChunkBiome.PLAINS: [
+        ChunkBiome.PLAINS,
+        ChunkBiome.FOREST,
+        ChunkBiome.HILLS,
+        ChunkBiome.SWAMP,
+    ],
+
+    ChunkBiome.FOREST: [
+        ChunkBiome.FOREST,
+        ChunkBiome.PLAINS,
+        ChunkBiome.HILLS,
+        ChunkBiome.SWAMP,
+    ],
+
+    ChunkBiome.SWAMP: [
+        ChunkBiome.SWAMP,
+        ChunkBiome.FOREST,
+        ChunkBiome.PLAINS,
+    ],
+
+    ChunkBiome.HILLS: [
+        ChunkBiome.HILLS,
+        ChunkBiome.PLAINS,
+        ChunkBiome.FOREST,
+        ChunkBiome.MOUNTAINS,
+    ],
+
+    ChunkBiome.MOUNTAINS: [
+        ChunkBiome.MOUNTAINS,
+        ChunkBiome.HILLS,
+        ChunkBiome.TUNDRA,
+    ],
+
+    ChunkBiome.TUNDRA: [
+        ChunkBiome.TUNDRA,
+        ChunkBiome.MOUNTAINS,
+    ],
+
+    ChunkBiome.DESERT: [
+        ChunkBiome.DESERT,
+        ChunkBiome.PLAINS,
+    ],
+}
 
 
 from core.fov import FOV
@@ -193,6 +252,7 @@ class Game:
         self.overworld_chunks = {}  # (chunk_x, chunk_y) -> {"map": GameMap, "dungeon_entrances": [...]}
         self.overworld_chunk_coord = (0, 0)
         self.overworld_player_pos = None
+        self.chunk_biomes = {}
         self.dungeon_entrance_positions = []
         self.entered_dungeon_from_overworld = False
         self.player_has_acted = False
@@ -713,7 +773,12 @@ class Game:
             # Sized to feel like a real overworld rather than another dungeon floor —
             # noticeably larger than a generate_level() dungeon map (120x100).
             chunk_map = GameMap(OVERWORLD_CHUNK_WIDTH, OVERWORLD_CHUNK_HEIGHT)
-            overworld_info = generate_overworld(chunk_map)
+            biome = self.get_chunk_biome(chunk_coord)
+            
+            overworld_info = generate_overworld(
+                chunk_map,
+                biome=biome
+            )
             self.overworld_chunks[chunk_coord] = {
                 "map": chunk_map,
                 "dungeon_entrances": overworld_info["dungeon_entrances"],
@@ -766,6 +831,48 @@ class Game:
                             return x, y
 
         return center_x, center_y  # Fallback — shouldn't happen on a real map
+
+    def get_chunk_biome(self, coord):
+
+        if coord in self.chunk_biomes:
+            return self.chunk_biomes[coord]
+
+        x, y = coord
+
+        neighbors = []
+
+        for dx, dy in [
+            (-1,0),
+            (1,0),
+            (0,-1),
+            (0,1)
+        ]:
+
+            n = (x+dx, y+dy)
+
+            if n in self.chunk_biomes:
+                neighbors.append(self.chunk_biomes[n])
+
+        # First chunk
+        if not neighbors:
+            biome = random.choice([
+                ChunkBiome.PLAINS,
+                ChunkBiome.FOREST,
+                ChunkBiome.HILLS,
+            ])
+
+        else:
+
+            parent = random.choice(neighbors)
+
+            biome = random.choice(
+                BIOME_CONNECTIONS[parent]
+            )
+
+        self.chunk_biomes[coord] = biome
+
+        return biome
+
 
     def is_point_in_room_interior(self, room, x, y):
         """Check if a point (x, y) is within the actual interior of a room."""
