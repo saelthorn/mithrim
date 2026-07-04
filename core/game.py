@@ -249,6 +249,8 @@ class Game:
         # cached (rather than regenerated) so terrain, water, and dungeon entrance
         # placement stay put whether you're returning from a dungeon delve or
         # walking back into a chunk you've already explored.
+        self.world_seed = random.randint(0, 999999999)
+        #self.world_seed = 12345
         self.overworld_chunks = {}  # (chunk_x, chunk_y) -> {"map": GameMap, "dungeon_entrances": [...]}
         self.overworld_chunk_coord = (0, 0)
         self.overworld_player_pos = None
@@ -777,6 +779,7 @@ class Game:
             
             overworld_info = generate_overworld(
                 chunk_map,
+                world_seed=self.world_seed,
                 biome=biome
             )
             self.overworld_chunks[chunk_coord] = {

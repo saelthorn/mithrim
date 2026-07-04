@@ -268,10 +268,12 @@ def _generate_regions(game_map, heightmap, moisture):
 # instead of leaving it as speckled noise.
 # ---------------------------------------------------------------------------
 
-def _build_permutation_table():
-    """A shuffled 0-255 permutation table, doubled so lookups never need to wrap."""
+def _build_permutation_table(seed):
+    rng = random.Random(seed)
+
     perm = list(range(256))
-    random.shuffle(perm)
+    rng.shuffle(perm)
+
     return perm + perm
 
 
@@ -393,12 +395,12 @@ def _fractal_noise(perm, x, y, octaves, persistence, lacunarity):
     return total / max_amplitude  # normalized back to roughly [-1, 1]
 
 
-def _generate_heightmap(width, height, scale, octaves=5, persistence=0.5, lacunarity=2.0,):
+def _generate_heightmap(perm, width, height, scale, octaves=5, persistence=0.5, lacunarity=2.0,):
     """
     Generates a normalized heightmap.
     Values range from 0.0 to 1.0.
     """
-    perm = _build_permutation_table()
+    #perm = _build_permutation_table()
     heightmap = HeightMap(width, height)
 
     for y in range(height):
@@ -420,12 +422,12 @@ def _generate_heightmap(width, height, scale, octaves=5, persistence=0.5, lacuna
     return heightmap
 
 
-def _generate_moisture_map(width, height, scale, octaves=4, persistence=0.5, lacunarity=2.0,):
+def _generate_moisture_map(perm, width, height, scale, octaves=4, persistence=0.5, lacunarity=2.0,):
     """
     Generates a normalized moisture map.
     Values range from 0.0 to 1.0.
     """
-    perm = _build_permutation_table()
+    #perm = _build_permutation_table()
     moisture = HeightMap(width, height)
 
     for y in range(height):
@@ -760,12 +762,14 @@ def _place_roads(game_map, heightmap, entrances):
 # Entry point
 # ---------------------------------------------------------------------------
 
-def generate_overworld(game_map, biome, num_dungeon_entrances=None):
+def generate_overworld(game_map, world_seed, biome, num_dungeon_entrances=None):
     """
     Generate a new overworld map, filling in the game_map.tiles array with
     terrain tiles, and returning a dictionary of metadata about the generated
     world.
     """
+    perm = _build_permutation_table(world_seed)
+
     width, height = game_map.width, game_map.height
 
     if num_dungeon_entrances is None:
@@ -773,12 +777,14 @@ def generate_overworld(game_map, biome, num_dungeon_entrances=None):
 
     # 1 & 2. Noise-driven land/water and forest masks, cleaned up by cellular automata.
     heightmap = _generate_heightmap(
+        perm,
         width,
         height,
         scale=max(width, height) / 6,
     )
 
     moisture = _generate_moisture_map(
+        perm,
         width,
         height,
         scale=max(width, height) / 10
