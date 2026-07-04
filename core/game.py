@@ -432,6 +432,14 @@ class Game:
         self.fade_in_alpha = 255
         self.fade_in_speed = 15
 
+        # Overworld chunk transition — a quick black fade-out/fade-in played whenever
+        # the player walks into a new chunk, so the (potentially slow) chunk generation
+        # happens hidden behind a full black screen instead of causing a visible stutter.
+        self.chunk_transition_phase = None  # None, "out" (fading to black), or "in" (fading back in)
+        self.chunk_transition_alpha = 0
+        self.chunk_transition_speed = 25
+        self.pending_chunk_transition = None  # (chunk_coord, spawn_pos) queued for when fade-out completes
+
         self.game_over_victory = False
         self.game_over_title = "YOU DIED"
         self.game_over_story_lines = []
@@ -779,6 +787,7 @@ class Game:
             
             overworld_info = generate_overworld(
                 chunk_map,
+                chunk_coord=chunk_coord,
                 world_seed=self.world_seed,
                 biome=biome
             )
@@ -817,6 +826,17 @@ class Game:
         self.message_log.add_message("=== THE OVERWORLD ===", (240, 240, 240))
         self.message_log.add_message("Walk onto a dungeon entrance to descend, or off the map's edge to keep exploring.", (150, 150, 255))
         self.minimap_needs_redraw = True  # New map, redraw minimap
+
+    def _start_chunk_transition(self, chunk_coord, spawn_pos):
+        """
+        Kick off the fade-out/fade-in used when the player walks into a new
+        overworld chunk. The actual chunk_coord/spawn_pos are stashed and only
+        applied once the screen has fully faded to black (see update()), so the
+        chunk generation work happens while the screen is hidden.
+        """
+        self.pending_chunk_transition = (chunk_coord, spawn_pos)
+        self.chunk_transition_phase = "out"
+        self.chunk_transition_alpha = 0
 
     def _find_overworld_start_position(self):
         """Find an open grass tile nearest the center of the current overworld chunk to spawn on."""
@@ -2199,6 +2219,12 @@ class Game:
 
 
               
+                # Swallow input while an overworld chunk transition is playing, so the
+                # player can't act on the old chunk mid-fade or on the instant the new
+                # one is generated.
+                if self.chunk_transition_phase is not None:
+                    continue
+
                 # --- Handle input based on game state ---
                 if self.game_state == GameState.INVENTORY:
                     self.handle_inventory_input(event.key)
@@ -2947,7 +2973,7 @@ class Game:
                     spawn_pos = (self.player.x, 0)
 
                 self.message_log.add_message("You venture into uncharted territory...", (150, 200, 255))
-                self.generate_overworld_map(chunk_coord=next_chunk, spawn_pos=spawn_pos)
+                self._start_chunk_transition(next_chunk, spawn_pos)
                 return True
 
             if (new_x, new_y) in self.dungeon_entrance_positions:
@@ -3622,6 +3648,20 @@ class Game:
 
         self.floating_texts = [text for text in self.floating_texts if text.update()]
 
+        # Overworld chunk transition — advance the fade and, once fully black,
+        # generate/restore the new chunk before fading back in.
+        if self.chunk_transition_phase == "out":
+            self.chunk_transition_alpha = min(255, self.chunk_transition_alpha + self.chunk_transition_speed)
+            if self.chunk_transition_alpha >= 255:
+                next_chunk, spawn_pos = self.pending_chunk_transition
+                self.pending_chunk_transition = None
+                self.generate_overworld_map(chunk_coord=next_chunk, spawn_pos=spawn_pos)
+                self.chunk_transition_phase = "in"
+        elif self.chunk_transition_phase == "in":
+            self.chunk_transition_alpha = max(0, self.chunk_transition_alpha - self.chunk_transition_speed)
+            if self.chunk_transition_alpha <= 0:
+                self.chunk_transition_phase = None
+
         # NEW: If player is dead and game is not yet in GAME_OVER state, handle game over
         if self.player and not self.player.alive and self.game_state != GameState.GAME_OVER:
             self.handle_game_over()
@@ -3992,6 +4032,13 @@ class Game:
         # Message log is also drawn directly to screen
         if self.game_state not in [GameState.CHARACTER_CREATION, GameState.CLASS_SELECTION]:
             self.message_log.render(self.screen)
+
+        # Overworld chunk transition overlay — plain black fade drawn over everything
+        # else so the (possibly slow) chunk generation happening mid-fade is invisible.
+        if self.chunk_transition_phase is not None:
+            transition_surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+            transition_surface.fill((0, 0, 0, self.chunk_transition_alpha))
+            self.screen.blit(transition_surface, (0, 0))
 
         if self.game_state == GameState.GAME_OVER and self.death_screen_animation_phase == 4:
             fade_surface = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)

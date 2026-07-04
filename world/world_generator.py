@@ -103,6 +103,18 @@ BIOME_SETTINGS = {
         "height_offset": 0.18,
     },
 
+    ChunkBiome.DESERT: {
+        "forest_chance": 0.02,
+        "grass_chance": 0.01,
+        "height_offset": -0.05,
+    },
+
+    ChunkBiome.TUNDRA: {
+        "forest_chance": 0.05,
+        "grass_chance": 0.05,
+        "height_offset": 0.12,
+    },
+
 }
 
 
@@ -395,7 +407,7 @@ def _fractal_noise(perm, x, y, octaves, persistence, lacunarity):
     return total / max_amplitude  # normalized back to roughly [-1, 1]
 
 
-def _generate_heightmap(perm, width, height, scale, octaves=5, persistence=0.5, lacunarity=2.0,):
+def _generate_heightmap(perm, chunk_x, chunk_y, width, height, scale, octaves=5, persistence=0.5, lacunarity=2.0,):
     """
     Generates a normalized heightmap.
     Values range from 0.0 to 1.0.
@@ -405,10 +417,12 @@ def _generate_heightmap(perm, width, height, scale, octaves=5, persistence=0.5, 
 
     for y in range(height):
         for x in range(width):
+            world_x = chunk_x * width + x
+            world_y = chunk_y * height + y
             value = _fractal_noise(
                 perm,
-                x / scale,
-                y / scale,
+                world_x / scale,
+                world_y / scale,
                 octaves,
                 persistence,
                 lacunarity,
@@ -422,7 +436,7 @@ def _generate_heightmap(perm, width, height, scale, octaves=5, persistence=0.5, 
     return heightmap
 
 
-def _generate_moisture_map(perm, width, height, scale, octaves=4, persistence=0.5, lacunarity=2.0,):
+def _generate_moisture_map(perm, chunk_x, chunk_y, width, height, scale, octaves=4, persistence=0.5, lacunarity=2.0,):
     """
     Generates a normalized moisture map.
     Values range from 0.0 to 1.0.
@@ -432,10 +446,12 @@ def _generate_moisture_map(perm, width, height, scale, octaves=4, persistence=0.
 
     for y in range(height):
         for x in range(width):
+            world_x = chunk_x * width + x
+            world_y = chunk_y * height + y
             value = _fractal_noise(
                 perm,
-                x / scale,
-                y / scale,
+                world_x / scale,
+                world_y / scale,
                 octaves,
                 persistence,
                 lacunarity
@@ -762,7 +778,7 @@ def _place_roads(game_map, heightmap, entrances):
 # Entry point
 # ---------------------------------------------------------------------------
 
-def generate_overworld(game_map, world_seed, biome, num_dungeon_entrances=None):
+def generate_overworld(game_map, chunk_coord, world_seed, biome, num_dungeon_entrances=None):
     """
     Generate a new overworld map, filling in the game_map.tiles array with
     terrain tiles, and returning a dictionary of metadata about the generated
@@ -778,6 +794,8 @@ def generate_overworld(game_map, world_seed, biome, num_dungeon_entrances=None):
     # 1 & 2. Noise-driven land/water and forest masks, cleaned up by cellular automata.
     heightmap = _generate_heightmap(
         perm,
+        chunk_coord[0],
+        chunk_coord[1],
         width,
         height,
         scale=max(width, height) / 6,
@@ -785,6 +803,8 @@ def generate_overworld(game_map, world_seed, biome, num_dungeon_entrances=None):
 
     moisture = _generate_moisture_map(
         perm,
+        chunk_coord[0],
+        chunk_coord[1],
         width,
         height,
         scale=max(width, height) / 10
