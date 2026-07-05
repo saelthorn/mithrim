@@ -364,7 +364,11 @@ class ForestGenerator(TerrainGenerator):
 
                 if (x, y) in river_tiles:
                     game_map.tiles[y][x] = ground
-                elif h > 0.80:
+                elif h > 0.80 and _chance(x, y, 5, 0.55):
+                    # Was an unconditional `tree`, which made every hilltop a
+                    # solid, gap-free block of forest. Thinning it here lets
+                    # roughly half of it fall through to the tall_grass band
+                    # below instead, breaking the canopy up with clearings.
                     game_map.tiles[y][x] = tree
                 elif h > 0.66:
                     game_map.tiles[y][x] = tall_grass
@@ -1100,6 +1104,12 @@ def _pick_downhill_neighbor(heightmap, x, y):
     rather than cutting a perfectly straight line downhill. This is called
     exactly once per tile (from _generate_flow_field) and the result is
     cached, so every later step agrees on the answer.
+
+    The candidate pool is narrow (90% of the best drop, not 75%) and the
+    choice is weighted by drop rather than uniform. A wide, uniform pool
+    let the pick wobble between roughly-equal directions on every tile,
+    which is what made rivers look like chaotic, jittery static instead of
+    a gentle meander — the flow field itself was too noisy.
     """
     current = heightmap.get(x, y)
     candidates = []
@@ -1115,12 +1125,51 @@ def _pick_downhill_neighbor(heightmap, x, y):
 
     best_drop = max(candidates)[0]
     good = [
-        (nx, ny)
+        (drop, nx, ny)
         for drop, nx, ny in candidates
-        if drop >= best_drop * 0.75
+        if drop >= best_drop * 0.9
     ]
 
-    return random.choice(good)
+    (_, nx, ny), = random.choices(
+        good,
+        weights=[drop for drop, _, _ in good],
+        k=1,
+    )
+    return nx, ny
+
+
+def _smooth_heightmap_for_flow(heightmap, passes=2):
+    """
+    Return a lightly-blurred copy of the heightmap for the flow field to
+    read instead of the original.
+
+    The ridge heightmap sums several radial ridge influences together
+    (see _generate_ridge_heightmap), which leaves tiny bumps and saddles
+    all over otherwise-flat ground. Those bumps are invisible to the eye
+    but not to the flow field: every one of them is a locally-highest point
+    that starts its own separate trickle, so flat stretches ended up
+    covered in short, disconnected, noisy rivers. Blurring only the copy
+    used for flow direction removes those bumps while leaving the terrain
+    heightmap (and its mountains) untouched.
+    """
+    width, height = heightmap.width, heightmap.height
+    current = heightmap
+
+    for _ in range(passes):
+        smoothed = HeightMap(width, height)
+
+        for y in range(height):
+            for x in range(width):
+                neighborhood = [current.get(x, y)]
+                neighborhood += [
+                    current.get(nx, ny)
+                    for nx, ny in _neighbors(x, y, width, height)
+                ]
+                smoothed.set(x, y, sum(neighborhood) / len(neighborhood))
+
+        current = smoothed
+
+    return current
 
 
 def _generate_flow_field(heightmap):
@@ -1133,14 +1182,21 @@ def _generate_flow_field(heightmap):
          volume onto whatever it flows toward. Processing high-to-low
          guarantees that by the time we reach a tile, every one of its
          upstream neighbors has already contributed its volume.
+
+    Direction is picked from a smoothed copy of the heightmap (see
+    _smooth_heightmap_for_flow) so small noise in the raw elevation doesn't
+    create lots of tiny, independent drainage points; volume is still
+    accumulated tile-by-tile so the resulting rivers stay exactly as wide
+    as their real upstream catchment.
     """
+    flow_heightmap = _smooth_heightmap_for_flow(heightmap)
     flow = FlowField(heightmap.width, heightmap.height)
     tiles_by_height = []
 
     for y in range(heightmap.height):
         for x in range(heightmap.width):
-            flow.set_direction(x, y, _pick_downhill_neighbor(heightmap, x, y))
-            tiles_by_height.append((heightmap.get(x, y), x, y))
+            flow.set_direction(x, y, _pick_downhill_neighbor(flow_heightmap, x, y))
+            tiles_by_height.append((flow_heightmap.get(x, y), x, y))
 
     tiles_by_height.sort(reverse=True)
 
@@ -1177,6 +1233,14 @@ def _river_tile_positions(flow_field):
     (rivers make nearby land wetter) before biomes are painted, while the
     actual carving of `river` tiles onto the map still happens afterward
     (see _carve_rivers), since biome painting would otherwise overwrite it.
+
+    Width is added by stamping a filled circle at every river-carrying
+    tile, rather than a strip perpendicular to that single tile's flow
+    direction. The old perpendicular-strip approach drew a differently
+    angled line at every tile, so wherever the (already meandering)
+    direction changed from one tile to the next, the strips didn't line up
+    and left jagged notches and gaps along the bank. Overlapping circles
+    blend into a smooth, continuous ribbon no matter how the river bends.
     """
     width, height = flow_field.width, flow_field.height
     positions = set()
@@ -1187,17 +1251,10 @@ def _river_tile_positions(flow_field):
             if radius == 0:
                 continue
 
-            direction = flow_field.get_direction(x, y)
-            if direction is None:
-                continue
-
-            dx, dy = direction[0] - x, direction[1] - y
-            perp_x, perp_y = -dy, dx  # perpendicular to flow, gives the river its width
-
-            for i in range(-radius, radius + 1):
-                rx, ry = x + perp_x * i, y + perp_y * i
-                if 0 <= rx < width and 0 <= ry < height:
-                    positions.add((rx, ry))
+            for ny in range(max(0, y - radius), min(height, y + radius + 1)):
+                for nx in range(max(0, x - radius), min(width, x + radius + 1)):
+                    if _distance((x, y), (nx, ny)) <= radius:
+                        positions.add((nx, ny))
 
     return positions
 
@@ -1732,7 +1789,7 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
     ridges = _generate_mountain_ridges(width, height)
     for ridge in ridges:
         for x, y in ridge:
-            game_map.tiles[y][x] = mountain
+            game_map.tiles[y][x] = ground  # ridges are just a visual effect, not a separate tile type
 
     for landmark in landmarks:
         if len(landmark) < 4:
