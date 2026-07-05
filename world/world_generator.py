@@ -3,7 +3,7 @@ import heapq
 import random
 import struct
 import zlib
-from core.game import ChunkBiome
+from enum import Enum
 from world.tile import (
     grass,
     tall_grass,
@@ -28,7 +28,7 @@ from world.tile import (
     dead_forest,
 )
 from world.water_features import river, lake, is_water_tile
-from world.structures import place_structure_at_anchor, get_structure_blueprint
+from world.structures import create_town_npcs, place_structure_at_anchor, get_structure_blueprint
 
 
 DEEP_WATER = 0.12
@@ -51,6 +51,16 @@ BIOME_FOREST = "forest"
 BIOME_SWAMP = "swamp"
 BIOME_HILLS = "hills"
 BIOME_MOUNTAINS = "mountains"
+
+
+class ChunkBiome(Enum):
+    PLAINS = "plains"
+    FOREST = "forest"
+    SWAMP = "swamp"
+    HILLS = "hills"
+    MOUNTAINS = "mountains"
+    DESERT = "desert"
+    TUNDRA = "tundra"
 
 REGION_PREFIXES = [
     "Ashen",
@@ -392,7 +402,7 @@ class ForestGenerator(TerrainGenerator):
                 h = heightmap.get(x, y)
                 m = moisture.get(x, y)
 
-                if tile not in {grass, tall_grass, ground, tree}:
+                if tile not in {grass, tall_grass, ground, tree, clearing}:
                     continue
 
                 if m > 0.44 and h < 0.40 and _chance(x, y, 1, 1 / 13):
@@ -579,16 +589,17 @@ class MountainGenerator(TerrainGenerator):
 
 
 def get_terrain_generator(biome):
-    if biome is None:
+    biome_value = getattr(biome, "value", biome)
+    if biome_value is None:
         return PlainsGenerator
 
-    if biome in {ChunkBiome.FOREST, ChunkBiome.FOREST.value}:
+    if biome_value == ChunkBiome.FOREST.value:
         return ForestGenerator
-    if biome in {ChunkBiome.SWAMP, ChunkBiome.SWAMP.value}:
+    if biome_value == ChunkBiome.SWAMP.value:
         return SwampGenerator
-    if biome in {ChunkBiome.MOUNTAINS, ChunkBiome.MOUNTAINS.value}:
+    if biome_value == ChunkBiome.MOUNTAINS.value:
         return MountainGenerator
-    if biome in {ChunkBiome.PLAINS, ChunkBiome.PLAINS.value}:
+    if biome_value == ChunkBiome.PLAINS.value:
         return PlainsGenerator
 
     return PlainsGenerator
@@ -640,7 +651,7 @@ def _generate_regions(game_map, heightmap, moisture):
     width = game_map.width
     height = game_map.height
 
-    region_count = max(6, width * height // 12000)
+    region_count = max(6, width * height // 24000)
 
     seeds = _generate_region_seeds(
         width,
@@ -1765,7 +1776,11 @@ def _connect_to_road_network(game_map, heightmap, start, road_tiles):
 
 def _is_valid_entrance_spot(game_map, x, y):
     """A dungeon entrance needs open, dry, walkable ground to sit on."""
-    if not game_map.is_walkable(x, y):
+    if hasattr(game_map, "is_walkable"):
+        walkable = game_map.is_walkable(x, y)
+    else:
+        walkable = not getattr(game_map.tiles[y][x], "blocked", True)
+    if not walkable:
         return False
     tile = game_map.tiles[y][x]
     if is_water_tile(tile):
@@ -1778,7 +1793,11 @@ def _place_pois(game_map, heightmap, moisture, poi, count):
 
     for y in range(game_map.height):
         for x in range(game_map.width):
-            if not game_map.is_walkable(x, y):
+            if hasattr(game_map, "is_walkable"):
+                walkable = game_map.is_walkable(x, y)
+            else:
+                walkable = not getattr(game_map.tiles[y][x], "blocked", True)
+            if not walkable:
                 continue
             score = poi.score_function(
                 game_map,
@@ -1958,7 +1977,7 @@ def _place_town(game_map, chunk_coord, biome):
     """
     width, height = game_map.width, game_map.height
 
-    if biome == ChunkBiome.MOUNTAINS:
+    if getattr(biome, "value", biome) == ChunkBiome.MOUNTAINS.value:
         return []
     if (chunk_coord[0] * 13 + chunk_coord[1] * 7) % 5 != 0:
         return []
@@ -2003,12 +2022,13 @@ def _place_town(game_map, chunk_coord, biome):
 def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_map=None, num_dungeon_entrances=None, debug_heightmap_path=None, ChunkBiome=None):
     """Build a staged context for one overworld chunk, exposing the pipeline
     phases clearly while preserving the existing terrain-generation behavior."""
-    if ChunkBiome is None:
-        from core.game import ChunkBiome as _ChunkBiome
-        ChunkBiome = _ChunkBiome
+    biome_enum = globals()["ChunkBiome"]
 
     if biome is None:
-        biome = ChunkBiome.MOUNTAINS
+        biome = biome_enum.MOUNTAINS
+    else:
+        biome_value = getattr(biome, "value", biome)
+        biome = next((candidate for candidate in biome_enum if candidate.value == biome_value), biome_enum.PLAINS)
 
     perm = _build_permutation_table(world_seed)
     width, height = game_map.width, game_map.height
@@ -2124,6 +2144,7 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
     # town has first pick of the map's central area before the single
     # biome_structure fallback below claims it.
     town_buildings = _place_town(game_map, chunk_coord, biome)
+    population = create_town_npcs(game_map, town_buildings)
     flavor["has_town"] = bool(town_buildings)
 
     structure_names = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
@@ -2133,10 +2154,10 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
     )
     if not has_any_structure:
         biome_structure = {
-            ChunkBiome.SWAMP: "witch_hut",
-            ChunkBiome.MOUNTAINS: "watch_tower",
-            ChunkBiome.FOREST: "small_cabin",
-            ChunkBiome.PLAINS: "small_cabin",
+            biome_enum.SWAMP: "witch_hut",
+            biome_enum.MOUNTAINS: "watch_tower",
+            biome_enum.FOREST: "small_cabin",
+            biome_enum.PLAINS: "small_cabin",
         }.get(biome, "shrine")
         anchor_x = width // 2 + (chunk_coord[0] % 3) - 1
         anchor_y = height // 2 + (chunk_coord[1] % 3) - 1

@@ -155,8 +155,8 @@ ASPECT_RATIO = INTERNAL_WIDTH / INTERNAL_HEIGHT
 # generate_level() dungeon map, which is 120x100) so it feels expansive.
 # Walking off the edge of one chunk generates/restores its neighbor at the
 # same size, so the "grid of chunks" tiles together seamlessly.
-OVERWORLD_CHUNK_WIDTH = 240
-OVERWORLD_CHUNK_HEIGHT = 200
+OVERWORLD_CHUNK_WIDTH = 140
+OVERWORLD_CHUNK_HEIGHT = 100
 
 
 class Camera:
@@ -617,12 +617,24 @@ class Game:
         time. Falls back to leaving the player at their regular overworld
         start position if the tavern footprint can't find clear ground
         nearby (see place_structure_at_anchor).
+
+        This tavern is placed directly rather than through _place_town, so
+        it also has to spawn its own population directly — via the same
+        npcs_for_placement() helper create_town_npcs() uses internally —
+        instead of getting NPCs for free from the town pipeline.
         """
-        from world.structures import place_structure_at_anchor
+        from world.structures import place_structure_at_anchor, npcs_for_placement
 
         anchor_x, anchor_y = self.player.x, self.player.y
         placed_tiles = place_structure_at_anchor(self.game_map, "tavern", anchor_x, anchor_y)
         tavern_tile = self._tavern_entrance_tile(placed_tiles) if placed_tiles else None
+
+        if placed_tiles:
+            tavern_npcs = npcs_for_placement("tavern", placed_tiles)
+            self.entities.extend(tavern_npcs)
+            chunk = self.overworld_chunks.get(self.overworld_chunk_coord)
+            if chunk is not None:
+                chunk["population"] = list(chunk.get("population", [])) + tavern_npcs
 
         if tavern_tile is not None:
             self.player.x, self.player.y = tavern_tile
@@ -823,6 +835,7 @@ class Game:
             self.overworld_chunks[chunk_coord] = {
                 "map": chunk_map,
                 "dungeon_entrances": overworld_info["dungeon_entrances"],
+                "population": overworld_info["population"],
             }
 
         chunk = self.overworld_chunks[chunk_coord]
@@ -847,7 +860,7 @@ class Game:
         self.camera.target_x = float(self.player.x)
         self.camera.target_y = float(self.player.y)
 
-        self.entities = [self.player]
+        self.entities = [self.player] + list(chunk.get("population", []))
         self.turn_order = []
         self.current_turn_index = 0
         self.update_fov()
@@ -1488,6 +1501,16 @@ class Game:
                             self.dungeon_merchant = entity
                         elif isinstance(entity, PrisonerNPC) and entity.has_been_freed:
                             return entity
+                        return entity
+        return None
+
+    def check_overworld_npc_interaction(self):
+        if self.game_state == GameState.OVERWORLD:
+            for entity in self.entities:
+                if isinstance(entity, NPC) and entity is not self.player:
+                    if (abs(self.player.x - entity.x) <= 1 and
+                        abs(self.player.y - entity.y) <= 1 and
+                        (abs(self.player.x - entity.x) + abs(self.player.y - entity.y)) == 1):
                         return entity
         return None
 
@@ -2142,6 +2165,12 @@ class Game:
                             self.try_light_wall_torch()
                             return True  # Consume event regardless (don't fall to quick-bar)                    
 
+                        if self.game_state == GameState.OVERWORLD:
+                            npc = self.check_overworld_npc_interaction()
+                            if npc:
+                                self.message_log.add_message(f'{npc.name}: "{npc.get_dialogue()}"', (200, 200, 255))
+                                return True
+
                         merchant = self.check_dungeon_npc_interaction()  # Check for adjacent NPC
                         if isinstance(merchant, DungeonMerchant):
                             merchant.offer_trade(self.player, self)  # Call the trade method for the Merchant
@@ -2733,6 +2762,8 @@ class Game:
                 return False # Let the chest opening logic handle this
             if isinstance(item_to_pick_up, Altar):
                 return False # Altars are not picked up, they are interacted with in place
+            if isinstance(item_to_pick_up, NPC):
+                return False 
             
             if item_to_pick_up.on_pickup(self.player, self):
                 # Remove the item from the ground after successful pickup
@@ -2994,6 +3025,16 @@ class Game:
                 self.message_log.add_message("You descend into the dungeon...", (100, 255, 100))
                 self.generate_level(1)
                 return True
+
+            # Prevent walking onto an NPC. Mirrors the equivalent check in the
+            # TAVERN branch above, but checks self.entities (where overworld
+            # NPCs live, via chunk population) instead of self.npcs (only
+            # populated inside the tavern interior).
+            for entity in self.entities:
+                if (isinstance(entity, NPC) and entity is not self.player and
+                        getattr(entity, "alive", True) and entity.x == new_x and entity.y == new_y):
+                    self.message_log.add_message(f"You can't move onto {entity.name}.", (255, 150, 0))
+                    return False
 
             if not self.game_map.is_walkable(new_x, new_y):
                 self.message_log.add_message("You can't move there.", (255, 150, 0))

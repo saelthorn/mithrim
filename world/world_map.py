@@ -22,8 +22,8 @@ generation then consults this map for:
 import random
 from collections import deque
 
-from core.game import ChunkBiome
 from world.world_generator import (
+    ChunkBiome,
     HeightMap,
     _build_permutation_table,
     _fractal_noise,
