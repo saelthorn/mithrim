@@ -57,15 +57,15 @@ tavern_barrel = Tile(blocked=False, char='}', color=(139, 69, 19), name="Tavern 
 
 # Overworld tile templates (used by world_generator.py)
 road = Tile(blocked=False, char='rd', color=(128, 128, 128), name="Road")
-ground = Tile(blocked=False, char='grd', color=(100, 100, 100), name="Ground")
+ground = Tile(blocked=False, char='grd', color=(20, 100, 20), name="Ground")
 grass = Tile(blocked=False, char='`2', color=(60, 140, 40), name="Grass")
-tall_grass = Tile(blocked=False, char='`3', color=(40, 110, 30), name="Tall Grass")
+tall_grass = Tile(blocked=False, char='`3', color=(20, 100, 20), name="Tall Grass")
 tree = Tile(blocked=False, char='tre', color=(25, 80, 35), block_sight=True, destructible=False, name="Tree")
 dungeon_entrance = Tile(blocked=False, char='>', color=(230, 192, 0), name="Dungeon Entrance")
 mountain = Tile(blocked=True, char='mnt', color=(100, 100, 100), block_sight=True, destructible=False, name="Mountain")
 
 # Overworld terrain decoration (non-POI nature features)
-clearing = Tile(blocked=False, char='cl', color=(220, 200, 120), name="Clearing")
+clearing = Tile(blocked=False, char='cl', color=(20, 100, 20), name="Clearing")
 giant_tree = Tile(blocked=False, char='GT', color=(15, 50, 20), block_sight=True, name="Giant Tree")
 pond = Tile(blocked=False, char='pnd', color=(80, 140, 180), name="Pond")
 flower_field = Tile(blocked=False, char='ff', color=(180, 90, 170), name="Flower Field")

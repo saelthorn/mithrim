@@ -4076,11 +4076,10 @@ class Game:
         self.screen.blit(fps_surface, (10, 10))  # Position at (10, 10) pixels from top-left
 
         
-        pygame.display.update(self.dirty_rects)
-
         # --- Final Display Update ---
-        # Use flip for full screen update, or update a combined rect for game area + UI panel
-        # For simplicity and to eliminate flickering, let's try flip first.
+        # flip() does a full screen update. dirty_rects is still populated by
+        # add_dirty_rect() calls (full_redraw paths) in case a partial-update
+        # path is reintroduced later, but it isn't used to gate the blit here.
         pygame.display.flip()
 
         self.dirty_rects.clear()
@@ -4399,10 +4398,7 @@ class Game:
                     self.internal_surface.blit(fire_overlay, (int(draw_x), int(draw_y)))
 
                 if full_redraw:
-                    self.add_dirty_rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)   
-
-                tile_rect = pygame.Rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)
-                self.dirty_rects.append(tile_rect)
+                    self.add_dirty_rect(draw_x, draw_y, config.TILE_SIZE, config.TILE_SIZE)
 
 
     def render_tile_highlights(self):
@@ -5324,5 +5320,3 @@ class Game:
                 (255, 178, 102),
                 (player_minimap_x, player_minimap_y, actual_minimap_tile_size, actual_minimap_tile_size)
             )
-
-            
