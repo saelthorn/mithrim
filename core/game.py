@@ -643,7 +643,6 @@ class Game:
             self.update_fov()
             self.minimap_needs_redraw = True
 
-        self.message_log.add_message("=== WELCOME TO THE PRANCING PONY TAVERN ===", (240, 240, 240))
 
     def _tavern_entrance_tile(self, placed_tiles):
         """
@@ -1597,8 +1596,11 @@ class Game:
             'darkvision': 1
         }
 
-        # Clear previous visibility sources but keep explored tiles
-        previous_explored = set(self.fov.explored)
+        # Clear previous visibility sources but keep explored tiles.
+        # NOTE: explored only ever grows, so comparing sizes before/after
+        # is equivalent to a full set comparison but avoids copying and
+        # diffing the entire (potentially huge) explored set every move.
+        previous_explored_count = len(self.fov.explored)
         self.fov.visible_sources.clear()
 
         # Compute base FOV with 'player' light source and darkvision radius
@@ -1662,7 +1664,7 @@ class Game:
                         self.fov.explored.add((x, y))
 
         # Check if new tiles were explored for minimap redraw
-        if self.fov.explored != previous_explored:
+        if len(self.fov.explored) != previous_explored_count:
             self.minimap_needs_redraw = True
 
         # Existing monster activation logic...
@@ -4033,8 +4035,8 @@ class Game:
         # This ensures they are always fully redrawn and prevents flickering.
         if self.player: # Only draw UI if player exists (after character creation)
             self.draw_ui() # This method now draws directly to self.screen
-            # Draw minimap if in dungeon or tavern state
-            if self.game_state in [GameState.DUNGEON]:
+            # Draw minimap if in dungeon or overworld state
+            if self.game_state in [GameState.DUNGEON, GameState.OVERWORLD]:
                 self.draw_minimap() # This method now draws directly to self.screen
 
         # Message log is also drawn directly to screen
@@ -5279,7 +5281,28 @@ class Game:
         draw_sidebar(self)
 
     def draw_minimap(self):
-        # Always redraw minimap surface fully every frame
+        # Only rebuild the minimap surface when something relevant actually
+        # changed (new tiles explored, map swapped, resize, etc). The player
+        # marker moves every step though, so we still redraw when the
+        # player's position has changed since the last rebuild, even if
+        # minimap_needs_redraw itself wasn't set for that reason.
+        player_pos = (self.player.x, self.player.y) if self.player else None
+        needs_rebuild = (
+            self.minimap_needs_redraw
+            or player_pos != getattr(self, '_minimap_last_player_pos', None)
+        )
+
+        if needs_rebuild:
+            self._rebuild_minimap_surface()
+            self.minimap_needs_redraw = False
+            self._minimap_last_player_pos = player_pos
+
+        # Blit the (possibly cached) minimap surface to the screen every frame
+        self.screen.blit(self.minimap_surface, self.minimap_rect.topleft)
+
+    def _rebuild_minimap_surface(self):
+        """Redraws self.minimap_surface from scratch. Only called when the
+        minimap is actually dirty (see draw_minimap)."""
 
         # Fill with solid black background (opaque)
         self.minimap_surface.fill((0, 0, 0, 0))
@@ -5292,19 +5315,20 @@ class Game:
         offset_x = (self.minimap_surface.get_width() - self.game_map.width * actual_minimap_tile_size) // 2
         offset_y = (self.minimap_surface.get_height() - self.game_map.height * actual_minimap_tile_size) // 2
 
-        for y in range(self.game_map.height):
-            for x in range(self.game_map.width):
-                if (x, y) in self.fov.explored:
-                    tile = self.game_map.tiles[y][x]
-                    color = tile.color if self.fov.get_visibility_type(x, y) in ['player', 'torch', 'darkvision'] else tile.dark_color
-                    pygame.draw.rect(
-                        self.minimap_surface,
-                        color,
-                        (offset_x + x * actual_minimap_tile_size,
-                         offset_y + y * actual_minimap_tile_size,
-                         actual_minimap_tile_size,
-                         actual_minimap_tile_size)
-                    )
+        # Only iterate over explored tiles instead of the full map grid -
+        # cheap early on, and stays cheap as explored area grows since this
+        # now only runs when the minimap is dirty rather than every frame.
+        for (x, y) in self.fov.explored:
+            tile = self.game_map.tiles[y][x]
+            color = tile.color if self.fov.get_visibility_type(x, y) in ['player', 'torch', 'darkvision'] else tile.dark_color
+            pygame.draw.rect(
+                self.minimap_surface,
+                color,
+                (offset_x + x * actual_minimap_tile_size,
+                 offset_y + y * actual_minimap_tile_size,
+                 actual_minimap_tile_size,
+                 actual_minimap_tile_size)
+            )
 
         for bloodstain in self.bloodstains:
             if (bloodstain.x, bloodstain.y) in self.fov.explored: # Only show on minimap if explored
@@ -5326,5 +5350,4 @@ class Game:
                 (player_minimap_x, player_minimap_y, actual_minimap_tile_size, actual_minimap_tile_size)
             )
 
-        # Blit minimap surface directly to screen every frame
-        self.screen.blit(self.minimap_surface, self.minimap_rect.topleft)
+
