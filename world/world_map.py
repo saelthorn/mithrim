@@ -42,7 +42,7 @@ from world.world_generator import (
 # in game.py are unbounded and can go negative (the player can walk in any
 # direction from the starting chunk), so WorldMap wraps them onto this grid
 # rather than requiring the world to have a hard edge.
-WORLD_MAP_WIDTH = 100
+WORLD_MAP_WIDTH = 140
 WORLD_MAP_HEIGHT = 100
 
 # Chunk (0, 0) — where the player starts — maps to the center of the grid,

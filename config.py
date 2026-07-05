@@ -57,8 +57,8 @@ MIN_GAME_AREA_TILES_HEIGHT = 12 # Ensure at least 18 tiles high are always shown
 # A value of 1 means each 12px tile will try to be 12px (most zoomed out, smallest tiles).
 # A value of 3 means each 12px tile will try to be 36px (more zoomed in, larger tiles).
 TARGET_EFFECTIVE_TILE_SCALE = 3.0 # <--- ADD THIS LINE
-MIN_ZOOM_SCALE = 0.5
-MAX_ZOOM_SCALE = 3.0
+MIN_ZOOM_SCALE = 1.0
+MAX_ZOOM_SCALE = 3.5
 ZOOM_STEP = 0.5
 
 # These will be calculated dynamically in game.py
