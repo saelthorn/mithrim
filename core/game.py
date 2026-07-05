@@ -41,6 +41,7 @@ BIOME_CONNECTIONS = {
         ChunkBiome.FOREST,
         ChunkBiome.HILLS,
         ChunkBiome.SWAMP,
+        ChunkBiome.MOUNTAINS,
     ],
 
     ChunkBiome.FOREST: [
@@ -154,8 +155,8 @@ ASPECT_RATIO = INTERNAL_WIDTH / INTERNAL_HEIGHT
 # generate_level() dungeon map, which is 120x100) so it feels expansive.
 # Walking off the edge of one chunk generates/restores its neighbor at the
 # same size, so the "grid of chunks" tiles together seamlessly.
-OVERWORLD_CHUNK_WIDTH = 140
-OVERWORLD_CHUNK_HEIGHT = 100
+OVERWORLD_CHUNK_WIDTH = 240
+OVERWORLD_CHUNK_HEIGHT = 200
 
 
 class Camera:

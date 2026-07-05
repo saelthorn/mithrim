@@ -292,7 +292,7 @@ class PlainsGenerator(TerrainGenerator):
                 m = moisture.get(x, y)
 
                 if (x, y) in river_tiles:
-                    game_map.tiles[y][x] = ground
+                    game_map.tiles[y][x] = river
                 elif h > 0.78:
                     game_map.tiles[y][x] = clearing
                 elif h > 0.60:
@@ -363,7 +363,7 @@ class ForestGenerator(TerrainGenerator):
                 m = moisture.get(x, y)
 
                 if (x, y) in river_tiles:
-                    game_map.tiles[y][x] = ground
+                    game_map.tiles[y][x] = river
                 elif h > 0.80 and _chance(x, y, 5, 0.55):
                     # Was an unconditional `tree`, which made every hilltop a
                     # solid, gap-free block of forest. Thinning it here lets
@@ -440,7 +440,7 @@ class SwampGenerator(TerrainGenerator):
                 m = moisture.get(x, y)
 
                 if (x, y) in river_tiles:
-                    game_map.tiles[y][x] = ground
+                    game_map.tiles[y][x] = river
                 elif m > 0.82 and h < 0.50:
                     game_map.tiles[y][x] = lake
                 elif m > 0.65:
@@ -514,12 +514,12 @@ class MountainGenerator(TerrainGenerator):
                 m = moisture.get(x, y)
 
                 if (x, y) in river_tiles:
+                    game_map.tiles[y][x] = river
+                elif h > 0.80: # % of the highest elevations are mountains
                     game_map.tiles[y][x] = mountain
-                elif h > 0.90:
-                    game_map.tiles[y][x] = mountain
-                elif h > 0.78:
-                    game_map.tiles[y][x] = ground
-                elif h > 0.65 and m > 0.50:
+                elif h > 0.68: # % of the next highest elevations are scree
+                    game_map.tiles[y][x] = scree
+                elif h > 0.55 and m > 0.50: #
                     game_map.tiles[y][x] = tree
                 else:
                     game_map.tiles[y][x] = clearing
@@ -910,8 +910,7 @@ def _normalize_heightmap(heightmap):
     for y in range(heightmap.height):
         for x in range(heightmap.width):
 
-            value = heightmap.get(x, y)
-
+            value = (heightmap.get(x, y) - minimum) / scale
             value = value * 0.85 + 0.08
 
             heightmap.set(x, y, value)
@@ -1259,6 +1258,312 @@ def _river_tile_positions(flow_field):
     return positions
 
 
+def _stamp_disc(positions, center, width, height, radius):
+    cx, cy = center
+
+    for y in range(max(0, cy - radius), min(height, cy + radius + 1)):
+        for x in range(max(0, cx - radius), min(width, cx + radius + 1)):
+            if _distance((cx, cy), (x, y)) <= radius:
+                positions.add((x, y))
+
+
+def _noise01(perm, x, y, scale, octaves=2):
+    return (_fractal_noise(perm, x / scale, y / scale, octaves, 0.55, 2.0) + 1.0) / 2.0
+
+
+def _stamp_noisy_blob(positions, center, width, height, radius, perm, world_offset, noise_scale=None, roughness=0.35):
+    cx, cy = center
+    ox, oy = world_offset
+    max_radius = max(1, math.ceil(radius * (1.0 + roughness)))
+    noise_scale = noise_scale or max(3.0, radius * 1.7)
+
+    for y in range(max(0, cy - max_radius), min(height, cy + max_radius + 1)):
+        for x in range(max(0, cx - max_radius), min(width, cx + max_radius + 1)):
+            dist = math.hypot(cx - x, cy - y)
+            shoreline_noise = _noise01(perm, ox + x, oy + y, noise_scale, octaves=3)
+            local_radius = radius * (1.0 + (shoreline_noise - 0.5) * 2.0 * roughness)
+            if dist <= local_radius:
+                positions.add((x, y))
+
+
+def _edge_distance(x, y, width, height):
+    return min(x, y, width - 1 - x, height - 1 - y)
+
+
+def _lowest_basin(heightmap):
+    """
+    Pick a low point from the heightmap without defaulting to scan order.
+
+    Large maps often have several equally-low edge tiles. Plain min() returns
+    the first one it sees, which makes lakes stick to the top-left corner.
+    This still favors true low elevation, but breaks ties toward interior
+    basins with a tiny deterministic jitter so repeated flat lows distribute
+    naturally.
+    """
+    width, height = heightmap.width, heightmap.height
+    best = None
+    best_score = float("-inf")
+
+    for y in range(height):
+        for x in range(width):
+            elevation = heightmap.get(x, y)
+            interior = _edge_distance(x, y, width, height) / max(1, min(width, height) // 2)
+            jitter = _decoration_hash(x, y, 9173) * 0.0001
+            score = -elevation + interior * 0.015 + jitter
+            if score > best_score:
+                best_score = score
+                best = (x, y)
+
+    return best
+
+
+def _high_sources_near_edge(heightmap, basin, max_sources=None):
+    min_distance = max(8, min(heightmap.width, heightmap.height) // 3)
+    width, height = heightmap.width, heightmap.height
+    max_sources = max_sources or max(2, min(4, (width * height) // 12000 + 2))
+    source_spacing = max(12, min(width, height) // 4)
+    candidates = []
+
+    for y in range(1, height - 1):
+        for x in range(1, width - 1):
+            distance_to_basin = _distance((x, y), basin)
+            if distance_to_basin < min_distance:
+                continue
+
+            elevation = heightmap.get(x, y)
+            edge_bonus = 1.0 - (_edge_distance(x, y, width, height) / max(1, min(width, height) // 2))
+            basin_distance_bonus = min(distance_to_basin / max(width, height), 1.0)
+            jitter = _decoration_hash(x, y, 4811) * 0.0001
+            score = elevation + edge_bonus * 0.04 + basin_distance_bonus * 0.03 + jitter
+            candidates.append((score, x, y))
+
+    if not candidates:
+        return [
+            max(
+                ((x, y) for y in range(height) for x in range(width)),
+                key=lambda point: heightmap.get(*point) + _decoration_hash(point[0], point[1], 4811) * 0.0001,
+            )
+        ]
+
+    candidates.sort(reverse=True)
+    selected = []
+    highest_score = candidates[0][0]
+    score_floor = highest_score - 0.08
+
+    for score, x, y in candidates:
+        if len(selected) >= max_sources:
+            break
+        if score < score_floor and selected:
+            break
+        if any(_distance((x, y), other) < source_spacing for other in selected):
+            continue
+        selected.append((x, y))
+
+    return selected or [(candidates[0][1], candidates[0][2])]
+
+
+def _trace_perlin_worm_river(
+    heightmap,
+    perm,
+    source,
+    basin,
+    lake_positions,
+    lake_radius,
+    width_radius,
+    world_offset,
+    occupied_rivers,
+):
+    width, height = heightmap.width, heightmap.height
+    river_positions = set()
+    current_x, current_y = source
+    visited = set()
+    max_steps = max(width, height) * 6
+    worm_scale = max(width, height) / 5
+    bank_scale = max(5.0, min(width, height) / 14)
+    heading_x = basin[0] - source[0]
+    heading_y = basin[1] - source[1]
+    heading_length = max(1.0, math.hypot(heading_x, heading_y))
+    heading_x /= heading_length
+    heading_y /= heading_length
+    world_offset_x, world_offset_y = world_offset
+
+    for _ in range(max_steps):
+        tile = (round(current_x), round(current_y))
+        tx, ty = tile
+        if not (0 <= tx < width and 0 <= ty < height):
+            break
+
+        width_noise = _noise01(
+            perm,
+            world_offset_x + tx + 233,
+            world_offset_y + ty - 719,
+            bank_scale,
+            octaves=2,
+        )
+        local_width = width_radius + (1 if width_noise > 0.68 else 0)
+        _stamp_noisy_blob(
+            river_positions,
+            tile,
+            width,
+            height,
+            local_width,
+            perm,
+            world_offset,
+            noise_scale=bank_scale,
+            roughness=0.45,
+        )
+        if tile in lake_positions or tile in occupied_rivers or _distance(tile, basin) <= lake_radius:
+            break
+
+        visited.add(tile)
+        to_lake_x = basin[0] - current_x
+        to_lake_y = basin[1] - current_y
+        distance_to_lake = max(1.0, math.hypot(to_lake_x, to_lake_y))
+
+        broad_noise = _fractal_noise(
+            perm,
+            (world_offset_x + current_x) / worm_scale,
+            (world_offset_y + current_y) / worm_scale,
+            4,
+            0.55,
+            2.0,
+        )
+        small_noise = _fractal_noise(
+            perm,
+            (world_offset_x + current_x + 991) / (worm_scale * 0.42),
+            (world_offset_y + current_y - 337) / (worm_scale * 0.42),
+            2,
+            0.6,
+            2.0,
+        )
+        target_x = to_lake_x / distance_to_lake
+        target_y = to_lake_y / distance_to_lake
+        perlin_angle = (broad_noise * 1.35 + small_noise * 0.45) * math.pi
+        perlin_x = math.cos(perlin_angle)
+        perlin_y = math.sin(perlin_angle)
+
+        current_height = heightmap.get(tx, ty)
+        choices = []
+        downhill_choices = []
+
+        for nx, ny in _neighbors(tx, ty, width, height):
+            if (nx, ny) in visited and _distance((nx, ny), basin) > lake_radius:
+                continue
+
+            neighbor_height = heightmap.get(nx, ny)
+            drop = current_height - neighbor_height
+            choice = (nx, ny, drop)
+            choices.append(choice)
+            if drop > 0.001:
+                downhill_choices.append(choice)
+
+        candidate_choices = downhill_choices or choices
+        best = None
+        best_score = float("-inf")
+
+        for nx, ny, drop in candidate_choices:
+            step_x = nx - current_x
+            step_y = ny - current_y
+            step_length = max(0.001, math.hypot(step_x, step_y))
+            step_dir_x = step_x / step_length
+            step_dir_y = step_y / step_length
+            perlin_alignment = step_dir_x * perlin_x + step_dir_y * perlin_y
+            heading_alignment = step_dir_x * heading_x + step_dir_y * heading_y
+            lake_alignment = step_dir_x * target_x + step_dir_y * target_y
+            closeness = _distance(tile, basin) - _distance((nx, ny), basin)
+            bank_noise = _noise01(perm, world_offset_x + nx - 503, world_offset_y + ny + 811, bank_scale, octaves=2)
+            tributary_join = 1.0 if (nx, ny) in occupied_rivers else 0.0
+
+            if downhill_choices:
+                score = (
+                    drop * 18.0
+                    + perlin_alignment * 1.35
+                    + heading_alignment * 0.55
+                    + lake_alignment * 0.18
+                    + closeness * 0.03
+                    + bank_noise * 0.28
+                    + tributary_join * 1.4
+                )
+            else:
+                score = (
+                    drop * 6.0
+                    + lake_alignment * 2.4
+                    + closeness * 0.45
+                    + perlin_alignment * 0.75
+                    + heading_alignment * 0.35
+                    + bank_noise * 0.18
+                    + tributary_join * 1.8
+                )
+
+            if score > best_score:
+                best_score = score
+                best = (nx, ny)
+
+        if best is None:
+            break
+
+        next_x, next_y = best
+        step_x = next_x - current_x
+        step_y = next_y - current_y
+        step_length = max(1.0, math.hypot(step_x, step_y))
+        heading_x = heading_x * 0.62 + (step_x / step_length) * 0.38
+        heading_y = heading_y * 0.62 + (step_y / step_length) * 0.38
+        heading_length = max(0.001, math.hypot(heading_x, heading_y))
+        heading_x /= heading_length
+        heading_y /= heading_length
+        current_x, current_y = next_x, next_y
+
+    river_positions.difference_update(lake_positions)
+    return river_positions
+
+
+def _perlin_worm_river_positions(heightmap, perm, chunk_coord, width_radius=1, lake_radius=None):
+    """
+    Carve one coherent river from a high source into the chunk's lowest basin.
+
+    The worm samples Perlin noise for a smooth local heading, blends that
+    heading with a vector toward the basin, and lightly favors lower nearby
+    tiles. It is not pure downhill flow: the noise can swing the river around
+    ridges, but the basin pull keeps it from wandering forever.
+    """
+    width, height = heightmap.width, heightmap.height
+    basin = _lowest_basin(heightmap)
+    sources = _high_sources_near_edge(heightmap, basin)
+    lake_radius = lake_radius if lake_radius is not None else max(3, min(width, height) // 12)
+    world_offset = (chunk_coord[0] * width, chunk_coord[1] * height)
+
+    lake_positions = set()
+    _stamp_noisy_blob(
+        lake_positions,
+        basin,
+        width,
+        height,
+        lake_radius,
+        perm,
+        world_offset,
+        noise_scale=max(4.0, lake_radius * 2.3),
+        roughness=0.55,
+    )
+
+    river_positions = set()
+    for source in sources:
+        source_river = _trace_perlin_worm_river(
+            heightmap,
+            perm,
+            source,
+            basin,
+            lake_positions,
+            lake_radius,
+            width_radius,
+            world_offset,
+            river_positions,
+        )
+        river_positions.update(source_river)
+
+    river_positions.difference_update(lake_positions)
+    return river_positions, lake_positions
+
+
 def _carve_rivers(game_map, river_positions):
     """
     Paint river tiles onto the map on top of whatever biome was already
@@ -1274,6 +1579,16 @@ def _carve_rivers(game_map, river_positions):
         river_tiles.append((x, y))
 
     return river_tiles
+
+
+def _carve_lakes(game_map, lake_positions):
+    lake_tiles = []
+
+    for x, y in lake_positions:
+        game_map.tiles[y][x] = lake
+        lake_tiles.append((x, y))
+
+    return lake_tiles
 
 
 def _edge_midpoint(width, height, direction):
@@ -1693,13 +2008,13 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
         ChunkBiome = _ChunkBiome
 
     if biome is None:
-        biome = ChunkBiome.PLAINS
+        biome = ChunkBiome.MOUNTAINS
 
     perm = _build_permutation_table(world_seed)
     width, height = game_map.width, game_map.height
 
     if num_dungeon_entrances is None:
-        num_dungeon_entrances = max(1, (width * height) // 12000)
+        num_dungeon_entrances = max(1, (width * height) // 24000)
 
     # 1. Region generator: coarse regional identity and region boundaries.
     heightmap = _generate_ridge_heightmap(width, height)
@@ -1710,8 +2025,12 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
             WORLD_ELEVATION_BIAS_STRENGTH,
         )
 
-    flow_field = _generate_flow_field(heightmap)
-    river_positions = _river_tile_positions(flow_field)
+    flow_field = None
+    river_positions, lake_positions = _perlin_worm_river_positions(
+        heightmap,
+        perm,
+        chunk_coord,
+    )
 
     moisture = _generate_moisture_map(
         perm,
@@ -1729,14 +2048,15 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
             WORLD_MOISTURE_BIAS_STRENGTH,
         )
 
-    _apply_river_moisture(moisture, river_positions)
+    _apply_river_moisture(moisture, river_positions | lake_positions)
     region_map, regions = _generate_regions(game_map, heightmap, moisture)
 
     # 2. Chunk generator: paint terrain with biome-specific terrain rules.
     terrain_generator = get_terrain_generator(biome)()
     landmarks = terrain_generator.apply(game_map, heightmap, moisture, river_positions)
 
-    river_tiles = _carve_rivers(game_map, river_positions)
+    lake_tiles = _carve_lakes(game_map, lake_positions)
+    river_tiles = lake_tiles + _carve_rivers(game_map, river_positions)
 
     if world_map is not None:
         major_river_edges = world_map.river_edges_at(chunk_coord)
