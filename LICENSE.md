@@ -1,4 +1,4 @@
-Copyright (c) 2026 Saelthorn Haworth
+Copyright (c) 2026 Hal
 
 All rights reserved.
 
