@@ -167,26 +167,26 @@ def setup_tile_mapping():
 
 
         # Overworld Tiles
-        'rd': (0 * CELL_DIM, 3 * CELL_DIM),  # Road
+        'rd': (0 * CELL_DIM, 3 * CELL_DIM),    # Road
         'tre': (0 * CELL_DIM, 18 * CELL_DIM),  # Tree
         'grd': (1 * CELL_DIM, 18 * CELL_DIM),  # Ground
-        '`3': (2 * CELL_DIM, 18 * CELL_DIM),  # Tall Grass
+        '`3': (2 * CELL_DIM, 18 * CELL_DIM),   # Tall Grass
         'mnt': (3 * CELL_DIM, 18 * CELL_DIM),  # Mountain
 
-        'cl': (1 * CELL_DIM, 18 * CELL_DIM),  # Clearing
+        'cl': (4 * CELL_DIM, 18 * CELL_DIM),  # Clearing
         'GT': (5 * CELL_DIM, 18 * CELL_DIM),  # Giant Tree
-        'pn': (6 * CELL_DIM, 18 * CELL_DIM),  # Pond
+        'pnd': (6 * CELL_DIM, 18 * CELL_DIM),  # Pond
         'ff': (7 * CELL_DIM, 18 * CELL_DIM),  # Flower Field
-        'cf': (8 * CELL_DIM, 18 * CELL_DIM),  # Cliff
-        'vy': (9 * CELL_DIM, 18 * CELL_DIM),  # Valley
-        'wf': (10 * CELL_DIM, 18 * CELL_DIM), # Waterfall
-        'sc': (11 * CELL_DIM, 18 * CELL_DIM), # Scree
-        'rg': (12 * CELL_DIM, 18 * CELL_DIM), # Ridge
-        'md': (13 * CELL_DIM, 18 * CELL_DIM), # Meadow
-        'rk': (14 * CELL_DIM, 18 * CELL_DIM), # Rock Formation
-        'mp': (15 * CELL_DIM, 18 * CELL_DIM), # Marsh Pool
-        'rs': (16 * CELL_DIM, 18 * CELL_DIM), # Reeds
-        'df': (17 * CELL_DIM, 18 * CELL_DIM), # Dead Forest
+        'clf': (1 * CELL_DIM, 18 * CELL_DIM),  # Cliff
+        'vy': (1 * CELL_DIM, 18 * CELL_DIM),  # Valley 
+        'wtf': (1 * CELL_DIM, 18 * CELL_DIM), # Waterfall
+        'sc': (8 * CELL_DIM, 18 * CELL_DIM), # Scree
+        'rg': (1 * CELL_DIM, 18 * CELL_DIM),  # Ridge
+        'md': (9 * CELL_DIM, 18 * CELL_DIM), # Meadow
+        'rk': (10 * CELL_DIM, 18 * CELL_DIM), # Rock Formation
+        'mp': (11 * CELL_DIM, 18 * CELL_DIM), # Marsh Pool
+        'rds': (12 * CELL_DIM, 18 * CELL_DIM), # Reeds
+        'ddf': (13 * CELL_DIM, 18 * CELL_DIM), # Dead Forest
 
 
         # Elemental Tiles

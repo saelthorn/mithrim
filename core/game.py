@@ -4034,7 +4034,7 @@ class Game:
         if self.player: # Only draw UI if player exists (after character creation)
             self.draw_ui() # This method now draws directly to self.screen
             # Draw minimap if in dungeon or tavern state
-            if self.game_state in [GameState.DUNGEON, GameState.OVERWORLD]:
+            if self.game_state in [GameState.DUNGEON]:
                 self.draw_minimap() # This method now draws directly to self.screen
 
         # Message log is also drawn directly to screen

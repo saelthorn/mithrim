@@ -150,6 +150,28 @@ BIOME_SETTINGS = {
 }
 
 
+def _decoration_hash(x, y, salt):
+    """
+    Deterministic pseudo-random value in [0, 1) for a tile, used to scatter
+    decorations. Unlike a linear check such as `(x * a + y * b) % n == 0`,
+    which always produces evenly-spaced parallel diagonal lines (an artifact
+    of the congruence, not real randomness), this mixes the bits of x, y,
+    and a salt so results look organically scattered while still being
+    fully deterministic for a given tile/salt pair (no shared RNG state,
+    safe to call in any order).
+    """
+    h = (x * 0x1F1F1F1F) ^ (y * 0x2545F491) ^ (salt * 0x9E3779B1)
+    h = (h ^ (h >> 15)) * 0x85EBCA6B
+    h = (h ^ (h >> 13)) * 0xC2B2AE35
+    h ^= h >> 16
+    return (h & 0xFFFFFFFF) / 0xFFFFFFFF
+
+
+def _chance(x, y, salt, probability):
+    """Returns True with roughly `probability` odds, scattered (not aligned)."""
+    return _decoration_hash(x, y, salt) < probability
+
+
 class HeightMap:
     """
     Stores the elevation of every tile.
@@ -274,8 +296,8 @@ class PlainsGenerator(TerrainGenerator):
                 elif h > 0.78:
                     game_map.tiles[y][x] = tall_grass
                 elif h > 0.60:
-                    game_map.tiles[y][x] = grass
-                elif m > 0.70 and (x + y) % 9 == 0:
+                    game_map.tiles[y][x] = clearing
+                elif m > 0.72 and _chance(x, y, 3, 1 / 19):
                     game_map.tiles[y][x] = tree
                 else:
                     game_map.tiles[y][x] = ground
@@ -298,12 +320,12 @@ class PlainsGenerator(TerrainGenerator):
                 if tile not in {ground, grass, tall_grass}:
                     continue
 
-                if h > 0.82 and (x * 7 + y * 13 + 3) % 11 == 0:
-                    game_map.tiles[y][x] = rock_formation
-                elif m > 0.62 and (x * 11 + y * 5) % 15 == 0:
-                    game_map.tiles[y][x] = meadow
-                elif h > 0.70 and (x * 3 + y * 7) % 19 == 0:
+                if h > 0.22 and _chance(x, y, 1, 1 / 11):
                     game_map.tiles[y][x] = ridge
+                elif m > 0.32 and _chance(x, y, 2, 1 / 15):
+                    game_map.tiles[y][x] = meadow
+                elif h > 0.50 and _chance(x, y, 3, 1 / 19):
+                    game_map.tiles[y][x] = rock_formation
 
     def place_landmarks(self, game_map, heightmap, moisture, river_positions):
         candidates = []
@@ -346,10 +368,10 @@ class ForestGenerator(TerrainGenerator):
                     game_map.tiles[y][x] = tree
                 elif h > 0.66:
                     game_map.tiles[y][x] = tall_grass
-                elif m > 0.62 and (x + y) % 5 == 0:
+                elif m > 0.62 and _chance(x, y, 3, 1 / 19):
                     game_map.tiles[y][x] = tree
                 else:
-                    game_map.tiles[y][x] = grass
+                    game_map.tiles[y][x] = clearing
 
         self.decorate(game_map, heightmap, moisture, river_positions)
         return self.place_landmarks(game_map, heightmap, moisture, river_positions)
@@ -369,13 +391,13 @@ class ForestGenerator(TerrainGenerator):
                 if tile not in {grass, tall_grass, ground, tree}:
                     continue
 
-                if m > 0.84 and h < 0.40 and (x * 5 + y * 7) % 13 == 0:
+                if m > 0.44 and h < 0.40 and _chance(x, y, 1, 1 / 13):
                     game_map.tiles[y][x] = pond
-                elif tile is tree and (x * 3 + y * 5) % 17 == 0:
+                elif tile is tree and _chance(x, y, 2, 1 / 17):
                     game_map.tiles[y][x] = giant_tree
-                elif m > 0.72 and (x * 7 + y * 3) % 19 == 0:
+                elif m > 0.52 and _chance(x, y, 3, 1 / 19):
                     game_map.tiles[y][x] = flower_field
-                elif h < 0.55 and (x * 11 + y * 5) % 23 == 0:
+                elif h < 0.65 and _chance(x, y, 4, 1 / 23):
                     game_map.tiles[y][x] = clearing
 
     def place_landmarks(self, game_map, heightmap, moisture, river_positions):
@@ -418,7 +440,7 @@ class SwampGenerator(TerrainGenerator):
                 elif m > 0.82 and h < 0.50:
                     game_map.tiles[y][x] = lake
                 elif m > 0.65:
-                    game_map.tiles[y][x] = grass
+                    game_map.tiles[y][x] = clearing
                 elif h > 0.72:
                     game_map.tiles[y][x] = tree
                 else:
@@ -442,11 +464,11 @@ class SwampGenerator(TerrainGenerator):
                 if tile not in {ground, grass, tree, lake}:
                     continue
 
-                if m > 0.84 and h < 0.45 and (x * 9 + y * 4) % 11 == 0:
+                if m > 0.64 and h < 0.45 and _chance(x, y, 1, 1 / 11):
                     game_map.tiles[y][x] = marsh_pool
-                elif tile is tree and (x * 5 + y * 7) % 13 == 0:
+                elif tile is tree and _chance(x, y, 2, 1 / 13):
                     game_map.tiles[y][x] = dead_forest
-                elif m > 0.70 and (x * 7 + y * 3) % 17 == 0:
+                elif m > 0.72 and _chance(x, y, 3, 1 / 19):
                     game_map.tiles[y][x] = reeds
 
     def place_landmarks(self, game_map, heightmap, moisture, river_positions):
@@ -496,7 +518,7 @@ class MountainGenerator(TerrainGenerator):
                 elif h > 0.65 and m > 0.50:
                     game_map.tiles[y][x] = tree
                 else:
-                    game_map.tiles[y][x] = grass
+                    game_map.tiles[y][x] = clearing
 
         self.decorate(game_map, heightmap, moisture, river_positions)
         return self.place_landmarks(game_map, heightmap, moisture, river_positions)
@@ -516,15 +538,15 @@ class MountainGenerator(TerrainGenerator):
                 if tile not in {ground, grass, tree, mountain}:
                     continue
 
-                if h > 0.90 and (x * 7 + y * 11) % 13 == 0:
-                    game_map.tiles[y][x] = cliff
-                elif h > 0.80 and (x * 5 + y * 9) % 17 == 0:
+                if h > 0.60 and _chance(x, y, 1, 1 / 13):
+                    game_map.tiles[y][x] = mountain
+                elif h > 0.30 and _chance(x, y, 2, 1 / 17):
                     game_map.tiles[y][x] = scree
-                elif h < 0.45 and (x * 3 + y * 7) % 19 == 0:
+                elif h < 0.45 and _chance(x, y, 3, 1 / 19):
                     game_map.tiles[y][x] = valley
-                elif h > 0.72 and m > 0.40 and (x * 11 + y * 3) % 23 == 0:
+                elif h > 0.52 and m > 0.40 and _chance(x, y, 4, 1 / 23):
                     game_map.tiles[y][x] = waterfall
-                elif tile is tree and (x * 4 + y * 6) % 29 == 0:
+                elif tile is tree and _chance(x, y, 5, 1 / 29):
                     game_map.tiles[y][x] = ridge
 
     def place_landmarks(self, game_map, heightmap, moisture, river_positions):
