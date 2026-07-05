@@ -86,7 +86,6 @@ from core.ui_sidebar import draw_sidebar
 from core.ui_screens import render_inventory_screen, render_inventory_menu_popup, render_character_menu
 from world.map import GameMap
 from world.dungeon_generator import generate_dungeon
-from world.tavern_generator import generate_tavern
 from world.world_generator import generate_overworld
 from world.world_map import generate_world_map
 from world.encounters.prison_cell import (
@@ -109,7 +108,7 @@ from entities.monster import (
 )
 
 from entities.base_entity import NPC
-from entities.tavern_npcs import create_tavern_npcs, NPC, Merchant
+from entities.tavern_npcs import NPC, Merchant
 from entities.dungeon_npcs import DungeonHealer, DungeonMerchant, PrisonerNPC
 
 from entities.races import (
@@ -596,20 +595,76 @@ class Game:
         )
  
         pygame.event.clear()
-        self.generate_tavern()
- 
-        ideal_x = max(0, min(
-            self.player.x - self.camera.viewport_width  // 2,
-            self.game_map.width  - self.camera.viewport_width
-        ))
-        ideal_y = max(0, min(
-            self.player.y - self.camera.viewport_height // 2,
-            self.game_map.height - self.camera.viewport_height
-        ))
-        self.camera.x        = ideal_x
-        self.camera.y        = ideal_y
-        self.camera.target_x = float(self.player.x)
-        self.camera.target_y = float(self.player.y)
+
+        # The player used to start inside a dedicated GameState.TAVERN interior
+        # map. That's scrapped now — the starting chunk (0, 0) always rolls a
+        # town (see _place_town's "% 5 != 0" check), so instead we generate the
+        # overworld and drop the player inside that town's tavern building.
+        self.generate_overworld_map(chunk_coord=(0, 0))
+        self._spawn_player_in_starting_tavern()
+
+    def _spawn_player_in_starting_tavern(self):
+        """
+        Place a "tavern" building (structures.py's blueprint) directly on
+        top of the player's overworld starting position, then drop the
+        player inside it, in place of the old tavern-interior gamestate.
+
+        This used to look for a tavern already placed by _place_town's
+        per-chunk town roll, but that roll is probabilistic and often
+        skipped the starting chunk entirely, so the player wouldn't always
+        spawn in a tavern. Forcing the placement here guarantees one every
+        time. Falls back to leaving the player at their regular overworld
+        start position if the tavern footprint can't find clear ground
+        nearby (see place_structure_at_anchor).
+        """
+        from world.structures import place_structure_at_anchor
+
+        anchor_x, anchor_y = self.player.x, self.player.y
+        placed_tiles = place_structure_at_anchor(self.game_map, "tavern", anchor_x, anchor_y)
+        tavern_tile = self._tavern_entrance_tile(placed_tiles) if placed_tiles else None
+
+        if tavern_tile is not None:
+            self.player.x, self.player.y = tavern_tile
+            self.overworld_player_pos = tavern_tile
+
+            ideal_x = max(0.0, min(
+                float(self.player.x) - self.camera.viewport_width / 2.0,
+                float(self.game_map.width - self.camera.viewport_width)
+            ))
+            ideal_y = max(0.0, min(
+                float(self.player.y) - self.camera.viewport_height / 2.0,
+                float(self.game_map.height - self.camera.viewport_height)
+            ))
+            self.camera.x        = ideal_x
+            self.camera.y        = ideal_y
+            self.camera.target_x = float(self.player.x)
+            self.camera.target_y = float(self.player.y)
+
+            self.update_fov()
+            self.minimap_needs_redraw = True
+
+        self.message_log.add_message("=== WELCOME TO THE PRANCING PONY TAVERN ===", (240, 240, 240))
+
+    def _tavern_entrance_tile(self, placed_tiles):
+        """
+        Given the (x, y, tile) cells returned by placing the "tavern"
+        blueprint, return an (x, y) walkable entrance tile — the first
+        walkable_chars cell in structures.py's tavern tile_map, offset by
+        the building's actual placed origin (place_structure_at_anchor may
+        have nudged it a tile or two to find clear ground).
+        """
+        from world.structures import get_structure_blueprint
+
+        tavern_blueprint = get_structure_blueprint("tavern")
+        origin_x = min(x for x, y, tile in placed_tiles)
+        origin_y = min(y for x, y, tile in placed_tiles)
+
+        for dy, row in enumerate(tavern_blueprint.tile_map):
+            for dx, char in enumerate(row):
+                if char in tavern_blueprint.walkable_chars:
+                    return origin_x + dx, origin_y + dy
+
+        return None
 
 
     def _recalculate_dimensions(self, is_zoom_only=False):
@@ -731,40 +786,6 @@ class Game:
         self.font_small = pygame.font.SysFont('consolas', 14)
         
 
-    def generate_tavern(self):
-        self.game_state = GameState.TAVERN
-        self._previous_game_state = GameState.TAVERN
-        self.game_map = GameMap(24, 15)
-        self.fov = FOV(self.game_map)
-        self.door_position = generate_tavern(self.game_map, self.player)              
-        start_x, start_y = self.game_map.width // 2 - 3 , self.game_map.height // 2 + 3
-        
-        self.player.x = start_x
-        self.player.y = start_y
-        
-        # --- MODIFIED: Initial camera snap for tavern generation ---
-        # Calculate the ideal snapped position
-        ideal_x = float(self.player.x) - (self.camera.viewport_width / 2.0)
-        ideal_y = float(self.player.y) - (self.camera.viewport_height / 2.0)
-        # Clamp ideal position to map boundaries (as floats)
-        ideal_x = max(0.0, min(ideal_x, float(self.game_map.width - self.camera.viewport_width)))
-        ideal_y = max(0.0, min(ideal_y, float(self.game_map.height - self.camera.viewport_height)))
-        self.camera.x = ideal_x
-        self.camera.y = ideal_y
-        self.camera.target_x = float(self.player.x) # Set target_x/y as floats
-        self.camera.target_y = float(self.player.y)        
-        
-        self.npcs = create_tavern_npcs(self.game_map, self.door_position, self)
-        self.entities = [self.player] + self.npcs
-        self.turn_order = []
-        self.current_turn_index = 0
-        self.update_fov()
-        
-        self.message_log.add_message("=== WELCOME TO THE PRANCING PONY TAVERN ===", (240, 240, 240))
-        self.message_log.add_message("Walk to the door (+) and press any movement key to enter the dungeon!", (150, 150, 255))
-        self.minimap_needs_redraw = True # New map, redraw minimap
-    
-
     def generate_overworld_map(self, chunk_coord=None, spawn_pos=None):
         """
         Enter the overworld at the given chunk (defaulting to whichever chunk the
@@ -816,7 +837,7 @@ class Game:
 
         self.player.x, self.player.y = self.overworld_player_pos
 
-        # --- Initial camera snap, same approach as generate_tavern() ---
+        # --- Initial camera snap ---
         ideal_x = float(self.player.x) - (self.camera.viewport_width / 2.0)
         ideal_y = float(self.player.y) - (self.camera.viewport_height / 2.0)
         ideal_x = max(0.0, min(ideal_x, float(self.game_map.width - self.camera.viewport_width)))
@@ -1555,8 +1576,11 @@ class Game:
                 self.message_log.add_message("You climb back out into the open air...", (100, 200, 255))
                 self.generate_overworld_map()
             else:
-                self.message_log.add_message("Returning to tavern...", (100, 200, 255))
-                self.generate_tavern()
+                # This used to return to the standalone tavern-interior gamestate.
+                # That's gone now — the tavern lives in the overworld, so climbing
+                # out just drops the player back onto the overworld map instead.
+                self.message_log.add_message("You climb back out into the open air...", (100, 200, 255))
+                self.generate_overworld_map()
 
 
     def update_fov(self):
@@ -2101,7 +2125,7 @@ class Game:
                         return True  # Consume event
 
                 # --- Trade Interaction --- 
-                if self.game_state in GameState.DUNGEON:
+                if self.game_state in (GameState.DUNGEON, GameState.OVERWORLD):
                     if event.key == pygame.K_f:
                         # --- Wall torch lighting (takes priority over NPC / quick-bar) ---
                         adjacent_has_torch = any(
@@ -2343,7 +2367,7 @@ class Game:
                     if dx != 0 or dy != 0:
                         action_taken = self.handle_player_action(dx, dy)
                     elif event.key == pygame.K_SPACE:
-                        if self.game_state == GameState.DUNGEON:
+                        if self.game_state == GameState.DUNGEON or self.game_state == GameState.OVERWORLD:
                             # --- MODIFIED START ---
                             # Prioritize picking up items at player's feet
                             if self.handle_item_pickup():
@@ -2397,7 +2421,7 @@ class Game:
                         ability_index = event.key - pygame.K_1
                         if 0 <= ability_index < len(abilities_list):
                             ability_to_use = abilities_list[ability_index]
-                            if self.game_state == GameState.DUNGEON:
+                            if self.game_state == GameState.DUNGEON or self.game_state == GameState.OVERWORLD:
                                 if getattr(ability_to_use, "is_bonus_action", False) and self.player_bonus_action_used:
                                     self.message_log.add_message(
                                         f"{ability_to_use.name} is a bonus action and you have already used your bonus action this turn.",
@@ -2429,7 +2453,7 @@ class Game:
                         return True
                 
                 if action_taken:
-                    if self.game_state == GameState.DUNGEON:
+                    if self.game_state == GameState.DUNGEON or self.game_state == GameState.OVERWORLD:
                         self.player_has_acted = True
                     self.next_turn()
                     return True
@@ -2979,7 +3003,7 @@ class Game:
             self.camera.target_y = float(self.player.y)
             return True
 
-        elif self.game_state == GameState.DUNGEON:
+        elif self.game_state == GameState.DUNGEON or self.game_state == GameState.OVERWORLD:
             # Prevent out-of-bounds movement before accessing the tile grid.
             if not (0 <= new_x < self.game_map.width and 0 <= new_y < self.game_map.height):
                 self.message_log.add_message("You can't move there.", (255, 150, 0))
@@ -3716,7 +3740,7 @@ class Game:
         
 
         # --- NEW: Batch Monster Turn Processing ---
-        if self.game_state == GameState.DUNGEON and self.player.alive:
+        if self.game_state == GameState.DUNGEON or self.game_state == GameState.OVERWORLD and self.player.alive:
             # Loop to process turns until it's the player's turn or no more entities
             while True:
                 self.cleanup_entities() # Always clean up before getting current entity
@@ -4010,7 +4034,7 @@ class Game:
         if self.player: # Only draw UI if player exists (after character creation)
             self.draw_ui() # This method now draws directly to self.screen
             # Draw minimap if in dungeon or tavern state
-            if self.game_state in [GameState.DUNGEON]:
+            if self.game_state in [GameState.DUNGEON, GameState.OVERWORLD]:
                 self.draw_minimap() # This method now draws directly to self.screen
 
         # Message log is also drawn directly to screen

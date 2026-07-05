@@ -46,7 +46,7 @@ from items.items import (
     half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, 
     greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, spell_book, staff_of_magi, 
     scale_mail_armor, sturdy_quarterstaff, leather_cap, iron_helmet, steel_helmet, hood_of_shadows, great_helm, 
-    mages_circlet, leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,
+    mages_circlet, leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers, meat,
     Item, CampfireKit, Weapon, Armor, OffHand, Accessory,
     Helmet, Boots, FocusItem, WEAPON_CATEGORIES, ARMOR_CATEGORIES, 
 )
@@ -1635,15 +1635,19 @@ class Fighter(Player):
         # Set starting equipment
         self.inventory.add_item(CampfireKit())  
         self.inventory.add_item(throwing_knife)
-        self.inventory.add_item(bread)
-        self.inventory.add_item(bread)
-        self.inventory.add_item(bread)
-        self.inventory.add_item(bread)
-        self.inventory.add_item(bread)
-        self.inventory.add_item(bread)
-        self.inventory.add_item(bread)
-        self.inventory.add_item(bread)
-        self.inventory.add_item(bread)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(torch)
 

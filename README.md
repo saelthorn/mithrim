@@ -388,3 +388,9 @@ Status effects processed at turn end.
 - Message log scrollable with mouse wheel (reviews all events)
 - Print statements throughout code for tracing control flow
 - Memory tracking available via `tracemalloc` import
+
+## Disclaimer
+
+Mithrim is an independent, non-commercial fan project inspired by tabletop role-playing games.
+
+This project is not affiliated with, endorsed by, or associated with Wizards of the Coast LLC. Dungeons & Dragons and all related trademarks and intellectual property are owned by Wizards of the Coast LLC.

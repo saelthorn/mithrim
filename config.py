@@ -26,8 +26,8 @@ MINIMAP_WIDTH_RATIO = 0.2  # 20% of screen width
 MINIMAP_HEIGHT_RATIO = 0.2  # 20% of screen height
 MINIMAP_MARGIN_TOP_RATIO = 0.01  # 1% of screen height (NEW)
 MINIMAP_MARGIN_RIGHT_RATIO = 0.18  # 18% of screen width (NEW)
-MINIMAP_TILE_SIZE = 1.9      # Size of each tile on the minimap in pixels
-MINIMAP_ALPHA = 180         # Transparency of the minimap surface (0-255)
+MINIMAP_TILE_SIZE = 1.25     # Size of each tile on the minimap in pixels
+MINIMAP_ALPHA = 120         # Transparency of the minimap surface (0-255)
 
 # --- Message Log Font Scaling ---
 # This factor will be multiplied by the actual_scale_factor of the game area
