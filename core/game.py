@@ -513,6 +513,7 @@ class Game:
 
     OVERWORLD_MONSTER_GROUP_COUNT = (2, 4)   # (min, max) groups per chunk
     OVERWORLD_GROUP_SEARCH_RADIUS = 6        # tiles around each anchor to consider
+    OVERWORLD_VISION_RADIUS = 12             # open-sky sight range, vs. cramped dungeon corridors
 
     def spawn_overworld_monster_groups(self, game_map, biome, dungeon_entrances):
         """
@@ -1697,6 +1698,11 @@ class Game:
 
     def update_fov(self):
         base_radius = getattr(self.player, 'vision_radius', 4)  # base vision radius
+
+        # Open skies let the player see much farther than cramped dungeon corridors.
+        if self.game_state == GameState.OVERWORLD:
+            base_radius = max(base_radius, self.OVERWORLD_VISION_RADIUS)
+
         torch_bonus = 0
         has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)    
         

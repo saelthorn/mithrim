@@ -228,9 +228,15 @@ class Player: # This is our base class for playable characters
         Sanity ≤ 50%      → player takes 50% extra damage from enemies (checked in take_damage).
         Eating food also restores sanity (handled in eat_food).
         """
+        # The open air of the overworld is far easier on the mind than a dungeon,
+        # so sanity changes tick on a slower cadence out there.
+        sanity_tick_interval = 4
+        if getattr(game_instance, 'game_state', None) == GameState.OVERWORLD:
+            sanity_tick_interval = 12
+
         self.turns_since_last_sanity_change += 1
-        if self.turns_since_last_sanity_change < 4:
-            return  # Only tick every 4 turns (same cadence as hunger)
+        if self.turns_since_last_sanity_change < sanity_tick_interval:
+            return  # Only tick every N turns (slower cadence in the overworld)
 
         self.turns_since_last_sanity_change = 0
 
