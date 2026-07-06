@@ -918,12 +918,16 @@ class Game:
                 "map": chunk_map,
                 "dungeon_entrances": overworld_info["dungeon_entrances"],
                 "population": overworld_info["population"] + monster_population,
+                # Its own FOV, cached alongside the map so revisiting this chunk
+                # later restores what's already been explored instead of
+                # resetting it (see the restore below).
+                "fov": FOV(chunk_map),
             }
 
         chunk = self.overworld_chunks[chunk_coord]
         self.game_map = chunk["map"]
         self.dungeon_entrance_positions = chunk["dungeon_entrances"]
-        self.fov = FOV(self.game_map)
+        self.fov = chunk["fov"]
 
         if spawn_pos is not None:
             self.overworld_player_pos = spawn_pos

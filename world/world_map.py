@@ -95,7 +95,6 @@ class WorldMap:
         self.flavor = {}       # (grid_x, grid_y) -> dict of stage metadata
         self.region_ids = {}    # (grid_x, grid_y) -> region id
         self.region_graph = {}  # region id -> set of neighboring region ids
-        self.explored_tiles = {}  # (grid_x, grid_y) -> set of (local_x, local_y) tiles explored so far
 
     def _to_grid(self, chunk_coord):
         """Wrap an unbounded (chunk_x, chunk_y) onto this fixed-size grid."""
@@ -132,17 +131,6 @@ class WorldMap:
 
     def set_flavor(self, chunk_coord, metadata):
         self.flavor[self._to_grid(chunk_coord)] = metadata
-
-    def explored_tiles_at(self, chunk_coord):
-        """Local (x, y) tiles already explored the last time this chunk was
-        visited, as an empty set if the chunk has never been explored."""
-        return self.explored_tiles.get(self._to_grid(chunk_coord), set())
-
-    def set_explored_tiles(self, chunk_coord, explored):
-        """Persist this chunk's explored tiles so re-entering it later can
-        restore fog-of-war instead of resetting it. `explored` should be the
-        set of local (x, y) tile coordinates explored within the chunk."""
-        self.explored_tiles[self._to_grid(chunk_coord)] = set(explored)
 
     def region_at(self, chunk_coord):
         return self.region_ids.get(self._to_grid(chunk_coord))
