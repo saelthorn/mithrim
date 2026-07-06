@@ -21,6 +21,7 @@ class GameState:
     SHOP_MENU  = "shop_menu"   # Merchant shop overlay
     GAME_OVER = "game_over" # NEW: Add GAME_OVER state
     OVERWORLD = "overworld"  # Cellular-automata overworld map (dungeon_generator's sibling)
+    WORLD_ENCOUNTER_MENU = "world_encounter_menu"  # Narrative overworld encounter choice menu
 
 
 
@@ -276,6 +277,8 @@ class Game:
 
         self.ability_in_use = None
         self._chest_menu_target = None  # Locked chest awaiting player's choice
+        self._world_encounter_target = None    # Scenario dict awaiting the player's choice
+        self._world_encounter_cooldown = 0     # Steps left before another encounter can roll
         self._shop_menu_merchant = None   # Active merchant for shop overlay
         self._shop_selected_index = 0     # Highlighted item index in shop
         self._shop_mode = "buy"           # "buy" or "sell"
@@ -576,6 +579,179 @@ class Game:
                 spawned.append(monster_class(spawn_x, spawn_y))
 
         return spawned
+
+    # --- World Encounters -------------------------------------------------
+    # Narrative interrupts while walking the overworld: instead of every tile
+    # silently hiding a monster group, occasionally the player hears a hook
+    # ("You hear screams ahead.") and gets a WORLD_ENCOUNTER_MENU choice
+    # between investigating, sneaking around, or ignoring it before finding
+    # out what's actually going on.
+    WORLD_ENCOUNTER_CHANCE = 0.02           # Rolled once per step taken in the overworld
+    WORLD_ENCOUNTER_COOLDOWN_STEPS = 40     # Minimum steps before another can trigger
+    WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
+
+    WORLD_ENCOUNTER_HOOKS = [
+        "You hear screams ahead.",
+        "Raised voices and the clash of steel drift through the trees.",
+        "A plume of smoke rises over the next rise.",
+        "Something is snarling and thrashing just out of sight.",
+    ]
+
+    # Each scenario is only revealed once the player investigates or is
+    # spotted while sneaking - the initial hook never gives it away.
+    WORLD_ENCOUNTER_SCENARIOS = [
+        {
+            "discovery": "Bandits have cornered a group of merchants, rifling through their cart.",
+            "monster_pool": [Goblin, Goblin, GoblinArcher, Orc],
+            "monster_count": (2, 3),
+            "sneak_dc": 13,
+            "sneak_success": "You slip past unseen and watch the bandits finish their shakedown from the bushes. Once they leave, you search the cart they left behind.",
+            "sneak_fail": "A twig snaps underfoot - the bandits spin around, weapons already leveled.",
+            "ignore": "You leave the merchants to their fate and press on, their cries fading behind you.",
+        },
+        {
+            "discovery": "A pack of wolves has a terrified child backed against a tree.",
+            "monster_pool": [Wolf, Wolf, Wolf],
+            "monster_count": (2, 4),
+            "sneak_dc": 14,
+            "sneak_success": "You circle wide through the undergrowth and startle the wolves from behind, scattering most of the pack before it notices the child.",
+            "sneak_fail": "The wolves catch your scent on the wind and abandon the child to hunt easier prey - you.",
+            "ignore": "You turn away. Somewhere behind you, the child's screams cut off into silence.",
+        },
+        {
+            "discovery": "Cloaked cultists chant around a bound figure atop a crude stone altar.",
+            "monster_pool": [Skeleton, Imp, Skeleton],
+            "monster_count": (2, 3),
+            "sneak_dc": 15,
+            "sneak_success": "You creep close enough to catch the ritual's final words before a cultist notices movement at the treeline.",
+            "sneak_fail": "One of the cultists looks up mid-chant and points a bony finger straight at you.",
+            "ignore": "You back away quietly, leaving the ritual to whatever dark end it's building toward.",
+        },
+        {
+            "discovery": "A handful of town guards are making a desperate last stand against a rising tide of undead.",
+            "monster_pool": [Skeleton, Skeleton, SkeletonArcher],
+            "monster_count": (3, 4),
+            "sneak_dc": 12,
+            "sneak_success": "You skirt the battle and slip past while the undead are fully occupied with the guards.",
+            "sneak_fail": "A stray skeleton breaks off from the guards' line and shambles straight for you.",
+            "ignore": "You leave the guards to hold the line alone and hope they last the night.",
+        },
+    ]
+
+    def _maybe_trigger_world_encounter(self):
+        """
+        Rolls a small chance, once per overworld step, to interrupt travel with
+        a WORLD_ENCOUNTER_MENU instead of silently letting the player walk on.
+        Guarded by a cooldown so encounters don't stack back-to-back, and
+        skipped entirely while standing on a structure tile (towns/shrines
+        shouldn't ambush the player at their own doorstep).
+        """
+        if self._world_encounter_cooldown > 0:
+            self._world_encounter_cooldown -= 1
+            return False
+
+        tile_name = getattr(self.game_map.tiles[self.player.y][self.player.x], "name", "")
+        if tile_name in self.WORLD_ENCOUNTER_STRUCTURE_TILES:
+            return False
+
+        if random.random() > self.WORLD_ENCOUNTER_CHANCE:
+            return False
+
+        self._world_encounter_target = random.choice(self.WORLD_ENCOUNTER_SCENARIOS)
+        self._world_encounter_cooldown = self.WORLD_ENCOUNTER_COOLDOWN_STEPS
+        self.message_log.add_message(random.choice(self.WORLD_ENCOUNTER_HOOKS), (200, 200, 255))
+        self.game_state = GameState.WORLD_ENCOUNTER_MENU
+        return True
+
+    def _spawn_world_encounter_monsters(self, scenario, surprised=False):
+        """
+        Drops the scenario's hostile monsters near the player once the
+        encounter turns to combat (investigated, or spotted while sneaking).
+        Mirrors spawn_monsters_near_prison_alert()'s search-radius approach,
+        but anchored on the player instead of a prison door.
+        """
+        anchor_x, anchor_y = self.player.x, self.player.y
+        radius = 4
+
+        spawn_candidates = []
+        for dy in range(-radius, radius + 1):
+            for dx in range(-radius, radius + 1):
+                if abs(dx) <= 1 and abs(dy) <= 1:
+                    continue  # Give the player a little breathing room
+                x, y = anchor_x + dx, anchor_y + dy
+                if not (0 <= x < self.game_map.width and 0 <= y < self.game_map.height):
+                    continue
+                if not self.game_map.is_walkable(x, y) or is_water_tile(self.game_map.tiles[y][x]):
+                    continue
+                if any(e.x == x and e.y == y and getattr(e, "alive", True) for e in self.entities):
+                    continue
+                spawn_candidates.append((x, y))
+
+        if not spawn_candidates:
+            return []
+
+        min_count, max_count = scenario["monster_count"]
+        num_to_spawn = min(random.randint(min_count, max_count), len(spawn_candidates))
+
+        spawned = []
+        for _ in range(num_to_spawn):
+            monster_class = random.choice(scenario["monster_pool"])
+            spawn_x, spawn_y = random.choice(spawn_candidates)
+            spawn_candidates.remove((spawn_x, spawn_y))
+            monster = monster_class(spawn_x, spawn_y)
+            monster.roll_initiative()
+            if surprised:
+                # Spotted while sneaking - the monsters get the jump on the player.
+                monster.initiative += 20
+            self.entities.append(monster)
+            self.turn_order.append(monster)
+            spawned.append(monster)
+
+        self.turn_order.sort(key=lambda e: e.initiative, reverse=True)
+        return spawned
+
+    def _resolve_world_encounter_investigate(self):
+        """Option 1: walk straight in - reveals the scenario and starts the fight."""
+        scenario = self._world_encounter_target
+        self.message_log.add_message(scenario["discovery"], (255, 200, 120))
+        spawned = self._spawn_world_encounter_monsters(scenario)
+        if spawned:
+            self.message_log.add_message("You step in to help, weapon drawn!", (255, 150, 100))
+        self.game_state = GameState.OVERWORLD
+        self._world_encounter_target = None
+
+    def _resolve_world_encounter_sneak(self):
+        """Option 2: DEX (Stealth) check - success avoids the fight, failure gets spotted."""
+        scenario = self._world_encounter_target
+        dex_roll  = random.randint(1, 20)
+        dex_mod   = self.player.get_ability_modifier(self.player.dexterity)
+        if "stealth" in self.player.skill_proficiencies:
+            dex_mod += self.player.proficiency_bonus
+        dex_total = dex_roll + dex_mod
+        sneak_dc  = scenario["sneak_dc"]
+
+        self.message_log.add_message(
+            f"You creep closer to see what's happening. "
+            f"(Stealth {dex_roll}{dex_mod:+d} = {dex_total} vs DC {sneak_dc})",
+            (150, 200, 220)
+        )
+        self.message_log.add_message(scenario["discovery"], (255, 200, 120))
+
+        if dex_total >= sneak_dc:
+            self.message_log.add_message(scenario["sneak_success"], (150, 255, 180))
+        else:
+            self.message_log.add_message(scenario["sneak_fail"], (255, 120, 100))
+            self._spawn_world_encounter_monsters(scenario, surprised=True)
+
+        self.game_state = GameState.OVERWORLD
+        self._world_encounter_target = None
+
+    def _resolve_world_encounter_ignore(self):
+        """Option 3 / ESC: walk on - no fight, no reward, just the consequence in flavor text."""
+        scenario = self._world_encounter_target
+        self.message_log.add_message(scenario["ignore"], (150, 150, 150))
+        self.game_state = GameState.OVERWORLD
+        self._world_encounter_target = None
 
     def _lineages_for_group(self, group_index):
         """Return the list of lineage instances for the given group index."""
@@ -2141,6 +2317,18 @@ class Game:
                         self._chest_menu_target = None
                     return True  # Consume all input while menu is open
 
+                # --- World Encounter Menu ---
+                elif self.game_state == GameState.WORLD_ENCOUNTER_MENU:
+                    if event.key == pygame.K_1:
+                        self._resolve_world_encounter_investigate()
+                        action_taken = True
+                    elif event.key == pygame.K_2:
+                        self._resolve_world_encounter_sneak()
+                        action_taken = True
+                    elif event.key in (pygame.K_3, pygame.K_ESCAPE):
+                        self._resolve_world_encounter_ignore()
+                    return True  # Consume all input while menu is open
+
                 # --- Shop Menu ---
                 elif self.game_state == GameState.SHOP_MENU:
                     self.handle_shop_menu_input(event.key)
@@ -3225,7 +3413,13 @@ class Game:
                 if isinstance(target_tile_obj, TrapTile) and not target_tile_obj.trap_instance.is_disarmed and not target_tile_obj.trap_instance.is_triggered:
                     target_tile_obj.trap_instance.trigger(self.player, self, new_x, new_y)
                     return True # Action taken (triggered trap)
-                                
+
+                # --- NEW: Random overworld encounter ---
+                # A small per-step chance to interrupt travel with a narrative
+                # choice menu instead of silently spawning a monster on the tile.
+                if self.game_state == GameState.OVERWORLD and self._maybe_trigger_world_encounter():
+                    return True  # Menu now showing; resolve the encounter before anything else
+
                 # --- Opportunity Attack Check ---
                 # Iterate through monsters that were adjacent before the move
                 for monster in monsters_adjacent_before_move:
@@ -4181,6 +4375,10 @@ class Game:
         if self.game_state == GameState.CHEST_MENU and self._chest_menu_target:
             self.render_chest_menu(self._chest_menu_target)
 
+        # World encounter menu — drawn over the overworld, under nothing else
+        if self.game_state == GameState.WORLD_ENCOUNTER_MENU and self._world_encounter_target:
+            self.render_world_encounter_menu()
+
         # Merchant shop overlay — drawn over the dungeon, under nothing else
         if self.game_state == GameState.SHOP_MENU and self._shop_menu_merchant:
             self.render_shop_menu()
@@ -4247,6 +4445,62 @@ class Game:
             ("[1] Pick the Lock",  "DEX check  DC 12 (Thieves' Tools required)", (160, 200, 255)),
             ("[2] Smash It Open",  "STR check  DC 14 (Attracts monsters)", (255, 160, 100)),
             ("[3] Leave it Alone", "ESC also cancels",                     (150, 150, 150)),
+        ]
+
+        y = sy + PAD + 32
+        for header, sub, color in options:
+            h_surf = font_body.render(header, True, color)
+            s_surf = font_body.render(f"    {sub}", True, (90, 90, 100))
+            self.screen.blit(h_surf, (sx + PAD, y))
+            y += font_body.get_linesize() + 1
+            self.screen.blit(s_surf, (sx + PAD, y))
+            y += font_body.get_linesize() + 6
+
+    def render_world_encounter_menu(self):
+        """
+        Draws the textbox popup for a random overworld encounter — the hook
+        text is already in the message log by this point, so this just shows
+        the three choices. What's actually happening is only revealed once
+        the player picks one (see the _resolve_world_encounter_* methods).
+        Keys: [1] Investigate  [2] Sneak Around  [3] / ESC  Ignore
+        """
+        try:
+            font_title = pygame.font.SysFont("consolas", 16, bold=True)
+            font_body  = pygame.font.SysFont("consolas", 14)
+        except Exception:
+            font_title = pygame.font.Font(None, 18)
+            font_body  = pygame.font.Font(None, 16)
+
+        # --- Layout ---
+        PAD   = 14
+        W     = 440
+        H     = 180
+        sx    = (config.GAME_AREA_WIDTH - W) // 2
+        sy    = (config.SCREEN_HEIGHT   - H) // 2
+
+        # Dark semi-transparent background
+        bg = pygame.Surface((W, H), pygame.SRCALPHA)
+        bg.fill((10, 8, 14, 220))
+        self.screen.blit(bg, (sx, sy))
+
+        # Pale border, distinct from the chest menu's steel-gray
+        pygame.draw.rect(self.screen, (150, 140, 190), (sx, sy, W, H), 2, border_radius=4)
+
+        # Title
+        title_surf = font_title.render("  What do you do?", True, (200, 190, 230))
+        self.screen.blit(title_surf, (sx + PAD, sy + PAD))
+
+        # Divider
+        pygame.draw.line(
+            self.screen, (60, 60, 75),
+            (sx + PAD, sy + PAD + 22), (sx + W - PAD, sy + PAD + 22)
+        )
+
+        # Options
+        options = [
+            ("[1] Investigate",   "Walk in and see what's happening",        (255, 160, 100)),
+            ("[2] Sneak Around",  "Stealth check to glimpse it unseen",       (160, 200, 255)),
+            ("[3] Ignore",        "ESC also cancels - just keep walking",     (150, 150, 150)),
         ]
 
         y = sy + PAD + 32
