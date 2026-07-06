@@ -497,6 +497,84 @@ class Game:
         (20, 99): [GiantSpider],
     }
 
+    # Flavor-appropriate, low-tier monster pool for each overworld biome.
+    # spawn_overworld_monster_groups() rolls a primary type from here, then
+    # expands it into a full pack via MONSTER_GROUPS (the same lookup
+    # spawn_monster_group() uses for dungeon rooms).
+    OVERWORLD_MONSTER_TABLE = {
+        ChunkBiome.PLAINS: [Goblin, GoblinArcher, Wolf, GiantRat],
+        ChunkBiome.FOREST: [Wolf, Goblin, GoblinArcher, GiantSpider, MyconidSprout],
+        ChunkBiome.SWAMP: [Lizardfolk, LizardfolkArcher, Ooze, GiantSpider],
+        ChunkBiome.HILLS: [Orc, Centaur, CentaurArcher, Goblin],
+        ChunkBiome.MOUNTAINS: [Orc, Troll, Centaur, CentaurArcher],
+        ChunkBiome.DESERT: [GiantSpider, Skeleton, SkeletonArcher],
+        ChunkBiome.TUNDRA: [Wolf, Skeleton, SkeletonArcher],
+    }
+
+    OVERWORLD_MONSTER_GROUP_COUNT = (2, 4)   # (min, max) groups per chunk
+    OVERWORLD_GROUP_SEARCH_RADIUS = 6        # tiles around each anchor to consider
+
+    def spawn_overworld_monster_groups(self, game_map, biome, dungeon_entrances):
+        """
+        Populate a freshly generated overworld chunk with monster groups.
+
+        Mirrors spawn_monster_group()'s use of MONSTER_GROUPS to expand a
+        primary monster roll into a compatible pack, but instead of a single
+        dungeon room, each group clusters around its own randomly chosen
+        anchor point scattered across the open chunk.
+        """
+        from entities.monster import MONSTER_GROUPS
+
+        possible_monsters = self.OVERWORLD_MONSTER_TABLE.get(biome, [GiantRat])
+        structure_names = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
+        spawned = []
+
+        def is_free_tile(x, y):
+            if not (0 <= x < game_map.width and 0 <= y < game_map.height):
+                return False
+            if not game_map.is_walkable(x, y) or is_water_tile(game_map.tiles[y][x]):
+                return False
+            if getattr(game_map.tiles[y][x], "name", "") in structure_names:
+                return False
+            if (x, y) in dungeon_entrances:
+                return False
+            if any(m.x == x and m.y == y for m in spawned):
+                return False
+            return True
+
+        num_groups = random.randint(*self.OVERWORLD_MONSTER_GROUP_COUNT)
+        for _ in range(num_groups):
+            anchor_x = random.randint(0, game_map.width - 1)
+            anchor_y = random.randint(0, game_map.height - 1)
+            radius = self.OVERWORLD_GROUP_SEARCH_RADIUS
+
+            valid_positions = [
+                (x, y)
+                for y in range(anchor_y - radius, anchor_y + radius + 1)
+                for x in range(anchor_x - radius, anchor_x + radius + 1)
+                if is_free_tile(x, y)
+            ]
+            if not valid_positions:
+                continue  # Anchor landed somewhere too cramped (water, town, etc.) - skip this group
+
+            primary_monster_class = random.choice(possible_monsters)
+            compatible_types = MONSTER_GROUPS.get(primary_monster_class.__name__, [primary_monster_class.__name__])
+            min_spawn, max_spawn = (1, 4) if len(compatible_types) > 1 else (1, 2)
+            num_to_spawn = random.randint(min_spawn, max_spawn)
+
+            for _ in range(num_to_spawn):
+                if not valid_positions:
+                    break
+                # Compatible pack members are looked up by name against the classes
+                # already imported into this module (globals()), the same way
+                # MONSTER_GROUPS names are resolved for dungeon packs.
+                monster_type_name = random.choice(compatible_types)
+                monster_class = globals().get(monster_type_name, primary_monster_class)
+                spawn_x, spawn_y = random.choice(valid_positions)
+                valid_positions.remove((spawn_x, spawn_y))
+                spawned.append(monster_class(spawn_x, spawn_y))
+
+        return spawned
 
     def _lineages_for_group(self, group_index):
         """Return the list of lineage instances for the given group index."""
@@ -832,10 +910,13 @@ class Game:
                 biome=biome,
                 world_map=self.world_map,
             )
+            monster_population = self.spawn_overworld_monster_groups(
+                chunk_map, biome, overworld_info["dungeon_entrances"]
+            )
             self.overworld_chunks[chunk_coord] = {
                 "map": chunk_map,
                 "dungeon_entrances": overworld_info["dungeon_entrances"],
-                "population": overworld_info["population"],
+                "population": overworld_info["population"] + monster_population,
             }
 
         chunk = self.overworld_chunks[chunk_coord]
@@ -861,7 +942,15 @@ class Game:
         self.camera.target_y = float(self.player.y)
 
         self.entities = [self.player] + list(chunk.get("population", []))
-        self.turn_order = []
+
+        # Build the turn order from the populated entities (player + any
+        # overworld monsters/NPCs), the same way generate_level() does for
+        # dungeons — previously this was left empty, so overworld monsters
+        # were never given a turn to act.
+        self.turn_order = [e for e in self.entities if not (isinstance(e, Mimic) and e.disguised)]
+        for entity in self.turn_order:
+            entity.roll_initiative()
+        self.turn_order = sorted(self.turn_order, key=lambda e: e.initiative, reverse=True)
         self.current_turn_index = 0
         self.update_fov()
 
@@ -2995,59 +3084,38 @@ class Game:
             self.message_log.add_message("You can't move there.", (255, 150, 0))
             return False
 
-        elif self.game_state == GameState.OVERWORLD:
-            if not (0 <= new_x < self.game_map.width and 0 <= new_y < self.game_map.height):
-                # Walked off the edge of this chunk — step into whichever neighboring
-                # chunk lies in that direction (generating it on first visit), entering
-                # from the matching opposite edge so the two chunks feel contiguous.
-                cx, cy = self.overworld_chunk_coord
-                if new_x < 0:
-                    next_chunk = (cx - 1, cy)
-                    spawn_pos = (OVERWORLD_CHUNK_WIDTH - 1, self.player.y)
-                elif new_x >= self.game_map.width:
-                    next_chunk = (cx + 1, cy)
-                    spawn_pos = (0, self.player.y)
-                elif new_y < 0:
-                    next_chunk = (cx, cy - 1)
-                    spawn_pos = (self.player.x, OVERWORLD_CHUNK_HEIGHT - 1)
-                else:
-                    next_chunk = (cx, cy + 1)
-                    spawn_pos = (self.player.x, 0)
-
-                self.message_log.add_message("You venture into uncharted territory...", (150, 200, 255))
-                self._start_chunk_transition(next_chunk, spawn_pos)
-                return True
-
-            if (new_x, new_y) in self.dungeon_entrance_positions:
-                # Remember where the player stood so climbing back out drops them here.
-                self.overworld_player_pos = (self.player.x, self.player.y)
-                self.entered_dungeon_from_overworld = True
-                self.message_log.add_message("You descend into the dungeon...", (100, 255, 100))
-                self.generate_level(1)
-                return True
-
-            # Prevent walking onto an NPC. Mirrors the equivalent check in the
-            # TAVERN branch above, but checks self.entities (where overworld
-            # NPCs live, via chunk population) instead of self.npcs (only
-            # populated inside the tavern interior).
-            for entity in self.entities:
-                if (isinstance(entity, NPC) and entity is not self.player and
-                        getattr(entity, "alive", True) and entity.x == new_x and entity.y == new_y):
-                    self.message_log.add_message(f"You can't move onto {entity.name}.", (255, 150, 0))
-                    return False
-
-            if not self.game_map.is_walkable(new_x, new_y):
-                self.message_log.add_message("You can't move there.", (255, 150, 0))
-                return False
-
-            self.player.x = new_x
-            self.player.y = new_y
-            self.update_fov()
-            self.camera.target_x = float(self.player.x)
-            self.camera.target_y = float(self.player.y)
-            return True
-
         elif self.game_state == GameState.DUNGEON or self.game_state == GameState.OVERWORLD:
+            if self.game_state == GameState.OVERWORLD:
+                if not (0 <= new_x < self.game_map.width and 0 <= new_y < self.game_map.height):
+                    # Walked off the edge of this chunk — step into whichever neighboring
+                    # chunk lies in that direction (generating it on first visit), entering
+                    # from the matching opposite edge so the two chunks feel contiguous.
+                    cx, cy = self.overworld_chunk_coord
+                    if new_x < 0:
+                        next_chunk = (cx - 1, cy)
+                        spawn_pos = (OVERWORLD_CHUNK_WIDTH - 1, self.player.y)
+                    elif new_x >= self.game_map.width:
+                        next_chunk = (cx + 1, cy)
+                        spawn_pos = (0, self.player.y)
+                    elif new_y < 0:
+                        next_chunk = (cx, cy - 1)
+                        spawn_pos = (self.player.x, OVERWORLD_CHUNK_HEIGHT - 1)
+                    else:
+                        next_chunk = (cx, cy + 1)
+                        spawn_pos = (self.player.x, 0)
+
+                    self.message_log.add_message("You venture into uncharted territory...", (150, 200, 255))
+                    self._start_chunk_transition(next_chunk, spawn_pos)
+                    return True
+
+                if (new_x, new_y) in self.dungeon_entrance_positions:
+                    # Remember where the player stood so climbing back out drops them here.
+                    self.overworld_player_pos = (self.player.x, self.player.y)
+                    self.entered_dungeon_from_overworld = True
+                    self.message_log.add_message("You descend into the dungeon...", (100, 255, 100))
+                    self.generate_level(1)
+                    return True
+
             # Prevent out-of-bounds movement before accessing the tile grid.
             if not (0 <= new_x < self.game_map.width and 0 <= new_y < self.game_map.height):
                 self.message_log.add_message("You can't move there.", (255, 150, 0))
