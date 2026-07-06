@@ -1939,6 +1939,13 @@ def _place_pois(game_map, heightmap, moisture, poi, count):
 # Minimum number of empty tiles kept between two town buildings' footprints.
 TOWN_BUILDING_GAP = 2
 
+# 1-in-N chunks roll a town (lower = more frequent). Was 5.
+TOWN_CHUNK_FREQUENCY = 2
+
+# Tiles kept clear between the town anchor and the chunk's edges, so the
+# tavern/shop/houses cluster doesn't spill off the chunk or hug a corner.
+TOWN_ANCHOR_MARGIN = 6
+
 
 def _anchor_offset(size_a, size_b, gap):
     """
@@ -1974,16 +1981,32 @@ def _place_town(game_map, chunk_coord, biome):
     place_structure_at_anchor may still nudge a building a tile or two to
     find clear ground, so this spacing is a target, not an absolute
     guarantee.
+
+    The anchor itself is rolled anywhere within the chunk (minus a margin
+    that keeps the whole cluster off the edges/corners) rather than always
+    sitting near the chunk's center, so towns don't all line up in the
+    same spot chunk after chunk.
     """
     width, height = game_map.width, game_map.height
 
     if getattr(biome, "value", biome) == ChunkBiome.MOUNTAINS.value:
         return []
-    if (chunk_coord[0] * 13 + chunk_coord[1] * 7) % 5 != 0:
+    if (chunk_coord[0] * 13 + chunk_coord[1] * 7) % TOWN_CHUNK_FREQUENCY != 0:
         return []
 
-    anchor_x = width // 2 + (chunk_coord[0] % 5) - 2
-    anchor_y = height // 2 + (chunk_coord[1] % 5) - 2
+    # Keep the anchor away from the chunk's edges/corners, leaving enough
+    # room for the tavern/shop/houses cluster (roughly two building-widths
+    # in each direction) to fit without spilling off the chunk.
+    margin_x = min(width // 2 - 1, TOWN_ANCHOR_MARGIN)
+    margin_y = min(height // 2 - 1, TOWN_ANCHOR_MARGIN)
+
+    # Deterministic per-chunk hash so the same chunk always rolls the same
+    # anchor, spread across the whole usable span rather than the old
+    # fixed +/-2 wobble around dead-center.
+    span_x = max(1, width - 2 * margin_x)
+    span_y = max(1, height - 2 * margin_y)
+    anchor_x = margin_x + (chunk_coord[0] * 977 + chunk_coord[1] * 331) % span_x
+    anchor_y = margin_y + (chunk_coord[1] * 977 + chunk_coord[0] * 331) % span_y
 
     tavern_bp = get_structure_blueprint("tavern")
     shop_bp = get_structure_blueprint("shop")
@@ -2159,8 +2182,17 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
             biome_enum.FOREST: "small_cabin",
             biome_enum.PLAINS: "small_cabin",
         }.get(biome, "shrine")
-        anchor_x = width // 2 + (chunk_coord[0] % 3) - 1
-        anchor_y = height // 2 + (chunk_coord[1] % 3) - 1
+
+        # Spread this fallback landmark across the chunk (with the same
+        # margin idea as _place_town) rather than always dropping it near
+        # dead-center, so lone huts/shrines/watchtowers show up in varied
+        # spots instead of clumping in the same relative position.
+        margin_x = min(width // 2 - 1, TOWN_ANCHOR_MARGIN)
+        margin_y = min(height // 2 - 1, TOWN_ANCHOR_MARGIN)
+        span_x = max(1, width - 2 * margin_x)
+        span_y = max(1, height - 2 * margin_y)
+        anchor_x = margin_x + (chunk_coord[0] * 431 + chunk_coord[1] * 197) % span_x
+        anchor_y = margin_y + (chunk_coord[1] * 431 + chunk_coord[0] * 197) % span_y
         place_structure_at_anchor(game_map, biome_structure, anchor_x, anchor_y)
 
     return {

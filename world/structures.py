@@ -122,14 +122,14 @@ STRUCTURE_BLUEPRINTS = {
         [
             "##.##",
             "#...#",
-            "#.V..",
+            "#.p..",
             "#...#",
             "#####",
         ],
-        {"#": wall, ".": tavern_floor, "V": tavern_floor},
-        walkable_chars={"."},
+        {"#": wall, ".": tavern_floor, "p": tavern_floor},
+        walkable_chars={".", "p"},
         description="A simple frontier cabin.",
-        npc_map={"V": _spawn_villager},
+        npc_map={"p": _spawn_villager},
     ),
     "watch_tower": build_blueprint(
         "watch_tower",

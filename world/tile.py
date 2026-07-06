@@ -18,7 +18,7 @@ stairs_down = Tile(blocked=False, char='>', color=(230, 192, 0), name="Stairs Do
 stairs_up = Tile(blocked=False, char='<', color=(230, 192, 0), name="Stairs Up")
 dungeon_door = Tile(blocked=False, char='dd', color=(139, 69, 19), name="Dungeon Door")
 dungeon_pillar = Tile(blocked=True, char='dp', color=(230, 230, 230), block_sight=True, name="Dungeon Pillar")
-altar = Tile(blocked=True, char='alt', color=(255, 215, 0), block_sight=True, name="Altar")  
+altar = Tile(blocked=True, char='&', color=(255, 215, 0), block_sight=True, name="Altar")  
 
 pressure_plate = Tile(blocked=False, char='_', color=(200, 180, 50), name="Pressure Plate")
 

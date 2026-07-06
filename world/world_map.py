@@ -143,11 +143,33 @@ class WorldMap:
         return self.region_graph.get(region_id, set())
 
 
+def _normalize_elevation_range(world_map):
+    """
+    Rescale world_map.elevation in place so its actual minimum and maximum
+    land exactly on 0.0 and 1.0, instead of the compressed band the raw
+    fBm noise tends to occupy. This is a plain linear stretch — relative
+    shape of the terrain (where the peaks and valleys are) is unchanged,
+    only how far those peaks and valleys sit from the middle of the range.
+    """
+    width, height = world_map.width, world_map.height
+    values = [world_map.elevation.get(x, y) for y in range(height) for x in range(width)]
+    lowest, highest = min(values), max(values)
+
+    elevation_range = highest - lowest
+    if elevation_range == 0:
+        return  # perfectly flat noise (shouldn't happen); nothing to stretch
+
+    for y in range(height):
+        for x in range(width):
+            raw = world_map.elevation.get(x, y)
+            world_map.elevation.set(x, y, (raw - lowest) / elevation_range)
+
+
 def _biomes_are_adjacent(a, b):
     if a is None or b is None:
         return True
     adjacency = {
-        ChunkBiome.FOREST: {ChunkBiome.FOREST, ChunkBiome.PLAINS, ChunkBiome.HILLS, ChunkBiome.SWAMP},
+        ChunkBiome.FOREST: {ChunkBiome.FOREST, ChunkBiome.PLAINS, ChunkBiome.HILLS, ChunkBiome.SWAMP, ChunkBiome.MOUNTAINS},
         ChunkBiome.PLAINS: {ChunkBiome.PLAINS, ChunkBiome.FOREST, ChunkBiome.HILLS, ChunkBiome.SWAMP},
         ChunkBiome.SWAMP: {ChunkBiome.SWAMP, ChunkBiome.FOREST, ChunkBiome.PLAINS},
         ChunkBiome.HILLS: {ChunkBiome.HILLS, ChunkBiome.PLAINS, ChunkBiome.FOREST, ChunkBiome.MOUNTAINS},
@@ -347,6 +369,17 @@ def generate_world_map(world_seed, width=WORLD_MAP_WIDTH, height=WORLD_MAP_HEIGH
             # copy of the elevation noise (same trick generate_overworld uses).
             moisture = (_fractal_noise(perm, (x + 1000) / moisture_scale, (y + 1000) / moisture_scale, 4, 0.5, 2.0) + 1.0) / 2.0
             world_map.moisture.set(x, y, moisture)
+
+    # Summing several octaves of noise (fBm) statistically pulls the result
+    # toward the middle of its range — it's rare for every octave to line up
+    # near an extreme at once — so the raw elevation above rarely gets
+    # anywhere near 1.0. Left alone, that means it almost never clears the
+    # HILLS threshold used below, and mountains (which need an even higher
+    # elevation than hills) become vanishingly rare. Stretching the grid's
+    # actual min/max out to fill the full 0..1 range fixes that without
+    # changing the HILLS/PLAINS thresholds themselves or touching how
+    # per-chunk elevation is generated.
+    _normalize_elevation_range(world_map)
 
     for y in range(height):
         for x in range(width):
