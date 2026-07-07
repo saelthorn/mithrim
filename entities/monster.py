@@ -96,6 +96,12 @@ class Monster:
         self.is_active = False
         self.sleep_cooldown = 0        
 
+        # Set by world encounters when the player successfully sneaks up on a
+        # group (see Game._spawn_world_encounter_monsters): every monster in
+        # the group shares this same list, so waking one (see take_damage
+        # below) wakes the rest of the group at the same time.
+        self.encounter_group = None
+
         self.patrol_radius = 12
         self.investigate_turns_left = 4  # Turns left to investigate
         self.investigate_search_radius = 3  # Radius around last known position to search
@@ -674,6 +680,19 @@ class Monster:
 
     def take_damage(self, amount, game_instance=None, damage_type=None):
         """Handle taking damage and return actual damage taken"""
+        # A sleeping monster that gets hit rouses its whole ambush group at
+        # once - see Game._spawn_world_encounter_monsters() for how the group
+        # is assembled and put to sleep in the first place.
+        if not self.is_active and self.encounter_group:
+            for member in self.encounter_group:
+                if member.alive:
+                    member.is_active = True
+            if game_instance:
+                game_instance.message_log.add_message(
+                    "The rest spring awake at the commotion!", (255, 150, 100)
+                )
+        self.is_active = True
+
         damage_taken = amount 
         self.hp -= damage_taken
         

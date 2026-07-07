@@ -586,8 +586,8 @@ class Game:
     # ("You hear screams ahead.") and gets a WORLD_ENCOUNTER_MENU choice
     # between investigating, sneaking around, or ignoring it before finding
     # out what's actually going on.
-    WORLD_ENCOUNTER_CHANCE = 0.02           # Rolled once per step taken in the overworld
-    WORLD_ENCOUNTER_COOLDOWN_STEPS = 40     # Minimum steps before another can trigger
+    WORLD_ENCOUNTER_CHANCE = 0.04           # Rolled once per step taken in the overworld
+    WORLD_ENCOUNTER_COOLDOWN_STEPS = 24     # Minimum steps before another can trigger
     WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
 
     WORLD_ENCOUNTER_HOOKS = [
@@ -663,15 +663,19 @@ class Game:
         self.game_state = GameState.WORLD_ENCOUNTER_MENU
         return True
 
-    def _spawn_world_encounter_monsters(self, scenario, surprised=False):
+    def _spawn_world_encounter_monsters(self, scenario, surprised=False, asleep=False):
         """
         Drops the scenario's hostile monsters near the player once the
         encounter turns to combat (investigated, or spotted while sneaking).
         Mirrors spawn_monsters_near_prison_alert()'s search-radius approach,
         but anchored on the player instead of a prison door.
+
+        If asleep is True (a successful sneak), the monsters are spawned
+        inactive and sharing one encounter_group list - attacking any one of
+        them wakes the whole group at once (see Monster.take_damage).
         """
         anchor_x, anchor_y = self.player.x, self.player.y
-        radius = 4
+        radius = 5
 
         spawn_candidates = []
         for dy in range(-radius, radius + 1):
@@ -694,6 +698,7 @@ class Game:
         num_to_spawn = min(random.randint(min_count, max_count), len(spawn_candidates))
 
         spawned = []
+        encounter_group = [] if asleep else None
         for _ in range(num_to_spawn):
             monster_class = random.choice(scenario["monster_pool"])
             spawn_x, spawn_y = random.choice(spawn_candidates)
@@ -703,6 +708,10 @@ class Game:
             if surprised:
                 # Spotted while sneaking - the monsters get the jump on the player.
                 monster.initiative += 20
+            if asleep:
+                monster.is_active = False
+                monster.encounter_group = encounter_group
+                encounter_group.append(monster)
             self.entities.append(monster)
             self.turn_order.append(monster)
             spawned.append(monster)
@@ -721,7 +730,12 @@ class Game:
         self._world_encounter_target = None
 
     def _resolve_world_encounter_sneak(self):
-        """Option 2: DEX (Stealth) check - success avoids the fight, failure gets spotted."""
+        """
+        Option 2: DEX (Stealth) check.
+        Success - the enemies are spawned asleep, giving the player a choice:
+        slip past, or strike one down before the rest ever wake up.
+        Failure - spotted; the enemies spawn awake and alerted.
+        """
         scenario = self._world_encounter_target
         dex_roll  = random.randint(1, 20)
         dex_mod   = self.player.get_ability_modifier(self.player.dexterity)
@@ -739,6 +753,7 @@ class Game:
 
         if dex_total >= sneak_dc:
             self.message_log.add_message(scenario["sneak_success"], (150, 255, 180))
+            self._spawn_world_encounter_monsters(scenario, asleep=True)
         else:
             self.message_log.add_message(scenario["sneak_fail"], (255, 120, 100))
             self._spawn_world_encounter_monsters(scenario, surprised=True)
@@ -1971,6 +1986,14 @@ class Game:
 
         for entity in self.entities:
             if isinstance(entity, Monster):
+                # World-encounter ambush groups (see _spawn_world_encounter_monsters)
+                # stay asleep no matter how close or visible the player is -
+                # only landing a hit on one of them wakes the group (see
+                # Monster.take_damage). Once woken, encounter_group members
+                # fall back under the normal wake/sleep rules below.
+                if getattr(entity, 'encounter_group', None) is not None and not entity.is_active:
+                    continue
+
                 visibility_type = self.fov.get_visibility_type(entity.x, entity.y)
                 distance_to_player = entity.distance_to(self.player.x, self.player.y)
 
