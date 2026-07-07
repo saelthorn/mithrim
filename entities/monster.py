@@ -2582,3 +2582,28 @@ class TombTapper(Monster):
             "WIS": False,
             "CHA": False,
         }
+
+
+class Cultist(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'CUL', 'Cultist', (128, 0, 128))
+
+        self.hp = 9
+        self.max_hp = 9
+        self.attack_bonus = 2
+        self.armor_class = 12
+        self.base_xp = 50
+        self.monster_die_type = 4
+        self.num_damage_dice = 1
+        self.damage_modifier = 1
+        self.detection_range = 4
+        self.is_intelligent = True
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": False,
+            "CON": False,
+            "INT": True,
+            "WIS": False,
+            "CHA": False,
+        }

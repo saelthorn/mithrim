@@ -392,3 +392,138 @@ class PrisonerNPC(NPC):
                 f"Inventory full! The {self.reward_item.name} drops to the floor.",
                 self.reward_item.color,
             )
+
+
+class EncounterVictim(NPC):
+    """
+    A bystander tied to a WORLD_ENCOUNTER_MENU scenario - the merchants being
+    robbed, the guards making their last stand, the figure bound to the altar,
+    etc. Purely flavour/dressing: it stands near the spawned monsters so the
+    scene reads as "these people are who the discovery text is about," and
+    carries a line of dialogue if the player talks to it before the fight
+    (or after, if it survives).
+    """
+    def __init__(self, x, y, char, name, color, dialogue_line):
+        super().__init__(x, y, char, name, color, [dialogue_line])
+
+
+class GuardVictim(EncounterVictim):
+    """
+    The town guards from the "undead last stand" world encounter. Unlike a
+    plain EncounterVictim, guards actually fight: each turn they close in on
+    the nearest living monster and attack it with a simple d20 roll, mirroring
+    the 1d20 + attack_bonus vs armor_class pattern used by Monster.attack()
+    in entities/monster.py, just simplified down to a single flat damage die.
+    """
+    DETECTION_RANGE = 8  # Chebyshev tiles - how far a guard will notice a monster worth fighting
+
+    def __init__(self, x, y, char, name, color, dialogue_line):
+        super().__init__(x, y, char, name, color, dialogue_line)
+        self.armor_class     = 14
+        self.attack_bonus    = 4
+        self.damage_dice     = (1, 8)   # 1d8, roughly a longsword
+        self.damage_modifier = 2
+        self.hp = self.max_hp = 16
+
+    def _nearest_monster(self, game):
+        from entities.monster import Monster
+        nearest, nearest_dist = None, float('inf')
+        for entity in game.entities:
+            if not isinstance(entity, Monster) or not entity.alive:
+                continue
+            dist = max(abs(self.x - entity.x), abs(self.y - entity.y))
+            if dist < nearest_dist:
+                nearest, nearest_dist = entity, dist
+        return nearest, nearest_dist
+
+    def _attack(self, target, game):
+        roll = random.randint(1, 20)
+        attack_total = roll + self.attack_bonus
+        game.message_log.add_message(
+            f"{self.name} attacks the {target.name}! "
+            f"(d20: {roll} + {self.attack_bonus} = {attack_total} vs AC {target.armor_class})",
+            self.color
+        )
+        if attack_total >= target.armor_class:
+            num_dice, die_type = self.damage_dice
+            damage = sum(random.randint(1, die_type) for _ in range(num_dice)) + self.damage_modifier
+            target.take_damage(damage, game)
+            game.floating_texts.append(FloatingText(target.x, target.y, f"-{damage}", (255, 80, 80)))
+        else:
+            game.message_log.add_message(f"{self.name}'s attack misses.", (150, 150, 150))
+
+    def _move_towards(self, target, game, game_map):
+        from core.pathfinding import astar
+        path = astar(game_map, (self.x, self.y), (target.x, target.y),
+                     entities=[e for e in game.entities if e is not self],
+                     moving_entity=self, ignore_destructible=True)
+        if not path or len(path) < 2:
+            return
+
+        next_x, next_y = path[1]
+        occupied = any(e is not self and getattr(e, 'alive', False) and e.x == next_x and e.y == next_y
+                       for e in game.entities)
+        if game_map.is_walkable(next_x, next_y) and not occupied:
+            self.x, self.y = next_x, next_y
+
+    def take_turn(self, player, game_map, game):
+        if not self.alive:
+            return
+
+        target, distance = self._nearest_monster(game)
+        if target is None or distance > self.DETECTION_RANGE:
+            return  # Nothing worth fighting nearby - stand fast, same as a plain victim
+
+        if distance <= 1:
+            self._attack(target, game)
+        else:
+            self._move_towards(target, game, game_map)
+
+
+# Char/color/dialogue presets for each scenario's bystanders, keyed the same
+# way scenarios reference them in game.py's WORLD_ENCOUNTER_SCENARIOS via
+# the "victim" field. Kept here alongside the other NPC definitions so new
+# victim types are added in one place. "cls" defaults to EncounterVictim -
+# only "guard" uses the combat-capable GuardVictim.
+ENCOUNTER_VICTIM_PRESETS = {
+    "merchant": {
+        "char": "td", "color": (200, 160, 80),
+        "names": ["Merchant", "Trader"],
+        "dialogue": "Thank the gods - help us, they're taking everything!",
+    },
+    "child": {
+        "char": "ch", "color": (230, 210, 180),
+        "names": ["Frightened Child"],
+        "dialogue": "P-please... don't let them get me...",
+    },
+    "sacrifice": {
+        "char": "pnp", "color": (180, 180, 220),
+        "names": ["Bound Figure"],
+        "dialogue": "Please... cut me loose before they finish the chant...",
+    },
+    "guard": {
+        "char": "g", "color": (150, 170, 220),
+        "names": ["Town Guard"],
+        "dialogue": "We can't hold much longer - lend us a hand!",
+        "cls": GuardVictim,
+    },
+}
+
+
+def make_encounter_victims(victim_key, count, positions):
+    """
+    Builds `count` EncounterVictim (or GuardVictim, per preset) NPCs of the
+    given preset (see ENCOUNTER_VICTIM_PRESETS) at the given (x, y) positions.
+    Extra positions beyond `count` are ignored; fewer positions than `count`
+    just yields fewer victims.
+    """
+    preset = ENCOUNTER_VICTIM_PRESETS.get(victim_key)
+    if preset is None:
+        return []
+
+    victim_cls = preset.get("cls", EncounterVictim)
+    victims = []
+    for (x, y) in positions[:count]:
+        name = random.choice(preset["names"])
+        victims.append(victim_cls(x, y, preset["char"], name, preset["color"], preset["dialogue"]))
+    return victims

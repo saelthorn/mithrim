@@ -105,13 +105,13 @@ from entities.monster import (
     Owlbear, Demogorgon, Grick, GibberingMouther, MindFlayer, Minotaur,
     Wererat, Wolf, Yochlol, Drider, RedSlaad, DeathSlaad, MyconidSprout,
     MyconidAdult, Mezzoloth, Gauth, Arasta, AlphaGrick, IntellectDevourer, 
-    Imp, Wraith, TombTapper
+    Imp, Wraith, TombTapper, Cultist
 
 )
 
 from entities.base_entity import NPC
 from entities.tavern_npcs import NPC, Merchant
-from entities.dungeon_npcs import DungeonHealer, DungeonMerchant, PrisonerNPC
+from entities.dungeon_npcs import DungeonHealer, DungeonMerchant, PrisonerNPC, make_encounter_victims, GuardVictim
 
 from entities.races import (
     Human,
@@ -476,11 +476,11 @@ class Game:
     MONSTER_SPAWN_TIERS = {
         # 🌱 Early dungeon fodder (CR 1/8 – CR 1/4)
         (1, 2): [Goblin, GoblinArcher, Wolf, Imp, GiantRat, MyconidSprout,],
-        (3, 4): [Goblin, GoblinArcher, GiantRat, GiantSpider, Wererat, Wolf, MyconidSprout, IntellectDevourer, Imp],
-        (5, 5): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf, MyconidAdult, IntellectDevourer],
+        (3, 4): [Goblin, GoblinArcher, GiantRat, GiantSpider, Wererat, Wolf, MyconidSprout, IntellectDevourer, Imp, Cultist],
+        (5, 5): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf, MyconidAdult, IntellectDevourer, Cultist],
 
         # ⚔️ Early-mid dangers (CR 1/2 – CR 2)
-        (6, 7): [Skeleton, SkeletonArcher, Orc, Grick, Ooze],
+        (6, 7): [Skeleton, SkeletonArcher, Orc, Grick, Ooze, Cultist],
         (8, 9): [Lizardfolk, LizardfolkArcher, GiantSpider, Wererat, MyconidAdult],
 
         # 🛡️ Mid-game threats (CR 3 – CR 6)
@@ -608,6 +608,8 @@ class Game:
             "sneak_success": "You slip past unseen and watch the bandits finish their shakedown from the bushes. Once they leave, you search the cart they left behind.",
             "sneak_fail": "A twig snaps underfoot - the bandits spin around, weapons already leveled.",
             "ignore": "You leave the merchants to their fate and press on, their cries fading behind you.",
+            "victim": "merchant",
+            "victim_count": (1, 2),
         },
         {
             "discovery": "A pack of wolves has a terrified child backed against a tree.",
@@ -617,15 +619,19 @@ class Game:
             "sneak_success": "You circle wide through the undergrowth and startle the wolves from behind, scattering most of the pack before it notices the child.",
             "sneak_fail": "The wolves catch your scent on the wind and abandon the child to hunt easier prey - you.",
             "ignore": "You turn away. Somewhere behind you, the child's screams cut off into silence.",
+            "victim": "child",
+            "victim_count": (1, 1),
         },
         {
             "discovery": "Cloaked cultists chant around a bound figure atop a crude stone altar.",
-            "monster_pool": [Skeleton, Imp, Skeleton],
+            "monster_pool": [Skeleton, Imp, Skeleton, Cultist, Cultist],
             "monster_count": (2, 3),
             "sneak_dc": 15,
             "sneak_success": "You creep close enough to catch the ritual's final words before a cultist notices movement at the treeline.",
             "sneak_fail": "One of the cultists looks up mid-chant and points a bony finger straight at you.",
             "ignore": "You back away quietly, leaving the ritual to whatever dark end it's building toward.",
+            "victim": "sacrifice",
+            "victim_count": (1, 1),
         },
         {
             "discovery": "A handful of town guards are making a desperate last stand against a rising tide of undead.",
@@ -635,6 +641,8 @@ class Game:
             "sneak_success": "You skirt the battle and slip past while the undead are fully occupied with the guards.",
             "sneak_fail": "A stray skeleton breaks off from the guards' line and shambles straight for you.",
             "ignore": "You leave the guards to hold the line alone and hope they last the night.",
+            "victim": "guard",
+            "victim_count": (2, 3),
         },
     ]
 
@@ -717,7 +725,39 @@ class Game:
             spawned.append(monster)
 
         self.turn_order.sort(key=lambda e: e.initiative, reverse=True)
+
+        self._spawn_world_encounter_victims(scenario, spawn_candidates)
+
         return spawned
+
+    def _spawn_world_encounter_victims(self, scenario, spawn_candidates):
+        """
+        Places the scenario's bystanders (the merchants being robbed, the
+        guards making their stand, etc.) among the leftover spawn candidates
+        from _spawn_world_encounter_monsters, so the scene reads as the
+        discovery text describes it. Most are flavour-only (EncounterVictim),
+        but combat-capable ones (GuardVictim) also join the turn order so
+        they actually fight alongside the player - see dungeon_npcs.py.
+        """
+        victim_key = scenario.get("victim")
+        if victim_key is None or not spawn_candidates:
+            return []
+
+        min_count, max_count = scenario.get("victim_count", (1, 1))
+        num_to_spawn = min(random.randint(min_count, max_count), len(spawn_candidates))
+
+        positions = random.sample(spawn_candidates, num_to_spawn)
+        victims = make_encounter_victims(victim_key, num_to_spawn, positions)
+        self.entities.extend(victims)
+
+        fighters = [v for v in victims if isinstance(v, GuardVictim)]
+        if fighters:
+            for guard in fighters:
+                guard.roll_initiative()
+                self.turn_order.append(guard)
+            self.turn_order.sort(key=lambda e: e.initiative, reverse=True)
+
+        return victims
 
     def _resolve_world_encounter_investigate(self):
         """Option 1: walk straight in - reveals the scenario and starts the fight."""

@@ -272,15 +272,19 @@ def setup_tile_mapping():
         'AG': (11 * CELL_DIM, 9 * CELL_DIM),  # Alpha Grick 
         'WRT': (12 * CELL_DIM, 7 * CELL_DIM), # Wraith
         'TTP': (12 * CELL_DIM, 9 * CELL_DIM), # Tomb Tapper
+        'g': (13 * CELL_DIM,  7 * CELL_DIM),  # Guard (NPC)
+        'CUL': (13 * CELL_DIM, 8 * CELL_DIM), # Cultist
+        'pnp': (13 * CELL_DIM, 9 * CELL_DIM),   # Prisoner (NPC) 
 
 
 
         # Tavern Entities and Misc.
-        'A': (9 * CELL_DIM,   0 * CELL_DIM),  # Bartender (NPC)
-        'p': (8 * CELL_DIM,   0 * CELL_DIM),  # Patron (NPC)
-        'pnp': (8 * CELL_DIM, 0 * CELL_DIM),   # Prisoner NPC – reuse Patron sprite
-        'H': (6 * CELL_DIM,   0 * CELL_DIM),  # Healer (NPC)
+        'H': (6 * CELL_DIM,   0 * CELL_DIM),  # Healer (NPC)        
         'rc': (7 * CELL_DIM,  0 * CELL_DIM), # Merchant (NPC)
+        'p': (8 * CELL_DIM,   0 * CELL_DIM),  # Patron (NPC)
+        'A': (9 * CELL_DIM,   0 * CELL_DIM),  # Bartender (NPC)
+        'td': (10 * CELL_DIM,  0 * CELL_DIM), # Trader (NPC)
+        'ch': (11 * CELL_DIM,  0 * CELL_DIM), # Child (NPC)
         'mh': (11 * CELL_DIM, 6 * CELL_DIM), # Mage Hand (Skill)
         'sw': (19 * CELL_DIM, 6 * CELL_DIM), # Spiritual Weapon (Skill)
         'CS': (12 * CELL_DIM, 8 * CELL_DIM), # Celestial Spirit (Skill)
