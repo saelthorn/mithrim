@@ -112,6 +112,7 @@ from entities.monster import (
 from entities.base_entity import NPC
 from entities.tavern_npcs import NPC, Merchant
 from entities.dungeon_npcs import DungeonHealer, DungeonMerchant, PrisonerNPC, make_encounter_victims, GuardVictim
+from world.structures import TownNPC, Townsfolk, Innkeeper, Shopkeeper
 
 from entities.races import (
     Human,
@@ -231,6 +232,7 @@ class Game:
 
         self.merchant = None  # Initialize merchant attribute        
         self.dungeon_merchant = None # Create a persistent instance
+        self.shopkeeper = None
         
         self.entities = []  # Initialize the entities list here
         self.turn_order = []  # Initialize the turn order list
@@ -586,8 +588,8 @@ class Game:
     # ("You hear screams ahead.") and gets a WORLD_ENCOUNTER_MENU choice
     # between investigating, sneaking around, or ignoring it before finding
     # out what's actually going on.
-    WORLD_ENCOUNTER_CHANCE = 0.04           # Rolled once per step taken in the overworld
-    WORLD_ENCOUNTER_COOLDOWN_STEPS = 24     # Minimum steps before another can trigger
+    WORLD_ENCOUNTER_CHANCE = 0.01           # Rolled once per step taken in the overworld
+    WORLD_ENCOUNTER_COOLDOWN_STEPS = 32     # Minimum steps before another can trigger
     WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
 
     WORLD_ENCOUNTER_HOOKS = [
@@ -1833,10 +1835,12 @@ class Game:
     def check_overworld_npc_interaction(self):
         if self.game_state == GameState.OVERWORLD:
             for entity in self.entities:
-                if isinstance(entity, NPC) and entity is not self.player:
+                if isinstance(entity, (NPC, Shopkeeper, Innkeeper, Townsfolk)) and entity is not self.player:
                     if (abs(self.player.x - entity.x) <= 1 and
                         abs(self.player.y - entity.y) <= 1 and
                         (abs(self.player.x - entity.x) + abs(self.player.y - entity.y)) == 1):
+                        if isinstance(entity, Shopkeeper):
+                            self.shopkeeper = entity
                         return entity
         return None
 
@@ -2516,10 +2520,16 @@ class Game:
                             self.try_light_wall_torch()
                             return True  # Consume event regardless (don't fall to quick-bar)                    
 
+                        
                         if self.game_state == GameState.OVERWORLD:
                             npc = self.check_overworld_npc_interaction()
-                            if npc:
-                                self.message_log.add_message(f'{npc.name}: "{npc.get_dialogue()}"', (200, 200, 255))
+                            if npc:                        
+                                shopkeeper = self.check_overworld_npc_interaction()  # Check for adjacent NPC
+                                if isinstance(npc, Shopkeeper):
+                                    shopkeeper.offer_trade(self.player, self)  # Call the trade method for the Shopkeeper
+                                    return True
+                                else:
+                                    self.message_log.add_message(f'{npc.name}: "{npc.get_dialogue()}"', (200, 200, 255))
                                 return True
 
                         merchant = self.check_dungeon_npc_interaction()  # Check for adjacent NPC
@@ -2942,6 +2952,8 @@ class Game:
                 active_merchant = self.merchant
             elif self._previous_game_state == GameState.DUNGEON and self.dungeon_merchant:
                 active_merchant = self.dungeon_merchant
+            elif self._previous_game_state == GameState.OVERWORLD and self.shopkeeper:
+                active_merchant = self.shopkeeper
 
             if active_merchant:
                 if input_text.startswith("buy "):
