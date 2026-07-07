@@ -976,6 +976,17 @@ class Monster:
                     target_distance = dist
                     target_entity = entity
 
+        # No summons around - fighting-back guards (see GuardVictim in
+        # entities/dungeon_npcs.py) are the next priority, ahead of the player.
+        if target_entity is None:
+            from entities.dungeon_npcs import GuardVictim
+            for entity in game.entities:
+                if isinstance(entity, GuardVictim) and entity.alive:
+                    dist = self.distance_to(entity.x, entity.y)
+                    if dist < target_distance:
+                        target_distance = dist
+                        target_entity = entity
+
         if target_entity is None:
             target_entity = player
             target_distance = self.distance_to(player.x, player.y)

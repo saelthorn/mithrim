@@ -448,9 +448,13 @@ class GuardVictim(EncounterVictim):
             num_dice, die_type = self.damage_dice
             damage = sum(random.randint(1, die_type) for _ in range(num_dice)) + self.damage_modifier
             target.take_damage(damage, game)
-            game.floating_texts.append(FloatingText(target.x, target.y, f"-{damage}", (255, 80, 80)))
+            game.floating_texts.append(FloatingText(target.x, target.y, f"{damage}", (255, 80, 80)))
+            game.floating_texts.append(FloatingText(target.x, target.y - 0.5, "HIT!", (255, 80, 80)))
         else:
             game.message_log.add_message(f"{self.name}'s attack misses.", (150, 150, 150))
+
+            game.floating_texts.append(FloatingText(target.x, target.y, "MISS!", (200, 200, 200), y_speed=0.5))            
+            
 
     def _move_towards(self, target, game, game_map):
         from core.pathfinding import astar

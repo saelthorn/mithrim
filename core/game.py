@@ -624,8 +624,8 @@ class Game:
         },
         {
             "discovery": "Cloaked cultists chant around a bound figure atop a crude stone altar.",
-            "monster_pool": [Skeleton, Imp, Skeleton, Cultist, Cultist],
-            "monster_count": (2, 3),
+            "monster_pool": [Skeleton, Imp, Skeleton, Cultist, Cultist, Cultist],
+            "monster_count": (2, 4),
             "sneak_dc": 15,
             "sneak_success": "You creep close enough to catch the ritual's final words before a cultist notices movement at the treeline.",
             "sneak_fail": "One of the cultists looks up mid-chant and points a bony finger straight at you.",
@@ -1189,6 +1189,7 @@ class Game:
         self.turn_order = sorted(self.turn_order, key=lambda e: e.initiative, reverse=True)
         self.current_turn_index = 0
         self.update_fov()
+        self.bloodstains.clear()
 
         self.message_log.add_message("=== THE OVERWORLD ===", (240, 240, 240))
         self.message_log.add_message("Walk onto a dungeon entrance to descend, or off the map's edge to keep exploring.", (150, 150, 255))
