@@ -111,7 +111,7 @@ from entities.monster import (
 
 from entities.base_entity import NPC
 from entities.tavern_npcs import NPC, Merchant
-from entities.dungeon_npcs import DungeonHealer, DungeonMerchant, PrisonerNPC, make_encounter_victims, GuardVictim
+from entities.dungeon_npcs import DungeonHealer, DungeonMerchant, PrisonerNPC, make_encounter_victims, GuardVictim, Trader
 from world.structures import TownNPC, Townsfolk, Innkeeper, Shopkeeper
 
 from entities.races import (
@@ -233,6 +233,7 @@ class Game:
         self.merchant = None  # Initialize merchant attribute        
         self.dungeon_merchant = None # Create a persistent instance
         self.shopkeeper = None
+        self.trader = None
         
         self.entities = []  # Initialize the entities list here
         self.turn_order = []  # Initialize the turn order list
@@ -507,7 +508,7 @@ class Game:
     # expands it into a full pack via MONSTER_GROUPS (the same lookup
     # spawn_monster_group() uses for dungeon rooms).
     OVERWORLD_MONSTER_TABLE = {
-        ChunkBiome.PLAINS: [Goblin, GoblinArcher, Wolf, GiantRat],
+        ChunkBiome.PLAINS: [Goblin, GoblinArcher, Wolf, Arasta, Demogorgon],
         ChunkBiome.FOREST: [Wolf, Goblin, GoblinArcher, GiantSpider, MyconidSprout],
         ChunkBiome.SWAMP: [Lizardfolk, LizardfolkArcher, Ooze, GiantSpider],
         ChunkBiome.HILLS: [Orc, Centaur, CentaurArcher, Goblin],
@@ -589,7 +590,7 @@ class Game:
     # between investigating, sneaking around, or ignoring it before finding
     # out what's actually going on.
     WORLD_ENCOUNTER_CHANCE = 0.01           # Rolled once per step taken in the overworld
-    WORLD_ENCOUNTER_COOLDOWN_STEPS = 32     # Minimum steps before another can trigger
+    WORLD_ENCOUNTER_COOLDOWN_STEPS = 40     # Minimum steps before another can trigger
     WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
 
     WORLD_ENCOUNTER_HOOKS = [
@@ -1835,12 +1836,14 @@ class Game:
     def check_overworld_npc_interaction(self):
         if self.game_state == GameState.OVERWORLD:
             for entity in self.entities:
-                if isinstance(entity, (NPC, Shopkeeper, Innkeeper, Townsfolk)) and entity is not self.player:
+                if isinstance(entity, (NPC, Shopkeeper, Innkeeper, Townsfolk, Trader)) and entity is not self.player:
                     if (abs(self.player.x - entity.x) <= 1 and
                         abs(self.player.y - entity.y) <= 1 and
                         (abs(self.player.x - entity.x) + abs(self.player.y - entity.y)) == 1):
                         if isinstance(entity, Shopkeeper):
                             self.shopkeeper = entity
+                        elif isinstance(entity, Trader):
+                            self.trader = entity
                         return entity
         return None
 
@@ -2520,14 +2523,16 @@ class Game:
                             self.try_light_wall_torch()
                             return True  # Consume event regardless (don't fall to quick-bar)                    
 
-                        
+
                         if self.game_state == GameState.OVERWORLD:
                             npc = self.check_overworld_npc_interaction()
                             if npc:                        
                                 shopkeeper = self.check_overworld_npc_interaction()  # Check for adjacent NPC
-                                if isinstance(npc, Shopkeeper):
+                                if isinstance(shopkeeper, Shopkeeper):
                                     shopkeeper.offer_trade(self.player, self)  # Call the trade method for the Shopkeeper
                                     return True
+                                elif isinstance(npc, Trader):
+                                    shopkeeper.offer_trade(self.player, self)
                                 else:
                                     self.message_log.add_message(f'{npc.name}: "{npc.get_dialogue()}"', (200, 200, 255))
                                 return True
@@ -2954,6 +2959,8 @@ class Game:
                 active_merchant = self.dungeon_merchant
             elif self._previous_game_state == GameState.OVERWORLD and self.shopkeeper:
                 active_merchant = self.shopkeeper
+            elif self._previous_game_state == GameState.OVERWORLD and self.trader:
+                active_merchant = self.trader
 
             if active_merchant:
                 if input_text.startswith("buy "):

@@ -79,7 +79,7 @@ class Player: # This is our base class for playable characters
         self.gold = 50
 
         # Player-specific attributes
-        self.level = 3
+        self.level = 6
         self.current_xp = 900  # Cumulative XP (player starts at level 1)
         self.xp_to_next_level = XP_PROGRESSION.get(self.level + 1, float('inf'))  # XP needed for next level
 
