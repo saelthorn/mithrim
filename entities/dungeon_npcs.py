@@ -400,13 +400,79 @@ class EncounterVictim(NPC):
     """
     A bystander tied to a WORLD_ENCOUNTER_MENU scenario - the merchants being
     robbed, the guards making their last stand, the figure bound to the altar,
-    etc. Purely flavour/dressing: it stands near the spawned monsters so the
-    scene reads as "these people are who the discovery text is about," and
-    carries a line of dialogue if the player talks to it before the fight
-    (or after, if it survives).
+    etc. Before the fight is over the player can only talk to it (see
+    combat_resolved(), driven by the `linked_monsters` list set on spawn).
+    Once every monster tied to the encounter is dead, talking to it (F key)
+    counts as rescuing it: it says its thanks and, if the scenario gives it
+    one, hands over a reward - an item for the "sacrifice" victim, mirroring
+    how PrisonerNPC.free()/give_reward() works in a dungeon, or gold for a
+    rescued merchant.
     """
-    def __init__(self, x, y, char, name, color, dialogue_line):
+    def __init__(self, x, y, char, name, color, dialogue_line,
+                 thanks_lines=None, after_lines=None, reward_item=None, reward_gold=0):
         super().__init__(x, y, char, name, color, [dialogue_line])
+        self._danger_dialogue = dialogue_line
+        self._thanks_lines = thanks_lines or [f"{name} nods gratefully."]
+        self._after_lines  = after_lines or [f"{name} gives you a quiet nod."]
+
+        self.linked_monsters = []   # Set by _spawn_world_encounter_victims once the monster group exists
+        self.rescued          = False
+        self.reward_item      = reward_item
+        self.reward_gold      = reward_gold
+        self.reward_given     = False
+
+    def combat_resolved(self):
+        """True once every monster tied to this encounter is dead (or none were ever linked)."""
+        return not any(getattr(monster, 'alive', False) for monster in self.linked_monsters)
+
+    def get_dialogue(self):
+        if not self.combat_resolved():
+            return self._danger_dialogue
+        return random.choice(self._after_lines if self.rescued else self._thanks_lines)
+
+    def interact(self, player, game):
+        """
+        Called when the player presses F next to this victim in the
+        overworld. Talk-only until combat_resolved(); the first interaction
+        afterward rescues it (thanks + reward), later ones just repeat a
+        generic line - same shape as PrisonerNPC.free() + give_reward().
+        """
+        first_rescue = self.combat_resolved() and not self.rescued
+        line = self.get_dialogue()
+        game.message_log.add_message(f'{self.name}: "{line}"', (200, 200, 255))
+
+        if first_rescue:
+            self.rescued = True
+            game.floating_texts.append(FloatingText(self.x, self.y, "SAVED!", (100, 255, 150), y_speed=0.5))
+            self._give_reward(player, game)
+
+    def _give_reward(self, player, game):
+        if self.reward_given:
+            return
+        self.reward_given = True
+
+        if self.reward_gold:
+            player.gold += self.reward_gold
+            game.message_log.add_message(f"You receive {self.reward_gold} gold!", (255, 215, 0))
+
+        if self.reward_item is not None:
+            if player.inventory.add_item(self.reward_item):
+                game.message_log.add_message(
+                    f"You receive the {self.reward_item.name}!", self.reward_item.color
+                )
+                player.update_throw_knife_ability()
+                player.update_spellbook_abilities()
+                player.update_thieves_tools_ability()
+                player.update_guard_ability()
+                player.update_holy_symbol_abilities()
+            else:
+                self.reward_item.x = player.x
+                self.reward_item.y = player.y
+                game.game_map.items_on_ground.append(self.reward_item)
+                game.message_log.add_message(
+                    f"Inventory full! The {self.reward_item.name} drops to the floor.",
+                    self.reward_item.color,
+                )
 
 
 class Trader(EncounterVictim):
@@ -626,6 +692,7 @@ class Trader(EncounterVictim):
                 return f"You sold {item.name}!"
         return "Item not found in your inventory."
 
+
 class GuardVictim(EncounterVictim):
     """
     The town guards from the "undead last stand" world encounter. Unlike a
@@ -722,25 +789,60 @@ ENCOUNTER_VICTIM_PRESETS = {
         "char": "td", "color": (200, 160, 80),
         "names": ["Merchant", "Trader"],
         "dialogue": "Thank the gods - help us, they're taking everything!",
-        "cls": Trader
+        "thanks": [
+            "You saved my goods and my hide! Here, take this for your trouble.",
+            "Bless you, traveler! Please, take some coin for your help.",
+        ],
+        "after": ["Safe travels, friend - thanks again for earlier."],
+        "reward_gold_range": (8, 20),
     },
     "child": {
         "char": "ch", "color": (230, 210, 180),
         "names": ["Frightened Child"],
         "dialogue": "P-please... don't let them get me...",
+        "thanks": ["Y-you saved me... thank you, thank you!"],
+        "after": ["The child clings close to you, still shaking."],
     },
     "sacrifice": {
         "char": "pnp", "color": (180, 180, 220),
         "names": ["Bound Figure"],
         "dialogue": "Please... cut me loose before they finish the chant...",
+        "thanks": [
+            "Free at last... here, take this - it's the least I can offer.",
+            "I thought I was done for. Please, take this for saving me.",
+        ],
+        "after": ["Thank you again, adventurer. I'll not forget this."],
+        "reward_pool": _PRISONER_LOOT,
     },
     "guard": {
         "char": "g", "color": (150, 170, 220),
         "names": ["Town Guard"],
         "dialogue": "We can't hold much longer - lend us a hand!",
+        "thanks": ["We held the line thanks to you. Well fought, adventurer."],
+        "after": ["Still catching my breath - but we're alive, thanks to you."],
         "cls": GuardVictim,
     },
 }
+
+
+def _make_reward_item(template, x, y):
+    """
+    Clones an item template into a standalone instance for handing to the
+    player - same approach as PrisonerNPC._make_reward() above.
+    """
+    try:
+        init_vars = {k: v for k, v in vars(template).items() if k not in ('owner', 'x', 'y')}
+        item = template.__class__(**init_vars)
+    except Exception:
+        item = template.__class__(
+            name=template.name,
+            char=template.char,
+            color=template.color,
+            description=getattr(template, 'description', ''),
+        )
+    item.x = x
+    item.y = y
+    return item
 
 
 def make_encounter_victims(victim_key, count, positions):
@@ -755,8 +857,17 @@ def make_encounter_victims(victim_key, count, positions):
         return []
 
     victim_cls = preset.get("cls", EncounterVictim)
+    reward_pool = preset.get("reward_pool")
+    gold_min, gold_max = preset.get("reward_gold_range", (0, 0))
+
     victims = []
     for (x, y) in positions[:count]:
         name = random.choice(preset["names"])
-        victims.append(victim_cls(x, y, preset["char"], name, preset["color"], preset["dialogue"]))
+        reward_item = _make_reward_item(random.choice(reward_pool), x, y) if reward_pool else None
+        reward_gold = random.randint(gold_min, gold_max) if gold_max else 0
+        victims.append(victim_cls(
+            x, y, preset["char"], name, preset["color"], preset["dialogue"],
+            thanks_lines=preset.get("thanks"), after_lines=preset.get("after"),
+            reward_item=reward_item, reward_gold=reward_gold,
+        ))
     return victims

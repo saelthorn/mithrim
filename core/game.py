@@ -111,7 +111,7 @@ from entities.monster import (
 
 from entities.base_entity import NPC
 from entities.tavern_npcs import NPC, Merchant
-from entities.dungeon_npcs import DungeonHealer, DungeonMerchant, PrisonerNPC, make_encounter_victims, GuardVictim, Trader
+from entities.dungeon_npcs import DungeonHealer, DungeonMerchant, PrisonerNPC, make_encounter_victims, GuardVictim, Trader, EncounterVictim
 from world.structures import TownNPC, Townsfolk, Innkeeper, Shopkeeper
 
 from entities.races import (
@@ -508,7 +508,7 @@ class Game:
     # expands it into a full pack via MONSTER_GROUPS (the same lookup
     # spawn_monster_group() uses for dungeon rooms).
     OVERWORLD_MONSTER_TABLE = {
-        ChunkBiome.PLAINS: [Goblin, GoblinArcher, Wolf, Arasta, Demogorgon],
+        ChunkBiome.PLAINS: [Goblin, GoblinArcher, Wolf, GiantRat],
         ChunkBiome.FOREST: [Wolf, Goblin, GoblinArcher, GiantSpider, MyconidSprout],
         ChunkBiome.SWAMP: [Lizardfolk, LizardfolkArcher, Ooze, GiantSpider],
         ChunkBiome.HILLS: [Orc, Centaur, CentaurArcher, Goblin],
@@ -589,7 +589,7 @@ class Game:
     # ("You hear screams ahead.") and gets a WORLD_ENCOUNTER_MENU choice
     # between investigating, sneaking around, or ignoring it before finding
     # out what's actually going on.
-    WORLD_ENCOUNTER_CHANCE = 0.01           # Rolled once per step taken in the overworld
+    WORLD_ENCOUNTER_CHANCE = 0.02           # Rolled once per step taken in the overworld
     WORLD_ENCOUNTER_COOLDOWN_STEPS = 40     # Minimum steps before another can trigger
     WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
 
@@ -729,11 +729,11 @@ class Game:
 
         self.turn_order.sort(key=lambda e: e.initiative, reverse=True)
 
-        self._spawn_world_encounter_victims(scenario, spawn_candidates)
+        self._spawn_world_encounter_victims(scenario, spawn_candidates, spawned)
 
         return spawned
 
-    def _spawn_world_encounter_victims(self, scenario, spawn_candidates):
+    def _spawn_world_encounter_victims(self, scenario, spawn_candidates, linked_monsters):
         """
         Places the scenario's bystanders (the merchants being robbed, the
         guards making their stand, etc.) among the leftover spawn candidates
@@ -741,6 +741,10 @@ class Game:
         discovery text describes it. Most are flavour-only (EncounterVictim),
         but combat-capable ones (GuardVictim) also join the turn order so
         they actually fight alongside the player - see dungeon_npcs.py.
+
+        Every victim is linked to the same `linked_monsters` group so
+        EncounterVictim.combat_resolved() can tell once they're all dead,
+        which is what unlocks freeing/rewarding the victim (F key).
         """
         victim_key = scenario.get("victim")
         if victim_key is None or not spawn_candidates:
@@ -751,6 +755,8 @@ class Game:
 
         positions = random.sample(spawn_candidates, num_to_spawn)
         victims = make_encounter_victims(victim_key, num_to_spawn, positions)
+        for victim in victims:
+            victim.linked_monsters = linked_monsters
         self.entities.extend(victims)
 
         fighters = [v for v in victims if isinstance(v, GuardVictim)]
@@ -2523,7 +2529,6 @@ class Game:
                             self.try_light_wall_torch()
                             return True  # Consume event regardless (don't fall to quick-bar)                    
 
-
                         if self.game_state == GameState.OVERWORLD:
                             npc = self.check_overworld_npc_interaction()
                             if npc:                        
@@ -2534,7 +2539,12 @@ class Game:
                                 elif isinstance(npc, Trader):
                                     shopkeeper.offer_trade(self.player, self)
                                 else:
-                                    self.message_log.add_message(f'{npc.name}: "{npc.get_dialogue()}"', (200, 200, 255))
+                                    self.message_log.add_message(f'{npc.name}: "{npc.get_dialogue()}"', (200, 200, 255))                            
+                            if isinstance(npc, EncounterVictim):
+                                npc.interact(self.player, self)
+                                return True
+                            elif npc:
+                                self.message_log.add_message(f'{npc.name}: "{npc.get_dialogue()}"', (200, 200, 255))
                                 return True
 
                         merchant = self.check_dungeon_npc_interaction()  # Check for adjacent NPC
