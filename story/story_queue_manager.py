@@ -76,12 +76,12 @@ import time
 from enum import Enum
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from trigger_system import TriggerEvent, TriggerType
+from story.trigger_system import TriggerEvent, TriggerType
 
 if TYPE_CHECKING:
-    from story_framework import StoryDirector, StoryManager
-    from condition_system import Condition, ConditionContext, ConditionEvaluator
-    from search_area import Position
+    from story.story_framework import StoryDirector, StoryManager
+    from story.condition_system import Condition, ConditionContext, ConditionEvaluator
+    from story.search_area import Position
     from world.world_time import WorldTimeManager
 
 

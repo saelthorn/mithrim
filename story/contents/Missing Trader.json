@@ -1,0 +1,159 @@
+{
+  "id": "missing_caravaner",
+  "version": 1,
+  "seed": null,
+
+  "metadata": {
+    "title": "The Missing Caravaner",
+    "summary": "A merchant's daughter never made it back from a supply run. Her cart sits abandoned on the plains road -- but the tracks leading away from it don't match wolves.",
+    "tags": ["rescue", "wolves", "bandits", "timed"],
+    "biome": "plains",
+    "min_level": 2
+  },
+
+  "requirements": {
+    "min_player_level": 2,
+    "location": [95.0, 260.0],
+    "max_distance": 100.0,
+    "required_story_ids": [],
+    "cooldown_hours": 0,
+    "condition": null
+  },
+
+  "stages": [
+    { "id": 0, "name": "reported",    "objective": "Find the abandoned cart on the plains road.", "dialogue_id": "cart_found" },
+    { "id": 1, "name": "tracked",     "objective": "Follow the tracks and find out what happened.", "dialogue_id": null,
+      "on_enter": [ { "type": "spawn_npc", "npc_type": "wolf_pack_marker", "position": [88.0, 268.0] } ] },
+    { "id": 2, "name": "confronted",  "objective": "Deal with whatever took her.", "dialogue_id": "captor_found" },
+    { "id": 3, "name": "rescued",     "objective": "Bring her home safely.", "dialogue_id": "caravaner_rescued" }
+  ],
+
+  "search_area": { "center": [90.0, 265.0], "size": [45, 45] },
+
+  "npcs": [
+    { "id": "caravaner_mira", "type": "victim", "role": "captive",
+      "position": [86.0, 270.0], "hostile": false, "group_id": null,
+      "dialogue_id": "mira_rescued_dialogue" },
+    { "id": "raider_1", "type": "bandit", "role": "captor",
+      "position": [85.0, 269.0], "hostile": true, "group_id": "plains_raiders" },
+    { "id": "raider_2", "type": "bandit", "role": "captor",
+      "position": [87.0, 271.0], "hostile": true, "group_id": "plains_raiders" }
+  ],
+
+  "objects": [
+    { "object_type": "wagon", "id": "mira_cart", "position": [95.0, 260.0], "repeatable": false,
+      "data": { "loot_table": "merchant_light" } },
+    { "object_type": "tracks", "id": "cart_tracks", "position": [92.0, 263.0], "repeatable": false },
+    { "object_type": "campfire", "id": "raider_camp_fire", "position": [86.0, 269.0], "repeatable": true }
+  ],
+
+  "triggers": [
+    {
+      "rule_id": "cart_inspected",
+      "trigger_type": "inspect_object",
+      "target_id": "mira_cart",
+      "max_stage": 0,
+      "consequences": [ { "type": "reward_xp", "amount": 15 } ]
+    },
+    {
+      "rule_id": "tracks_followed",
+      "trigger_type": "inspect_object",
+      "target_id": "cart_tracks",
+      "min_stage": 0,
+      "max_stage": 0
+    },
+    {
+      "rule_id": "raiders_defeated",
+      "trigger_type": "kill_npc",
+      "data_filters": { "group_id": "plains_raiders" },
+      "min_stage": 2,
+      "max_stage": 2,
+      "condition": "raiders_dead",
+      "consequences": [ { "type": "reward_gold", "amount": 25 } ]
+    },
+    {
+      "rule_id": "mira_freed",
+      "trigger_type": "talk_npc",
+      "target_id": "caravaner_mira",
+      "min_stage": 2,
+      "max_stage": 2,
+      "condition": "raiders_dead",
+      "consequences": [
+        { "type": "reward_xp", "amount": 60 },
+        { "type": "modify_reputation", "faction": "northfield", "delta": 4 }
+      ]
+    }
+  ],
+
+  "conditions": {
+    "raiders_dead": {
+      "type": "and",
+      "conditions": [
+        { "type": "not", "condition": { "type": "npc_alive", "npc_id": "raider_1" } },
+        { "type": "not", "condition": { "type": "npc_alive", "npc_id": "raider_2" } }
+      ]
+    }
+  },
+
+  "dialogue": {
+    "cart_found": {
+      "speaker": "narrator",
+      "text": "The cart's wheel is broken and its cargo scattered. There's no blood -- whoever took her wanted her alive.",
+      "choices": [ { "text": "Search for tracks.", "next": null } ]
+    },
+    "captor_found": {
+      "speaker": "narrator",
+      "text": "A small raider camp sits in a hollow ahead. Mira is tied near the fire, watched by two guards.",
+      "choices": [
+        { "text": "Attack the camp head-on.", "next": null },
+        { "text": "Try to sneak her out quietly.", "next": null }
+      ]
+    },
+    "mira_rescued_dialogue": {
+      "speaker": "mira",
+      "text": "They wanted ransom, not blood -- but I didn't want to wait around and find out. Thank you.",
+      "choices": [ { "text": "Let's get you home.", "next": "caravaner_rescued" } ]
+    },
+    "caravaner_rescued": {
+      "speaker": "narrator",
+      "text": "Mira walks the road home beside you, glancing back at the hollow once, then not again.",
+      "choices": []
+    }
+  },
+
+  "rewards": {
+    "on_stage": {
+      "0": [ { "type": "reward_xp", "amount": 10 } ]
+    },
+    "on_complete": [
+      { "type": "reward_xp", "amount": 80 },
+      { "type": "reward_gold", "amount": 30 },
+      { "type": "give_item", "item_id": "merchant_favor_token", "count": 1 }
+    ]
+  },
+
+  "failure": {
+    "scar_tag": "missing_caravaner:{mode}",
+    "applies_to": ["ignored", "expired", "failed"],
+    "consequences": {
+      "ignored": [ { "type": "modify_reputation", "faction": "northfield", "delta": -2 } ],
+      "expired": [
+        { "type": "modify_reputation", "faction": "northfield", "delta": -5 },
+        { "type": "despawn_entity", "entity_id": "caravaner_mira" }
+      ],
+      "failed": [ { "type": "modify_reputation", "faction": "northfield", "delta": -3 } ]
+    },
+    "follow_up_story_id": { "expired": "raider_expansion" }
+  },
+
+  "chain": {
+    "chain_id": "northfield_saga",
+    "node_id": "missing_caravaner",
+    "ending_id": null,
+    "exclusive": false,
+    "edges": [
+      { "outcome": "completed", "next_node_id": "raider_reprisal" },
+      { "outcome": "expired", "next_node_id": "raider_expansion" }
+    ]
+  }
+}

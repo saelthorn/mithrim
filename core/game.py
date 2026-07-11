@@ -95,6 +95,8 @@ from world.encounters.prison_cell import (
 )
 from world.encounters.crypt import handle_tomb_interaction, is_crypt_position
 
+from story.story_integration import StorySystems
+
 from entities.player import Player, Fighter, Rogue, Wizard, Cleric
 
 # NEW: Import all monster classes
@@ -335,6 +337,8 @@ class Game:
         # self.available_races and self.selected_race_index unchanged.
         self.available_races      = self._current_lineages
         self.selected_race_index  = 0
+
+        self.stories = StorySystems(self)
 
         self.race_class_visuals = {
             # ── Human ─────────────────────────────────────────────────────
@@ -2539,12 +2543,14 @@ class Game:
                                 elif isinstance(npc, Trader):
                                     shopkeeper.offer_trade(self.player, self)
                                 else:
-                                    self.message_log.add_message(f'{npc.name}: "{npc.get_dialogue()}"', (200, 200, 255))                            
+                                    self.message_log.add_message(f'{npc.name}: "{npc.get_dialogue()}"', (200, 200, 255))
+                                    self.stories.fire_talk(npc, instigator=self.player)
                             if isinstance(npc, EncounterVictim):
                                 npc.interact(self.player, self)
                                 return True
                             elif npc:
                                 self.message_log.add_message(f'{npc.name}: "{npc.get_dialogue()}"', (200, 200, 255))
+                                self.stories.fire_talk(npc, instigator=self.player)
                                 return True
 
                         merchant = self.check_dungeon_npc_interaction()  # Check for adjacent NPC
@@ -2557,6 +2563,7 @@ class Game:
                             self.message_log.add_message(
                                 f'{merchant.name}: "{merchant.get_dialogue()}"', (220, 200, 140)
                             )
+                            self.stories.fire_talk(merchant, instigator=self.player)
                             return True
 
                 if self.game_state in GameState.TAVERN:
@@ -2567,6 +2574,7 @@ class Game:
                                 npc.offer_trade(self.player, self)  # Call the trade method for the Merchant
                             else:
                                 self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
+                                self.stories.fire_talk(npc, instigator=self.player)
                             return True  # Consume event
 
                 # --- Quick Bar Key Presses ---
@@ -3238,7 +3246,7 @@ class Game:
                 action_taken_in_menu = False
             else:
                 self.message_log.add_message(f"Cannot equip {self.selected_inventory_item.name} to Quick Bar (Q).", (255, 100, 100))
-        elif key == pygame.K_e: # New key for quick bar slot 'f'
+        elif key == pygame.K_e: # New key for quick bar slot 'e'
             if self.player.equip_to_quick_bar(self.selected_inventory_item, 'e', self):
                 self.player.update_throw_knife_ability()
                 self.player.update_spellbook_abilities()
@@ -3973,6 +3981,7 @@ class Game:
                 xp_gained = target.die(game_instance, killer=self.player)
                 self.player.gain_xp(xp_gained, game_instance)  # Use 'self' (player) here
                 self.message_log.add_message(f"You gain {xp_gained} XP!", (100, 255, 100))  # Log the XP gained
+                self.stories.fire_kill(target, instigator=self.player, group_id=getattr(target, "group_id", None))
                 if target.name == 'Arasta' and self.current_level == 20:
                     self.handle_victory()
                     return
@@ -4044,6 +4053,7 @@ class Game:
     def update(self, dt):
         self.clock.tick(60)  # Limit to 60 FPS
         self.fps = self.clock.get_fps()  # Get the current FPS
+        self.stories.update(dt)
 
         # self._torch_flicker_frame += 1
         # if self._torch_flicker_frame % 12 == 0:

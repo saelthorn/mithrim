@@ -82,13 +82,13 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Set, TYPE_CHECKING
 
-from story_framework import StoryEvent
+from story.story_framework import StoryEvent
 
 if TYPE_CHECKING:
-    from story_framework import StoryDirector, StoryInstance, StoryManager
-    from story_queue_manager import ActivationRequirement, StoryQueueManager
-    from condition_system import Condition, ConditionContext
-    from consequence_system import Consequence, ConsequenceExecutor
+    from story.story_framework import StoryDirector, StoryInstance, StoryManager
+    from story.story_queue_manager import ActivationRequirement, StoryQueueManager
+    from story.condition_system import Condition, ConditionContext
+    from story.consequence_system import Consequence, ConsequenceExecutor
 
 
 # ---------------------------------------------------------------------------

@@ -47,9 +47,9 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from story_framework import StoryInstance, StoryDirector
-    from condition_system import Condition
-    from consequence_system import Consequence
+    from story.story_framework import StoryInstance, StoryDirector
+    from story.condition_system import Condition
+    from story.consequence_system import Consequence
 
 
 # ---------------------------------------------------------------------------

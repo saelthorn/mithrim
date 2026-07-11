@@ -33,10 +33,10 @@ import uuid
 from enum import Enum
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
-from search_area import SearchArea
-from trigger_system import TriggerEvent, TriggerRule, TriggerSystem, TriggerType
-from condition_system import Condition, ConditionContext, ConditionEvaluator
-from consequence_system import Consequence, ConsequenceExecutor, ExecutionContext
+from story.search_area import SearchArea
+from story.trigger_system import TriggerEvent, TriggerRule, TriggerSystem, TriggerType
+from story.condition_system import Condition, ConditionContext, ConditionEvaluator
+from story.consequence_system import Consequence, ConsequenceExecutor, ExecutionContext
 
 
 # ---------------------------------------------------------------------------
