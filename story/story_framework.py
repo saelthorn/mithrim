@@ -33,7 +33,8 @@ import uuid
 from enum import Enum
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
-from search_area import SearchArea
+from story.search_area import SearchArea
+from story.trigger_system import TriggerEvent, TriggerRule, TriggerSystem, TriggerType
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +66,7 @@ class StoryEvent(Enum):
     STORY_ABORTED = "story_aborted"
     FLAG_CHANGED = "flag_changed"
     OBJECT_INSPECTED = "object_inspected"
+    TRIGGER_MATCHED = "trigger_matched"
 
 
 # ---------------------------------------------------------------------------
@@ -109,6 +111,14 @@ class StoryInstance:
         # may be uninitialized before its area's size/location is known);
         # use set_search_area() or create_search_area() once that's decided.
         self.search_area: Optional[SearchArea] = None
+
+        # Data-driven trigger declarations: "when TriggerType X fires and
+        # these conditions hold, respond". Evaluated by StoryManager
+        # against every TriggerEvent it receives. Not included in
+        # to_dict()/from_dict() -- like StoryDirector's hooks, rules may
+        # carry Python callables (`effect`) and are expected to be
+        # re-registered by content-layer code after a story is loaded.
+        self.trigger_rules: List[TriggerRule] = []
 
         self.created_at: float = time.time()
         self.updated_at: float = self.created_at
@@ -192,6 +202,27 @@ class StoryInstance:
         """Attach an already-constructed SearchArea to this story."""
         self.search_area = area
         self._touch()
+
+    # -- trigger rules --------------------------------------------------------
+
+    def add_trigger_rule(self, rule: TriggerRule) -> None:
+        """Register a data-driven TriggerRule this story should evaluate
+        against incoming TriggerEvents."""
+        self.trigger_rules.append(rule)
+        self._touch()
+
+    def remove_trigger_rule(self, rule_id: str) -> bool:
+        for rule in self.trigger_rules:
+            if rule.id == rule_id:
+                self.trigger_rules.remove(rule)
+                self._touch()
+                return True
+        return False
+
+    def get_trigger_rules(self, trigger_type: Optional[TriggerType] = None) -> List[TriggerRule]:
+        if trigger_type is None:
+            return list(self.trigger_rules)
+        return [rule for rule in self.trigger_rules if rule.trigger_type == trigger_type]
 
     # -- stage progression ------------------------------------------------
 
@@ -443,6 +474,30 @@ class StoryDirector:
         self._emit(StoryEvent.OBJECT_INSPECTED, story_object=story_object, advanced=advanced)
         return True
 
+    def notify_trigger_matched(self, rule: TriggerRule, event: TriggerEvent) -> bool:
+        """
+        Handle a TriggerRule matching an incoming TriggerEvent for this
+        director's story.
+
+        If the rule supplies its own `effect`, that callback is
+        responsible for whatever progression/response it wants (it
+        receives the story, this director, and the event). Otherwise the
+        generic default -- same as object inspection -- is to advance one
+        stage. Either way TRIGGER_MATCHED fires afterward so other
+        systems can react.
+        """
+        if not self.is_active():
+            return False
+
+        if rule.effect is not None:
+            rule.effect(self.story, self, event)
+        else:
+            self.advance()
+
+        rule.mark_fired()
+        self._emit(StoryEvent.TRIGGER_MATCHED, rule=rule, trigger_event=event)
+        return True
+
     def is_active(self) -> bool:
         return self.story.state == StoryState.ACTIVE
 
@@ -469,15 +524,22 @@ class StoryManager:
     per-tick updates of active stories, and bulk save/load of all story
     state. It delegates all per-story lifecycle logic to StoryDirector;
     StoryManager itself only manages the collection.
+
+    It also listens to a TriggerSystem (created by default, or supplied
+    externally to share dispatch with other systems) and evaluates every
+    active story's TriggerRules against each incoming TriggerEvent.
     """
 
-    def __init__(self):
+    def __init__(self, trigger_system: Optional[TriggerSystem] = None):
         # All known stories, keyed by id -- includes loaded and unloaded.
         self._stories: Dict[str, StoryInstance] = {}
         # Directors only exist for stories currently loaded into memory.
         self._directors: Dict[str, StoryDirector] = {}
         # Ids of stories that are loaded but not currently active/updating.
         self._unloaded: set = set()
+
+        self.trigger_system: TriggerSystem = trigger_system or TriggerSystem()
+        self.trigger_system.subscribe_all(self._on_trigger_event)
 
     # -- creation -----------------------------------------------------------
 
@@ -573,6 +635,21 @@ class StoryManager:
         if director is None:
             return False
         return director.notify_object_inspected(story_object)
+
+    def _on_trigger_event(self, event: TriggerEvent) -> None:
+        """
+        TriggerSystem callback: check every active story's TriggerRules
+        for this event and notify the matching ones' directors.
+
+        A single event can match rules across multiple stories (or
+        multiple rules within one story) -- each match is handled
+        independently via StoryDirector.notify_trigger_matched().
+        """
+        for story in self.list_stories(only_active=True):
+            director = self._directors[story.id]
+            for rule in story.get_trigger_rules(event.type):
+                if rule.matches(event, story):
+                    director.notify_trigger_matched(rule, event)
 
     def list_stories(self, only_active: bool = False) -> List[StoryInstance]:
         """

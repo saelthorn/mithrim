@@ -40,10 +40,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
-from search_area import AreaObject, Position
+from story.search_area import AreaObject, Position
 
 if TYPE_CHECKING:
-    from story_framework import StoryManager
+    from story.story_framework import StoryManager
 
 
 # ---------------------------------------------------------------------------
