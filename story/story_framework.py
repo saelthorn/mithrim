@@ -343,15 +343,21 @@ class StoryDirector:
 
     # Legal state transitions. Keys are the current state; values are the
     # set of states that may be entered directly from it.
+    #
+    # UNINITIALIZED/PAUSED -> FAILED (in addition to the transitions
+    # already here) exist for story_failure_system.py's "ignored" mode:
+    # a story the player never started (or left paused) can still be
+    # permanently failed by the world moving on without it, not only a
+    # story that was ACTIVE and failed mid-progress.
     _TRANSITIONS: Dict[StoryState, set] = {
-        StoryState.UNINITIALIZED: {StoryState.ACTIVE},
+        StoryState.UNINITIALIZED: {StoryState.ACTIVE, StoryState.FAILED},
         StoryState.ACTIVE: {
             StoryState.PAUSED,
             StoryState.COMPLETED,
             StoryState.FAILED,
             StoryState.ABORTED,
         },
-        StoryState.PAUSED: {StoryState.ACTIVE, StoryState.ABORTED},
+        StoryState.PAUSED: {StoryState.ACTIVE, StoryState.ABORTED, StoryState.FAILED},
         StoryState.COMPLETED: set(),
         StoryState.FAILED: set(),
         StoryState.ABORTED: set(),

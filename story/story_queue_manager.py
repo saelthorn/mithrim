@@ -41,6 +41,15 @@ Relationship to the rest of the framework:
   prerequisite -> dependents index), not a full scan of every dormant
   story -- the same "only touch what actually depends on this" idea
   condition_system.py's invalidate() uses.
+- Optionally takes a WorldTimeManager (Phase 7, world_time.py). When
+  supplied, cooldowns and sweep timing run off the canonical world
+  clock (`WorldClock.total_hours`) instead of wall-clock time, and the
+  manager subscribes to its TriggerType.TIME_PASSED so resting,
+  traveling, or sleeping -- anything that calls
+  WorldTimeManager.advance() -- automatically re-checks cooldowns and
+  dormant requirements without gameplay code having to poll separately.
+  Without a WorldTimeManager, everything falls back to wall-clock
+  `time.time()`, so this integration is opt-in.
 
 Performance & scalability notes
 --------------------------------
@@ -67,10 +76,13 @@ import time
 from enum import Enum
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
+from trigger_system import TriggerEvent, TriggerType
+
 if TYPE_CHECKING:
     from story_framework import StoryDirector, StoryManager
     from condition_system import Condition, ConditionContext, ConditionEvaluator
     from search_area import Position
+    from world.world_time import WorldTimeManager
 
 
 # ---------------------------------------------------------------------------
@@ -132,10 +144,13 @@ class ActivationRequirement:
         # through the manager's shared ConditionEvaluator.
         self.condition: Optional["Condition"] = condition
 
-        # Minimum time, in the same unit as ConditionContext.get_elapsed_time(),
-        # that must pass after this entry is marked ready-for-cooldown
-        # (see StoryQueueManager.complete/fail/requeue) before it can
-        # activate again. 0 means no cooldown.
+        # Minimum time that must pass after this entry is marked
+        # ready-for-cooldown (see StoryQueueManager.complete/fail/requeue)
+        # before it can activate again. 0 means no cooldown. Expressed in
+        # whatever unit StoryQueueManager._now() uses -- wall-clock
+        # seconds by default, or world_time.py's WorldClock.total_hours
+        # (i.e. hours) when the manager is given a WorldTimeManager. See
+        # StoryQueueManager's docstring.
         self.cooldown: float = cooldown
 
     # -- individual checks (kept separate so callers/tests can probe why
@@ -196,7 +211,11 @@ class QueueEntry:
         self.requirement: ActivationRequirement = requirement or ActivationRequirement()
 
         self.bucket: QueueBucket = QueueBucket.QUEUED
-        self.enqueued_at: float = time.time()
+        # Timestamps are stamped by StoryQueueManager via its own
+        # _now(), so they stay in whatever clock the manager is
+        # configured with (wall-clock seconds, or world-clock hours when
+        # a WorldTimeManager is supplied) -- never mixed units.
+        self.enqueued_at: Optional[float] = None
         self.activated_at: Optional[float] = None
         self.finished_at: Optional[float] = None
 
@@ -231,6 +250,12 @@ class StoryQueueManager:
     (or on a slower cadence -- see `sweep_interval`) with the player's
     current position/level; StoryQueueManager activates whatever is
     ready, highest priority first, up to `max_active`.
+
+    Pass a WorldTimeManager (world_time.py) via `world_time` to run
+    cooldowns/sweeps off the canonical world clock instead of wall time,
+    and to get automatic re-sweeps whenever world time advances (see
+    `_on_time_passed`). This is optional -- omit it and everything works
+    off `time.time()` exactly as before.
     """
 
     def __init__(
@@ -239,9 +264,14 @@ class StoryQueueManager:
         max_active: int = 8,
         sweep_interval: float = 5.0,
         condition_evaluator: Optional["ConditionEvaluator"] = None,
+        world_time: Optional["WorldTimeManager"] = None,
     ):
         self.story_manager: "StoryManager" = story_manager
         self.max_active: int = max_active
+        # In whatever unit _now() returns -- wall-clock seconds by
+        # default, or world-clock hours once `world_time` is set below.
+        # A caller overriding this after construction should keep that
+        # in mind (e.g. bump it to ~5 when switching to hourly ticks).
         self.sweep_interval: float = sweep_interval
 
         # Reuse the manager's shared ConditionEvaluator by default so a
@@ -251,6 +281,21 @@ class StoryQueueManager:
         self.condition_evaluator: "ConditionEvaluator" = (
             condition_evaluator or story_manager.condition_evaluator
         )
+
+        # Optional world_time.py integration (see module docstring).
+        # When set, _now() reads WorldClock.total_hours instead of
+        # time.time(), and the manager re-sweeps automatically whenever
+        # world time advances.
+        self.world_time: Optional["WorldTimeManager"] = world_time
+        if world_time is not None:
+            world_time.trigger_system.subscribe(TriggerType.TIME_PASSED, self._on_time_passed)
+
+        # Last known player context, cached so time-driven re-evaluation
+        # (see _on_time_passed) has something to check requirements
+        # against without gameplay code re-supplying it on every tick.
+        self._player_position: Optional["Position"] = None
+        self._player_level: Optional[int] = None
+        self._condition_context: Optional["ConditionContext"] = None
 
         self._entries: Dict[str, QueueEntry] = {}
         self._buckets: Dict[QueueBucket, Dict[str, QueueEntry]] = {
@@ -278,6 +323,17 @@ class StoryQueueManager:
 
         self._last_sweep: float = 0.0
 
+    # -- clock ---------------------------------------------------------------
+
+    def _now(self) -> float:
+        """Current time in this manager's configured unit: world-clock
+        hours when a WorldTimeManager is attached, wall-clock seconds
+        otherwise. Every timestamp this manager stamps goes through
+        here, so the two are never mixed."""
+        if self.world_time is not None:
+            return float(self.world_time.clock.total_hours)
+        return time.time()
+
     # -- registration -----------------------------------------------------
 
     def enqueue(
@@ -293,6 +349,7 @@ class StoryQueueManager:
         pass to evaluate.
         """
         entry = QueueEntry(story_id, priority=priority, requirement=requirement)
+        entry.enqueued_at = self._now()
         self._entries[story_id] = entry
         self._index_chain(entry)
         self._set_bucket(entry, QueueBucket.QUEUED)
@@ -383,10 +440,45 @@ class StoryQueueManager:
         2. Drain the priority heap, activating the highest-priority
            QUEUED entries that pass their requirement, until either the
            heap is empty or `max_active` active stories is reached.
+
+        Any argument left as None falls back to the last known value
+        (see `set_player_context`), so callers that only track one
+        changing value (e.g. just distance every frame) don't have to
+        keep re-supplying the others -- and so `_on_time_passed` can
+        re-sweep on world-time advances using whatever was last seen.
         """
-        now = time.time() if now is None else now
-        self._sweep_dormant(player_position, player_level, condition_context, now)
-        return self._drain_queue(player_position, player_level, condition_context, now)
+        self.set_player_context(player_position, player_level, condition_context)
+        now = self._now() if now is None else now
+        self._sweep_dormant(self._player_position, self._player_level, self._condition_context, now)
+        return self._drain_queue(self._player_position, self._player_level, self._condition_context, now)
+
+    def set_player_context(
+        self,
+        player_position: Optional["Position"] = None,
+        player_level: Optional[int] = None,
+        condition_context: Optional["ConditionContext"] = None,
+    ) -> None:
+        """Cache the latest known player context. Each argument only
+        overwrites the cache when explicitly supplied (non-None), so
+        partial updates don't clobber previously known values."""
+        if player_position is not None:
+            self._player_position = player_position
+        if player_level is not None:
+            self._player_level = player_level
+        if condition_context is not None:
+            self._condition_context = condition_context
+
+    def _on_time_passed(self, event: TriggerEvent) -> None:
+        """
+        WorldTimeManager hook (subscribed in __init__ when `world_time`
+        is supplied): whenever world time advances -- resting,
+        traveling, sleeping, or a ScheduledEvent firing -- re-run the
+        sweep/drain pass using the last known player context. This is
+        what lets cooldowns and dormant requirements catch up the moment
+        game time actually moves, instead of only when something happens
+        to call update() on its own.
+        """
+        self.update()
 
     def _sweep_dormant(
         self,
@@ -448,7 +540,7 @@ class StoryQueueManager:
         if director is None or not director.start():
             self._set_bucket(entry, QueueBucket.DORMANT)
             return False
-        entry.activated_at = time.time()
+        entry.activated_at = self._now()
         self._set_bucket(entry, QueueBucket.ACTIVE)
         return True
 
@@ -472,7 +564,7 @@ class StoryQueueManager:
         if not apply(director):
             return False
 
-        entry.finished_at = time.time()
+        entry.finished_at = self._now()
         self._set_bucket(entry, bucket)
         self.condition_evaluator.invalidate(f"story_state:{story_id}")
 
@@ -500,7 +592,7 @@ class StoryQueueManager:
             return False
 
         delay = entry.requirement.cooldown if cooldown is None else cooldown
-        entry.cooldown_ready_at = time.time() + delay if delay > 0 else None
+        entry.cooldown_ready_at = self._now() + delay if delay > 0 else None
         self._set_bucket(entry, QueueBucket.DORMANT)
         self._dirty.add(story_id)
         return True

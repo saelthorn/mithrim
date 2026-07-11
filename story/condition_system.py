@@ -27,7 +27,7 @@ Design summary
                       to invalidate correctly instead of blindly.
 - Leaf conditions  : PlayerLevel, FactionReputation, QuestFlag, NPCAlive,
                       NPCDead, HasItem, VisitedArea, TimePassed,
-                      StoryCompleted, StoryFailed.
+                      StoryCompleted, StoryFailed, WorldScar.
 - Composites       : And / Or / Not, built either explicitly or via the
                       `&`, `|`, `~` operators on any Condition, so trees
                       read like `has_sword & (npc_alive | quest_flag)`.
@@ -127,6 +127,11 @@ class ConditionContext(Protocol):
     def get_elapsed_time(self) -> float:
         """Elapsed game time (seconds, turns -- whatever unit the host uses,
         as long as it's used consistently by TimePassedCondition callers)."""
+        ...
+    def has_world_scar(self, tag: str) -> bool:
+        """Whether a WorldScar with this tag has been recorded (see
+        story_failure_system.py) -- i.e. some story's failure has
+        permanently altered the world in a way content tagged `tag`."""
         ...
 
 
@@ -575,6 +580,38 @@ class StoryFailedCondition(Condition):
 
     def __repr__(self) -> str:
         return f"StoryFailedCondition({self.story_id})"
+
+
+@register_condition("world_scar")
+class WorldScarCondition(Condition):
+    """
+    True if a WorldScar tagged `tag` has been recorded (see
+    story_failure_system.py) -- i.e. some story's failure permanently
+    altered the world in a way content tagged that string (e.g.
+    "village_burned:northfield"). This is the general-purpose way
+    *any* story, ActivationRequirement, or ChainEdge gates on world
+    state that persists independently of any single story's own flags,
+    not just stories chained directly to the one that failed.
+    """
+
+    def __init__(self, tag: str):
+        self.tag = tag
+
+    def _evaluate(self, context: ConditionContext) -> bool:
+        return context.has_world_scar(self.tag)
+
+    def dependency_keys(self) -> FrozenSet[str]:
+        return frozenset({f"world_scar:{self.tag}"})
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"type": "world_scar", "tag": self.tag}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "WorldScarCondition":
+        return cls(tag=data["tag"])
+
+    def __repr__(self) -> str:
+        return f"WorldScarCondition({self.tag})"
 
 
 # ---------------------------------------------------------------------------
