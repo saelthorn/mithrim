@@ -1,0 +1,22 @@
+{
+  "id": "world_encounter_bandits",
+
+  "discovery": "Bandits have cornered a group of merchants, rifling through their cart.",
+  "monster_pool": ["Goblin", "Goblin", "GoblinArcher", "Orc"],
+  "monster_count": [2, 3],
+
+  "sneak_dc": 13,
+  "sneak_success": "You slip past unseen and watch the bandits finish their shakedown from the bushes. Once they leave, you search the cart they left behind.",
+  "sneak_fail": "A twig snaps underfoot - the bandits spin around, weapons already leveled.",
+  "ignore": "You leave the merchants to their fate and press on, their cries fading behind you.",
+
+  "victim": "merchant",
+  "victim_count": [1, 2],
+
+  "scar_tag": "world_encounter_bandits",
+  "reward_xp": 40,
+  "reward_gold": 20,
+  "reputation_faction": "northfield",
+  "reputation_delta": 3,
+  "ignored_reputation_delta": -2
+}

@@ -1,0 +1,22 @@
+{
+  "id": "world_encounter_cultists",
+
+  "discovery": "Cloaked cultists chant around a bound figure atop a crude stone altar.",
+  "monster_pool": ["Skeleton", "Imp", "Skeleton", "Cultist", "Cultist", "Cultist"],
+  "monster_count": [2, 4],
+
+  "sneak_dc": 15,
+  "sneak_success": "You creep close enough to catch the ritual's final words before a cultist notices movement at the treeline.",
+  "sneak_fail": "One of the cultists looks up mid-chant and points a bony finger straight at you.",
+  "ignore": "You back away quietly, leaving the ritual to whatever dark end it's building toward.",
+
+  "victim": "sacrifice",
+  "victim_count": [1, 1],
+
+  "scar_tag": "world_encounter_cultists",
+  "reward_xp": 50,
+  "reward_gold": 10,
+  "reputation_faction": "wardens",
+  "reputation_delta": 3,
+  "ignored_reputation_delta": -1
+}

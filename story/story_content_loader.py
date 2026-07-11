@@ -216,7 +216,7 @@ class StoryContentLoader:
         by design -- keep one story pack's directory flat and let the
         content pipeline organize packs as separate roots)."""
         report = LoadReport()
-        for path in sorted(Path(root).glob("*.json")):
+        for path in sorted(Path(root).glob("content/stories/*.json")):
             self._load_one(path, report)
         return report
 

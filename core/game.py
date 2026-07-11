@@ -2,7 +2,9 @@ import pygame
 import random
 import config
 import math 
+import json
 import tracemalloc      # Lifesaver
+from pathlib import Path
 from enum import Enum
 
 
@@ -96,6 +98,10 @@ from world.encounters.prison_cell import (
 from world.encounters.crypt import handle_tomb_interaction, is_crypt_position
 
 from story.story_integration import StorySystems
+from story.story_framework import StoryEvent
+from story.trigger_system import TriggerRule, TriggerType
+from story.consequence_system import RewardXPConsequence, RewardGoldConsequence, ModifyReputationConsequence
+from story.story_failure_system import FailureMode, FailurePolicy
 
 from entities.player import Player, Fighter, Rogue, Wizard, Cleric
 
@@ -283,6 +289,7 @@ class Game:
         self.ability_in_use = None
         self._chest_menu_target = None  # Locked chest awaiting player's choice
         self._world_encounter_target = None    # Scenario dict awaiting the player's choice
+        self._world_encounter_story_id = None  # StoryInstance id backing the currently-offered/active encounter
         self._world_encounter_cooldown = 0     # Steps left before another encounter can roll
         self._shop_menu_merchant = None   # Active merchant for shop overlay
         self._shop_selected_index = 0     # Highlighted item index in shop
@@ -339,6 +346,7 @@ class Game:
         self.selected_race_index  = 0
 
         self.stories = StorySystems(self)
+        self.world_encounter_scenarios = self._load_world_encounter_scenarios()
 
         self.race_class_visuals = {
             # ── Human ─────────────────────────────────────────────────────
@@ -604,54 +612,58 @@ class Game:
         "Something is snarling and thrashing just out of sight.",
     ]
 
-    # Each scenario is only revealed once the player investigates or is
-    # spotted while sneaking - the initial hook never gives it away.
-    WORLD_ENCOUNTER_SCENARIOS = [
-        {
-            "discovery": "Bandits have cornered a group of merchants, rifling through their cart.",
-            "monster_pool": [Goblin, Goblin, GoblinArcher, Orc],
-            "monster_count": (2, 3),
-            "sneak_dc": 13,
-            "sneak_success": "You slip past unseen and watch the bandits finish their shakedown from the bushes. Once they leave, you search the cart they left behind.",
-            "sneak_fail": "A twig snaps underfoot - the bandits spin around, weapons already leveled.",
-            "ignore": "You leave the merchants to their fate and press on, their cries fading behind you.",
-            "victim": "merchant",
-            "victim_count": (1, 2),
-        },
-        {
-            "discovery": "A pack of wolves has a terrified child backed against a tree.",
-            "monster_pool": [Wolf, Wolf, Wolf],
-            "monster_count": (2, 4),
-            "sneak_dc": 14,
-            "sneak_success": "You circle wide through the undergrowth and startle the wolves from behind, scattering most of the pack before it notices the child.",
-            "sneak_fail": "The wolves catch your scent on the wind and abandon the child to hunt easier prey - you.",
-            "ignore": "You turn away. Somewhere behind you, the child's screams cut off into silence.",
-            "victim": "child",
-            "victim_count": (1, 1),
-        },
-        {
-            "discovery": "Cloaked cultists chant around a bound figure atop a crude stone altar.",
-            "monster_pool": [Skeleton, Imp, Skeleton, Cultist, Cultist, Cultist],
-            "monster_count": (2, 4),
-            "sneak_dc": 15,
-            "sneak_success": "You creep close enough to catch the ritual's final words before a cultist notices movement at the treeline.",
-            "sneak_fail": "One of the cultists looks up mid-chant and points a bony finger straight at you.",
-            "ignore": "You back away quietly, leaving the ritual to whatever dark end it's building toward.",
-            "victim": "sacrifice",
-            "victim_count": (1, 1),
-        },
-        {
-            "discovery": "A handful of town guards are making a desperate last stand against a rising tide of undead.",
-            "monster_pool": [Skeleton, Skeleton, SkeletonArcher],
-            "monster_count": (3, 4),
-            "sneak_dc": 12,
-            "sneak_success": "You skirt the battle and slip past while the undead are fully occupied with the guards.",
-            "sneak_fail": "A stray skeleton breaks off from the guards' line and shambles straight for you.",
-            "ignore": "You leave the guards to hold the line alone and hope they last the night.",
-            "victim": "guard",
-            "victim_count": (2, 3),
-        },
-    ]
+    # Content root for world-encounter JSON, one file per scenario -- see
+    # content/encounters/*.json and _load_world_encounter_scenarios().
+    # Mirrors StoryContentLoader.CONTENT_ROOT ("content/stories") for
+    # authored quests, just with a lighter schema: no fixed location or
+    # search_area, since a world encounter can trigger anywhere the player
+    # happens to be walking.
+    WORLD_ENCOUNTER_CONTENT_ROOT = "content/encounters"
+
+    # A world encounter's JSON declares its monster_pool as plain class
+    # names (e.g. "Goblin") rather than importing Python classes itself --
+    # this is the lookup _load_world_encounter_scenarios() resolves them
+    # through. Add an entry here whenever a new monster type is used in an
+    # encounter file.
+    WORLD_ENCOUNTER_MONSTER_CLASSES = {
+        "Goblin": Goblin,
+        "GoblinArcher": GoblinArcher,
+        "Orc": Orc,
+        "Wolf": Wolf,
+        "Skeleton": Skeleton,
+        "SkeletonArcher": SkeletonArcher,
+        "Imp": Imp,
+        "Cultist": Cultist,
+    }
+
+    def _load_world_encounter_scenarios(self):
+        """
+        Loads every *.json file under WORLD_ENCOUNTER_CONTENT_ROOT into a
+        scenario dict -- the same "flavor text plus story-engine metadata"
+        shape the scenarios used to have as a hardcoded Python list, just
+        authored in JSON now (see content/encounters/*.json, and compare
+        to how Missing_Trader.json/Hollow_Shrine.json author full quests
+        for story_content_loader.py). Deliberately not routed through
+        StoryContentLoader itself: a world encounter has no fixed
+        location/search_area and needs its monster_pool resolved to
+        Python classes, neither of which that quest-oriented schema covers.
+        Non-recursive, like StoryContentLoader.load_directory().
+        """
+        scenarios = []
+        root = Path(self.WORLD_ENCOUNTER_CONTENT_ROOT)
+        for path in sorted(root.glob("*.json")):
+            try:
+                data = json.loads(path.read_text())
+                data["monster_pool"] = [
+                    self.WORLD_ENCOUNTER_MONSTER_CLASSES[name] for name in data["monster_pool"]
+                ]
+                data["monster_count"] = tuple(data["monster_count"])
+                data["victim_count"] = tuple(data.get("victim_count", (1, 1)))
+            except (OSError, json.JSONDecodeError, KeyError) as exc:
+                self.message_log.add_message(f"Encounter load error ({path.name}): {exc}", (255, 100, 100))
+                continue
+            scenarios.append(data)
+        return scenarios
 
     def _maybe_trigger_world_encounter(self):
         """
@@ -672,11 +684,45 @@ class Game:
         if random.random() > self.WORLD_ENCOUNTER_CHANCE:
             return False
 
-        self._world_encounter_target = random.choice(self.WORLD_ENCOUNTER_SCENARIOS)
+        scenario = random.choice(self.world_encounter_scenarios)
+        self._world_encounter_target = scenario
+        self._world_encounter_story_id = self._create_world_encounter_story(scenario)
         self._world_encounter_cooldown = self.WORLD_ENCOUNTER_COOLDOWN_STEPS
         self.message_log.add_message(random.choice(self.WORLD_ENCOUNTER_HOOKS), (200, 200, 255))
         self.game_state = GameState.WORLD_ENCOUNTER_MENU
         return True
+
+    def _create_world_encounter_story(self, scenario):
+        """
+        Registers this ambush as a real (if tiny and unnamed) StoryInstance
+        with the story engine the moment it's offered, rather than only
+        after the player commits to a fight. This is what lets "ignore"
+        route through StoryFailureManager's IGNORED failure mode -- a scar
+        and a reputation hit exactly like an authored quest the player
+        walked past -- instead of being a bespoke inline penalty.
+
+        Stage 0 = "in progress"; stage 1 (the final stage) = "resolved",
+        reached once every monster tagged with this encounter's own
+        group_id has been killed (see _wire_world_encounter_combat()).
+        The story stays UNINITIALIZED until the player actually commits
+        (investigate/sneak) -- see StoryDirector.start().
+        """
+        director = self.stories.story_manager.create_story(stage_count=2)
+        director.story.set_flag("group_id", f"world_encounter:{director.story.id}")
+
+        policy = FailurePolicy(
+            scar_tag=scenario["scar_tag"] + ":{mode}",
+            consequences={
+                FailureMode.IGNORED: [
+                    ModifyReputationConsequence(
+                        scenario["reputation_faction"], scenario["ignored_reputation_delta"]
+                    )
+                ]
+            },
+            applies_to=[FailureMode.IGNORED],
+        )
+        self.stories.failure_manager.register_policy(director.story.id, policy)
+        return director.story.id
 
     def _spawn_world_encounter_monsters(self, scenario, surprised=False, asleep=False):
         """
@@ -688,6 +734,11 @@ class Game:
         If asleep is True (a successful sneak), the monsters are spawned
         inactive and sharing one encounter_group list - attacking any one of
         them wakes the whole group at once (see Monster.take_damage).
+
+        Every spawned monster is tagged with this encounter's story-scoped
+        group_id (see _create_world_encounter_story()) so the KILL_NPC
+        TriggerRule wired in _wire_world_encounter_combat() can tell which
+        kills belong to this ambush versus any other monster on the map.
         """
         anchor_x, anchor_y = self.player.x, self.player.y
         radius = 5
@@ -712,6 +763,8 @@ class Game:
         min_count, max_count = scenario["monster_count"]
         num_to_spawn = min(random.randint(min_count, max_count), len(spawn_candidates))
 
+        group_id = self._start_world_encounter_combat(scenario, num_to_spawn)
+
         spawned = []
         encounter_group = [] if asleep else None
         for _ in range(num_to_spawn):
@@ -719,6 +772,7 @@ class Game:
             spawn_x, spawn_y = random.choice(spawn_candidates)
             spawn_candidates.remove((spawn_x, spawn_y))
             monster = monster_class(spawn_x, spawn_y)
+            monster.group_id = group_id
             monster.roll_initiative()
             if surprised:
                 # Spotted while sneaking - the monsters get the jump on the player.
@@ -736,6 +790,69 @@ class Game:
         self._spawn_world_encounter_victims(scenario, spawn_candidates, spawned)
 
         return spawned
+
+    def _start_world_encounter_combat(self, scenario, monster_count):
+        """
+        Starts this encounter's StoryInstance (created back in
+        _create_world_encounter_story()) and wires the TriggerRule that
+        watches for its group's monsters dying. Returns the group_id every
+        spawned monster should be tagged with.
+
+        The story's "remaining" flag is how the wired TriggerRule below
+        knows when the last group member has fallen -- decremented once
+        per matching KILL_NPC trigger (already fired for every monster
+        death via StorySystems.fire_kill, see game.py's combat resolution)
+        until it reaches zero, at which point the story completes and runs
+        its reward Consequences (see _wire_world_encounter_rewards()).
+        """
+        director = self.stories.story_manager.get_director(self._world_encounter_story_id)
+        group_id = director.story.get_flag("group_id")
+
+        director.start()
+        director.story.set_flag("remaining", monster_count)
+        self._wire_world_encounter_rewards(director, scenario)
+
+        def _on_group_member_killed(story, story_director, event):
+            remaining = story.get_flag("remaining", 1) - 1
+            story_director.set_flag("remaining", remaining)
+            if remaining <= 0:
+                story_director.complete()
+
+        director.story.add_trigger_rule(TriggerRule(
+            trigger_type=TriggerType.KILL_NPC,
+            data_filters={"group_id": group_id},
+            min_stage=0,
+            max_stage=0,
+            repeatable=True,
+            effect=_on_group_member_killed,
+        ))
+
+        return group_id
+
+    def _wire_world_encounter_rewards(self, director, scenario):
+        """
+        Runs this encounter's reward Consequences through the shared
+        ConsequenceExecutor/ExecutionContext once its story completes --
+        the same reward path an authored JSON quest's `rewards.on_complete`
+        uses (see story_content_loader.py), just wired directly instead of
+        parsed from a file.
+        """
+        consequences = [RewardXPConsequence(scenario["reward_xp"])]
+        if scenario.get("reward_gold"):
+            consequences.append(RewardGoldConsequence(scenario["reward_gold"]))
+        if scenario.get("reputation_faction"):
+            consequences.append(
+                ModifyReputationConsequence(scenario["reputation_faction"], scenario["reputation_delta"])
+            )
+
+        def _on_completed(story, **_context):
+            context = self.stories.execution_context
+            executor = self.stories.story_manager.consequence_executor
+            for consequence in consequences:
+                executor.execute(consequence, context)
+            self.message_log.add_message("The fight is over. You take a moment to catch your breath.", (150, 255, 180))
+
+        director.on(StoryEvent.STORY_COMPLETED, _on_completed)
 
     def _spawn_world_encounter_victims(self, scenario, spawn_candidates, linked_monsters):
         """
@@ -773,7 +890,12 @@ class Game:
         return victims
 
     def _resolve_world_encounter_investigate(self):
-        """Option 1: walk straight in - reveals the scenario and starts the fight."""
+        """
+        Option 1: walk straight in - reveals the scenario and starts the
+        fight. _spawn_world_encounter_monsters() starts this encounter's
+        StoryInstance and wires its combat-completion reward; the reward
+        itself only fires later, once the last tagged monster dies.
+        """
         scenario = self._world_encounter_target
         self.message_log.add_message(scenario["discovery"], (255, 200, 120))
         spawned = self._spawn_world_encounter_monsters(scenario)
@@ -781,6 +903,7 @@ class Game:
             self.message_log.add_message("You step in to help, weapon drawn!", (255, 150, 100))
         self.game_state = GameState.OVERWORLD
         self._world_encounter_target = None
+        self._world_encounter_story_id = None
 
     def _resolve_world_encounter_sneak(self):
         """
@@ -813,13 +936,23 @@ class Game:
 
         self.game_state = GameState.OVERWORLD
         self._world_encounter_target = None
+        self._world_encounter_story_id = None
 
     def _resolve_world_encounter_ignore(self):
-        """Option 3 / ESC: walk on - no fight, no reward, just the consequence in flavor text."""
+        """
+        Option 3 / ESC: walk on - no fight, no reward. Routed through
+        StoryFailureManager.mark_ignored() so this plays by the same rules
+        as an authored quest the player never engaged: it stamps a
+        FailureMode.IGNORED world scar (see _create_world_encounter_story()'s
+        FailurePolicy) and applies the scenario's reputation penalty via
+        the shared consequence machinery, instead of a one-off inline hit.
+        """
         scenario = self._world_encounter_target
         self.message_log.add_message(scenario["ignore"], (150, 150, 150))
+        self.stories.failure_manager.mark_ignored(self._world_encounter_story_id)
         self.game_state = GameState.OVERWORLD
         self._world_encounter_target = None
+        self._world_encounter_story_id = None
 
     def _lineages_for_group(self, group_index):
         """Return the list of lineage instances for the given group index."""

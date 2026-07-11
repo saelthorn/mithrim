@@ -703,8 +703,11 @@ class GuardVictim(EncounterVictim):
     """
     DETECTION_RANGE = 8  # Chebyshev tiles - how far a guard will notice a monster worth fighting
 
-    def __init__(self, x, y, char, name, color, dialogue_line):
-        super().__init__(x, y, char, name, color, dialogue_line)
+    def __init__(self, x, y, char, name, color, dialogue_line,
+                 thanks_lines=None, after_lines=None, reward_item=None, reward_gold=0):
+        super().__init__(x, y, char, name, color, dialogue_line,
+                          thanks_lines=thanks_lines, after_lines=after_lines,
+                          reward_item=reward_item, reward_gold=reward_gold)
         self.armor_class     = 14
         self.attack_bonus    = 4
         self.damage_dice     = (1, 8)   # 1d8, roughly a longsword
