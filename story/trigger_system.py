@@ -47,7 +47,8 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from story.story_framework import StoryInstance, StoryDirector
+    from story_framework import StoryInstance, StoryDirector
+    from condition_system import Condition
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +196,12 @@ class TriggerRule:
 
     Conditions are plain data (ids, stage bounds, required flags, and
     freeform data-field filters) so most rules need no Python logic at
-    all. `effect` is an optional escape hatch for content-layer systems
+    all. For richer requirements (player level, faction reputation, NPC
+    alive/dead, inventory, story completion, ...) a rule may additionally
+    carry a `condition` from condition_system.py -- evaluated through
+    StoryManager's shared ConditionEvaluator, so it benefits from the
+    same dependency-indexed caching regardless of how many stories use
+    it. `effect` is an optional escape hatch for content-layer systems
     that need custom behavior beyond "advance one stage" -- the trigger
     system itself never contains that behavior.
     """
@@ -210,6 +216,7 @@ class TriggerRule:
         max_stage: Optional[int] = None,
         required_flags: Optional[Dict[str, Any]] = None,
         data_filters: Optional[Dict[str, Any]] = None,
+        condition: Optional["Condition"] = None,
         repeatable: bool = False,
         effect: Optional[Callable[["StoryInstance", "StoryDirector", TriggerEvent], None]] = None,
         rule_id: Optional[str] = None,
@@ -225,6 +232,10 @@ class TriggerRule:
         self.max_stage: Optional[int] = max_stage
         self.required_flags: Dict[str, Any] = required_flags or {}
         self.data_filters: Dict[str, Any] = data_filters or {}
+        # Optional richer condition tree (see condition_system.py). Checked
+        # separately by StoryManager, since evaluating it needs a
+        # ConditionContext that TriggerRule itself has no business knowing about.
+        self.condition: Optional["Condition"] = condition
 
         self.repeatable: bool = repeatable
         self.effect = effect

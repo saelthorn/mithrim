@@ -33,8 +33,9 @@ import uuid
 from enum import Enum
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
-from story.search_area import SearchArea
-from story.trigger_system import TriggerEvent, TriggerRule, TriggerSystem, TriggerType
+from search_area import SearchArea
+from trigger_system import TriggerEvent, TriggerRule, TriggerSystem, TriggerType
+from condition_system import Condition, ConditionContext, ConditionEvaluator
 
 
 # ---------------------------------------------------------------------------
@@ -541,6 +542,22 @@ class StoryManager:
         self.trigger_system: TriggerSystem = trigger_system or TriggerSystem()
         self.trigger_system.subscribe_all(self._on_trigger_event)
 
+        # Shared caching evaluator for any TriggerRule.condition (see
+        # condition_system.py). One evaluator for the whole manager means
+        # a condition reused across many stories/rules is only actually
+        # computed once until something it depends on changes.
+        self.condition_evaluator: ConditionEvaluator = ConditionEvaluator()
+        # Host-supplied read access to player/world state (level, items,
+        # NPCs, ...). Story-only condition types (quest_flag, story_completed,
+        # story_failed) work without this being set; anything else does not.
+        self.condition_context: Optional[ConditionContext] = None
+
+    def set_condition_context(self, context: ConditionContext) -> None:
+        """Attach the host's ConditionContext so TriggerRule.condition
+        checks involving player/world state (not just story flags) can
+        be evaluated."""
+        self.condition_context = context
+
     # -- creation -----------------------------------------------------------
 
     def create_story(
@@ -559,6 +576,7 @@ class StoryManager:
 
         self._stories[story.id] = story
         self._directors[story.id] = director
+        self._wire_condition_invalidation(director)
 
         if auto_start:
             director.start()
@@ -578,8 +596,31 @@ class StoryManager:
         self._stories[story.id] = story
         self._directors[story.id] = director
         self._unloaded.discard(story.id)
+        self._wire_condition_invalidation(director)
 
         return director
+
+    def _wire_condition_invalidation(self, director: StoryDirector) -> None:
+        """
+        Keep the shared ConditionEvaluator's cache correct automatically:
+        whenever this story's flags or terminal state change, drop only
+        the cached conditions that actually depend on that specific key
+        (see QuestFlagCondition/StoryCompletedCondition/StoryFailedCondition
+        in condition_system.py), leaving every other story's cached
+        results untouched.
+        """
+        story_id = director.story.id
+
+        def invalidate_flag(story: StoryInstance, key: str, **_: Any) -> None:
+            self.condition_evaluator.invalidate(f"flag:{story_id}:{key}")
+
+        def invalidate_state(*_args: Any, **_kwargs: Any) -> None:
+            self.condition_evaluator.invalidate(f"story_state:{story_id}")
+
+        director.on(StoryEvent.FLAG_CHANGED, invalidate_flag)
+        director.on(StoryEvent.STORY_COMPLETED, invalidate_state)
+        director.on(StoryEvent.STORY_FAILED, invalidate_state)
+        director.on(StoryEvent.STORY_ABORTED, invalidate_state)
 
     def unload_story(self, story_id: str) -> bool:
         """
@@ -601,6 +642,7 @@ class StoryManager:
         director = StoryDirector(story)
         self._directors[story_id] = director
         self._unloaded.discard(story_id)
+        self._wire_condition_invalidation(director)
         return director
 
     def delete_story(self, story_id: str) -> bool:
@@ -648,8 +690,19 @@ class StoryManager:
         for story in self.list_stories(only_active=True):
             director = self._directors[story.id]
             for rule in story.get_trigger_rules(event.type):
-                if rule.matches(event, story):
-                    director.notify_trigger_matched(rule, event)
+                if not rule.matches(event, story):
+                    continue
+                if rule.condition is not None and not self._check_rule_condition(rule.condition):
+                    continue
+                director.notify_trigger_matched(rule, event)
+
+    def _check_rule_condition(self, condition: Condition) -> bool:
+        """Evaluate a TriggerRule's optional richer Condition through the
+        shared, caching ConditionEvaluator. Fails closed (does not match)
+        if no ConditionContext has been supplied by the host yet."""
+        if self.condition_context is None:
+            return False
+        return self.condition_evaluator.evaluate(condition, self.condition_context)
 
     def list_stories(self, only_active: bool = False) -> List[StoryInstance]:
         """
