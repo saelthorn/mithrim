@@ -49,6 +49,7 @@ from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from story_framework import StoryInstance, StoryDirector
     from condition_system import Condition
+    from consequence_system import Consequence
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +73,17 @@ class TriggerType(Enum):
     SLEEP = "sleep"
     TIME_PASSED = "time_passed"
     READ_JOURNAL = "read_journal"
+
+    # World-time driven events (see world_time.py). Fired by ScheduledEvents
+    # in addition to the generic TIME_PASSED trigger, so content systems can
+    # subscribe to the specific thing that happened rather than filtering
+    # TIME_PASSED data themselves.
+    NPC_WENT_MISSING = "npc_went_missing"
+    CORPSE_DECAYED = "corpse_decayed"
+    CAMP_ABANDONED = "camp_abandoned"
+    BANDITS_RELOCATED = "bandits_relocated"
+    BUILDING_BURNED = "building_burned"
+    CROP_GROWTH_STAGE = "crop_growth_stage"
 
 
 # ---------------------------------------------------------------------------
@@ -201,9 +213,13 @@ class TriggerRule:
     carry a `condition` from condition_system.py -- evaluated through
     StoryManager's shared ConditionEvaluator, so it benefits from the
     same dependency-indexed caching regardless of how many stories use
-    it. `effect` is an optional escape hatch for content-layer systems
-    that need custom behavior beyond "advance one stage" -- the trigger
-    system itself never contains that behavior.
+    it. A rule may also carry `consequences` -- Consequence objects from
+    consequence_system.py -- executed safely through StoryManager's
+    shared ConsequenceExecutor whenever the rule matches, independent of
+    (and in addition to) `effect`. `effect` remains the escape hatch for
+    custom Python behavior beyond "advance one stage" plus whatever
+    consequences ran; the trigger system itself never contains that
+    behavior.
     """
 
     def __init__(
@@ -217,6 +233,7 @@ class TriggerRule:
         required_flags: Optional[Dict[str, Any]] = None,
         data_filters: Optional[Dict[str, Any]] = None,
         condition: Optional["Condition"] = None,
+        consequences: Optional[List["Consequence"]] = None,
         repeatable: bool = False,
         effect: Optional[Callable[["StoryInstance", "StoryDirector", TriggerEvent], None]] = None,
         rule_id: Optional[str] = None,
@@ -236,6 +253,10 @@ class TriggerRule:
         # separately by StoryManager, since evaluating it needs a
         # ConditionContext that TriggerRule itself has no business knowing about.
         self.condition: Optional["Condition"] = condition
+        # Optional effects to execute on match (see consequence_system.py).
+        # Run through StoryManager's shared ConsequenceExecutor, same
+        # reasoning as `condition` above.
+        self.consequences: List["Consequence"] = consequences or []
 
         self.repeatable: bool = repeatable
         self.effect = effect

@@ -36,6 +36,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional
 from search_area import SearchArea
 from trigger_system import TriggerEvent, TriggerRule, TriggerSystem, TriggerType
 from condition_system import Condition, ConditionContext, ConditionEvaluator
+from consequence_system import Consequence, ConsequenceExecutor, ExecutionContext
 
 
 # ---------------------------------------------------------------------------
@@ -552,11 +553,22 @@ class StoryManager:
         # story_failed) work without this being set; anything else does not.
         self.condition_context: Optional[ConditionContext] = None
 
+        self.consequence_executor: ConsequenceExecutor = ConsequenceExecutor()
+        # Host-supplied place to actually apply effects (reward XP/gold,
+        # spawn entities, change weather, ...). TriggerRule.consequences
+        # cannot run without this being set, same as condition_context above.
+        self.execution_context: Optional[ExecutionContext] = None
+
     def set_condition_context(self, context: ConditionContext) -> None:
         """Attach the host's ConditionContext so TriggerRule.condition
         checks involving player/world state (not just story flags) can
         be evaluated."""
         self.condition_context = context
+
+    def set_execution_context(self, context: ExecutionContext) -> None:
+        """Attach the host's ExecutionContext so TriggerRule.consequences
+        can actually be applied when a rule matches."""
+        self.execution_context = context
 
     # -- creation -----------------------------------------------------------
 
@@ -694,6 +706,7 @@ class StoryManager:
                     continue
                 if rule.condition is not None and not self._check_rule_condition(rule.condition):
                     continue
+                self._run_rule_consequences(rule)
                 director.notify_trigger_matched(rule, event)
 
     def _check_rule_condition(self, condition: Condition) -> bool:
@@ -703,6 +716,17 @@ class StoryManager:
         if self.condition_context is None:
             return False
         return self.condition_evaluator.evaluate(condition, self.condition_context)
+
+    def _run_rule_consequences(self, rule: TriggerRule) -> None:
+        """Execute a matched rule's consequences (see consequence_system.py)
+        safely through the shared ConsequenceExecutor. A missing
+        ExecutionContext or a failed consequence is swallowed here rather
+        than raised -- Consequence.execute() already guarantees it never
+        raises, so this is purely "nothing to run it against yet"."""
+        if not rule.consequences or self.execution_context is None:
+            return
+        for consequence in rule.consequences:
+            self.consequence_executor.execute(consequence, self.execution_context)
 
     def list_stories(self, only_active: bool = False) -> List[StoryInstance]:
         """
