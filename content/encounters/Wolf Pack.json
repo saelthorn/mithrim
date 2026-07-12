@@ -1,22 +1,22 @@
 {
-  "id": "world_encounter_bandits",
+  "id": "world_encounter_wolves",
 
-  "discovery": "Bandits have cornered a group of merchants, rifling through their cart.",
-  "monster_pool": ["Goblin", "Goblin", "GoblinArcher", "Orc"],
-  "monster_count": [2, 3],
+  "discovery": "A pack of wolves has a terrified child backed against a tree.",
+  "monster_pool": ["Wolf", "Wolf", "Wolf"],
+  "monster_count": [2, 4],
 
-  "sneak_dc": 13,
-  "sneak_success": "You slip past unseen and watch the bandits finish their shakedown from the bushes. Once they leave, you search the cart they left behind.",
-  "sneak_fail": "A twig snaps underfoot - the bandits spin around, weapons already leveled.",
-  "ignore": "You leave the merchants to their fate and press on, their cries fading behind you.",
+  "sneak_dc": 14,
+  "sneak_success": "You circle wide through the undergrowth and startle the wolves from behind, scattering most of the pack before it notices the child.",
+  "sneak_fail": "The wolves catch your scent on the wind and abandon the child to hunt easier prey - you.",
+  "ignore": "You turn away. Somewhere behind you, the child's screams cut off into silence.",
 
-  "victim": "merchant",
-  "victim_count": [1, 2],
+  "victim": "child",
+  "victim_count": [1, 1],
 
-  "scar_tag": "world_encounter_bandits",
-  "reward_xp": 40,
-  "reward_gold": 20,
+  "scar_tag": "world_encounter_wolves",
+  "reward_xp": 35,
+  "reward_gold": 0,
   "reputation_faction": "northfield",
-  "reputation_delta": 3,
-  "ignored_reputation_delta": -2
+  "reputation_delta": 4,
+  "ignored_reputation_delta": -4
 }

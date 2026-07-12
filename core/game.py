@@ -91,7 +91,12 @@ from core.ui_screens import render_inventory_screen, render_inventory_menu_popup
 from world.map import GameMap
 from world.dungeon_generator import generate_dungeon
 from world.world_generator import generate_overworld
-from world.world_map import generate_world_map, OVERWORLD_CHUNK_WIDTH, OVERWORLD_CHUNK_HEIGHT
+from world.world_map import (
+    generate_world_map,
+    OVERWORLD_CHUNK_WIDTH,
+    OVERWORLD_CHUNK_HEIGHT,
+    world_to_chunk_local_position,
+)
 from world.encounters.prison_cell import (
     handle_prison_door_interaction, PrisonDoorTile, is_prison_cell_position
 )
@@ -355,6 +360,12 @@ class Game:
         # GameExecutionContext.destroy_landmark()/restore_landmark() (see
         # story_integration.py) -- populated by _register_story_landmarks().
         self.landmark_registry = {}
+        # chunk_coord -> list of story-spawned entities waiting for that
+        # chunk to actually be generated (see _place_story_entity_in_chunk()),
+        # for the edge case where a story activates near a chunk boundary
+        # and one of its npc_spawns falls just across it into a chunk the
+        # player hasn't stepped into yet.
+        self._pending_story_npc_spawns = {}
 
         self.stories = StorySystems(self)
         print("STORY LOAD:", list(self.stories.load_report.loaded.keys()), "errors:", self.stories.load_report.errors)
@@ -724,20 +735,67 @@ class Game:
         resolve against it using the id the story JSON gave it. Safe to
         call again if a story is resumed after a pause -- already-spawned
         NPCs are skipped.
+
+        Story content (search_area/objects/npcs positions) is authored in
+        the same global overworld tile space as `requirements.location`
+        (see world_map.chunk_local_to_world_position/
+        world_to_chunk_local_position) -- NOT the chunk-local x/y that
+        self.entities and self.game_map actually use. Each spawn is
+        converted to its (chunk_coord, local_position) here before it
+        touches anything chunk-shaped:
+          - if that chunk is already generated, the entity is appended to
+            its persistent chunk["population"] list (surviving the
+            player leaving and re-entering, the same as any other
+            overworld monster group), and to self.entities immediately
+            if that chunk happens to be the one currently loaded;
+          - if the chunk hasn't been generated yet, the spawn is queued
+            in self._pending_story_npc_spawns and drained into
+            chunk["population"] the moment generate_overworld_map()
+            actually creates that chunk.
         """
         if story.search_area is None:
             return
         for spawn in story.search_area.get_objects_by_type("npc_spawn"):
             if spawn.id in self.npc_registry:
                 continue
-            entity = self._build_story_npc_entity(spawn)
-            if entity is not None:
-                self.npc_registry[spawn.id] = entity
-                self.entities.append(entity)
 
-    def _build_story_npc_entity(self, spawn):
+            chunk_coord, local_position = world_to_chunk_local_position(spawn.position)
+            entity = self._build_story_npc_entity(spawn, local_position)
+            if entity is None:
+                continue
+
+            self.npc_registry[spawn.id] = entity
+            self._place_story_entity_in_chunk(entity, chunk_coord)
+
+    def _place_story_entity_in_chunk(self, entity, chunk_coord):
         """
-        Builds the actual entity for one "npc_spawn" StoryObject. Hostile
+        Adds a story-spawned entity to whichever chunk it belongs to,
+        persistently (chunk["population"]) if that chunk already exists,
+        or queued for the moment it's generated otherwise. Also drops it
+        into self.entities right away when that chunk is the one
+        currently loaded, so it's visible/interactable without requiring
+        a chunk reload. Shared by _spawn_story_npcs() above and
+        spawn_story_npc() below (the `spawn_npc` Consequence hook), so
+        both paths place entities consistently.
+        """
+        chunk = self.overworld_chunks.get(chunk_coord)
+        if chunk is not None:
+            chunk.setdefault("population", []).append(entity)
+        else:
+            self._pending_story_npc_spawns.setdefault(chunk_coord, []).append(entity)
+
+        if (
+            self.game_state == GameState.OVERWORLD
+            and chunk_coord == self.overworld_chunk_coord
+            and entity not in self.entities
+        ):
+            self.entities.append(entity)
+
+    def _build_story_npc_entity(self, spawn, local_position):
+        """
+        Builds the actual entity for one "npc_spawn" StoryObject, placed
+        at `local_position` (already converted to chunk-local tile
+        coordinates by the caller -- see _spawn_story_npcs()). Hostile
         entries (`data["hostile"]`) become real Monsters looked up via
         STORY_NPC_MONSTER_CLASSES by `data["type"]`, tagged with the
         story's own group_id so kill_npc triggers can match them (see
@@ -748,7 +806,7 @@ class Game:
         role that factory's presets don't recognize.
         """
         data = spawn.data
-        x, y = int(spawn.position[0]), int(spawn.position[1])
+        x, y = local_position
 
         if data.get("hostile"):
             monster_cls = self.STORY_NPC_MONSTER_CLASSES.get(data.get("type"))
