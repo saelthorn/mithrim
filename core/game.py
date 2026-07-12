@@ -345,8 +345,18 @@ class Game:
         self.available_races      = self._current_lineages
         self.selected_race_index  = 0
 
+        # id -> live entity, for every NPC the story engine knows about --
+        # read by GameConditionContext.is_npc_alive() and written by
+        # _spawn_story_npcs()/spawn_story_npc()/spawn_story_merchant() below.
+        self.npc_registry = {}
+        # id -> the StoryObject it was destroyed from, for
+        # GameExecutionContext.destroy_landmark()/restore_landmark() (see
+        # story_integration.py) -- populated by _register_story_landmarks().
+        self.landmark_registry = {}
+
         self.stories = StorySystems(self)
         self.world_encounter_scenarios = self._load_world_encounter_scenarios()
+        self._wire_story_npc_spawning()
 
         self.race_class_visuals = {
             # ── Human ─────────────────────────────────────────────────────
@@ -664,6 +674,143 @@ class Game:
                 continue
             scenarios.append(data)
         return scenarios
+
+    # --- Authored-story NPCs & landmarks -----------------------------------
+    # Full quests (content/stories/*.json, loaded by StorySystems at startup
+    # -- see story_content_loader.py) can declare their own cast up front via
+    # an "npcs" block, e.g. Hollow_Shrine.json's cultist guards or
+    # Missing_Trader.json's raiders and captive. StoryContentLoader stores
+    # those declarations as content-only "npc_spawn" StoryObjects inside
+    # each story's SearchArea; the methods below are the game-specific half
+    # that turns them into real entities once a story actually starts, the
+    # same division of labor WORLD_ENCOUNTER_MONSTER_CLASSES/
+    # _spawn_world_encounter_monsters() already use for world encounters.
+
+    STORY_NPC_MONSTER_CLASSES = {
+        "cultist": Cultist,
+        "goblin": Goblin,
+        "goblin_archer": GoblinArcher,
+        "orc": Orc,
+        "wolf": Wolf,
+        "skeleton": Skeleton,
+        "skeleton_archer": SkeletonArcher,
+        "imp": Imp,
+        "bandit": Goblin,  # no dedicated Bandit class yet -- reuses Goblin's stats/AI
+    }
+
+    def _wire_story_npc_spawning(self):
+        """
+        Subscribes every story already loaded by StorySystems (see
+        StorySystems.__init__ -> StoryContentLoader.load_directory()) to
+        spawn its declared NPCs and register its landmarks the moment it
+        starts (STORY_STARTED). Called once from Game.__init__, right
+        after self.stories is constructed.
+        """
+        for story in self.stories.story_manager.list_stories():
+            director = self.stories.story_manager.get_director(story.id)
+            if director is not None:
+                director.on(StoryEvent.STORY_STARTED, self._spawn_story_npcs)
+                director.on(StoryEvent.STORY_STARTED, self._register_story_landmarks)
+
+    def _spawn_story_npcs(self, story, **_context):
+        """
+        STORY_STARTED hook: spawns every "npc_spawn" StoryObject in this
+        story's SearchArea as a real world entity, tagged so kill_npc/
+        talk_npc triggers and GameConditionContext.is_npc_alive() all
+        resolve against it using the id the story JSON gave it. Safe to
+        call again if a story is resumed after a pause -- already-spawned
+        NPCs are skipped.
+        """
+        if story.search_area is None:
+            return
+        for spawn in story.search_area.get_objects_by_type("npc_spawn"):
+            if spawn.id in self.npc_registry:
+                continue
+            entity = self._build_story_npc_entity(spawn)
+            if entity is not None:
+                self.npc_registry[spawn.id] = entity
+                self.entities.append(entity)
+
+    def _build_story_npc_entity(self, spawn):
+        """
+        Builds the actual entity for one "npc_spawn" StoryObject. Hostile
+        entries (`data["hostile"]`) become real Monsters looked up via
+        STORY_NPC_MONSTER_CLASSES by `data["type"]`, tagged with the
+        story's own group_id so kill_npc triggers can match them (see
+        story_integration.py's fire_kill). Everything else becomes an
+        EncounterVictim-style NPC through the same make_encounter_victims()
+        factory the world-encounter victims use (dungeon_npcs.py), keyed
+        off `role` and falling back to `type`, then "merchant", for any
+        role that factory's presets don't recognize.
+        """
+        data = spawn.data
+        x, y = int(spawn.position[0]), int(spawn.position[1])
+
+        if data.get("hostile"):
+            monster_cls = self.STORY_NPC_MONSTER_CLASSES.get(data.get("type"))
+            if monster_cls is None:
+                return None
+            entity = monster_cls(x, y)
+            entity.group_id = data.get("group_id")
+        else:
+            victims = (
+                make_encounter_victims(data.get("role"), 1, [(x, y)])
+                or make_encounter_victims(data.get("type"), 1, [(x, y)])
+                or make_encounter_victims("merchant", 1, [(x, y)])
+            )
+            if not victims:
+                return None
+            entity = victims[0]
+
+        entity.id = spawn.id
+        return entity
+
+    def _register_story_landmarks(self, story, **_context):
+        """
+        STORY_STARTED hook: registers every non-NPC StoryObject in this
+        story's SearchArea (shrines, wagons, journals, ...) into
+        self.landmark_registry, so GameExecutionContext.destroy_landmark()
+        (story_integration.py) has something real to find and remove when
+        a trigger's `destroy_landmark` consequence fires.
+        """
+        if story.search_area is None:
+            return
+        for obj in story.search_area.get_all_objects():
+            if obj.object_type != "npc_spawn":
+                self.landmark_registry[obj.id] = obj
+
+    def spawn_story_npc(self, npc_type, position, data=None):
+        """
+        ExecutionContext.spawn_npc hook (story_integration.py): fires
+        whenever a story's `spawn_npc` Consequence runs, e.g. a stage's
+        on_enter reward such as Missing_Trader.json's "wolf_pack_marker".
+        Reuses STORY_NPC_MONSTER_CLASSES; falls back to an inert
+        "unspawned:" id (matching story_integration.py's own default) for
+        marker types with no monster class, since those exist to advance
+        the story rather than to be fought.
+        """
+        monster_cls = self.STORY_NPC_MONSTER_CLASSES.get(npc_type)
+        if monster_cls is None:
+            return f"unspawned:{npc_type}"
+        x, y = int(position[0]), int(position[1])
+        entity = monster_cls(x, y)
+        entity.id = (data or {}).get("id", f"{npc_type}:{id(entity):x}")
+        entity.group_id = (data or {}).get("group_id")
+        self.entities.append(entity)
+        self.npc_registry[entity.id] = entity
+        return entity.id
+
+    def spawn_story_merchant(self, merchant_type, position, inventory=None):
+        """ExecutionContext.spawn_merchant hook (story_integration.py):
+        spawns a generic DungeonMerchant for a story's `spawn_merchant`
+        Consequence. `inventory`/`merchant_type` are accepted for schema
+        compatibility but not yet used to customize wares."""
+        x, y = int(position[0]), int(position[1])
+        entity = DungeonMerchant(x, y)
+        entity.id = f"{merchant_type}:{id(entity):x}"
+        self.entities.append(entity)
+        self.npc_registry[entity.id] = entity
+        return entity.id
 
     def _maybe_trigger_world_encounter(self):
         """

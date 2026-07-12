@@ -216,7 +216,7 @@ class StoryContentLoader:
         by design -- keep one story pack's directory flat and let the
         content pipeline organize packs as separate roots)."""
         report = LoadReport()
-        for path in sorted(Path(root).glob("content/stories/*.json")):
+        for path in sorted(Path(root).glob("*.json")):
             self._load_one(path, report)
         return report
 
@@ -239,17 +239,21 @@ class StoryContentLoader:
 
         built: List[str] = []
         for chain_id, blocks in by_chain.items():
-            nodes = [
-                ChainNode(
+            if chain_manager.get_chain(chain_id) is not None:
+                continue  # already registered -- see docstring
+
+            chain = StoryChain(chain_id=chain_id)
+            for block in blocks:
+                node = ChainNode(
                     node_id=block["node_id"],
                     story_id=block["story_id"],
                     ending_id=block.get("ending_id"),
                     exclusive=block.get("exclusive", True),
                 )
-                for block in blocks
-            ]
-            chain = StoryChain(chain_id=chain_id, nodes=nodes)
+                chain.add_node(node, root=block.get("root", False))
+
             for block in blocks:
+                node = chain.nodes[block["node_id"]]
                 for edge_data in block.get("edges", []):
                     edge = ChainEdge(
                         outcome=edge_data["outcome"],
@@ -257,7 +261,8 @@ class StoryContentLoader:
                         condition=self._resolve_condition(edge_data.get("condition"), block["story_id"]),
                         consequences=[consequence_from_dict(c) for c in edge_data.get("consequences", [])],
                     )
-                    chain.get_node(block["node_id"]).add_edge(edge)
+                    node.add_edge(edge)
+
             chain_manager.register_chain(chain)
             built.append(chain_id)
         return built
@@ -303,6 +308,7 @@ class StoryContentLoader:
 
         self._apply_search_area(story, data.get("search_area"))
         self._apply_objects(director, data.get("objects", []), source)
+        self._apply_npcs(director, data.get("npcs", []), source)
         self._apply_triggers(story, data.get("triggers", []), story_id)
         self._apply_dialogue(story_id, data.get("dialogue", {}))
         self._apply_rewards(director, data.get("rewards", {}), stages)
@@ -361,6 +367,35 @@ class StoryContentLoader:
                 "position": obj_data["position"],
                 "repeatable": obj_data.get("repeatable", False),
                 "data": obj_data.get("data", {}),
+            }
+            story_object = story_object_from_dict(payload)
+            director.story.search_area.add_object(story_object)
+
+    def _apply_npcs(self, director: StoryDirector, npcs_data: List[Dict[str, Any]], source: str) -> None:
+        """
+        Registers each declared NPC ("npcs" in the schema -- see
+        Hollow_Shrine.json/Missing_Trader.json) as a generic "npc_spawn"
+        StoryObject in the story's SearchArea, same spirit as
+        _apply_objects() above: this module stays framework-only and
+        never spawns a real game entity itself. Every field besides `id`
+        and `position` (type, role, hostile, group_id, dialogue_id, ...)
+        rides along in `.data` untouched, for the host to interpret --
+        see story_integration.py's StorySystems and game.py's
+        _spawn_story_npcs(), which is what actually turns these into
+        real monsters/NPCs once the story starts.
+        """
+        if not npcs_data:
+            return
+        if director.story.search_area is None:
+            raise StoryContentError("'npcs' declared but no 'search_area' was given", source)
+        for npc_data in npcs_data:
+            payload = {
+                "story_id": director.story.id,
+                "object_type": "npc_spawn",
+                "id": npc_data["id"],
+                "position": npc_data["position"],
+                "repeatable": True,
+                "data": {key: value for key, value in npc_data.items() if key not in ("id", "position")},
             }
             story_object = story_object_from_dict(payload)
             director.story.search_area.add_object(story_object)

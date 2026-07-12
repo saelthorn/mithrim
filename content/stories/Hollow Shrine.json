@@ -137,8 +137,9 @@
       "text": "Please -- we're not raiders. This shrine holds something back. Break it and you won't like what wakes.",
       "choices": [
         { "text": "Destroy the shrine anyway.", "next": "shrine_choice",
-          "consequences": [ { "type": "give_item", "item_id": "flag_chose_destroy", "count": 0 } ] },
-        { "text": "Leave the shrine intact.", "next": "shrine_choice" }
+          "consequences": [ { "type": "set_flag", "story_id": "hollow_shrine", "key": "chose_destroy", "value": true } ] },
+        { "text": "Leave the shrine intact.", "next": "shrine_choice",
+          "consequences": [ { "type": "set_flag", "story_id": "hollow_shrine", "key": "chose_spare", "value": true } ] }
       ]
     },
     "shrine_choice": {
@@ -184,9 +185,9 @@
     "exclusive": false,
     "edges": [
       { "outcome": "completed", "next_node_id": "cult_reprisal",
-        "condition": { "type": "quest_flag", "story_id": "hollow_shrine", "key": "chose_destroy", "value": true } },
+        "condition": { "type": "quest_flag", "story_id": "hollow_shrine", "flag_name": "chose_destroy", "expected": true } },
       { "outcome": "completed", "next_node_id": "sanctum_secrets",
-        "condition": { "type": "quest_flag", "story_id": "hollow_shrine", "key": "chose_spare", "value": true } },
+        "condition": { "type": "quest_flag", "story_id": "hollow_shrine", "flag_name": "chose_spare", "expected": true } },
       { "outcome": "failed", "next_node_id": "cult_expansion" }
     ]
   }

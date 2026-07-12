@@ -200,6 +200,18 @@ class Grave(StoryObject):
     default_object_type = "grave"
 
 
+class NPCSpawn(StoryObject):
+    """
+    A declared NPC waiting to be spawned as a real game entity once its
+    story starts -- see story_content_loader.py's `npcs` schema and the
+    host's own spawn step (e.g. game.py's _spawn_story_npcs()). Framework-
+    only, same as every other StoryObject subclass here: carries no
+    behavior of its own, only the type/role/hostile/group_id/dialogue_id
+    the host needs, stashed in `.data` by the loader.
+    """
+    default_object_type = "npc_spawn"
+
+
 # Registry mapping object_type tag -> class, so serialized data can be
 # reconstructed as the correct subclass instead of the generic base.
 STORY_OBJECT_TYPES: Dict[str, type] = {
@@ -216,6 +228,7 @@ STORY_OBJECT_TYPES: Dict[str, type] = {
         Banner,
         Blood,
         Grave,
+        NPCSpawn,
     )
 }
 

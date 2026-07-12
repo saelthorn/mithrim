@@ -631,6 +631,80 @@ class UnlockRegionConsequence(Consequence):
         return f"UnlockRegionConsequence({self.region_id})"
 
 
+@register_consequence("despawn_entity")
+class DespawnEntityConsequence(Consequence):
+    """
+    Despawns a previously-spawned entity by id -- an NPC/merchant spawned
+    via SpawnNPCConsequence/SpawnMerchantConsequence, or any other entity
+    the host's ExecutionContext knows about (see game.py's npc_registry).
+    Not reversible on its own: undoing a despawn would require re-spawning
+    with the exact original type/position/data, which this consequence is
+    never given. Pair it with that entity's own spawn Consequence in a
+    ConsequenceChain if round-trip undo is needed.
+    """
+
+    def __init__(self, entity_id: str, consequence_id: Optional[str] = None):
+        super().__init__(consequence_id)
+        self.entity_id = entity_id
+
+    def _apply(self, context: ExecutionContext) -> None:
+        context.despawn_entity(self.entity_id)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"type": "despawn_entity", "id": self.id, "entity_id": self.entity_id}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "DespawnEntityConsequence":
+        return cls(entity_id=data["entity_id"], consequence_id=data.get("id"))
+
+    def __repr__(self) -> str:
+        return f"DespawnEntityConsequence({self.entity_id})"
+
+
+@register_consequence("set_flag")
+class SetFlagConsequence(Consequence):
+    """
+    Sets a story flag through its StoryDirector -- e.g. a dialogue
+    choice's `consequences` recording which branch the player picked
+    (Hollow_Shrine.json's "chose_destroy"/"chose_spare"), for a later
+    TriggerRule.required_flags or Condition to key off. Reaches through
+    `context.story_manager` the same way UnlockStoryConsequence does,
+    since flag state lives on the StoryInstance/StoryDirector, not on
+    the host's own ExecutionContext.
+    """
+
+    is_reversible = True
+
+    def __init__(self, story_id: str, key: str, value: Any = True, consequence_id: Optional[str] = None):
+        super().__init__(consequence_id)
+        self.story_id = story_id
+        self.key = key
+        self.value = value
+
+    def _apply(self, context: ExecutionContext) -> Any:
+        director = context.story_manager.get_director(self.story_id)
+        if director is None:
+            raise RuntimeError(f"No loaded story director for {self.story_id!r}")
+        previous = director.story.get_flag(self.key)
+        director.set_flag(self.key, self.value)
+        return previous
+
+    def _undo(self, context: ExecutionContext, undo_data: Any) -> None:
+        director = context.story_manager.get_director(self.story_id)
+        if director is not None:
+            director.set_flag(self.key, undo_data)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"type": "set_flag", "id": self.id, "story_id": self.story_id, "key": self.key, "value": self.value}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "SetFlagConsequence":
+        return cls(story_id=data["story_id"], key=data["key"], value=data.get("value", True), consequence_id=data.get("id"))
+
+    def __repr__(self) -> str:
+        return f"SetFlagConsequence({self.story_id}.{self.key} = {self.value!r})"
+
+
 # ---------------------------------------------------------------------------
 # ConsequenceExecutor
 # ---------------------------------------------------------------------------

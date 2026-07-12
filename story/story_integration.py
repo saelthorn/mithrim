@@ -153,8 +153,9 @@ class GameExecutionContext:
     def despawn_entity(self, entity_id: str) -> None:
         registry = getattr(self.game, "npc_registry", {})
         npc = registry.pop(entity_id, None)
-        if npc is not None and hasattr(self.game, "npcs") and npc in self.game.npcs:
-            self.game.npcs.remove(npc)
+        entities = getattr(self.game, "entities", None)
+        if npc is not None and entities is not None and npc in entities:
+            entities.remove(npc)
 
     def destroy_landmark(self, landmark_id: str) -> Dict[str, Any]:
         landmarks = getattr(self.game, "landmark_registry", {})
