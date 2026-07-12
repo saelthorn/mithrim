@@ -154,7 +154,7 @@ from items.items import (
 )
 
 from core.pathfinding import astar
-from world.tile import floor, dungeon_floor_two, dungeon_floor_three, dungeon_floor_four, MimicTile, TrapTile, FireElementalTile
+from world.tile import floor, dungeon_floor_two, dungeon_floor_three, dungeon_floor_four, MimicTile, TrapTile, FireElementalTile, caravan
 from world.bloodstain import Bloodstain
 from world.altar import Altar
 from world.water_features import river, lake, is_water_tile # NEW: Import water tiles and helper
@@ -678,6 +678,16 @@ class Game:
         "Cultist": Cultist,
     }
 
+    # A world encounter's JSON may declare a "landmark_tile" (e.g.
+    # Bandit_Ambush.json's ransacked "caravan") -- a static map tile
+    # dropped near the player alongside the monsters/victims, giving the
+    # scene a physical prop instead of only narration. Resolved by name
+    # at spawn time via _spawn_world_encounter_landmark_tile(); scenarios
+    # that omit "landmark_tile" simply skip that step.
+    WORLD_ENCOUNTER_TILE_TYPES = {
+        "caravan": caravan,
+    }
+
     def _load_world_encounter_scenarios(self):
         """
         Loads every *.json file under WORLD_ENCOUNTER_CONTENT_ROOT into a
@@ -950,6 +960,37 @@ class Game:
         self.stories.failure_manager.register_policy(director.story.id, policy)
         return director.story.id
 
+    def _spawn_world_encounter_landmark_tile(self, scenario, spawn_candidates):
+        """
+        Places this scenario's "landmark_tile" (see WORLD_ENCOUNTER_TILE_TYPES,
+        e.g. Bandit_Ambush.json's ransacked "caravan") directly on the
+        overworld map, as close to the player as the open spawn candidates
+        from _spawn_world_encounter_monsters allow -- giving the scene a
+        physical prop matching its discovery text ("rifling through their
+        cart") instead of only narration. A no-op for scenarios that don't
+        declare one.
+
+        Pops its chosen position out of `spawn_candidates` in place, so the
+        monsters/victims spawned right after this never land on top of it.
+        """
+        tile_key = scenario.get("landmark_tile")
+        if tile_key is None or not spawn_candidates:
+            return
+
+        tile_template = self.WORLD_ENCOUNTER_TILE_TYPES.get(tile_key)
+        if tile_template is None:
+            return
+
+        anchor_x, anchor_y = self.player.x, self.player.y
+        closest_position = min(
+            spawn_candidates,
+            key=lambda pos: (pos[0] - anchor_x) ** 2 + (pos[1] - anchor_y) ** 2,
+        )
+        spawn_candidates.remove(closest_position)
+
+        x, y = closest_position
+        self.game_map.tiles[y][x] = tile_template
+
     def _spawn_world_encounter_monsters(self, scenario, surprised=False, asleep=False):
         """
         Drops the scenario's hostile monsters near the player once the
@@ -985,6 +1026,8 @@ class Game:
 
         if not spawn_candidates:
             return []
+
+        self._spawn_world_encounter_landmark_tile(scenario, spawn_candidates)
 
         min_count, max_count = scenario["monster_count"]
         num_to_spawn = min(random.randint(min_count, max_count), len(spawn_candidates))

@@ -276,7 +276,7 @@ def setup_tile_mapping():
         'CUL': (13 * CELL_DIM, 8 * CELL_DIM), # Cultist
         'pnp': (13 * CELL_DIM, 9 * CELL_DIM),   # Prisoner (NPC) 
 
-
+        'crv': (14 * CELL_DIM, 7 * CELL_DIM), # Caravan (Landmark)
 
         # Tavern Entities and Misc.
         'H': (6 * CELL_DIM,   0 * CELL_DIM),  # Healer (NPC)        

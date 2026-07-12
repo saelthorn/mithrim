@@ -64,6 +64,11 @@ tree = Tile(blocked=False, char='tre', color=(25, 80, 35), block_sight=True, des
 dungeon_entrance = Tile(blocked=False, char='>', color=(230, 192, 0), name="Dungeon Entrance")
 mountain = Tile(blocked=True, char='mnt', color=(100, 100, 100), block_sight=True, destructible=False, name="Mountain")
 
+# World-encounter landmark props (see game.py's WORLD_ENCOUNTER_TILE_TYPES) --
+# placed directly on the overworld map near the player when a scenario
+# declares a "landmark_tile" (e.g. Bandit_Ambush.json's ransacked cart).
+caravan = Tile(blocked=True, char='crv', color=(139, 90, 43), block_sight=False, destructible=True, name="Caravan")
+
 # Overworld terrain decoration (non-POI nature features)
 clearing = Tile(blocked=False, char='cl', color=(20, 100, 20), name="Clearing")
 giant_tree = Tile(blocked=False, char='GT', color=(15, 50, 20), block_sight=True, name="Giant Tree")

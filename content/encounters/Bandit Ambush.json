@@ -2,6 +2,7 @@
   "id": "world_encounter_bandits",
 
   "discovery": "Bandits have cornered a group of merchants, rifling through their cart.",
+  "landmark_tile": "caravan",
   "monster_pool": ["Goblin", "Goblin", "GoblinArcher", "Orc"],
   "monster_count": [2, 3],
 
