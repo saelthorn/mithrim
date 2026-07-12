@@ -183,20 +183,16 @@ def chunk_local_to_world_position(chunk_coord, local_position):
     return (world_x, world_y)
 
 
-def world_to_chunk_local_position(world_position):
+def world_position_to_chunk_local(world_position):
     """
     Inverse of chunk_local_to_world_position(): given a global tile
-    coordinate (e.g. a StoryObject's or npc_spawn's `position`, declared
-    in story JSON using the same global space as `requirements.location`
-    -- see story_content_loader.py/Hollow_Shrine.json), return the
-    ``(chunk_coord, local_position)`` it falls in.
-
-    Callers that place something onto a specific chunk's GameMap (an
-    NPC entity's x/y, a landmark's on-screen position) need the
-    chunk-local half; callers that only care about *which* chunk a
-    story's content belongs to (to know whether it's the one currently
-    loaded) need the chunk_coord half. Both come from here so the floor
-    division/modulo only happens in one place.
+    position (e.g. a story's search_area/StoryObject position, which
+    story_content_loader.py places in the same global space as
+    ActivationRequirement.location), return the (chunk_coord,
+    local_position) pair needed to check it against whatever is
+    currently rendered/adjacent in game.py -- game.entities, tile
+    lookups, and adjacency checks like check_overworld_npc_interaction()
+    all operate in chunk-local coordinates, not global ones.
     """
     world_x, world_y = world_position
     chunk_x, local_x = divmod(int(world_x), OVERWORLD_CHUNK_WIDTH)

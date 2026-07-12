@@ -236,6 +236,13 @@ class StorySystems:
         )
         self.chain_manager = StoryChainManager(self.story_manager, self.queue_manager)
 
+        # Player turns accumulated since world_time last ticked forward by
+        # a minute -- see advance_turn(). A whole-number counter (rather
+        # than the old fractional-hours accumulator) means the clock only
+        # ever moves in exact, whole minutes -- never a rounding-prone
+        # fraction of one.
+        self._turns_since_last_minute: int = 0
+
         self.condition_context = GameConditionContext(game, self.story_manager, self.scar_registry)
         self.execution_context = GameExecutionContext(game, self.story_manager)
         self.story_manager.set_condition_context(self.condition_context)
@@ -263,16 +270,46 @@ class StorySystems:
     # -- per-frame tick -------------------------------------------------------
 
     def update(self, dt: float) -> None:
-        """Call once per frame/turn from Game.update(). Advances world
-        time by whole in-game hours as they accumulate in dt, and lets
-        the queue manager sweep dormant stories for newly-met requirements."""
-        hours = getattr(self.game, "hours_per_tick", 0)
-        if hours:
-            self.world_time.advance(hours, TimeUnit.HOUR)
+        """
+        Call once per frame from Game.update(). This is a turn-based
+        game, so world time itself no longer moves here on a real-time
+        clock -- see advance_turn(), called from game.py's next_turn()
+        so world time only advances with actual player actions (moving,
+        fighting, waiting, ...) or explicit rest (fire_rest()), never
+        with real wall-clock time. This still runs every frame so the
+        queue manager keeps re-checking activation requirements (e.g.
+        distance) against the player's latest position as they walk,
+        independent of whether a full turn has completed yet.
+        """
         self.queue_manager.update(
             player_level=self.condition_context.get_player_level(),
             player_position=self._player_position(),
         )
+
+    def advance_turn(self, moves_per_minute: Optional[int] = None) -> None:
+        """
+        Advance world time by one player turn. Call once per player turn
+        -- see game.py's next_turn(), guarded to only fire when the
+        entity that just acted was the player -- so world time in this
+        turn-based game moves with player actions rather than real time.
+        `moves_per_minute` falls back to `game.moves_per_minute` (a
+        pacing knob, not a design decision made here) if not given; a
+        turn is a no-op if neither is set.
+
+        Turns accumulate in `_turns_since_last_minute`; once
+        `moves_per_minute` of them have passed, the world clock ticks
+        forward by exactly one minute (TimeUnit.MINUTE, not HOUR --
+        advancing by whole hours here was the old bug that made world
+        time visibly crawl in hour-sized jumps instead of ticking
+        smoothly with the player's moves).
+        """
+        moves_per_minute = moves_per_minute if moves_per_minute is not None else getattr(self.game, "moves_per_minute", 0)
+        if not moves_per_minute:
+            return
+        self._turns_since_last_minute += 1
+        if self._turns_since_last_minute >= moves_per_minute:
+            self._turns_since_last_minute -= moves_per_minute
+            self.world_time.advance(1, TimeUnit.MINUTE)
 
     def _player_position(self) -> Optional[Tuple[float, float]]:
         """

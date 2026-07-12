@@ -71,6 +71,7 @@ class TimeUnit(Enum):
     scheduling math (no calendar-specific leap/short-month handling) --
     change here if Mithrim later wants a real calendar.
     """
+    MINUTE = 1 / 60
     HOUR = 1
     DAY = 24
     WEEK = 24 * 7
@@ -89,54 +90,79 @@ class WorldClock:
     """
     The single source of truth for world time.
 
-    Time is stored as one integer: total whole hours elapsed since world
-    start. Day/week/month are computed properties derived from that
-    integer, so they can never drift out of sync with each other --
-    there is exactly one number to advance.
+    Time is stored as one integer: total whole *minutes* elapsed since
+    world start. Hour/day/week/month are computed properties derived
+    from that integer, so they can never drift out of sync with each
+    other -- there is exactly one number to advance.
+
+    Minutes, not hours, are the canonical unit specifically so that
+    per-minute advances (see story_integration.py's advance_turn(),
+    which ticks the clock forward one minute at a time as the player
+    takes turns) always land on a whole number. Storing whole hours
+    instead used to mean minute-sized advances either got silently
+    dropped or produced a fractional value that broke the ":02d" time
+    readout in game.py's render() -- the clock only ever "safely" moved
+    in hour-sized jumps as a result.
     """
 
+    _MINUTES_PER_HOUR = 60
+
     def __init__(self, start_hour: int = 0):
-        self._total_hours: int = start_hour
+        self._total_minutes: int = start_hour * self._MINUTES_PER_HOUR
 
     # -- getters (computed, never stored) ----------------------------------
 
     @property
+    def total_minutes(self) -> int:
+        return self._total_minutes
+
+    @property
     def total_hours(self) -> int:
-        return self._total_hours
+        return self._total_minutes // self._MINUTES_PER_HOUR
+
+    @property
+    def minute_of_hour(self) -> int:
+        return self._total_minutes % self._MINUTES_PER_HOUR
 
     @property
     def hour_of_day(self) -> int:
-        return self._total_hours % TimeUnit.DAY.hours
+        return self.total_hours % TimeUnit.DAY.hours
 
     @property
     def day(self) -> int:
-        return self._total_hours // TimeUnit.DAY.hours
+        return self.total_hours // TimeUnit.DAY.hours
 
     @property
     def week(self) -> int:
-        return self._total_hours // TimeUnit.WEEK.hours
+        return self.total_hours // TimeUnit.WEEK.hours
 
     @property
     def month(self) -> int:
-        return self._total_hours // TimeUnit.MONTH.hours
+        return self.total_hours // TimeUnit.MONTH.hours
 
     # -- advancing ------------------------------------------------------------
 
     def advance(self, amount: int, unit: TimeUnit = TimeUnit.HOUR) -> int:
         """
         Move the clock forward by `amount` of `unit`. Returns the new
-        total_hours. This is the only method that changes world time --
-        everything else on this class is read-only.
+        total_hours (whole hours -- so TimeScheduler and the TIME_PASSED
+        trigger, which both key off hours, never see a fractional value
+        even when `unit` is TimeUnit.MINUTE). This is the only method
+        that changes world time -- everything else on this class is
+        read-only.
         """
         if amount < 0:
             raise ValueError("WorldClock cannot advance by a negative amount")
-        self._total_hours += amount * unit.hours
-        return self._total_hours
+        # round() absorbs the tiny float error from unit.hours (e.g.
+        # TimeUnit.MINUTE is 1/60) so total_minutes always stays a
+        # clean integer instead of drifting by fractions of a minute.
+        self._total_minutes += round(amount * unit.hours * self._MINUTES_PER_HOUR)
+        return self.total_hours
 
     def __repr__(self) -> str:
         return (
-            f"WorldClock(day={self.day}, hour={self.hour_of_day}, "
-            f"total_hours={self._total_hours})"
+            f"WorldClock(day={self.day}, hour={self.hour_of_day}, minute={self.minute_of_hour}, "
+            f"total_hours={self.total_hours})"
         )
 
 

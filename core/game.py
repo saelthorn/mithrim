@@ -95,7 +95,7 @@ from world.world_map import (
     generate_world_map,
     OVERWORLD_CHUNK_WIDTH,
     OVERWORLD_CHUNK_HEIGHT,
-    world_to_chunk_local_position,
+    world_position_to_chunk_local,
 )
 from world.encounters.prison_cell import (
     handle_prison_door_interaction, PrisonDoorTile, is_prison_cell_position
@@ -367,8 +367,25 @@ class Game:
         # player hasn't stepped into yet.
         self._pending_story_npc_spawns = {}
 
+        # How many player turns pass before world_time.py's WorldClock
+        # ticks forward by one minute (see story_integration.py's
+        # StorySystems.advance_turn(), called from next_turn() below).
+        # This is a turn-based game, so the clock advances with player
+        # actions, not real wall-clock time -- resting still advances it
+        # separately and explicitly via self.stories.fire_rest().
+        #
+        # Without this ticking forward somehow, WorldClock never moves,
+        # which freezes more than just corpse-decay/camp-abandonment timers:
+        # StoryQueueManager's periodic dormant-story sweep is timed off this
+        # same clock, so a story that fails its ActivationRequirement once
+        # (e.g. the player isn't at its location yet) would never be
+        # re-checked again, no matter how close the player later walks.
+        #
+        # 10 moves/minute is a starting point, not a design decision --
+        # tune to taste once you can see it moving alongside actual play.
+        self.moves_per_minute = 10
+
         self.stories = StorySystems(self)
-        print("STORY LOAD:", list(self.stories.load_report.loaded.keys()), "errors:", self.stories.load_report.errors)
         self.world_encounter_scenarios = self._load_world_encounter_scenarios()
         self._wire_story_npc_spawning()
 
@@ -759,7 +776,7 @@ class Game:
             if spawn.id in self.npc_registry:
                 continue
 
-            chunk_coord, local_position = world_to_chunk_local_position(spawn.position)
+            chunk_coord, local_position = world_position_to_chunk_local(spawn.position)
             entity = self._build_story_npc_entity(spawn, local_position)
             if entity is None:
                 continue
@@ -2199,6 +2216,47 @@ class Game:
                         return entity
         return None
 
+    def check_overworld_landmark_interaction(self):
+        """
+        Adjacency check for non-NPC StoryObjects (shrine altars, journals,
+        tracks, wagons, ...) -- the landmark counterpart to
+        check_overworld_npc_interaction() above. Landmarks live in
+        self.landmark_registry (see _register_story_landmarks()), keyed
+        by id, with positions in the same *global* tile coordinate space
+        world_map.chunk_local_to_world_position() converts the player
+        into (see story_integration.py's StorySystems._player_position()).
+        Only landmarks in the player's current chunk can be adjacent, so
+        this converts each candidate back to chunk-local via
+        world_position_to_chunk_local() rather than scanning every
+        landmark in the game against a mismatched coordinate space.
+        """
+        if self.game_state != GameState.OVERWORLD:
+            return None
+        for landmark in self.landmark_registry.values():
+            chunk_coord, (local_x, local_y) = world_position_to_chunk_local(landmark.position)
+            if chunk_coord != self.overworld_chunk_coord:
+                continue
+            if (abs(self.player.x - local_x) <= 1 and
+                abs(self.player.y - local_y) <= 1 and
+                (abs(self.player.x - local_x) + abs(self.player.y - local_y)) == 1):
+                return landmark
+        return None
+
+    def interact_with_landmark(self, landmark):
+        """
+        Handle the player interacting with an adjacent story landmark:
+        advances the owning story via StoryObject.inspect() (per
+        story_integration.py integration note 4), then notifies
+        TriggerRules with the trigger type matching the object -- journals
+        fire read_journal (see Hollow_Shrine.json's "journal_read" rule),
+        everything else fires the generic inspect_object.
+        """
+        landmark.inspect(self.stories.story_manager)
+        if landmark.object_type == "journal":
+            self.stories.fire_read_journal(landmark, instigator=self.player)
+        else:
+            self.stories.fire_inspect(landmark, instigator=self.player)
+
     def try_light_wall_torch(self):
         """
         If the player is adjacent to a wall torch tile and has the 'Torchlight'
@@ -2453,6 +2511,7 @@ class Game:
             if current_acting_entity == self.player:
                 self.player.update_hunger(self)  # Decrease hunger each turn
                 self.player.update_sanity(self)  # Update sanity (torch/darkness effect)
+                self.stories.advance_turn()  # World time moves with player actions, not real time
                 if self.player.hunger < self.player.hunger_threshold:
                     hunger_msgs = [
                         f"{self.player.name}'s stomach growls hungrily...",
@@ -2893,6 +2952,11 @@ class Game:
                             elif npc:
                                 self.message_log.add_message(f'{npc.name}: "{npc.get_dialogue()}"', (200, 200, 255))
                                 self.stories.fire_talk(npc, instigator=self.player)
+                                return True
+
+                            landmark = self.check_overworld_landmark_interaction()
+                            if landmark:
+                                self.interact_with_landmark(landmark)
                                 return True
 
                         merchant = self.check_dungeon_npc_interaction()  # Check for adjacent NPC
@@ -4837,6 +4901,15 @@ class Game:
         fps_text = f"FPS: {int(self.fps)}"
         fps_surface = self.fps_font.render(fps_text, True, (255, 255, 255))  # White color
         self.screen.blit(fps_surface, (10, 10))  # Position at (10, 10) pixels from top-left
+
+        # World clock (world_time.py's WorldClock, via self.stories.world_time) --
+        # "Day N, HH:00", drawn just below the FPS counter. Purely a readout;
+        # nothing here mutates the clock, so it's safe to render every frame
+        # regardless of game_state.
+        clock = self.stories.world_time.clock
+        time_text = f"Day {clock.day}, {clock.hour_of_day:02d}:{clock.minute_of_hour:02d}"
+        time_surface = self.fps_font.render(time_text, True, (230, 210, 160))  # Warm parchment color
+        self.screen.blit(time_surface, (10, 30))
 
         
         # --- Final Display Update ---
