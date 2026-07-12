@@ -48,6 +48,7 @@ from story.story_queue_manager import StoryQueueManager
 from story.story_failure_system import StoryFailureManager, WorldScarRegistry
 from story.story_chain_system import StoryChainManager
 from world.world_time import WorldTimeManager, TimeUnit
+from world.world_map import chunk_local_to_world_position
 from story.story_content_loader import StoryContentLoader, DialogueLibrary
 
 
@@ -274,10 +275,31 @@ class StorySystems:
         )
 
     def _player_position(self) -> Optional[Tuple[float, float]]:
+        """
+        Global overworld tile position for ActivationRequirement distance
+        checks, or None if there isn't a meaningful one right now.
+
+        self.game.player.x/.y are chunk-local (see world_map.py's
+        chunk_local_to_world_position() docstring) -- they only mean
+        "a place in the world" once combined with
+        self.game.overworld_chunk_coord and converted. Outside the
+        OVERWORLD state (character creation, a dungeon, a menu) there is
+        no meaningful overworld position to report, so this returns None
+        rather than a stale/misleading chunk-local pair; a None position
+        makes ActivationRequirement.distance_satisfied() fail closed,
+        exactly like the "no player yet" case already does.
+        """
         player = getattr(self.game, "player", None)
         if player is None:
             return None
-        return (getattr(player, "x", 0.0), getattr(player, "y", 0.0))
+
+        game_state = getattr(self.game, "game_state", None)
+        if getattr(game_state, "name", None) != "OVERWORLD":
+            return None
+
+        chunk_coord = getattr(self.game, "overworld_chunk_coord", (0, 0))
+        local_position = (getattr(player, "x", 0.0), getattr(player, "y", 0.0))
+        return chunk_local_to_world_position(chunk_coord, local_position)
 
     # -- fire_* helpers, one per gameplay event game.py already handles -----
 

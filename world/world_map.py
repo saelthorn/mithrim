@@ -50,6 +50,17 @@ WORLD_MAP_HEIGHT = 100
 _WORLD_MAP_ORIGIN_X = WORLD_MAP_WIDTH // 2
 _WORLD_MAP_ORIGIN_Y = WORLD_MAP_HEIGHT // 2
 
+# Tile dimensions of a single overworld chunk's own GameMap (see game.py's
+# GameMap(OVERWORLD_CHUNK_WIDTH, OVERWORLD_CHUNK_HEIGHT)). Distinct from
+# WORLD_MAP_WIDTH/HEIGHT above, which is the size of the coarse *chunk*
+# grid, not the tile grid inside one chunk -- the two happen to share
+# values right now but measure different things (chunks vs. tiles-per-
+# chunk) and are free to diverge. Defined here, not in game.py, so this
+# module can also own the chunk-local <-> global tile conversion below;
+# game.py imports these rather than keeping its own copy.
+OVERWORLD_CHUNK_WIDTH = 140
+OVERWORLD_CHUNK_HEIGHT = 100
+
 # The fine-grained _biome() thresholds classify individual tiles; at world
 # scale we only need one ChunkBiome per cell, so ocean/beach collapse onto
 # their nearest land biome (a chunk is generated with local water regardless
@@ -141,6 +152,35 @@ class WorldMap:
     def region_transitions_at(self, chunk_coord):
         region_id = self.region_at(chunk_coord)
         return self.region_graph.get(region_id, set())
+
+
+def chunk_local_to_world_position(chunk_coord, local_position):
+    """
+    Convert a chunk-local tile position into a single stable global tile
+    coordinate for the whole unbounded overworld.
+
+    game.py's `self.player.x`/`self.player.y` are local to whichever
+    chunk the player is currently standing in -- both reset to a small
+    range (0..OVERWORLD_CHUNK_WIDTH/HEIGHT) every time the player crosses
+    a chunk boundary via `self.overworld_chunk_coord`. That's fine for
+    rendering and collision within a chunk, but it is *not* directly
+    comparable to any coordinate meant to describe "a place in the
+    world" -- e.g. a story's `requirements.location` in
+    story_content_loader.py/story_queue_manager.py's
+    ActivationRequirement, which is written in global terms (a shrine at
+    (340, 210) several chunks from the start, not "(340, 210) within
+    whichever chunk you happen to be in").
+
+    This is the one place that conversion happens, so every caller
+    (story_integration.py's StorySystems._player_position(), or anything
+    else that needs to compare a chunk-local position against
+    world-scale content) gets the same answer.
+    """
+    chunk_x, chunk_y = chunk_coord
+    local_x, local_y = local_position
+    world_x = chunk_x * OVERWORLD_CHUNK_WIDTH + local_x
+    world_y = chunk_y * OVERWORLD_CHUNK_HEIGHT + local_y
+    return (world_x, world_y)
 
 
 def _normalize_elevation_range(world_map):

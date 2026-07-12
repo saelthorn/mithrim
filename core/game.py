@@ -91,7 +91,7 @@ from core.ui_screens import render_inventory_screen, render_inventory_menu_popup
 from world.map import GameMap
 from world.dungeon_generator import generate_dungeon
 from world.world_generator import generate_overworld
-from world.world_map import generate_world_map
+from world.world_map import generate_world_map, OVERWORLD_CHUNK_WIDTH, OVERWORLD_CHUNK_HEIGHT
 from world.encounters.prison_cell import (
     handle_prison_door_interaction, PrisonDoorTile, is_prison_cell_position
 )
@@ -165,8 +165,10 @@ ASPECT_RATIO = INTERNAL_WIDTH / INTERNAL_HEIGHT
 # generate_level() dungeon map, which is 120x100) so it feels expansive.
 # Walking off the edge of one chunk generates/restores its neighbor at the
 # same size, so the "grid of chunks" tiles together seamlessly.
-OVERWORLD_CHUNK_WIDTH = 140
-OVERWORLD_CHUNK_HEIGHT = 100
+# (OVERWORLD_CHUNK_WIDTH/HEIGHT now live in world.world_map, imported
+# above, since that module also owns the chunk-local <-> global tile
+# coordinate conversion that depends on them -- see
+# world_map.chunk_local_to_world_position().)
 
 
 class Camera:
@@ -355,6 +357,7 @@ class Game:
         self.landmark_registry = {}
 
         self.stories = StorySystems(self)
+        print("STORY LOAD:", list(self.stories.load_report.loaded.keys()), "errors:", self.stories.load_report.errors)
         self.world_encounter_scenarios = self._load_world_encounter_scenarios()
         self._wire_story_npc_spawning()
 
@@ -611,8 +614,8 @@ class Game:
     # ("You hear screams ahead.") and gets a WORLD_ENCOUNTER_MENU choice
     # between investigating, sneaking around, or ignoring it before finding
     # out what's actually going on.
-    WORLD_ENCOUNTER_CHANCE = 0.02           # Rolled once per step taken in the overworld
-    WORLD_ENCOUNTER_COOLDOWN_STEPS = 40     # Minimum steps before another can trigger
+    WORLD_ENCOUNTER_CHANCE = 0.01           # Rolled once per step taken in the overworld
+    WORLD_ENCOUNTER_COOLDOWN_STEPS = 100     # Minimum steps before another can trigger
     WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
 
     WORLD_ENCOUNTER_HOOKS = [
@@ -629,6 +632,7 @@ class Game:
     # search_area, since a world encounter can trigger anywhere the player
     # happens to be walking.
     WORLD_ENCOUNTER_CONTENT_ROOT = "content/encounters"
+    WORLD_CAMPAIGN_CONTENT_ROOT = "content/stories"
 
     # A world encounter's JSON declares its monster_pool as plain class
     # names (e.g. "Goblin") rather than importing Python classes itself --
