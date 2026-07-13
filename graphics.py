@@ -198,6 +198,12 @@ def setup_tile_mapping():
         'ddf': (13 * CELL_DIM, 18 * CELL_DIM), # Dead Forest
 
 
+        'crv': (3 * CELL_DIM, 19 * CELL_DIM), # Caravan (Landmark)
+        'rtc': (6 * CELL_DIM, 19 * CELL_DIM), # Ritual Circle (Landmark)
+        'brc': (7 * CELL_DIM, 19 * CELL_DIM), # Barricade (Landmark)
+        'amt': (13 * CELL_DIM, 18 * CELL_DIM), # Ambush Tree (Landmark)
+
+
         # Elemental Tiles
         'fire': (12 * CELL_DIM, 5 * CELL_DIM),  # Fire
         
@@ -276,7 +282,6 @@ def setup_tile_mapping():
         'CUL': (13 * CELL_DIM, 8 * CELL_DIM), # Cultist
         'pnp': (13 * CELL_DIM, 9 * CELL_DIM),   # Prisoner (NPC) 
 
-        'crv': (12 * CELL_DIM, 7 * CELL_DIM), # Caravan (Landmark)
 
         # Tavern Entities and Misc.
         'H': (6 * CELL_DIM,   0 * CELL_DIM),  # Healer (NPC)        

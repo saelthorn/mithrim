@@ -154,7 +154,7 @@ from items.items import (
 )
 
 from core.pathfinding import astar
-from world.tile import floor, dungeon_floor_two, dungeon_floor_three, dungeon_floor_four, MimicTile, TrapTile, FireElementalTile, caravan
+from world.tile import floor, dungeon_floor_two, dungeon_floor_three, dungeon_floor_four, MimicTile, TrapTile, FireElementalTile, caravan, ritual_circle, barricade, ambush_tree
 from world.bloodstain import Bloodstain
 from world.altar import Altar
 from world.water_features import river, lake, is_water_tile # NEW: Import water tiles and helper
@@ -687,6 +687,9 @@ class Game:
     # that omit "landmark_tile" simply skip that step.
     WORLD_ENCOUNTER_TILE_TYPES = {
         "caravan": caravan,
+        "ritual_circle": ritual_circle,
+        "barricade": barricade,
+        "ambush_tree": ambush_tree,
     }
 
     # The vocabulary of built-in *behaviors* a scenario's "choices" block

@@ -2,8 +2,34 @@
   "id": "world_encounter_cultists",
 
   "discovery": "Cloaked cultists chant around a bound figure atop a crude stone altar.",
+  "landmark_tile": "ritual_circle",
   "monster_pool": ["Skeleton", "Imp", "Skeleton", "Cultist", "Cultist", "Cultist"],
   "monster_count": [2, 4],
+
+  "choices": [
+    {
+      "key": 1,
+      "action": "investigate",
+      "label": "Investigate",
+      "description": "Walk in and see what's happening",
+      "color": [255, 160, 100]
+    },
+    {
+      "key": 2,
+      "action": "sneak",
+      "label": "Sneak Around",
+      "description": "Stealth check to glimpse it unseen",
+      "color": [160, 200, 255]
+    },
+    {
+      "key": 3,
+      "action": "ignore",
+      "label": "Ignore",
+      "description": "ESC also cancels - just keep walking",
+      "color": [150, 150, 150],
+      "is_cancel": true
+    }
+  ],
 
   "sneak_dc": 15,
   "sneak_success": "You creep close enough to catch the ritual's final words before a cultist notices movement at the treeline.",

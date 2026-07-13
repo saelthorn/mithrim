@@ -2,8 +2,34 @@
   "id": "world_encounter_undead",
 
   "discovery": "A handful of town guards are making a desperate last stand against a rising tide of undead.",
+  "landmark_tile": "barricade",
   "monster_pool": ["Skeleton", "Skeleton", "SkeletonArcher"],
   "monster_count": [3, 4],
+
+  "choices": [
+    {
+      "key": 1,
+      "action": "investigate",
+      "label": "Investigate",
+      "description": "Walk in and see what's happening",
+      "color": [255, 160, 100]
+    },
+    {
+      "key": 2,
+      "action": "sneak",
+      "label": "Sneak Around",
+      "description": "Stealth check to glimpse it unseen",
+      "color": [160, 200, 255]
+    },
+    {
+      "key": 3,
+      "action": "ignore",
+      "label": "Ignore",
+      "description": "ESC also cancels - just keep walking",
+      "color": [150, 150, 150],
+      "is_cancel": true
+    }
+  ],
 
   "sneak_dc": 12,
   "sneak_success": "You skirt the battle and slip past while the undead are fully occupied with the guards.",
