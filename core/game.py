@@ -154,7 +154,7 @@ from items.items import (
 )
 
 from core.pathfinding import astar
-from world.tile import floor, dungeon_floor_two, dungeon_floor_three, dungeon_floor_four, MimicTile, TrapTile, FireElementalTile, caravan, ritual_circle, barricade, ambush_tree
+from world.tile import floor, dungeon_floor_two, dungeon_floor_three, dungeon_floor_four, MimicTile, TrapTile, FireElementalTile, caravan, ritual_circle, barricade, ambush_tree, ground
 from world.bloodstain import Bloodstain
 from world.altar import Altar
 from world.water_features import river, lake, is_water_tile # NEW: Import water tiles and helper
@@ -4157,7 +4157,7 @@ class Game:
         
         if skill_check_total >= destruction_dc:
             self.message_log.add_message(f"You successfully smash the {target_tile.name}!", (0, 255, 0))
-            self.game_map.tiles[y][x] = floor
+            self.game_map.tiles[y][x] = ground
             self.minimap_needs_redraw = True # Map changed, redraw minimap
             
             # --- NEW: 10% chance to drop a Lesser Healing Potion ---
