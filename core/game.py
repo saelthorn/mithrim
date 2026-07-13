@@ -639,9 +639,10 @@ class Game:
     # --- World Encounters -------------------------------------------------
     # Narrative interrupts while walking the overworld: instead of every tile
     # silently hiding a monster group, occasionally the player hears a hook
-    # ("You hear screams ahead.") and gets a WORLD_ENCOUNTER_MENU choice
-    # between investigating, sneaking around, or ignoring it before finding
-    # out what's actually going on.
+    # ("You hear screams ahead.") and gets a WORLD_ENCOUNTER_MENU offering
+    # whichever choices the triggered scenario's own JSON declares (see
+    # "choices" in Bandit_Ambush.json and _normalize_world_encounter_
+    # choices()) before finding out what's actually going on.
     WORLD_ENCOUNTER_CHANCE = 0.01           # Rolled once per step taken in the overworld
     WORLD_ENCOUNTER_COOLDOWN_STEPS = 100     # Minimum steps before another can trigger
     WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
@@ -688,6 +689,88 @@ class Game:
         "caravan": caravan,
     }
 
+    # The vocabulary of built-in *behaviors* a scenario's "choices" block
+    # can pick from via each choice's "action" field (see
+    # _resolve_world_encounter_choice() and _normalize_world_encounter_
+    # choices() below). Adding a genuinely new behavior -- not just new
+    # flavor text on an existing one -- means implementing a
+    # `_resolve_world_encounter_<action>()` method and adding its name
+    # here. Everything about *how* a behavior is offered to the player
+    # (its label, description, color, key binding, and whether it cancels
+    # the encounter like Ignore/ESC does) is entirely up to each
+    # scenario's own JSON from this point on -- game.py no longer
+    # hardcodes "there are exactly three options."
+    WORLD_ENCOUNTER_ACTIONS = ("investigate", "sneak", "ignore")
+
+    # Fallback menu for any world-encounter JSON that doesn't declare its
+    # own "choices" block, so existing/older content files keep working
+    # unchanged. New or updated scenarios (see Bandit_Ambush.json) declare
+    # "choices" directly and can offer as many, or as few, options as
+    # they like, in whatever order and with whatever wording they want.
+    DEFAULT_WORLD_ENCOUNTER_CHOICES = [
+        {
+            "key": 1,
+            "action": "investigate",
+            "label": "Investigate",
+            "description": "Walk in and see what's happening",
+            "color": (255, 160, 100),
+        },
+        {
+            "key": 2,
+            "action": "sneak",
+            "label": "Sneak Around",
+            "description": "Stealth check to glimpse it unseen",
+            "color": (160, 200, 255),
+        },
+        {
+            "key": 3,
+            "action": "ignore",
+            "label": "Ignore",
+            "description": "ESC also cancels - just keep walking",
+            "color": (150, 150, 150),
+            "is_cancel": True,
+        },
+    ]
+
+    def _normalize_world_encounter_choices(self, choices, source_name):
+        """
+        Validates a scenario's "choices" block (see Bandit_Ambush.json)
+        and fills in display defaults, called once per file by
+        _load_world_encounter_scenarios(). Falls back to
+        DEFAULT_WORLD_ENCOUNTER_CHOICES entirely if the scenario didn't
+        declare "choices" at all, or if every declared choice turned out
+        to be invalid, so a missing/malformed block never leaves an
+        encounter with an empty menu.
+
+        Each choice needs a "key" (the number key that selects it -- see
+        _world_encounter_choice_for_key()) and an "action" naming one of
+        WORLD_ENCOUNTER_ACTIONS; anything else (label/description/color/
+        is_cancel) is optional and defaulted here. A choice naming an
+        unknown action is dropped, with a load-error message, rather
+        than failing the whole file over one bad entry.
+        """
+        if not choices:
+            return [dict(default) for default in self.DEFAULT_WORLD_ENCOUNTER_CHOICES]
+
+        normalized = []
+        for choice in choices:
+            action = choice.get("action")
+            if action not in self.WORLD_ENCOUNTER_ACTIONS or "key" not in choice:
+                self.message_log.add_message(
+                    f"Encounter load error ({source_name}): invalid choice {choice!r}", (255, 100, 100)
+                )
+                continue
+            normalized.append({
+                "key": choice["key"],
+                "action": action,
+                "label": choice.get("label", action.title()),
+                "description": choice.get("description", ""),
+                "color": tuple(choice.get("color", (200, 200, 200))),
+                "is_cancel": choice.get("is_cancel", False),
+            })
+
+        return normalized or [dict(default) for default in self.DEFAULT_WORLD_ENCOUNTER_CHOICES]
+
     def _load_world_encounter_scenarios(self):
         """
         Loads every *.json file under WORLD_ENCOUNTER_CONTENT_ROOT into a
@@ -711,6 +794,7 @@ class Game:
                 ]
                 data["monster_count"] = tuple(data["monster_count"])
                 data["victim_count"] = tuple(data.get("victim_count", (1, 1)))
+                data["choices"] = self._normalize_world_encounter_choices(data.get("choices"), path.name)
             except (OSError, json.JSONDecodeError, KeyError) as exc:
                 self.message_log.add_message(f"Encounter load error ({path.name}): {exc}", (255, 100, 100))
                 continue
@@ -1158,12 +1242,41 @@ class Game:
 
         return victims
 
+    def _resolve_world_encounter_choice(self, choice):
+        """
+        Dispatches a selected WORLD_ENCOUNTER_MENU choice to its built-in
+        behavior -- one of the WORLD_ENCOUNTER_ACTIONS handlers just
+        below (_resolve_world_encounter_investigate/_sneak/_ignore).
+        Everything about *how* a choice was offered (label, description,
+        color, key, is_cancel) already did its job in the menu; all that
+        matters here is which behavior its "action" names.
+        """
+        resolver = getattr(self, f"_resolve_world_encounter_{choice['action']}")
+        resolver()
+
+    def _world_encounter_choice_for_key(self, key):
+        """
+        Resolves a raw pygame key event to one of the currently-offered
+        scenario's normalized choices (see _normalize_world_encounter_
+        choices()). Digit keys (pygame.K_0 + n == pygame.K_<n> for
+        0 <= n <= 9) match a choice by its own "key" number, however many
+        choices a scenario declares. ESC always matches whichever choice
+        (if any) is flagged "is_cancel" -- e.g. Bandit_Ambush.json's
+        "Ignore" -- regardless of which number key it's also bound to.
+        Returns None if nothing matches (e.g. an unbound digit was pressed).
+        """
+        choices = self._world_encounter_target["choices"]
+        if key == pygame.K_ESCAPE:
+            return next((choice for choice in choices if choice.get("is_cancel")), None)
+        return next((choice for choice in choices if pygame.K_0 + choice["key"] == key), None)
+
     def _resolve_world_encounter_investigate(self):
         """
-        Option 1: walk straight in - reveals the scenario and starts the
-        fight. _spawn_world_encounter_monsters() starts this encounter's
-        StoryInstance and wires its combat-completion reward; the reward
-        itself only fires later, once the last tagged monster dies.
+        "investigate" action: walk straight in - reveals the scenario and
+        starts the fight. _spawn_world_encounter_monsters() starts this
+        encounter's StoryInstance and wires its combat-completion reward;
+        the reward itself only fires later, once the last tagged monster
+        dies.
         """
         scenario = self._world_encounter_target
         self.message_log.add_message(scenario["discovery"], (255, 200, 120))
@@ -1176,7 +1289,7 @@ class Game:
 
     def _resolve_world_encounter_sneak(self):
         """
-        Option 2: DEX (Stealth) check.
+        "sneak" action: DEX (Stealth) check.
         Success - the enemies are spawned asleep, giving the player a choice:
         slip past, or strike one down before the rest ever wake up.
         Failure - spotted; the enemies spawn awake and alerted.
@@ -1209,12 +1322,14 @@ class Game:
 
     def _resolve_world_encounter_ignore(self):
         """
-        Option 3 / ESC: walk on - no fight, no reward. Routed through
-        StoryFailureManager.mark_ignored() so this plays by the same rules
-        as an authored quest the player never engaged: it stamps a
-        FailureMode.IGNORED world scar (see _create_world_encounter_story()'s
-        FailurePolicy) and applies the scenario's reputation penalty via
-        the shared consequence machinery, instead of a one-off inline hit.
+        "ignore" action (usually also bound to ESC via a scenario's
+        "is_cancel" choice -- see Bandit_Ambush.json): walk on - no fight,
+        no reward. Routed through StoryFailureManager.mark_ignored() so
+        this plays by the same rules as an authored quest the player
+        never engaged: it stamps a FailureMode.IGNORED world scar (see
+        _create_world_encounter_story()'s FailurePolicy) and applies the
+        scenario's reputation penalty via the shared consequence
+        machinery, instead of a one-off inline hit.
         """
         scenario = self._world_encounter_target
         self.message_log.add_message(scenario["ignore"], (150, 150, 150))
@@ -2844,14 +2959,12 @@ class Game:
 
                 # --- World Encounter Menu ---
                 elif self.game_state == GameState.WORLD_ENCOUNTER_MENU:
-                    if event.key == pygame.K_1:
-                        self._resolve_world_encounter_investigate()
-                        action_taken = True
-                    elif event.key == pygame.K_2:
-                        self._resolve_world_encounter_sneak()
-                        action_taken = True
-                    elif event.key in (pygame.K_3, pygame.K_ESCAPE):
-                        self._resolve_world_encounter_ignore()
+                    choice = self._world_encounter_choice_for_key(event.key)
+                    if choice is not None:
+                        self._resolve_world_encounter_choice(choice)
+                        # Cancel-flagged choices (e.g. "Ignore") don't cost a
+                        # turn, same as backing out of any other menu with ESC.
+                        action_taken = not choice.get("is_cancel", False)
                     return True  # Consume all input while menu is open
 
                 # --- Shop Menu ---
@@ -5021,9 +5134,11 @@ class Game:
         """
         Draws the textbox popup for a random overworld encounter — the hook
         text is already in the message log by this point, so this just shows
-        the three choices. What's actually happening is only revealed once
-        the player picks one (see the _resolve_world_encounter_* methods).
-        Keys: [1] Investigate  [2] Sneak Around  [3] / ESC  Ignore
+        the scenario's own choices (see _normalize_world_encounter_choices()).
+        What's actually happening is only revealed once the player picks one
+        (see _resolve_world_encounter_choice() and the _resolve_world_
+        encounter_* action handlers). Key bindings come from each choice's
+        own "key" field; ESC always matches whichever choice is "is_cancel".
         """
         try:
             font_title = pygame.font.SysFont("consolas", 16, bold=True)
@@ -5032,12 +5147,16 @@ class Game:
             font_title = pygame.font.Font(None, 18)
             font_body  = pygame.font.Font(None, 16)
 
+        choices = self._world_encounter_target["choices"]
+
         # --- Layout ---
-        PAD   = 14
-        W     = 440
-        H     = 180
-        sx    = (config.GAME_AREA_WIDTH - W) // 2
-        sy    = (config.SCREEN_HEIGHT   - H) // 2
+        PAD       = 14
+        W         = 440
+        ROW_H     = font_body.get_linesize() * 2 + 7  # header line + sub line + gap
+        HEADER_H  = PAD + 22 + PAD                     # title + divider + breathing room
+        H         = HEADER_H + ROW_H * len(choices)
+        sx        = (config.GAME_AREA_WIDTH - W) // 2
+        sy        = (config.SCREEN_HEIGHT   - H) // 2
 
         # Dark semi-transparent background
         bg = pygame.Surface((W, H), pygame.SRCALPHA)
@@ -5057,17 +5176,13 @@ class Game:
             (sx + PAD, sy + PAD + 22), (sx + W - PAD, sy + PAD + 22)
         )
 
-        # Options
-        options = [
-            ("[1] Investigate",   "Walk in and see what's happening",        (255, 160, 100)),
-            ("[2] Sneak Around",  "Stealth check to glimpse it unseen",       (160, 200, 255)),
-            ("[3] Ignore",        "ESC also cancels - just keep walking",     (150, 150, 150)),
-        ]
-
+        # Choices, in whatever order/count the scenario's JSON declared them
         y = sy + PAD + 32
-        for header, sub, color in options:
-            h_surf = font_body.render(header, True, color)
-            s_surf = font_body.render(f"    {sub}", True, (90, 90, 100))
+        for choice in choices:
+            cancel_hint = " / ESC" if choice.get("is_cancel") else ""
+            header = f"[{choice['key']}{cancel_hint}] {choice['label']}"
+            h_surf = font_body.render(header, True, choice["color"])
+            s_surf = font_body.render(f"    {choice['description']}", True, (90, 90, 100))
             self.screen.blit(h_surf, (sx + PAD, y))
             y += font_body.get_linesize() + 1
             self.screen.blit(s_surf, (sx + PAD, y))
