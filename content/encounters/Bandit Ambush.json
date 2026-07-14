@@ -3,6 +3,7 @@
 
   "discovery": "Bandits have cornered a group of merchants, rifling through their cart.",
   "landmark_tile": "caravan",
+  "landmark_tile_amount": [1, 3],
   "monster_pool": ["Goblin", "Goblin", "GoblinArcher", "Orc"],
   "monster_count": [2, 3],
 

@@ -687,7 +687,9 @@ class Game:
     # dropped near the player alongside the monsters/victims, giving the
     # scene a physical prop instead of only narration. Resolved by name
     # at spawn time via _spawn_world_encounter_landmark_tile(); scenarios
-    # that omit "landmark_tile" simply skip that step.
+    # that omit "landmark_tile" simply skip that step. "landmark_tile_
+    # amount" (a fixed int, or a [min, max] range like "monster_count")
+    # controls how many copies get placed -- defaults to exactly one.
     WORLD_ENCOUNTER_TILE_TYPES = {
         "caravan": caravan,
         "ritual_circle": ritual_circle,
@@ -777,6 +779,19 @@ class Game:
 
         return normalized or [dict(default) for default in self.DEFAULT_WORLD_ENCOUNTER_CHOICES]
 
+    def _normalize_world_encounter_range(self, value):
+        """
+        Accepts either a single int (a fixed amount, e.g. Wolf_Pack.json's
+        "landmark_tile_amount": 1) or a [min, max] list (a random range,
+        inclusive -- same shape "monster_count"/"victim_count" already
+        use, e.g. Undead_Siege.json's "landmark_tile_amount": [2, 4]) and
+        returns a (min, max) tuple either way, so callers always unpack
+        the same way regardless of which form a scenario's JSON used.
+        """
+        if isinstance(value, (list, tuple)):
+            return tuple(value)
+        return (value, value)
+
     def _normalize_world_encounter_aftermath(self, aftermath, source_name):
         """
         Validates a scenario's optional "aftermath" block (see
@@ -849,6 +864,9 @@ class Game:
                 ]
                 data["monster_count"] = tuple(data["monster_count"])
                 data["victim_count"] = tuple(data.get("victim_count", (1, 1)))
+                data["landmark_tile_amount"] = self._normalize_world_encounter_range(
+                    data.get("landmark_tile_amount", 1)
+                )
                 data["choices"] = self._normalize_world_encounter_choices(data.get("choices"), path.name)
                 data["aftermath"] = self._normalize_world_encounter_aftermath(data.get("aftermath"), path.name)
             except (OSError, json.JSONDecodeError, KeyError, ValueError) as exc:
@@ -1104,14 +1122,23 @@ class Game:
         """
         Places this scenario's "landmark_tile" (see WORLD_ENCOUNTER_TILE_TYPES,
         e.g. Bandit_Ambush.json's ransacked "caravan") directly on the
-        overworld map, as close to the player as the open spawn candidates
-        from _spawn_world_encounter_monsters allow -- giving the scene a
+        overworld map, at the open spawn candidates closest to the player
+        from _spawn_world_encounter_monsters -- giving the scene a
         physical prop matching its discovery text ("rifling through their
         cart") instead of only narration. A no-op for scenarios that don't
         declare one.
 
-        Pops its chosen position out of `spawn_candidates` in place, so the
-        monsters/victims spawned right after this never land on top of it.
+        How many copies get placed is randomized between "landmark_tile_
+        amount"'s min/max (see _normalize_world_encounter_range(), which
+        defaults a missing/int value to exactly one tile -- unchanged
+        prior behavior), capped to however many open positions actually
+        exist. Placed nearest-to-player first, so a multi-tile scenario
+        reads as one cluster of wreckage/barricade/stones rather than
+        scattering randomly across the whole spawn radius.
+
+        Pops each chosen position out of `spawn_candidates` in place, so
+        the monsters/victims spawned right after this never land on top
+        of one.
         """
         tile_key = scenario.get("landmark_tile")
         if tile_key is None or not spawn_candidates:
@@ -1121,15 +1148,15 @@ class Game:
         if tile_template is None:
             return
 
-        anchor_x, anchor_y = self.player.x, self.player.y
-        closest_position = min(
-            spawn_candidates,
-            key=lambda pos: (pos[0] - anchor_x) ** 2 + (pos[1] - anchor_y) ** 2,
-        )
-        spawn_candidates.remove(closest_position)
+        min_amount, max_amount = scenario["landmark_tile_amount"]
+        amount = min(random.randint(min_amount, max_amount), len(spawn_candidates))
 
-        x, y = closest_position
-        self.game_map.tiles[y][x] = tile_template
+        anchor_x, anchor_y = self.player.x, self.player.y
+        spawn_candidates.sort(key=lambda pos: (pos[0] - anchor_x) ** 2 + (pos[1] - anchor_y) ** 2)
+
+        for _ in range(amount):
+            x, y = spawn_candidates.pop(0)
+            self.game_map.tiles[y][x] = tile_template
 
     def _spawn_world_encounter_monsters(self, scenario, surprised=False, asleep=False):
         """
