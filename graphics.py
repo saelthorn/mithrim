@@ -207,6 +207,7 @@ def setup_tile_mapping():
         # Elemental Tiles
         'fire': (12 * CELL_DIM, 5 * CELL_DIM),  # Fire
         
+
         # IMPORTANT: Ensure 'C' is your *closed* chest graphic
         'C':  (4 * CELL_DIM, 5 * CELL_DIM),  # Chest (Closed)
         'O':  (5 * CELL_DIM, 5 * CELL_DIM),  # Open Chest
@@ -214,11 +215,15 @@ def setup_tile_mapping():
         'LC':  (4 * CELL_DIM, 5 * CELL_DIM),  # Locked Chest (closed)
         'olc': (5 * CELL_DIM, 5 * CELL_DIM),  # Locked Chest (opened)
         'LM':  (5 * CELL_DIM, 6 * CELL_DIM),  # Locked Chest Mimic (revealed)
-        'c': (3 * CELL_DIM, 3 * CELL_DIM),  # Chair (Tavern)
-        't': (4 * CELL_DIM, 3 * CELL_DIM),  # Table (Tavern)
-        '=': (5 * CELL_DIM, 3 * CELL_DIM),  # Bar Counter
-        'F': (6 * CELL_DIM, 3 * CELL_DIM),  # Fireplace
-        'i': (7 * CELL_DIM, 3 * CELL_DIM),  # Torch Wall
+        'c': (3 * CELL_DIM, 3 * CELL_DIM),   # Chair (Tavern)
+        't': (4 * CELL_DIM, 3 * CELL_DIM),   # Table (Tavern)
+        '=': (5 * CELL_DIM, 3 * CELL_DIM),   # Bar Counter
+        'I': (3 * CELL_DIM, 17 * CELL_DIM),  # Bar Counter Two
+        '7': (4 * CELL_DIM, 17 * CELL_DIM),  # Bar Counter Three
+        '|': (5 * CELL_DIM, 17 * CELL_DIM),  # Bar Counter Four
+        'F': (6 * CELL_DIM, 3 * CELL_DIM),   # Fireplace
+        'i': (7 * CELL_DIM, 3 * CELL_DIM),   # Torch Wall
+        '}2': (6 * CELL_DIM, 17 * CELL_DIM), # Tavern Barrel Two
 
         # Static Decorations (using distinct chars)
         'b': (2 * CELL_DIM, 5 * CELL_DIM), # Static Barrel (original graphic)

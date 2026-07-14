@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 import random
 
 from entities.base_entity import NPC
-from world.tile import ground, grass, road, tall_grass, wall, tavern_floor, floor
+from world.tile import ground, grass, road, tall_grass, wall, tavern_floor, floor, bar_counter_two, bar_counter_three, bar_counter_four, table, crate, tavern_barrel_two
 
 from core.game import GameState
 from items.items import (
@@ -403,12 +403,12 @@ STRUCTURE_BLUEPRINTS = {
         [
             " #######",
             " ......#",
-            "##.....#",
-            "#p....A#",
-            "#.p....#",
+            "##k..7.#",
+            "#p...|A#",
+            "#tp..I.#",
             "####.###",
         ],
-        {"#": wall, ".": tavern_floor, "p": tavern_floor, "A": tavern_floor},
+        {"#": wall, ".": tavern_floor, "p": tavern_floor, "A": tavern_floor, "k": tavern_barrel_two, "I": bar_counter_two, "|": bar_counter_three, "7": bar_counter_four, "t": table},
         walkable_chars={".", "p", "A"},
         description="A rowdy wayside tavern.",
         npc_map={"A": _spawn_innkeeper, "p": _spawn_villager},

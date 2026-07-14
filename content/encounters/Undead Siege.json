@@ -44,5 +44,34 @@
   "reward_gold": 15,
   "reputation_faction": "northfield",
   "reputation_delta": 5,
-  "ignored_reputation_delta": -5
+  "ignored_reputation_delta": -5,
+
+  "aftermath": {
+    "discovery": "The undead are put down. The surviving guards are already dragging bodies clear of the barricade.",
+    "choices": [
+      {
+        "key": 1,
+        "action": "help_fortify",
+        "label": "Help Fortify the Barricade",
+        "description": "Stay and lend a hand before the next wave",
+        "color": [255, 200, 140],
+        "outcome": "You spend the next while hauling timber and driving stakes alongside the guards. By the time you're done, the barricade could hold against twice as many.",
+        "hours": 4,
+        "consequences": [
+          { "type": "modify_reputation", "faction": "northfield", "delta": 3 },
+          { "type": "reward_xp", "amount": 10 }
+        ]
+      },
+      {
+        "key": 2,
+        "action": "leave",
+        "label": "Move On",
+        "description": "ESC also cancels - the guards can finish on their own",
+        "color": [150, 150, 150],
+        "is_cancel": true,
+        "outcome": "You leave the guards to finish shoring up the barricade themselves and continue on your way.",
+        "consequences": []
+      }
+    ]
+  }
 }

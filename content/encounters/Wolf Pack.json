@@ -44,5 +44,45 @@
   "reward_gold": 0,
   "reputation_faction": "northfield",
   "reputation_delta": 4,
-  "ignored_reputation_delta": -4
+  "ignored_reputation_delta": -4,
+
+  "aftermath": {
+    "discovery": "The wolves lie dead. The girl is still shaking, alone this far from anywhere safe.",
+    "choices": [
+      {
+        "key": 1,
+        "action": "escort",
+        "label": "Escort Her to Town",
+        "description": "Walk her back to Northfield and the innkeeper's care",
+        "color": [255, 200, 140],
+        "outcome": "You walk her the long way back to Northfield. The innkeeper takes her in without a word of complaint, and presses a few coins into your hand for the trouble.",
+        "hours": 2,
+        "consequences": [
+          { "type": "modify_reputation", "faction": "northfield", "delta": 2 },
+          { "type": "reward_gold", "amount": 5 }
+        ]
+      },
+      {
+        "key": 2,
+        "action": "point_home",
+        "label": "Point Her Toward Home",
+        "description": "She says she knows the way from here",
+        "color": [160, 200, 255],
+        "outcome": "She wipes her eyes, nods, and takes off running down the trail on her own. You watch until she's out of sight.",
+        "consequences": []
+      },
+      {
+        "key": 3,
+        "action": "leave",
+        "label": "Leave Her Be",
+        "description": "ESC also cancels - she's not your problem",
+        "color": [150, 150, 150],
+        "is_cancel": true,
+        "outcome": "You leave her sitting among the dead wolves and walk on. She doesn't call after you.",
+        "consequences": [
+          { "type": "modify_reputation", "faction": "northfield", "delta": -1 }
+        ]
+      }
+    ]
+  }
 }

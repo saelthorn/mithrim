@@ -44,5 +44,46 @@
   "reward_gold": 20,
   "reputation_faction": "northfield",
   "reputation_delta": 3,
-  "ignored_reputation_delta": -2
+  "ignored_reputation_delta": -2,
+
+  "aftermath": {
+    "discovery": "The bandits are dealt with. The merchants are already sorting through what's left of their cart.",
+    "choices": [
+      {
+        "key": 1,
+        "action": "escort",
+        "label": "Escort the Cart to Town",
+        "description": "See the merchants safely back to Northfield",
+        "color": [255, 200, 140],
+        "outcome": "You walk alongside the cart the rest of the way to Northfield. The merchants make good on a share of the recovered goods once they're safely behind the town gates.",
+        "hours": 3,
+        "consequences": [
+          { "type": "modify_reputation", "faction": "northfield", "delta": 2 },
+          { "type": "reward_gold", "amount": 15 }
+        ]
+      },
+      {
+        "key": 2,
+        "action": "take_cut",
+        "label": "Take Your Cut and Go",
+        "description": "Help yourself to some of the recovered cargo",
+        "color": [200, 160, 220],
+        "outcome": "You take what you can carry from the wreckage before the merchants can object. They watch you go with sour faces.",
+        "consequences": [
+          { "type": "reward_gold", "amount": 20 },
+          { "type": "modify_reputation", "faction": "northfield", "delta": -2 }
+        ]
+      },
+      {
+        "key": 3,
+        "action": "leave",
+        "label": "Leave Them to It",
+        "description": "ESC also cancels - they can manage from here",
+        "color": [150, 150, 150],
+        "is_cancel": true,
+        "outcome": "You leave the merchants to pick up the pieces on their own and continue on your way.",
+        "consequences": []
+      }
+    ]
+  }
 }

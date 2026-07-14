@@ -54,6 +54,11 @@ door = Tile(blocked=False, char='+', color=(205, 133, 63), name="Door")
 fireplace = Tile(blocked=True, char='F', color=(255, 69, 0), name="Fireplace")
 tavern_crate = Tile(blocked=False, char='{', color=(139, 69, 19), name="Tavern Crate")
 tavern_barrel = Tile(blocked=False, char='}', color=(139, 69, 19), name="Tavern Barrel")
+tavern_barrel_two = Tile(blocked=True, char='}2', color=(139, 69, 19), block_sight="False", name="Tavern Barrel Two")
+
+bar_counter_two = Tile(blocked=True, char='I', color=(160, 82, 45), block_sight=False, name="Bar Counter Two")
+bar_counter_three = Tile(blocked=True, char='7', color=(160, 82, 45), block_sight=False, name="Bar Counter Three")
+bar_counter_four = Tile(blocked=True, char='|', color=(160, 82, 45), block_sight=False, name="Bar Counter Four")
 
 # Overworld tile templates (used by world_generator.py)
 road = Tile(blocked=False, char='rd', color=(128, 128, 128), name="Road")

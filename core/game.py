@@ -24,6 +24,7 @@ class GameState:
     GAME_OVER = "game_over" # NEW: Add GAME_OVER state
     OVERWORLD = "overworld"  # Cellular-automata overworld map (dungeon_generator's sibling)
     WORLD_ENCOUNTER_MENU = "world_encounter_menu"  # Narrative overworld encounter choice menu
+    WORLD_ENCOUNTER_AFTERMATH_MENU = "world_encounter_aftermath_menu"  # Post-combat branching choice, see scenario "aftermath"
 
 
 
@@ -97,6 +98,7 @@ from world.world_map import (
     OVERWORLD_CHUNK_HEIGHT,
     world_position_to_chunk_local,
 )
+from world.world_time import TimeUnit
 from world.encounters.prison_cell import (
     handle_prison_door_interaction, PrisonDoorTile, is_prison_cell_position
 )
@@ -105,7 +107,7 @@ from world.encounters.crypt import handle_tomb_interaction, is_crypt_position
 from story.story_integration import StorySystems
 from story.story_framework import StoryEvent
 from story.trigger_system import TriggerRule, TriggerType
-from story.consequence_system import RewardXPConsequence, RewardGoldConsequence, ModifyReputationConsequence
+from story.consequence_system import RewardXPConsequence, RewardGoldConsequence, ModifyReputationConsequence, consequence_from_dict
 from story.story_failure_system import FailureMode, FailurePolicy
 
 from entities.player import Player, Fighter, Rogue, Wizard, Cleric
@@ -298,6 +300,7 @@ class Game:
         self._world_encounter_target = None    # Scenario dict awaiting the player's choice
         self._world_encounter_story_id = None  # StoryInstance id backing the currently-offered/active encounter
         self._world_encounter_cooldown = 0     # Steps left before another encounter can roll
+        self._world_encounter_aftermath = None # Scenario's "aftermath" block awaiting a post-combat choice
         self._shop_menu_merchant = None   # Active merchant for shop overlay
         self._shop_selected_index = 0     # Highlighted item index in shop
         self._shop_mode = "buy"           # "buy" or "sell"
@@ -774,6 +777,55 @@ class Game:
 
         return normalized or [dict(default) for default in self.DEFAULT_WORLD_ENCOUNTER_CHOICES]
 
+    def _normalize_world_encounter_aftermath(self, aftermath, source_name):
+        """
+        Validates a scenario's optional "aftermath" block (see
+        Wolf_Pack.json) -- a second, post-combat branching choice offered
+        once the encounter's fight is won (see _wire_world_encounter_
+        rewards()'s STORY_COMPLETED hook), e.g. deciding what becomes of
+        a rescued victim. Unlike _normalize_world_encounter_choices()'s
+        "choices", an aftermath choice never dispatches to a
+        `_resolve_world_encounter_<action>()` method -- "action" here is
+        just a label for logging/debugging, and resolution is entirely
+        data-driven: an "outcome" line for the message log plus a list of
+        Consequences (consequence_system.py's consequence_from_dict) run
+        through the shared ConsequenceExecutor, exactly like an authored
+        JSON quest's `rewards.on_complete`.
+
+        Returns None if the scenario declares no "aftermath" at all (most
+        won't need one) or if every declared choice turned out to be
+        invalid -- there is no generic fallback menu here the way there
+        is for the discovery "choices", since a bad aftermath block
+        should just be skipped rather than forcing an unrelated decision
+        on the player.
+        """
+        if not aftermath:
+            return None
+
+        choices = []
+        for choice in aftermath.get("choices", []):
+            if "key" not in choice or "outcome" not in choice:
+                self.message_log.add_message(
+                    f"Encounter load error ({source_name}): invalid aftermath choice {choice!r}", (255, 100, 100)
+                )
+                continue
+            action = choice.get("action", "choose")
+            choices.append({
+                "key": choice["key"],
+                "action": action,
+                "label": choice.get("label", action.title()),
+                "description": choice.get("description", ""),
+                "color": tuple(choice.get("color", (200, 200, 200))),
+                "is_cancel": choice.get("is_cancel", False),
+                "outcome": choice["outcome"],
+                "hours": choice.get("hours", 0),
+                "consequences": [consequence_from_dict(c) for c in choice.get("consequences", [])],
+            })
+
+        if not choices:
+            return None
+        return {"discovery": aftermath.get("discovery", ""), "choices": choices}
+
     def _load_world_encounter_scenarios(self):
         """
         Loads every *.json file under WORLD_ENCOUNTER_CONTENT_ROOT into a
@@ -798,7 +850,8 @@ class Game:
                 data["monster_count"] = tuple(data["monster_count"])
                 data["victim_count"] = tuple(data.get("victim_count", (1, 1)))
                 data["choices"] = self._normalize_world_encounter_choices(data.get("choices"), path.name)
-            except (OSError, json.JSONDecodeError, KeyError) as exc:
+                data["aftermath"] = self._normalize_world_encounter_aftermath(data.get("aftermath"), path.name)
+            except (OSError, json.JSONDecodeError, KeyError, ValueError) as exc:
                 self.message_log.add_message(f"Encounter load error ({path.name}): {exc}", (255, 100, 100))
                 continue
             scenarios.append(data)
@@ -1207,8 +1260,25 @@ class Game:
             for consequence in consequences:
                 executor.execute(consequence, context)
             self.message_log.add_message("The fight is over. You take a moment to catch your breath.", (150, 255, 180))
+            self._offer_world_encounter_aftermath(scenario)
 
         director.on(StoryEvent.STORY_COMPLETED, _on_completed)
+
+    def _offer_world_encounter_aftermath(self, scenario):
+        """
+        Opens the post-combat branching menu for scenarios that declare
+        an "aftermath" block (see Wolf_Pack.json) -- what becomes of a
+        rescued victim once the fight that put them in danger is over.
+        A no-op for scenarios without one, so most encounters end exactly
+        as before: the "fight is over" message and nothing else.
+        """
+        aftermath = scenario.get("aftermath")
+        if aftermath is None:
+            return
+        if aftermath["discovery"]:
+            self.message_log.add_message(aftermath["discovery"], (255, 200, 120))
+        self._world_encounter_aftermath = aftermath
+        self.game_state = GameState.WORLD_ENCOUNTER_AFTERMATH_MENU
 
     def _spawn_world_encounter_victims(self, scenario, spawn_candidates, linked_monsters):
         """
@@ -1257,18 +1327,19 @@ class Game:
         resolver = getattr(self, f"_resolve_world_encounter_{choice['action']}")
         resolver()
 
-    def _world_encounter_choice_for_key(self, key):
+    def _world_encounter_choice_for_key(self, key, choices):
         """
-        Resolves a raw pygame key event to one of the currently-offered
-        scenario's normalized choices (see _normalize_world_encounter_
-        choices()). Digit keys (pygame.K_0 + n == pygame.K_<n> for
+        Resolves a raw pygame key event to one of `choices` -- either the
+        currently-offered scenario's normalized "choices" (see
+        _normalize_world_encounter_choices()) or its "aftermath" choices
+        (see _normalize_world_encounter_aftermath()), whichever menu is
+        currently open. Digit keys (pygame.K_0 + n == pygame.K_<n> for
         0 <= n <= 9) match a choice by its own "key" number, however many
         choices a scenario declares. ESC always matches whichever choice
         (if any) is flagged "is_cancel" -- e.g. Bandit_Ambush.json's
         "Ignore" -- regardless of which number key it's also bound to.
         Returns None if nothing matches (e.g. an unbound digit was pressed).
         """
-        choices = self._world_encounter_target["choices"]
         if key == pygame.K_ESCAPE:
             return next((choice for choice in choices if choice.get("is_cancel")), None)
         return next((choice for choice in choices if pygame.K_0 + choice["key"] == key), None)
@@ -1340,6 +1411,32 @@ class Game:
         self.game_state = GameState.OVERWORLD
         self._world_encounter_target = None
         self._world_encounter_story_id = None
+
+    def _resolve_world_encounter_aftermath_choice(self, choice):
+        """
+        Resolves a choice from a scenario's post-combat "aftermath" menu
+        (see _offer_world_encounter_aftermath()) -- e.g. escorting Wolf_
+        Pack.json's rescued child back to the innkeeper versus leaving
+        her to find her own way home. Unlike the discovery menu's
+        choices, there's no per-action Python method to dispatch to:
+        the choice's own "outcome" line and "consequences" (already
+        resolved to Consequence objects by _normalize_world_encounter_
+        aftermath()) are all that's needed, run through the same shared
+        ConsequenceExecutor/ExecutionContext every other reward path in
+        this module uses.
+        """
+        self.message_log.add_message(choice["outcome"], (150, 255, 180) if not choice.get("is_cancel") else (150, 150, 150))
+
+        context = self.stories.execution_context
+        executor = self.stories.story_manager.consequence_executor
+        for consequence in choice["consequences"]:
+            executor.execute(consequence, context)
+
+        if choice.get("hours"):
+            self.stories.world_time.advance(choice["hours"], TimeUnit.HOUR)
+
+        self.game_state = GameState.OVERWORLD
+        self._world_encounter_aftermath = None
 
     def _lineages_for_group(self, group_index):
         """Return the list of lineage instances for the given group index."""
@@ -2962,11 +3059,19 @@ class Game:
 
                 # --- World Encounter Menu ---
                 elif self.game_state == GameState.WORLD_ENCOUNTER_MENU:
-                    choice = self._world_encounter_choice_for_key(event.key)
+                    choice = self._world_encounter_choice_for_key(event.key, self._world_encounter_target["choices"])
                     if choice is not None:
                         self._resolve_world_encounter_choice(choice)
                         # Cancel-flagged choices (e.g. "Ignore") don't cost a
                         # turn, same as backing out of any other menu with ESC.
+                        action_taken = not choice.get("is_cancel", False)
+                    return True  # Consume all input while menu is open
+
+                # --- World Encounter Aftermath Menu ---
+                elif self.game_state == GameState.WORLD_ENCOUNTER_AFTERMATH_MENU:
+                    choice = self._world_encounter_choice_for_key(event.key, self._world_encounter_aftermath["choices"])
+                    if choice is not None:
+                        self._resolve_world_encounter_aftermath_choice(choice)
                         action_taken = not choice.get("is_cancel", False)
                     return True  # Consume all input while menu is open
 
@@ -5047,6 +5152,10 @@ class Game:
         if self.game_state == GameState.WORLD_ENCOUNTER_MENU and self._world_encounter_target:
             self.render_world_encounter_menu()
 
+        # World encounter aftermath menu — same overlay, offered after combat
+        if self.game_state == GameState.WORLD_ENCOUNTER_AFTERMATH_MENU and self._world_encounter_aftermath:
+            self.render_world_encounter_aftermath_menu()
+
         # Merchant shop overlay — drawn over the dungeon, under nothing else
         if self.game_state == GameState.SHOP_MENU and self._shop_menu_merchant:
             self.render_shop_menu()
@@ -5143,14 +5252,32 @@ class Game:
         encounter_* action handlers). Key bindings come from each choice's
         own "key" field; ESC always matches whichever choice is "is_cancel".
         """
+        self._render_world_encounter_choice_popup("  What do you do?", self._world_encounter_target["choices"])
+
+    def render_world_encounter_aftermath_menu(self):
+        """
+        Draws the same popup style as render_world_encounter_menu(), for a
+        scenario's post-combat "aftermath" choices instead of its initial
+        discovery choices (see _offer_world_encounter_aftermath() and
+        _resolve_world_encounter_aftermath_choice()). Kept as a separate
+        method, rather than branching inside render_world_encounter_menu(),
+        so each stays a simple one-line wrapper naming which state/target
+        pair it draws for.
+        """
+        self._render_world_encounter_choice_popup("  What now?", self._world_encounter_aftermath["choices"])
+
+    def _render_world_encounter_choice_popup(self, title, choices):
+        """
+        Shared layout/drawing for both the discovery menu and the
+        aftermath menu -- identical box, divider, and per-choice rows,
+        differing only in title text and which choices list is passed in.
+        """
         try:
             font_title = pygame.font.SysFont("consolas", 16, bold=True)
             font_body  = pygame.font.SysFont("consolas", 14)
         except Exception:
             font_title = pygame.font.Font(None, 18)
             font_body  = pygame.font.Font(None, 16)
-
-        choices = self._world_encounter_target["choices"]
 
         # --- Layout ---
         PAD       = 14
@@ -5170,7 +5297,7 @@ class Game:
         pygame.draw.rect(self.screen, (150, 140, 190), (sx, sy, W, H), 2, border_radius=4)
 
         # Title
-        title_surf = font_title.render("  What do you do?", True, (200, 190, 230))
+        title_surf = font_title.render(title, True, (200, 190, 230))
         self.screen.blit(title_surf, (sx + PAD, sy + PAD))
 
         # Divider
