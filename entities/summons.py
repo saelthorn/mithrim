@@ -64,6 +64,141 @@ class SummonedEntity(NPC):
         return False
 
 
+class EscortCompanion(SummonedEntity):
+    """
+    A rescued/recruited NPC who follows the player during an escort
+    quest -- e.g. a world encounter's aftermath choice to walk a
+    victim home, or an authored story handing off an NPC to be led
+    somewhere. Not summoned by a player ability, but it reuses
+    SummonedEntity's owner/turn-order plumbing anyway (die()'s
+    entities/turn_order cleanup, tick_duration()'s no-op when
+    duration=0) since a companion sits on the turn order exactly the
+    same way a combat summon does -- it just never fights, never
+    expires on its own, and only leaves the party when it's delivered
+    (see complete_escort()) or killed (see die()).
+
+    Created via Game.recruit_companion() (game.py), which is also
+    where escort_id/reward_consequences/escort_hours get their values --
+    this class only carries them, it doesn't decide what an escort is
+    worth or how it's paid out.
+    """
+
+    #: How close a companion tries to stay to the player before it
+    #: bothers pathfinding closer -- 1 keeps them adjacent without the
+    #: two of them fighting over the exact same tile.
+    FOLLOW_DISTANCE = 1
+
+    def __init__(
+        self, x, y, char, name, color, owner,
+        hp=8, armor_class=10, escort_id=None,
+        reward_consequences=None, escort_hours=0, dialogue=None,
+    ):
+        super().__init__(x, y, char, name, color, owner, duration=0)  # duration=0 -> permanent until delivered/killed
+        self.hp = hp
+        self.max_hp = hp
+        self.armor_class = armor_class
+        self.blocks_movement = False  # Never blocks the player's own path
+        self.attack_power = 0         # Companions never fight
+        self.initiative = 0
+        self.active_status_effects = []
+
+        # Which escort quest this companion belongs to, and what
+        # delivering them safely pays out -- read by game.py's
+        # Game.try_deliver_companions()/_grant_escort_reward().
+        #
+        # reward_consequences is a list of consequence_system.py
+        # Consequence objects (RewardXPConsequence, RewardGoldConsequence,
+        # ModifyReputationConsequence, ...) rather than a couple of
+        # hardcoded numeric fields, so a scenario's aftermath
+        # "consequences" -- already parsed into real Consequence
+        # instances by game.py's _normalize_world_encounter_aftermath()
+        # -- can be handed straight through here and replayed on
+        # delivery through the same shared ConsequenceExecutor every
+        # other reward path in the game uses. This class deliberately
+        # never executes them itself (that needs an ExecutionContext,
+        # which lives on game.py's StorySystems, not here) -- it only
+        # carries the list until _grant_escort_reward() runs it. That
+        # keeps this module ignorant of consequence_system.py entirely,
+        # the same way it's ignorant of the story engine as a whole.
+        self.escort_id = escort_id
+        self.reward_consequences = list(reward_consequences) if reward_consequences else []
+        # Hours the journey is deemed to take once delivered -- applied
+        # to the world clock by _grant_escort_reward(), not here (this
+        # class has no reference to WorldTimeManager).
+        self.escort_hours = escort_hours
+        self._dialogue = dialogue or "Please, just get me somewhere safe."
+
+    def get_dialogue(self):
+        """Matches every other NPC's get_dialogue() interface (see
+        game.py's 'F to talk' handler) so a companion can be talked to
+        like any other NPC while it's following."""
+        return self._dialogue
+
+    def take_turn(self, player, game_map, game_instance):
+        """
+        Escort companions never fight -- every turn they simply try to
+        close the distance to the player, pathfinding around obstacles
+        with the same A* helper combat summons use for chasing enemies
+        (see Imp.take_turn()'s Priority 2 above).
+        """
+        if not self.alive:
+            return
+
+        distance_to_player = abs(self.x - self.owner.x) + abs(self.y - self.owner.y)
+        if distance_to_player <= self.FOLLOW_DISTANCE:
+            return  # Close enough -- let the player lead
+
+        path = astar(game_map, (self.x, self.y), (self.owner.x, self.owner.y))
+        if not path or len(path) < 2:
+            return  # No route to the player right now (e.g. a closed door between them)
+
+        next_x, next_y = path[1]
+        if not game_map.is_walkable(next_x, next_y):
+            return
+
+        blocked = any(
+            entity.x == next_x and entity.y == next_y
+            and getattr(entity, "blocks_movement", False) and entity is not self
+            for entity in game_instance.entities
+        )
+        if not blocked:
+            self.x, self.y = next_x, next_y
+
+    def complete_escort(self, game_instance):
+        """
+        Called once this companion has been safely delivered (see
+        Game.try_deliver_companions()). Leaves the party with escort-
+        appropriate flavor text instead of SummonedEntity.die()'s
+        combat-summon "vanishes" message -- reward granting is the
+        caller's job, not this method's.
+        """
+        self.alive = False
+        game_instance.message_log.add_message(
+            f"{self.name} thanks you and settles in at the inn.", self.color
+        )
+        self._leave_party(game_instance)
+
+    def die(self, game_instance):
+        """A companion killed mid-escort fails the quest instead of
+        just 'vanishing' like a spent combat summon."""
+        self.alive = False
+        game_instance.message_log.add_message(
+            f"{self.name} has fallen! The escort has failed.", (255, 80, 80)
+        )
+        self._leave_party(game_instance)
+
+    def _leave_party(self, game_instance):
+        """Shared entities/turn_order/companions cleanup for both ways
+        an escort can end -- delivered or killed."""
+        if self in game_instance.entities:
+            game_instance.entities.remove(self)
+        if self in game_instance.turn_order:
+            game_instance.turn_order.remove(self)
+        if self in game_instance.companions:
+            game_instance.companions.remove(self)
+        game_instance.update_fov()
+
+
 class MageHandEntity(SummonedEntity):
     """
     A spectral hand summoned by the Mage Hand ability.

@@ -56,8 +56,9 @@
         "label": "Escort Them to the Wardens",
         "description": "See them safely into the Wardens' protection",
         "color": [255, 200, 140],
-        "outcome": "You help the captive down from the altar and walk them to the nearest Warden outpost. They give a shaky account of the ritual, and the Wardens take note of your part in it.",
+        "outcome": "You help the captive down from the altar. Still shaking, they cling close and follow your lead toward the nearest inn, where the Wardens can be sent for once they're safe.",
         "hours": 2,
+        "escort": true,
         "consequences": [
           { "type": "modify_reputation", "faction": "wardens", "delta": 3 },
           { "type": "reward_gold", "amount": 5 }

@@ -137,7 +137,7 @@ from entities.races import (
     RedDragonborn, BlueDragonborn, GoldDragonborn, GreenDragonborn,
     RACE_GROUPS,          # lineage catalogue used by the creation screen
 )
-from entities.summons import MageHandEntity, SummonedEntity
+from entities.summons import MageHandEntity, SummonedEntity, EscortCompanion
 from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
 from core.message_log import MessageBox
 from core.status_effects import (
@@ -255,6 +255,13 @@ class Game:
         self.entities = []  # Initialize the entities list here
         self.turn_order = []  # Initialize the turn order list
         self.current_turn_index = 0
+        # NPCs currently being escorted -- a subset of self.entities/
+        # self.turn_order (see entities/summons.py's EscortCompanion).
+        # Populated by recruit_companion(), drained by
+        # try_deliver_companions() once the player talks to an
+        # Innkeeper, or by a companion's own die() if they're killed
+        # along the way.
+        self.companions = []
         self.bloodstains = []
         self.active_fire_tiles = []  # Tracks (x, y) positions of active FireElementalTiles
         
@@ -301,6 +308,7 @@ class Game:
         self._world_encounter_story_id = None  # StoryInstance id backing the currently-offered/active encounter
         self._world_encounter_cooldown = 0     # Steps left before another encounter can roll
         self._world_encounter_aftermath = None # Scenario's "aftermath" block awaiting a post-combat choice
+        self._world_encounter_target_victims = []  # Victims spawned for the current encounter, see recruit_companion()
         self._shop_menu_merchant = None   # Active merchant for shop overlay
         self._shop_selected_index = 0     # Highlighted item index in shop
         self._shop_mode = "buy"           # "buy" or "sell"
@@ -835,6 +843,13 @@ class Game:
                 "outcome": choice["outcome"],
                 "hours": choice.get("hours", 0),
                 "consequences": [consequence_from_dict(c) for c in choice.get("consequences", [])],
+                # Opt-in flag (not a Consequence, since it doesn't mutate
+                # game/execution state the way consequence_system.py's
+                # types do -- it recruits one of *this* encounter's own
+                # victim entities, which only game.py knows about) --
+                # see recruit_companion()/_resolve_world_encounter_
+                # aftermath_choice() below.
+                "escort": choice.get("escort", False),
             })
 
         if not choices:
@@ -1080,6 +1095,7 @@ class Game:
 
         scenario = random.choice(self.world_encounter_scenarios)
         self._world_encounter_target = scenario
+        self._world_encounter_target_victims = []
         self._world_encounter_story_id = self._create_world_encounter_story(scenario)
         self._world_encounter_cooldown = self.WORLD_ENCOUNTER_COOLDOWN_STEPS
         self.message_log.add_message(random.choice(self.WORLD_ENCOUNTER_HOOKS), (200, 200, 255))
@@ -1223,7 +1239,7 @@ class Game:
 
         self.turn_order.sort(key=lambda e: e.initiative, reverse=True)
 
-        self._spawn_world_encounter_victims(scenario, spawn_candidates, spawned)
+        self._world_encounter_target_victims = self._spawn_world_encounter_victims(scenario, spawn_candidates, spawned)
 
         return spawned
 
@@ -1444,26 +1460,167 @@ class Game:
         Resolves a choice from a scenario's post-combat "aftermath" menu
         (see _offer_world_encounter_aftermath()) -- e.g. escorting Wolf_
         Pack.json's rescued child back to the innkeeper versus leaving
-        her to find her own way home. Unlike the discovery menu's
-        choices, there's no per-action Python method to dispatch to:
-        the choice's own "outcome" line and "consequences" (already
-        resolved to Consequence objects by _normalize_world_encounter_
-        aftermath()) are all that's needed, run through the same shared
-        ConsequenceExecutor/ExecutionContext every other reward path in
-        this module uses.
+        her to find her own way home. For most choices there's no per-
+        action Python method to dispatch to: the choice's own "outcome"
+        line and "consequences" (already resolved to Consequence objects
+        by _normalize_world_encounter_aftermath()) are all that's
+        needed, run through the same shared ConsequenceExecutor/
+        ExecutionContext every other reward path in this module uses.
+
+        A choice flagged "escort": true is the one exception: rather
+        than paying out "consequences"/"hours" immediately, it recruits
+        this encounter's victim as a following companion (see
+        recruit_companion()) and holds them for delivery -- the escort
+        isn't actually finished yet just because the player agreed to
+        it, so its payoff and travel time only land once the companion
+        is safely walked to an inn and handed off to the innkeeper (see
+        try_deliver_companions()).
         """
         self.message_log.add_message(choice["outcome"], (150, 255, 180) if not choice.get("is_cancel") else (150, 150, 150))
 
-        context = self.stories.execution_context
-        executor = self.stories.story_manager.consequence_executor
-        for consequence in choice["consequences"]:
-            executor.execute(consequence, context)
+        if choice.get("escort") and self._world_encounter_target_victims:
+            # A scenario can rescue more than one victim (e.g. Bandit_
+            # Ambush.json's "victim_count": [1, 2]) -- escort all of them,
+            # not just the first, so nobody's left standing around after
+            # being "rescued". The choice's reward/travel-time describes
+            # completing *this escort*, not each individual companion, so
+            # only the first one recruited carries it; the rest are
+            # recruited with an explicit empty reward (see
+            # recruit_companion()'s reward_consequences=[] vs None
+            # distinction) so try_deliver_companions() doesn't pay out
+            # the same reward once per body delivered.
+            for index, victim in enumerate(self._world_encounter_target_victims):
+                self.recruit_companion(
+                    victim,
+                    escort_id=self._world_encounter_story_id,
+                    reward_consequences=choice["consequences"] if index == 0 else [],
+                    escort_hours=choice.get("hours", 0) if index == 0 else 0,
+                )
+        else:
+            context = self.stories.execution_context
+            executor = self.stories.story_manager.consequence_executor
+            for consequence in choice["consequences"]:
+                executor.execute(consequence, context)
 
-        if choice.get("hours"):
-            self.stories.world_time.advance(choice["hours"], TimeUnit.HOUR)
+            if choice.get("hours"):
+                self.stories.world_time.advance(choice["hours"], TimeUnit.HOUR)
 
+        self._world_encounter_target_victims = []
         self.game_state = GameState.OVERWORLD
         self._world_encounter_aftermath = None
+
+    # --- Escort companions --------------------------------------------------
+    # A companion is a rescued/recruited NPC who follows the player (see
+    # entities/summons.py's EscortCompanion) until they're safely walked to
+    # an inn and handed off to the innkeeper. Recruitment can come from
+    # anywhere that already has a live NPC entity in hand -- right now that's
+    # a world encounter's "escort" aftermath choice above, but an authored
+    # story or a freed PrisonerNPC could call recruit_companion() the same
+    # way without any changes here.
+
+    def recruit_companion(self, source_entity, escort_id=None, reward_consequences=None, escort_hours=0, dialogue=None):
+        """
+        Turns a live NPC entity already in self.entities into a
+        following EscortCompanion, at the same position and carrying
+        over its name/char/color so the switch is invisible to the
+        player -- only its behavior (follow instead of stand still)
+        and its interface (get_dialogue() for the escort's own line)
+        change.
+
+        escort_id ties the companion back to whatever quest is tracking
+        this escort (e.g. the world encounter story_id that spawned
+        them), purely for bookkeeping -- try_deliver_companions() below
+        currently completes every active escort at once regardless of
+        id, since this game only has one inn destination for now.
+
+        reward_consequences (Consequence objects, e.g. from a scenario's
+        aftermath "consequences") and escort_hours are held on the
+        companion and only applied once they're safely delivered -- see
+        _grant_escort_reward(). Leaving reward_consequences as None falls
+        back to a flat XP reward, so recruiting a companion from
+        somewhere other than a JSON aftermath choice still pays out
+        something on delivery without extra wiring. Pass an explicit
+        empty list instead of None to recruit a companion with no reward
+        of its own (e.g. the 2nd+ companion of a multi-victim escort,
+        whose reward already rides on the first -- see
+        _resolve_world_encounter_aftermath_choice()) without triggering
+        that fallback.
+        """
+        if source_entity in self.entities:
+            self.entities.remove(source_entity)
+        if source_entity in self.turn_order:
+            self.turn_order.remove(source_entity)
+
+        companion = EscortCompanion(
+            source_entity.x, source_entity.y,
+            char=getattr(source_entity, "char", "c"),
+            name=getattr(source_entity, "name", "Companion"),
+            color=getattr(source_entity, "color", (200, 200, 150)),
+            owner=self.player,
+            escort_id=escort_id,
+            # None means "caller didn't specify a reward" -> fall back to
+            # a flat XP reward so recruiting from somewhere other than a
+            # JSON aftermath choice still pays out something on delivery.
+            # An explicit empty list means "this companion's reward is
+            # tracked elsewhere" (see _resolve_world_encounter_aftermath_
+            # choice()'s multi-victim escorts) and must NOT be swapped
+            # for the default -- a falsy-value check here would silently
+            # re-grant the default reward per extra companion.
+            reward_consequences=[RewardXPConsequence(25)] if reward_consequences is None else reward_consequences,
+            escort_hours=escort_hours,
+            dialogue=dialogue,
+        )
+        self.entities.append(companion)
+        self.turn_order.append(companion)
+        self.turn_order.sort(key=lambda e: e.initiative, reverse=True)
+        self.companions.append(companion)
+
+        self.message_log.add_message(
+            f"{companion.name} will follow you now. Escort them to an inn and speak with the innkeeper.",
+            (150, 220, 255)
+        )
+        return companion
+
+    def try_deliver_companions(self, innkeeper):
+        """
+        Called when the player talks to an Innkeeper while escorting
+        one or more companions (see check_overworld_npc_interaction()/
+        the 'F to talk' handler). Completes every active escort at
+        once: each companion is safely delivered, rewarded, and leaves
+        the party. Returns True if at least one escort was completed,
+        so the caller can skip the innkeeper's ordinary dialogue for
+        that turn instead of talking over the escort's own message.
+        """
+        if not self.companions:
+            return False
+
+        self.message_log.add_message(
+            f'{innkeeper.name}: "Ah, safe and sound! Welcome, friend."', (200, 200, 255)
+        )
+        for companion in list(self.companions):
+            self._grant_escort_reward(companion)
+            companion.complete_escort(self)
+
+        return True
+
+    def _grant_escort_reward(self, companion):
+        """
+        Runs a delivered companion's held-back reward Consequences
+        through the same shared ConsequenceExecutor/ExecutionContext
+        every other reward path in this module uses (see
+        _wire_world_encounter_rewards()), then advances world time by
+        however long the journey was meant to take (see
+        recruit_companion()'s escort_hours) -- the travel the player
+        just did on foot, made canonical the same way fire_rest() makes
+        an inn stay canonical.
+        """
+        context = self.stories.execution_context
+        executor = self.stories.story_manager.consequence_executor
+        for consequence in companion.reward_consequences:
+            executor.execute(consequence, context)
+
+        if companion.escort_hours:
+            self.stories.world_time.advance(companion.escort_hours, TimeUnit.HOUR)
 
     def _lineages_for_group(self, group_index):
         """Return the list of lineage instances for the given group index."""
@@ -1834,12 +1991,34 @@ class Game:
         self.camera.target_x = float(self.player.x)
         self.camera.target_y = float(self.player.y)
 
-        self.entities = [self.player] + list(chunk.get("population", []))
+        # Escort companions (see recruit_companion(), entities/summons.py's
+        # EscortCompanion) are mid-quest state that belongs to the player,
+        # not to whichever chunk happens to be loaded -- they must survive
+        # a chunk change the same way the player does. Without this, every
+        # escort would be impossible to complete: the player is required
+        # to walk a companion to an inn, which very often means crossing
+        # at least one chunk boundary along the way, and self.entities is
+        # normally rebuilt from scratch on every chunk load (see below).
+        #
+        # A companion's (x, y) belonged to the chunk just left -- chunk
+        # coordinates are chunk-local and reset at every boundary (see
+        # world_map.py's chunk_local_to_world_position()) -- so a carried-
+        # over position would be meaningless (and likely out of bounds) on
+        # the new map. Snap companions to the player's new position rather
+        # than translating stale coordinates; EscortCompanion.blocks_
+        # movement is False, so sharing the player's tile for a moment is
+        # harmless, and take_turn() has them fall in beside the player on
+        # their very next turn regardless.
+        for companion in self.companions:
+            companion.x, companion.y = self.player.x, self.player.y
+
+        self.entities = [self.player] + list(chunk.get("population", [])) + list(self.companions)
 
         # Build the turn order from the populated entities (player + any
-        # overworld monsters/NPCs), the same way generate_level() does for
-        # dungeons — previously this was left empty, so overworld monsters
-        # were never given a turn to act.
+        # overworld monsters/NPCs, plus any escort companions carried over
+        # above), the same way generate_level() does for dungeons —
+        # previously this was left empty, so overworld monsters were never
+        # given a turn to act.
         self.turn_order = [e for e in self.entities if not (isinstance(e, Mimic) and e.disguised)]
         for entity in self.turn_order:
             entity.roll_initiative()
@@ -3228,6 +3407,8 @@ class Game:
                         if self.game_state == GameState.OVERWORLD:
                             npc = self.check_overworld_npc_interaction()
                             if npc:                        
+                                if isinstance(npc, Innkeeper) and self.try_deliver_companions(npc):
+                                    return True  # Escort(s) delivered -- skip the innkeeper's ordinary dialogue this turn
                                 shopkeeper = self.check_overworld_npc_interaction()  # Check for adjacent NPC
                                 if isinstance(shopkeeper, Shopkeeper):
                                     shopkeeper.offer_trade(self.player, self)  # Call the trade method for the Shopkeeper
@@ -4105,6 +4286,23 @@ class Game:
                     return True
 
                 if (new_x, new_y) in self.dungeon_entrance_positions:
+                    if self.companions:
+                        # generate_level() below rebuilds self.entities from
+                        # scratch with no idea escort companions exist, and
+                        # companions have no attack stat and only 8 HP --
+                        # they were never designed to survive dungeon
+                        # combat. Rather than silently losing (or getting
+                        # someone killed) mid-escort, refuse the descent
+                        # and tell the player why, the same way the game
+                        # already refuses other actions with a message
+                        # instead of failing silently.
+                        names = ", ".join(companion.name for companion in self.companions)
+                        self.message_log.add_message(
+                            f"You can't take {names} down there. Get them to an inn first.",
+                            (255, 180, 120)
+                        )
+                        return True  # Consume the event -- stay put on the overworld
+
                     # Remember where the player stood so climbing back out drops them here.
                     self.overworld_player_pos = (self.player.x, self.player.y)
                     self.entered_dungeon_from_overworld = True

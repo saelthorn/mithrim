@@ -58,6 +58,7 @@
         "color": [255, 200, 140],
         "outcome": "You walk her the long way back to Northfield. The innkeeper takes her in without a word of complaint, and presses a few coins into your hand for the trouble.",
         "hours": 2,
+        "escort": true,
         "consequences": [
           { "type": "modify_reputation", "faction": "northfield", "delta": 2 },
           { "type": "reward_gold", "amount": 5 }

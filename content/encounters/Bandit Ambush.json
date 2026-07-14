@@ -56,8 +56,9 @@
         "label": "Escort the Cart to Town",
         "description": "See the merchants safely back to Northfield",
         "color": [255, 200, 140],
-        "outcome": "You walk alongside the cart the rest of the way to Northfield. The merchants make good on a share of the recovered goods once they're safely behind the town gates.",
+        "outcome": "The merchants hitch up what's left of the cart and fall in behind you, ready to follow you the rest of the way back to Northfield.",
         "hours": 3,
+        "escort": true,
         "consequences": [
           { "type": "modify_reputation", "faction": "northfield", "delta": 2 },
           { "type": "reward_gold", "amount": 15 }
