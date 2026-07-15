@@ -39,6 +39,18 @@
 
   "victim": "sacrifice",
   "victim_count": [1, 1],
+  "victim_data": {
+    "char": "pnp",
+    "color": [180, 180, 220],
+    "names": ["Bound Figure"],
+    "dialogue": "Please... cut me loose before they finish the chant...",
+    "thanks": [
+      "Free at last... here, take this - it's the least I can offer.",
+      "I thought I was done for. Please, take this for saving me."
+    ],
+    "after": ["Thank you again, adventurer. I'll not forget this."],
+    "reward_pool": "_PRISONER_LOOT"
+  },
 
   "scar_tag": "world_encounter_cultists",
   "reward_xp": 50,

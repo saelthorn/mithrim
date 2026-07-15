@@ -39,6 +39,15 @@
 
   "victim": "guard",
   "victim_count": [2, 3],
+  "victim_data": {
+    "char": "g",
+    "color": [150, 170, 220],
+    "names": ["Town Guard"],
+    "dialogue": "We can't hold much longer - lend us a hand!",
+    "thanks": ["We held the line thanks to you. Well fought, adventurer."],
+    "after": ["Still catching my breath - but we're alive, thanks to you."],
+    "cls": "GuardVictim"
+  },
 
   "scar_tag": "world_encounter_undead",
   "reward_xp": 45,

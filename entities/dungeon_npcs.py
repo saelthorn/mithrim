@@ -782,50 +782,47 @@ class GuardVictim(EncounterVictim):
             self._move_towards(target, game, game_map)
 
 
-# Char/color/dialogue presets for each scenario's bystanders, keyed the same
-# way scenarios reference them in game.py's WORLD_ENCOUNTER_SCENARIOS via
-# the "victim" field. Kept here alongside the other NPC definitions so new
-# victim types are added in one place. "cls" defaults to EncounterVictim -
-# only "guard" uses the combat-capable GuardVictim.
-ENCOUNTER_VICTIM_PRESETS = {
-    "merchant": {
-        "char": "td", "color": (200, 160, 80),
-        "names": ["Merchant", "Trader"],
-        "dialogue": "Thank the gods - help us, they're taking everything!",
-        "thanks": [
-            "You saved my goods and my hide! Here, take this for your trouble.",
-            "Bless you, traveler! Please, take some coin for your help.",
-        ],
-        "after": ["Safe travels, friend - thanks again for earlier."],
-        "reward_gold_range": (8, 20),
-    },
-    "child": {
-        "char": "ch", "color": (230, 210, 180),
-        "names": ["Frightened Child"],
-        "dialogue": "P-please... don't let them get me...",
-        "thanks": ["Y-you saved me... thank you, thank you!"],
-        "after": ["The child clings close to you, still shaking."],
-    },
-    "sacrifice": {
-        "char": "pnp", "color": (180, 180, 220),
-        "names": ["Bound Figure"],
-        "dialogue": "Please... cut me loose before they finish the chant...",
-        "thanks": [
-            "Free at last... here, take this - it's the least I can offer.",
-            "I thought I was done for. Please, take this for saving me.",
-        ],
-        "after": ["Thank you again, adventurer. I'll not forget this."],
-        "reward_pool": _PRISONER_LOOT,
-    },
-    "guard": {
-        "char": "g", "color": (150, 170, 220),
-        "names": ["Town Guard"],
-        "dialogue": "We can't hold much longer - lend us a hand!",
-        "thanks": ["We held the line thanks to you. Well fought, adventurer."],
-        "after": ["Still catching my breath - but we're alive, thanks to you."],
-        "cls": GuardVictim,
-    },
+# Victim presets used to live here as a hardcoded ENCOUNTER_VICTIM_PRESETS
+# dict, keyed by the same "victim" string scenarios use in game.py's
+# WORLD_ENCOUNTER_SCENARIOS. They now live in each scenario's own JSON file
+# instead (see story_content_loader.py's "victim_data" block on
+# Bandit_Ambush.json/Cultist_Ritual.json/Undead_Siege.json/Wolf_Pack.json),
+# so a new victim type is authored purely in data, not by editing this
+# module. make_encounter_victims() below takes that preset dict directly
+# rather than looking one up by key.
+#
+# JSON can't carry a class reference or a shared item-pool list directly,
+# so "cls"/"reward_pool" ride along as string names in the JSON and get
+# resolved back to the real objects here, the one place that already knows
+# what GuardVictim and _PRISONER_LOOT are.
+_VICTIM_CLASS_REGISTRY = {
+    "EncounterVictim": EncounterVictim,
+    "GuardVictim": GuardVictim,
 }
+
+_VICTIM_REWARD_POOL_REGISTRY = {
+    "_PRISONER_LOOT": _PRISONER_LOOT,
+}
+
+
+def _resolve_victim_class(cls_ref):
+    """Preset's "cls" field may be a string name (from JSON) or, for
+    callers still constructing a preset dict in Python, the class itself.
+    Falls back to the plain EncounterVictim for anything unrecognized."""
+    if cls_ref is None:
+        return EncounterVictim
+    if isinstance(cls_ref, str):
+        return _VICTIM_CLASS_REGISTRY.get(cls_ref, EncounterVictim)
+    return cls_ref
+
+
+def _resolve_reward_pool(pool_ref):
+    """Preset's "reward_pool" field may be a string name (from JSON) or,
+    for callers still constructing a preset dict in Python, the item list
+    itself."""
+    if isinstance(pool_ref, str):
+        return _VICTIM_REWARD_POOL_REGISTRY.get(pool_ref)
+    return pool_ref
 
 
 def _make_reward_item(template, x, y):
@@ -848,19 +845,20 @@ def _make_reward_item(template, x, y):
     return item
 
 
-def make_encounter_victims(victim_key, count, positions):
+def make_encounter_victims(preset, count, positions):
     """
     Builds `count` EncounterVictim (or GuardVictim, per preset) NPCs of the
-    given preset (see ENCOUNTER_VICTIM_PRESETS) at the given (x, y) positions.
-    Extra positions beyond `count` are ignored; fewer positions than `count`
-    just yields fewer victims.
+    given preset at the given (x, y) positions. `preset` is the scenario's
+    own "victim_data" dict (see story_content_loader.py) - the caller is
+    responsible for loading it, this function just knows how to build NPCs
+    from it. Extra positions beyond `count` are ignored; fewer positions
+    than `count` just yields fewer victims.
     """
-    preset = ENCOUNTER_VICTIM_PRESETS.get(victim_key)
-    if preset is None:
+    if not preset:
         return []
 
-    victim_cls = preset.get("cls", EncounterVictim)
-    reward_pool = preset.get("reward_pool")
+    victim_cls = _resolve_victim_class(preset.get("cls"))
+    reward_pool = _resolve_reward_pool(preset.get("reward_pool"))
     gold_min, gold_max = preset.get("reward_gold_range", (0, 0))
 
     victims = []

@@ -398,6 +398,23 @@ class Game:
 
         self.stories = StorySystems(self)
         self.world_encounter_scenarios = self._load_world_encounter_scenarios()
+
+        # Each world-encounter scenario carries its own bystander preset as
+        # "victim_data" (see Bandit_Ambush.json/Cultist_Ritual.json/
+        # Undead_Siege.json/Wolf_Pack.json) -- dungeon_npcs.py no longer
+        # keeps a hardcoded copy of these keyed by role/type string. Generic
+        # story NPCs (content/stories/*.json "npcs" blocks) still want to
+        # look one up by an arbitrary "role"/"type" string though (see
+        # _build_story_npc_entity below), so this collects every scenario's
+        # preset into one shared lookup, keyed the same way the scenario
+        # itself is keyed (its "victim" field) -- e.g. "merchant" here still
+        # means whatever Bandit_Ambush.json's "victim_data" says it means.
+        self._victim_presets = {
+            scenario["victim"]: scenario["victim_data"]
+            for scenario in self.world_encounter_scenarios
+            if scenario.get("victim") and scenario.get("victim_data")
+        }
+
         self._wire_story_npc_spawning()
 
         self.race_class_visuals = {
@@ -1001,9 +1018,11 @@ class Game:
         story's own group_id so kill_npc triggers can match them (see
         story_integration.py's fire_kill). Everything else becomes an
         EncounterVictim-style NPC through the same make_encounter_victims()
-        factory the world-encounter victims use (dungeon_npcs.py), keyed
-        off `role` and falling back to `type`, then "merchant", for any
-        role that factory's presets don't recognize.
+        factory the world-encounter victims use (dungeon_npcs.py), with its
+        preset looked up in self._victim_presets (built at startup from
+        every world-encounter scenario's own "victim_data" -- see
+        __init__) keyed off `role` and falling back to `type`, then
+        "merchant", for any role that lookup doesn't recognize.
         """
         data = spawn.data
         x, y = local_position
@@ -1015,11 +1034,12 @@ class Game:
             entity = monster_cls(x, y)
             entity.group_id = data.get("group_id")
         else:
-            victims = (
-                make_encounter_victims(data.get("role"), 1, [(x, y)])
-                or make_encounter_victims(data.get("type"), 1, [(x, y)])
-                or make_encounter_victims("merchant", 1, [(x, y)])
+            preset = (
+                self._victim_presets.get(data.get("role"))
+                or self._victim_presets.get(data.get("type"))
+                or self._victim_presets.get("merchant")
             )
+            victims = make_encounter_victims(preset, 1, [(x, y)])
             if not victims:
                 return None
             entity = victims[0]
@@ -1336,15 +1356,15 @@ class Game:
         EncounterVictim.combat_resolved() can tell once they're all dead,
         which is what unlocks freeing/rewarding the victim (F key).
         """
-        victim_key = scenario.get("victim")
-        if victim_key is None or not spawn_candidates:
+        preset = scenario.get("victim_data")
+        if preset is None or not spawn_candidates:
             return []
 
         min_count, max_count = scenario.get("victim_count", (1, 1))
         num_to_spawn = min(random.randint(min_count, max_count), len(spawn_candidates))
 
         positions = random.sample(spawn_candidates, num_to_spawn)
-        victims = make_encounter_victims(victim_key, num_to_spawn, positions)
+        victims = make_encounter_victims(preset, num_to_spawn, positions)
         for victim in victims:
             victim.linked_monsters = linked_monsters
         self.entities.extend(victims)

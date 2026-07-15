@@ -39,6 +39,14 @@
 
   "victim": "child",
   "victim_count": [1, 1],
+  "victim_data": {
+    "char": "ch",
+    "color": [230, 210, 180],
+    "names": ["Frightened Child"],
+    "dialogue": "P-please... don't let them get me...",
+    "thanks": ["Y-you saved me... thank you, thank you!"],
+    "after": ["The child clings close to you, still shaking."]
+  },
 
   "scar_tag": "world_encounter_wolves",
   "reward_xp": 35,
