@@ -137,9 +137,28 @@ class EscortCompanion(SummonedEntity):
     def take_turn(self, player, game_map, game_instance):
         """
         Escort companions never fight -- every turn they simply try to
-        close the distance to the player, pathfinding around obstacles
-        with the same A* helper combat summons use for chasing enemies
-        (see Imp.take_turn()'s Priority 2 above).
+        close the distance to the player.
+
+        Performance note: this used to call astar() -- a full pathfinding
+        search over the map -- on every single turn the companion wasn't
+        already adjacent to the player, which is nearly every turn
+        whenever the player is actively walking (the companion is
+        perpetually catching up by one tile). That's cheap for a summon
+        that only sticks around briefly, but an EscortCompanion now
+        persists for an entire cross-chunk journey to an inn (see
+        game.py's recruit_companion()/generate_overworld_map()), so it
+        was paying a full search's cost on nearly every player action for
+        the whole trip -- the actual cause of the slowdown reported after
+        that persistence fix landed.
+
+        The fix is the same "steer first, path-find only if that fails"
+        split SpiritualWeapon already uses in this file for its own
+        return-to-owner case: try a plain O(1) step directly toward the
+        player first (covers the overwhelming majority of turns, since
+        overworld terrain is mostly open), and only fall back to a full
+        astar() search -- still available, so a companion never gets
+        stuck behind an obstacle the way a pure greedy walker would --
+        on the turns where that direct step is actually blocked.
         """
         if not self.alive:
             return
@@ -148,20 +167,82 @@ class EscortCompanion(SummonedEntity):
         if distance_to_player <= self.FOLLOW_DISTANCE:
             return  # Close enough -- let the player lead
 
-        path = astar(game_map, (self.x, self.y), (self.owner.x, self.owner.y))
+        if self._step_toward(game_map, game_instance, self.owner.x, self.owner.y):
+            return
+
+        self._pathfind_toward(game_map, game_instance, self.owner.x, self.owner.y)
+
+    def _is_free(self, x, y, game_map, game_instance):
+        """
+        Whether (x, y) is walkable and not currently occupied -- by an
+        ordinary blocking entity (a monster, a shopkeeper, ...), by the
+        player, or by another escort companion. The single "can I step
+        here" check both movement strategies below use before
+        committing to a move.
+
+        Companions themselves have blocks_movement=False (so they never
+        block the *player's* own path -- see __init__), which means a
+        plain blocks_movement check alone would happily let one
+        companion step onto a tile the player or another companion is
+        already standing on. Checking for the player and for
+        EscortCompanion explicitly closes that gap without touching
+        blocks_movement itself, which other code relies on staying
+        False for companions.
+        """
+        if not game_map.is_walkable(x, y):
+            return False
+        for entity in game_instance.entities:
+            if entity is self or entity.x != x or entity.y != y:
+                continue
+            if entity is self.owner or isinstance(entity, EscortCompanion):
+                return False
+            if getattr(entity, "blocks_movement", False):
+                return False
+        return True
+
+    def _step_toward(self, game_map, game_instance, target_x, target_y):
+        """
+        Cheap, search-free steering step: move one tile toward
+        (target_x, target_y) along whichever axis has the larger gap,
+        falling back to the other axis if that tile isn't free. No grid
+        search at all, so this is effectively free to call every turn --
+        it's what handles the common case of open terrain between the
+        companion and the player. Returns True if it moved, False if
+        neither candidate tile was free (an obstacle is in the way and
+        the caller should fall back to _pathfind_toward()).
+        """
+        dx = target_x - self.x
+        dy = target_y - self.y
+        step_x = (dx > 0) - (dx < 0)  # -1, 0, or 1
+        step_y = (dy > 0) - (dy < 0)
+
+        candidates = []
+        if step_x != 0:
+            candidates.append((self.x + step_x, self.y))
+        if step_y != 0:
+            candidates.append((self.x, self.y + step_y))
+        if abs(dx) < abs(dy):
+            candidates.reverse()  # Lead with whichever axis has more ground to cover.
+
+        for next_x, next_y in candidates:
+            if self._is_free(next_x, next_y, game_map, game_instance):
+                self.x, self.y = next_x, next_y
+                return True
+        return False
+
+    def _pathfind_toward(self, game_map, game_instance, target_x, target_y):
+        """
+        Fallback for when the direct step is blocked -- the same A*
+        helper other summons use for navigating around terrain (see
+        Imp.take_turn()'s Priority 2), only actually invoked on the
+        turns _step_toward() couldn't resolve on its own.
+        """
+        path = astar(game_map, (self.x, self.y), (target_x, target_y))
         if not path or len(path) < 2:
             return  # No route to the player right now (e.g. a closed door between them)
 
         next_x, next_y = path[1]
-        if not game_map.is_walkable(next_x, next_y):
-            return
-
-        blocked = any(
-            entity.x == next_x and entity.y == next_y
-            and getattr(entity, "blocks_movement", False) and entity is not self
-            for entity in game_instance.entities
-        )
-        if not blocked:
+        if self._is_free(next_x, next_y, game_map, game_instance):
             self.x, self.y = next_x, next_y
 
     def complete_escort(self, game_instance):

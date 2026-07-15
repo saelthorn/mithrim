@@ -2004,13 +2004,16 @@ class Game:
         # coordinates are chunk-local and reset at every boundary (see
         # world_map.py's chunk_local_to_world_position()) -- so a carried-
         # over position would be meaningless (and likely out of bounds) on
-        # the new map. Snap companions to the player's new position rather
-        # than translating stale coordinates; EscortCompanion.blocks_
-        # movement is False, so sharing the player's tile for a moment is
-        # harmless, and take_turn() has them fall in beside the player on
-        # their very next turn regardless.
+        # the new map. Place each companion on its own open tile near the
+        # player rather than all of them (and the player) sharing one --
+        # see _find_open_tile_near_player() -- so a multi-victim escort
+        # doesn't render as a single stacked sprite after every chunk
+        # crossing. take_turn() has them fall in beside the player over
+        # its next few turns regardless of exactly where they land here.
+        taken_positions = {(self.player.x, self.player.y)}
         for companion in self.companions:
-            companion.x, companion.y = self.player.x, self.player.y
+            companion.x, companion.y = self._find_open_tile_near_player(taken_positions)
+            taken_positions.add((companion.x, companion.y))
 
         self.entities = [self.player] + list(chunk.get("population", [])) + list(self.companions)
 
@@ -2030,6 +2033,42 @@ class Game:
         self.message_log.add_message("=== THE OVERWORLD ===", (240, 240, 240))
         self.message_log.add_message("Walk onto a dungeon entrance to descend, or off the map's edge to keep exploring.", (150, 150, 255))
         self.minimap_needs_redraw = True  # New map, redraw minimap
+
+    def _find_open_tile_near_player(self, taken_positions, max_radius=4):
+        """
+        Find a walkable, non-water tile near the player that isn't
+        already in `taken_positions` -- used by generate_overworld_map()
+        to give each escort companion its own tile after a chunk
+        transition instead of stacking them all on the player's tile.
+
+        Searches outward ring by ring (Chebyshev distance) from the
+        player so the closest available spot always wins, and always
+        adds its own result to nothing -- the caller is responsible for
+        adding the returned position to `taken_positions` before asking
+        for the next one, so two calls in a row never collide.
+
+        Falls back to the player's own tile if nothing suitable turns up
+        within max_radius (e.g. a companion cornered against water or
+        map edge) -- companions have blocks_movement=False, so sharing a
+        tile for a moment is a harmless visual overlap rather than a
+        stuck-entity bug, and take_turn() will spread them back out on
+        its own over the next few turns as the player moves.
+        """
+        width, height = self.game_map.width, self.game_map.height
+        for radius in range(1, max_radius + 1):
+            for dx in range(-radius, radius + 1):
+                for dy in range(-radius, radius + 1):
+                    if max(abs(dx), abs(dy)) != radius:
+                        continue  # only this ring -- smaller radii already tried
+                    x, y = self.player.x + dx, self.player.y + dy
+                    if not (0 <= x < width and 0 <= y < height):
+                        continue
+                    if (x, y) in taken_positions:
+                        continue
+                    if not self.game_map.is_walkable(x, y) or is_water_tile(self.game_map.tiles[y][x]):
+                        continue
+                    return (x, y)
+        return (self.player.x, self.player.y)
 
     def _start_chunk_transition(self, chunk_coord, spawn_pos):
         """
