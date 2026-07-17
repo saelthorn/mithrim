@@ -1100,8 +1100,16 @@ class Game:
         a WORLD_ENCOUNTER_MENU instead of silently letting the player walk on.
         Guarded by a cooldown so encounters don't stack back-to-back, and
         skipped entirely while standing on a structure tile (towns/shrines
-        shouldn't ambush the player at their own doorstep).
+        shouldn't ambush the player at their own doorstep) or while escorting
+        a companion (self.companions -- see recruit_companion()/
+        try_deliver_companions()): a fresh encounter piling onto an existing
+        escort makes the escort itself untrackable (linked_monsters/
+        escort_id assume one encounter's aftermath at a time) and undercuts
+        the "get them somewhere safe" tension the escort is going for.
         """
+        if self.companions:
+            return False
+
         if self._world_encounter_cooldown > 0:
             self._world_encounter_cooldown -= 1
             return False

@@ -3,6 +3,7 @@ import heapq
 import random
 import struct
 import zlib
+from dataclasses import dataclass
 from enum import Enum
 from world.tile import (
     grass,
@@ -35,6 +36,8 @@ DEEP_WATER = 0.12
 SHALLOW_WATER = 0.18
 PLAINS = 0.55
 HILLS = 0.75
+FOREST = 0.50
+SWAMP = 0.72
 
 # How strongly a chunk's local elevation/moisture noise is pulled toward the
 # coarse, world-scale value WorldMap recorded for that chunk (see
@@ -51,6 +54,40 @@ BIOME_FOREST = "forest"
 BIOME_SWAMP = "swamp"
 BIOME_HILLS = "hills"
 BIOME_MOUNTAINS = "mountains"
+
+
+@dataclass(frozen=True)
+class BiomeThresholds:
+    """
+    Elevation/moisture cutoffs _biome() classifies against.
+
+    Field names keep the (slightly confusing) meaning the old bare
+    module constants had: `hills` is the elevation a tile must reach to
+    stop being plains/forest/swamp and start being hills (was PLAINS),
+    `mountains` is the elevation to stop being hills and become
+    mountains (was HILLS).
+
+    The defaults below assume a roughly uniform [0, 1] input
+    distribution, which is true of the per-chunk local heightmap/
+    moisture grids (_normalize_heightmap()'s squeeze, _generate_moisture_map())
+    but is NOT reliably true of raw fBm noise in general -- summing
+    several octaves is a Central-Limit-Theorem setup, so the result
+    clusters near its mean no matter how far the endpoints are
+    stretched. world_map.py's compute_biome_thresholds() derives a
+    distribution-aware BiomeThresholds instead (percentile lookups
+    against the actual world, not these fixed values) so world-scale
+    biome area fractions stay close to what these defaults imply
+    regardless of how a given world seed's noise happens to be shaped.
+    """
+    ocean: float = DEEP_WATER
+    beach: float = SHALLOW_WATER
+    hills: float = PLAINS
+    mountains: float = HILLS
+    forest_moisture: float = FOREST
+    swamp_moisture: float = SWAMP
+
+
+DEFAULT_BIOME_THRESHOLDS = BiomeThresholds()
 
 
 class ChunkBiome(Enum):
@@ -605,18 +642,31 @@ def get_terrain_generator(biome):
     return PlainsGenerator
 
 
-def _biome(height, moisture):
-    if height < DEEP_WATER:
+def _biome(height, moisture, thresholds=None):
+    """
+    Classify a single (height, moisture) sample into a BIOME_* constant.
+
+    `thresholds` defaults to DEFAULT_BIOME_THRESHOLDS (the original
+    fixed cutoffs), so every existing call site -- _generate_regions()'s
+    per-chunk flavor naming, _score_dungeon_location()'s scoring -- is
+    unaffected. world_map.py passes its own distribution-aware
+    BiomeThresholds when classifying world-scale cells; see
+    BiomeThresholds' docstring for why that matters.
+    """
+    if thresholds is None:
+        thresholds = DEFAULT_BIOME_THRESHOLDS
+
+    if height < thresholds.ocean:
         return BIOME_OCEAN
-    if height < SHALLOW_WATER:
+    if height < thresholds.beach:
         return BIOME_BEACH
-    if height >= HILLS:
+    if height >= thresholds.mountains:
         return BIOME_MOUNTAINS
-    if height >= PLAINS:
+    if height >= thresholds.hills:
         return BIOME_HILLS
-    if moisture > 0.72:
+    if moisture > thresholds.swamp_moisture:
         return BIOME_SWAMP
-    if moisture > 0.50:
+    if moisture > thresholds.forest_moisture:
         return BIOME_FOREST
 
     return BIOME_PLAINS

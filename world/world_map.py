@@ -25,6 +25,7 @@ from collections import deque
 from world.world_generator import (
     ChunkBiome,
     HeightMap,
+    BiomeThresholds,
     _build_permutation_table,
     _fractal_noise,
     _biome as _elevation_moisture_biome,
@@ -106,6 +107,11 @@ class WorldMap:
         self.flavor = {}       # (grid_x, grid_y) -> dict of stage metadata
         self.region_ids = {}    # (grid_x, grid_y) -> region id
         self.region_graph = {}  # region id -> set of neighboring region ids
+        # Set by generate_world_map() via compute_biome_thresholds() --
+        # the actual elevation/moisture cutoffs this world's biomes were
+        # classified against, kept around for debugging/introspection
+        # (e.g. confirming a seed really did land ~12% ocean).
+        self.biome_thresholds = None
 
     def _to_grid(self, chunk_coord):
         """Wrap an unbounded (chunk_x, chunk_y) onto this fixed-size grid."""
@@ -200,26 +206,122 @@ def world_position_to_chunk_local(world_position):
     return (chunk_x, chunk_y), (local_x, local_y)
 
 
-def _normalize_elevation_range(world_map):
+def _percentile_normalize(grid):
     """
-    Rescale world_map.elevation in place so its actual minimum and maximum
-    land exactly on 0.0 and 1.0, instead of the compressed band the raw
-    fBm noise tends to occupy. This is a plain linear stretch — relative
-    shape of the terrain (where the peaks and valleys are) is unchanged,
-    only how far those peaks and valleys sit from the middle of the range.
+    Rescale `grid` (a HeightMap-like object) in place so its values are
+    spread uniformly across [0, 1] by rank rather than by raw magnitude
+    -- each cell ends up at its own percentile within the grid's actual
+    distribution.
+
+    This replaces the old approach of a plain linear min/max stretch,
+    which only guaranteed the extremes touched 0.0/1.0. Summing several
+    octaves of fBm noise is a Central-Limit-Theorem setup: the result
+    clusters near its mean no matter how far the endpoints are
+    stretched, so a threshold like "elevation >= 0.75" almost never
+    fires even after stretching -- it sits deep in a tail that barely
+    has any cells in it. Percentile normalization fixes that by
+    construction: "the top 25% of cells by elevation" always *is* the
+    top 25%, for any input distribution, which is what
+    compute_biome_thresholds() below relies on.
+
+    Applied to both world_map.elevation and world_map.moisture --
+    moisture previously wasn't normalized at all, which is the more
+    direct bug: BIOME_SWAMP's raw moisture > 0.72 cutoff was checked
+    against noise that rarely left a narrow band around 0.5.
     """
-    width, height = world_map.width, world_map.height
-    values = [world_map.elevation.get(x, y) for y in range(height) for x in range(width)]
-    lowest, highest = min(values), max(values)
+    width, height = grid.width, grid.height
+    cells = [(x, y) for y in range(height) for x in range(width)]
+    cells.sort(key=lambda cell: grid.get(*cell))
 
-    elevation_range = highest - lowest
-    if elevation_range == 0:
-        return  # perfectly flat noise (shouldn't happen); nothing to stretch
+    denominator = max(1, len(cells) - 1)
+    for rank, (x, y) in enumerate(cells):
+        grid.set(x, y, rank / denominator)
 
-    for y in range(height):
-        for x in range(width):
-            raw = world_map.elevation.get(x, y)
-            world_map.elevation.set(x, y, (raw - lowest) / elevation_range)
+
+def power_curve(exponent):
+    """
+    Shaping-curve factory: `value ** exponent`, meant to be applied
+    *after* _percentile_normalize() so it's reshaping an already-uniform
+    [0, 1] distribution on purpose, rather than fighting the same
+    clustering _percentile_normalize() just fixed.
+
+    exponent < 1 pulls values up (more of the map reads as high
+    elevation/moisture -- a more mountainous or wetter-feeling world);
+    exponent > 1 pulls values down (flatter, drier). exponent == 1.0 is
+    a no-op. This is a pure art/tuning knob: it does not change biome
+    *area fractions*, since compute_biome_thresholds() always measures
+    percentiles off the grid's actual (possibly curved) distribution --
+    it changes which specific elevation/moisture values correspond to
+    those fractions, which matters anywhere the raw float is read
+    directly (world_generator._bias_grid_toward_world_value(), for one).
+    """
+    return lambda value: value ** exponent
+
+
+def smoothstep_curve(value):
+    """
+    Shaping-curve: classic smoothstep (3v^2 - 2v^3). Pushes mid-range
+    values toward the extremes without moving 0.0/1.0 themselves,
+    steepening the transition between low and high terrain (sharper
+    coastlines/ridgelines, less gentle midground) — a different flavor
+    of knob than power_curve(), usable the same way.
+    """
+    return value * value * (3.0 - 2.0 * value)
+
+
+def _apply_curve(grid, curve):
+    """Apply a shaping curve (a callable float -> float, e.g.
+    power_curve(2.0) or smoothstep_curve) to every cell of `grid` in
+    place. `curve=None` is a no-op, so callers can pass through an
+    optional curve parameter without a branch of their own."""
+    if curve is None:
+        return
+    for y in range(grid.height):
+        for x in range(grid.width):
+            grid.set(x, y, curve(grid.get(x, y)))
+
+
+# Target area fractions each biome should occupy at world scale, chosen to
+# match the *intent* of world_generator.DEFAULT_BIOME_THRESHOLDS' fixed
+# cutoffs (DEEP_WATER=0.12, SHALLOW_WATER=0.18, PLAINS=0.55, HILLS=0.75,
+# and the 0.50/0.72 moisture splits) -- "about 12% ocean", not "elevation
+# below exactly 0.12". compute_biome_thresholds() below turns each of
+# these into the actual elevation/moisture value that cutoff corresponds
+# to for *this* world's generated grids, so the fraction holds regardless
+# of seed or any shaping curve applied.
+OCEAN_PERCENTILE = 0.12
+BEACH_PERCENTILE = 0.18
+HILLS_PERCENTILE = 0.55
+MOUNTAINS_PERCENTILE = 0.75
+FOREST_MOISTURE_PERCENTILE = 0.50
+SWAMP_MOISTURE_PERCENTILE = 0.72
+
+
+def _value_at_percentile(grid, percentile):
+    """The actual value sitting at `percentile` (0..1) of `grid`'s
+    sorted distribution -- e.g. percentile=0.75 returns the value with
+    25% of cells above it, whatever that value happens to be."""
+    values = sorted(grid.get(x, y) for y in range(grid.height) for x in range(grid.width))
+    index = min(len(values) - 1, int(percentile * (len(values) - 1)))
+    return values[index]
+
+
+def compute_biome_thresholds(elevation, moisture):
+    """
+    Derive a world_generator.BiomeThresholds from the *actual*
+    distribution of this world's elevation/moisture grids, instead of
+    assuming DEFAULT_BIOME_THRESHOLDS' fixed values apply. See
+    _percentile_normalize()'s docstring for why fixed values don't
+    reliably work against fBm noise, even after a min/max stretch.
+    """
+    return BiomeThresholds(
+        ocean=_value_at_percentile(elevation, OCEAN_PERCENTILE),
+        beach=_value_at_percentile(elevation, BEACH_PERCENTILE),
+        hills=_value_at_percentile(elevation, HILLS_PERCENTILE),
+        mountains=_value_at_percentile(elevation, MOUNTAINS_PERCENTILE),
+        forest_moisture=_value_at_percentile(moisture, FOREST_MOISTURE_PERCENTILE),
+        swamp_moisture=_value_at_percentile(moisture, SWAMP_MOISTURE_PERCENTILE),
+    )
 
 
 def _biomes_are_adjacent(a, b):
@@ -324,7 +426,7 @@ def _region_name_for_biome(biome):
     }.get(biome, "Wilds")
 
 
-def _generate_world_rivers(world_map, num_rivers, min_spacing=5):
+def _generate_world_rivers(world_map, num_rivers, min_spacing=5, ocean_threshold=DEEP_WATER):
     """
     Trace `num_rivers` major rivers across the world grid: start from a
     high-elevation cell and walk to whichever unvisited neighbor is lowest,
@@ -333,6 +435,13 @@ def _generate_world_rivers(world_map, num_rivers, min_spacing=5):
     a river spanning dozens of chunks doesn't need to wobble tile-by-tile
     to look natural. Each step records which edge of the source cell and
     entry edge of the destination cell the river crosses.
+
+    `ocean_threshold` decides when a river has "reached the ocean" and
+    stops; generate_world_map() passes the world's own computed
+    BiomeThresholds.ocean here so this agrees with actual biome
+    classification instead of the fixed DEEP_WATER constant, which
+    (pre-percentile-normalization) rarely matched what elevation values
+    a given seed's ocean cells actually had.
     """
     width, height = world_map.width, world_map.height
 
@@ -356,7 +465,7 @@ def _generate_world_rivers(world_map, num_rivers, min_spacing=5):
 
         for _ in range(width + height):  # generous upper bound on river length
             current_elevation = world_map.elevation.get(current_x, current_y)
-            if current_elevation < DEEP_WATER:
+            if current_elevation < ocean_threshold:
                 break  # reached the ocean
 
             best_neighbor = None
@@ -399,13 +508,30 @@ def _record_river_path(world_map, path):
         world_map.river_edges.setdefault((bx, by), set()).add(entry_direction)
 
 
-def generate_world_map(world_seed, width=WORLD_MAP_WIDTH, height=WORLD_MAP_HEIGHT, num_rivers=None, num_regions=None, min_region_size=4, max_region_size=14):
+def generate_world_map(
+    world_seed,
+    width=WORLD_MAP_WIDTH,
+    height=WORLD_MAP_HEIGHT,
+    num_rivers=None,
+    num_regions=None,
+    min_region_size=4,
+    max_region_size=14,
+    elevation_curve=None,
+    moisture_curve=None,
+):
     """
     Generate the coarse, persistent world map for a game: one elevation/
     moisture/biome value per chunk, plus a handful of major rivers crossing
     many chunks. This is cheap (width * height cells, not width * height *
     chunk_size tiles) so it's generated once, up front, rather than lazily
     per chunk like the fine-grained terrain in generate_overworld.
+
+    `elevation_curve`/`moisture_curve` are optional shaping-curve
+    callables (see power_curve()/smoothstep_curve() above) applied after
+    percentile normalization, for controlling how mountainous/wet the
+    world *feels* without touching biome area fractions -- those are
+    always derived fresh from whatever distribution the grids end up
+    with, via compute_biome_thresholds() below.
     """
     # A different corner of the permutation table than per-chunk noise uses
     # (world_generator seeds its own permutation table from the same
@@ -428,21 +554,36 @@ def generate_world_map(world_seed, width=WORLD_MAP_WIDTH, height=WORLD_MAP_HEIGH
             world_map.moisture.set(x, y, moisture)
 
     # Summing several octaves of noise (fBm) statistically pulls the result
-    # toward the middle of its range — it's rare for every octave to line up
-    # near an extreme at once — so the raw elevation above rarely gets
-    # anywhere near 1.0. Left alone, that means it almost never clears the
-    # HILLS threshold used below, and mountains (which need an even higher
-    # elevation than hills) become vanishingly rare. Stretching the grid's
-    # actual min/max out to fill the full 0..1 range fixes that without
-    # changing the HILLS/PLAINS thresholds themselves or touching how
-    # per-chunk elevation is generated.
-    _normalize_elevation_range(world_map)
+    # toward the middle of its range -- it's rare for every octave to line up
+    # near an extreme at once. A plain min/max stretch only fixes the
+    # *endpoints*; the bulk of cells still cluster near the mean, so a fixed
+    # cutoff like "elevation >= 0.75" barely ever fires. Percentile
+    # normalization fixes the actual distribution instead of just its
+    # extremes -- see _percentile_normalize()'s docstring -- and is applied
+    # to moisture too, which previously wasn't normalized at all (moisture
+    # > 0.72 for BIOME_SWAMP was checked against raw, uncorrected noise).
+    _percentile_normalize(world_map.elevation)
+    _percentile_normalize(world_map.moisture)
+
+    # Optional art/tuning knobs -- no-ops unless a curve is supplied. Applied
+    # after percentile normalization so they're reshaping an already-uniform
+    # distribution on purpose, not fighting the same clustering above fixes.
+    _apply_curve(world_map.elevation, elevation_curve)
+    _apply_curve(world_map.moisture, moisture_curve)
+
+    # Distribution-aware cutoffs for *this* world's actual (possibly
+    # curved) elevation/moisture grids, so biome area fractions stay close
+    # to what DEFAULT_BIOME_THRESHOLDS' fixed values originally intended
+    # ("about 12% ocean") regardless of seed or curve.
+    thresholds = compute_biome_thresholds(world_map.elevation, world_map.moisture)
+    world_map.biome_thresholds = thresholds
 
     for y in range(height):
         for x in range(width):
             elevation_moisture_biome = _elevation_moisture_biome(
                 world_map.elevation.get(x, y),
                 world_map.moisture.get(x, y),
+                thresholds,
             )
             world_map.biomes[(x, y)] = _WORLD_BIOME_TO_CHUNK_BIOME[elevation_moisture_biome]
 
@@ -456,6 +597,6 @@ def generate_world_map(world_seed, width=WORLD_MAP_WIDTH, height=WORLD_MAP_HEIGH
     if num_rivers is None:
         num_rivers = max(4, (width * height) // 800)
 
-    _generate_world_rivers(world_map, num_rivers)
+    _generate_world_rivers(world_map, num_rivers, ocean_threshold=thresholds.ocean)
 
     return world_map
