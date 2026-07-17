@@ -715,6 +715,14 @@ class Game:
     # that omit "landmark_tile" simply skip that step. "landmark_tile_
     # amount" (a fixed int, or a [min, max] range like "monster_count")
     # controls how many copies get placed -- defaults to exactly one.
+    #
+    # "landmark_tile" itself may be a single key (e.g. "ambush_tree") or
+    # a list of keys (e.g. Bandit_Ambush.json's ["caravan", "barricade"])
+    # -- see _normalize_world_encounter_tile_pool(). When a scenario
+    # supplies more than one key, each individual placement independently
+    # rolls a random tile from that pool, so a multi-tile scene reads as
+    # a believable, varied clutter of wreckage instead of copies of the
+    # exact same prop.
     WORLD_ENCOUNTER_TILE_TYPES = {
         "caravan": caravan,
         "ritual_circle": ritual_circle,
@@ -817,6 +825,23 @@ class Game:
             return tuple(value)
         return (value, value)
 
+    def _normalize_world_encounter_tile_pool(self, value):
+        """
+        Accepts a scenario's "landmark_tile" field in either of two
+        shapes -- a single key (e.g. Wolf_Pack.json's "ambush_tree") or a
+        list of keys (e.g. Bandit_Ambush.json's ["caravan", "barricade"])
+        -- and always returns a list, so _spawn_world_encounter_landmark_
+        tile() can treat every scenario as "a pool of one or more tile
+        types to draw from" without caring which form the JSON used.
+        Returns an empty list for a missing/None field (no landmark at
+        all), unchanged prior behavior for scenarios that never had one.
+        """
+        if value is None:
+            return []
+        if isinstance(value, (list, tuple)):
+            return list(value)
+        return [value]
+
     def _normalize_world_encounter_aftermath(self, aftermath, source_name):
         """
         Validates a scenario's optional "aftermath" block (see
@@ -896,6 +921,9 @@ class Game:
                 ]
                 data["monster_count"] = tuple(data["monster_count"])
                 data["victim_count"] = tuple(data.get("victim_count", (1, 1)))
+                data["landmark_tile"] = self._normalize_world_encounter_tile_pool(
+                    data.get("landmark_tile")
+                )
                 data["landmark_tile_amount"] = self._normalize_world_encounter_range(
                     data.get("landmark_tile_amount", 1)
                 )
@@ -1172,6 +1200,18 @@ class Game:
         cart") instead of only narration. A no-op for scenarios that don't
         declare one.
 
+        "landmark_tile" is normalized to a *pool* of one or more tile keys
+        by _normalize_world_encounter_tile_pool() at load time. Each
+        individual placement below independently rolls a random key from
+        that pool, so a scenario like Bandit_Ambush.json's
+        ["caravan", "barricade"] scatters a believable mix of wrecked
+        cart and hasty barricade instead of several copies of the same
+        prop; a single-key pool (e.g. Wolf_Pack.json's "ambush_tree")
+        behaves exactly as before, since every roll trivially picks the
+        one key available. Unknown keys are skipped individually (with
+        the spawn candidate given back rather than consumed) instead of
+        failing the whole placement pass.
+
         How many copies get placed is randomized between "landmark_tile_
         amount"'s min/max (see _normalize_world_encounter_range(), which
         defaults a missing/int value to exactly one tile -- unchanged
@@ -1184,12 +1224,8 @@ class Game:
         the monsters/victims spawned right after this never land on top
         of one.
         """
-        tile_key = scenario.get("landmark_tile")
-        if tile_key is None or not spawn_candidates:
-            return
-
-        tile_template = self.WORLD_ENCOUNTER_TILE_TYPES.get(tile_key)
-        if tile_template is None:
+        tile_pool = scenario.get("landmark_tile")
+        if not tile_pool or not spawn_candidates:
             return
 
         min_amount, max_amount = scenario["landmark_tile_amount"]
@@ -1199,6 +1235,9 @@ class Game:
         spawn_candidates.sort(key=lambda pos: (pos[0] - anchor_x) ** 2 + (pos[1] - anchor_y) ** 2)
 
         for _ in range(amount):
+            tile_template = self.WORLD_ENCOUNTER_TILE_TYPES.get(random.choice(tile_pool))
+            if tile_template is None:
+                continue  # unknown key in the pool -- skip this placement, leave the candidate open
             x, y = spawn_candidates.pop(0)
             self.game_map.tiles[y][x] = tile_template
 

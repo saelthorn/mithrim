@@ -2,8 +2,8 @@
   "id": "world_encounter_cultists",
 
   "discovery": "Cloaked cultists chant around a bound figure atop a crude stone altar.",
-  "landmark_tile": "ritual_circle",
-  "landmark_tile_amount": [1, 2],
+  "landmark_tile": ["ritual_circle"],
+  "landmark_tile_amount": [1, 1],
   "monster_pool": ["Skeleton", "Imp", "Skeleton", "Cultist", "Cultist", "Cultist"],
   "monster_count": [2, 4],
 

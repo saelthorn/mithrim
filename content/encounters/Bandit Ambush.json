@@ -1,96 +1,111 @@
 {
-  "id": "world_encounter_wolves",
+  "id": "world_encounter_bandits",
 
-  "discovery": "A pack of wolves has a terrified child backed against a tree.",
-  "landmark_tile": "ambush_tree",
-  "landmark_tile_amount": 1,
-  "monster_pool": ["Wolf", "Wolf", "Wolf"],
-  "monster_count": [2, 4],
+  "discovery": "A gang of bandits has surrounded a merchant caravan, stripping valuables from the carts while terrified traders look on.",
+  "landmark_tile": ["caravan", "barricade"],
+  "landmark_tile_amount": [1, 3],
+  "monster_pool": ["Goblin", "Goblin", "GoblinArcher", "Orc"],
+  "monster_count": [2, 3],
 
   "choices": [
     {
       "key": 1,
       "action": "investigate",
       "label": "Investigate",
-      "description": "Walk in and see what's happening",
+      "description": "Approach the scene openly",
       "color": [255, 160, 100]
     },
     {
       "key": 2,
       "action": "sneak",
       "label": "Sneak Around",
-      "description": "Stealth check to glimpse it unseen",
+      "description": "Try to observe without being seen",
       "color": [160, 200, 255]
     },
     {
       "key": 3,
       "action": "ignore",
       "label": "Ignore",
-      "description": "ESC also cancels - just keep walking",
+      "description": "Leave them to their fate",
       "color": [150, 150, 150],
       "is_cancel": true
     }
   ],
 
-  "sneak_dc": 14,
-  "sneak_success": "You circle wide through the undergrowth and startle the wolves from behind, scattering most of the pack before it notices the child.",
-  "sneak_fail": "The wolves catch your scent on the wind and abandon the child to hunt easier prey - you.",
-  "ignore": "You turn away. Somewhere behind you, the child's screams cut off into silence.",
+  "sneak_dc": 13,
+  "sneak_success": "Keeping low behind the brush, you watch the bandits finish looting the caravan before disappearing into the wilderness. Once they're gone, you search what little they left behind.",
+  "sneak_fail": "Your footing gives way with a sharp crack. Every bandit turns toward you, weapons drawn.",
+  "ignore": "You turn away as the merchants plead for help. Their desperate voices soon fade into the distance.",
 
-  "victim": "child",
-  "victim_count": [1, 1],
+  "victim": "merchant",
+  "victim_count": [1, 2],
   "victim_data": {
-    "char": "ch",
+    "char": "td",
     "color": [230, 210, 180],
-    "names": ["Frightened Child"],
-    "dialogue": "P-please... don't let them get me...",
-    "thanks": ["Y-you saved me... thank you, thank you!"],
-    "after": ["The child clings close to you, still shaking."]
+    "names": ["Trader"],
+    "dialogue": "Please... they'll kill us if nobody helps!",
+    "thanks": [
+      "You saved our lives. We owe you everything."
+    ],
+    "after": [
+      "We don't have much left, but please accept this as our thanks."
+    ]
   },
 
-  "scar_tag": "world_encounter_wolves",
-  "reward_xp": 35,
-  "reward_gold": 0,
+  "scar_tag": "world_encounter_bandits",
+  "reward_xp": 40,
+  "reward_gold": 20,
   "reputation_faction": "northfield",
   "reputation_delta": 4,
   "ignored_reputation_delta": -4,
 
   "aftermath": {
-    "discovery": "The wolves lie dead. The girl is still shaking, alone this far from anywhere safe.",
+    "discovery": "The surviving merchants gather what remains of their caravan, tending to the wounded and counting their losses.",
     "choices": [
       {
         "key": 1,
         "action": "escort",
-        "label": "Escort Her to Town",
-        "description": "Walk her back to Northfield and the innkeeper's care",
+        "label": "Escort the Caravan",
+        "description": "See them safely back to Northfield",
         "color": [255, 200, 140],
-        "outcome": "You walk her the long way back to Northfield. The innkeeper takes her in without a word of complaint, and presses a few coins into your hand for the trouble.",
+        "outcome": "You escort the battered caravan back to Northfield without further incident. The grateful merchants spread word of your bravery, and pool together a modest reward.",
         "hours": 2,
         "escort": true,
         "consequences": [
-          { "type": "modify_reputation", "faction": "northfield", "delta": 2 },
-          { "type": "reward_gold", "amount": 5 }
+          {
+            "type": "modify_reputation",
+            "faction": "northfield",
+            "delta": 2
+          },
+          {
+            "type": "reward_gold",
+            "amount": 5
+          }
         ]
       },
       {
         "key": 2,
-        "action": "point_home",
-        "label": "Point Her Toward Home",
-        "description": "She says she knows the way from here",
+        "action": "help_recover",
+        "label": "Help Recover Supplies",
+        "description": "Assist them before moving on",
         "color": [160, 200, 255],
-        "outcome": "She wipes her eyes, nods, and takes off running down the trail on her own. You watch until she's out of sight.",
+        "outcome": "You spend some time gathering scattered goods and repairing what you can. The merchants thank you before continuing their journey.",
         "consequences": []
       },
       {
         "key": 3,
         "action": "leave",
-        "label": "Leave Her Be",
-        "description": "ESC also cancels - she's not your problem",
+        "label": "Leave",
+        "description": "You've done enough",
         "color": [150, 150, 150],
         "is_cancel": true,
-        "outcome": "You leave her sitting among the dead wolves and walk on. She doesn't call after you.",
+        "outcome": "With the danger gone, you leave the merchants to sort through the wreckage on their own.",
         "consequences": [
-          { "type": "modify_reputation", "faction": "northfield", "delta": -1 }
+          {
+            "type": "modify_reputation",
+            "faction": "northfield",
+            "delta": -1
+          }
         ]
       }
     ]
