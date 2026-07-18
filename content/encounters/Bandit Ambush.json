@@ -54,7 +54,7 @@
 
   "scar_tag": "world_encounter_bandits",
   "reward_xp": 40,
-  "reward_gold": 20,
+  "reward_gold": 10,
   "reputation_faction": "northfield",
   "reputation_delta": 4,
   "ignored_reputation_delta": -4,
@@ -79,7 +79,7 @@
           },
           {
             "type": "reward_gold",
-            "amount": 5
+            "amount": 25
           }
         ]
       },

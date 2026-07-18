@@ -492,7 +492,11 @@ class SwampGenerator(TerrainGenerator):
                     game_map.tiles[y][x] = lake
                 elif m > 0.65:
                     game_map.tiles[y][x] = clearing
-                elif h > 0.72:
+                elif h > 0.80 and _chance(x, y, 5, 0.55):
+                    # Was an unconditional `tree`, which made every hilltop a
+                    # solid, gap-free block of forest. Thinning it here lets
+                    # roughly half of it fall through to the tall_grass band
+                    # below instead, breaking the canopy up with clearings.
                     game_map.tiles[y][x] = tree
                 else:
                     game_map.tiles[y][x] = ground
