@@ -405,7 +405,7 @@ STRUCTURE_BLUEPRINTS = {
             " ......#",
             "##k..7.#",
             "#p...|A#",
-            "#tp..I.#",
+            "#tp..|.#",
             "####.###",
         ],
         {"#": wall, ".": tavern_floor, "p": tavern_floor, "A": tavern_floor, "k": tavern_barrel_two, "I": bar_counter_two, "|": bar_counter_three, "7": bar_counter_four, "t": table},

@@ -1991,7 +1991,15 @@ def _place_pois(game_map, heightmap, moisture, poi, count):
 # ---------------------------------------------------------------------------
 
 # Minimum number of empty tiles kept between two town buildings' footprints.
+# Every randomized offset below is added *on top of* this floor, never
+# subtracted from it, so this stays a hard guarantee regardless of how
+# much random "character" jitter a given town rolls.
 TOWN_BUILDING_GAP = 2
+
+# Extra random slack (in tiles) layered on top of TOWN_BUILDING_GAP when
+# spacing out a town's buildings, purely for visual variety -- so houses
+# don't all sit exactly TOWN_BUILDING_GAP apart in a rigid grid.
+TOWN_LAYOUT_JITTER = 3
 
 # 1-in-N chunks roll a town (lower = more frequent). Was 5.
 TOWN_CHUNK_FREQUENCY = 2
@@ -2015,7 +2023,23 @@ def _anchor_offset(size_a, size_b, gap):
     return (size_a - size_a // 2) + gap + (size_b // 2)
 
 
-def _place_town(game_map, chunk_coord, biome):
+def _town_rng(chunk_coord, world_seed):
+    """
+    Deterministic per-(world, chunk) RNG used for a town's anchor position
+    and its buildings' layout.
+
+    Mixing `world_seed` into the hash -- not just `chunk_coord`, as the
+    old fixed-offset math effectively did -- means the same chunk produces
+    a different town position and a different building arrangement in
+    every freshly generated world, instead of every world placing its
+    towns in identical spots. It's still fully deterministic for a given
+    world_seed + chunk_coord pair, so revisiting a chunk always
+    regenerates the exact same town rather than reshuffling it.
+    """
+    return random.Random((world_seed * 1_000_003) ^ (chunk_coord[0] * 92_821) ^ (chunk_coord[1] * 68_917))
+
+
+def _place_town(game_map, chunk_coord, biome, world_seed):
     """
     Attempt to place a small town — one tavern, one shop, and a handful of
     houses, clustered together — in this chunk.
@@ -2031,15 +2055,20 @@ def _place_town(game_map, chunk_coord, biome):
     than scattering a shop or houses with nothing around them. The shop
     and houses are positioned using each building's actual footprint size
     (from its blueprint) plus TOWN_BUILDING_GAP, so buildings stay at
-    least a tile apart instead of relying on hand-picked offsets. Note
-    place_structure_at_anchor may still nudge a building a tile or two to
-    find clear ground, so this spacing is a target, not an absolute
-    guarantee.
+    least that many tiles apart instead of relying on hand-picked offsets
+    — every randomized jitter added below is *extra* slack on top of that
+    floor, never a reduction of it. Note place_structure_at_anchor may
+    still nudge a building a tile or two to find clear ground, so this
+    spacing is a target, not an absolute guarantee.
 
-    The anchor itself is rolled anywhere within the chunk (minus a margin
-    that keeps the whole cluster off the edges/corners) rather than always
-    sitting near the chunk's center, so towns don't all line up in the
-    same spot chunk after chunk.
+    The anchor, which side of the tavern the shop sits on, and how much
+    extra breathing room each building gets are all rolled from a
+    world-seeded RNG (see `_town_rng`) rather than a chunk-only hash, so
+    towns get both a different position *and* a bit of individual
+    character (a tighter cluster here, a looser scatter there, the shop
+    sometimes above the tavern instead of always to its right) from world
+    to world, instead of every game placing an identical town in an
+    identical layout for a given chunk.
     """
     width, height = game_map.width, game_map.height
 
@@ -2054,13 +2083,16 @@ def _place_town(game_map, chunk_coord, biome):
     margin_x = min(width // 2 - 1, TOWN_ANCHOR_MARGIN)
     margin_y = min(height // 2 - 1, TOWN_ANCHOR_MARGIN)
 
-    # Deterministic per-chunk hash so the same chunk always rolls the same
-    # anchor, spread across the whole usable span rather than the old
-    # fixed +/-2 wobble around dead-center.
+    rng = _town_rng(chunk_coord, world_seed)
+
+    # Anchor rolled anywhere within the usable span. Seeding on world_seed
+    # as well as chunk_coord (see _town_rng) is what makes this move to a
+    # new spot in every freshly generated world, rather than a chunk
+    # always producing the exact same anchor.
     span_x = max(1, width - 2 * margin_x)
     span_y = max(1, height - 2 * margin_y)
-    anchor_x = margin_x + (chunk_coord[0] * 977 + chunk_coord[1] * 331) % span_x
-    anchor_y = margin_y + (chunk_coord[1] * 977 + chunk_coord[0] * 331) % span_y
+    anchor_x = margin_x + rng.randrange(span_x)
+    anchor_y = margin_y + rng.randrange(span_y)
 
     tavern_bp = get_structure_blueprint("tavern")
     shop_bp = get_structure_blueprint("shop")
@@ -2077,19 +2109,53 @@ def _place_town(game_map, chunk_coord, biome):
         return []
     town_buildings.append(("tavern", tavern))
 
-    # Shop sits to the right of the tavern, on the same row.
-    shop_anchor_x = anchor_x + _anchor_offset(tavern_w, shop_w, TOWN_BUILDING_GAP)
-    shop = place_structure_at_anchor(game_map, "shop", shop_anchor_x, anchor_y)
+    # Shop is placed on a randomly chosen side of the tavern (instead of
+    # always to the right), with a random amount of extra slack layered on
+    # top of the guaranteed TOWN_BUILDING_GAP and a small sideways drift
+    # along the perpendicular axis — that drift never touches the gap
+    # between tavern and shop itself, only where along that edge the shop
+    # sits, so it can't accidentally pull the two buildings closer than
+    # the guaranteed minimum.
+    shop_gap = TOWN_BUILDING_GAP + rng.randint(0, TOWN_LAYOUT_JITTER)
+    shop_drift = rng.randint(-TOWN_LAYOUT_JITTER, TOWN_LAYOUT_JITTER)
+    shop_side = rng.choice(("right", "left", "below", "above"))
+    if shop_side == "right":
+        shop_anchor_x = anchor_x + _anchor_offset(tavern_w, shop_w, shop_gap)
+        shop_anchor_y = anchor_y + shop_drift
+    elif shop_side == "left":
+        shop_anchor_x = anchor_x - _anchor_offset(tavern_w, shop_w, shop_gap)
+        shop_anchor_y = anchor_y + shop_drift
+    elif shop_side == "below":
+        shop_anchor_x = anchor_x + shop_drift
+        shop_anchor_y = anchor_y + _anchor_offset(tavern_h, shop_h, shop_gap)
+    else:  # "above"
+        shop_anchor_x = anchor_x + shop_drift
+        shop_anchor_y = anchor_y - _anchor_offset(tavern_h, shop_h, shop_gap)
+
+    shop = place_structure_at_anchor(game_map, "shop", shop_anchor_x, shop_anchor_y)
     if shop:
         town_buildings.append(("shop", shop))
 
-    # Houses form a row below the tavern/shop row, spaced the same way.
-    houses_row_y = anchor_y + _anchor_offset(max(tavern_h, shop_h), house_h, TOWN_BUILDING_GAP)
-    house_spacing = _anchor_offset(house_w, house_w, TOWN_BUILDING_GAP)
-    house_anchors_x = [anchor_x - house_spacing, anchor_x, anchor_x + house_spacing]
+    # Houses form a loose row below the tavern/shop row: one centered under
+    # them, one to either side. Each gap (tavern/shop row -> house row, and
+    # between neighbouring houses) starts at the guaranteed TOWN_BUILDING_GAP
+    # and gets its own random amount of extra slack, plus each house gets a
+    # small amount of extra downward drift, so the row reads as scattered
+    # rather than a perfectly even grid -- while never drifting closer
+    # together than the guaranteed minimum gap.
+    houses_row_y = anchor_y + _anchor_offset(
+        max(tavern_h, shop_h), house_h, TOWN_BUILDING_GAP + rng.randint(0, TOWN_LAYOUT_JITTER)
+    )
 
-    for house_anchor_x in house_anchors_x:
-        house = place_structure_at_anchor(game_map, "house", house_anchor_x, houses_row_y)
+    for side in (0, -1, 1):  # centered first, then left, then right
+        if side == 0:
+            house_anchor_x = anchor_x
+        else:
+            spacing = _anchor_offset(house_w, house_w, TOWN_BUILDING_GAP + rng.randint(0, TOWN_LAYOUT_JITTER))
+            house_anchor_x = anchor_x + side * spacing
+        house_anchor_y = houses_row_y + rng.randint(0, TOWN_LAYOUT_JITTER)
+
+        house = place_structure_at_anchor(game_map, "house", house_anchor_x, house_anchor_y)
         if house:
             town_buildings.append(("house", house))
 
@@ -2220,7 +2286,7 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
     # mountain ridges) so ridges can't carve through a building, and so a
     # town has first pick of the map's central area before the single
     # biome_structure fallback below claims it.
-    town_buildings = _place_town(game_map, chunk_coord, biome)
+    town_buildings = _place_town(game_map, chunk_coord, biome, world_seed)
     population = create_town_npcs(game_map, town_buildings)
     flavor["has_town"] = bool(town_buildings)
 

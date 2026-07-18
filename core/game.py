@@ -3187,6 +3187,7 @@ class Game:
                     if not entity.alive and isinstance(entity, Monster):
                         xp_gained = entity.die(self, killer=self.player)
                         self.player.gain_xp(xp_gained, self)
+                        self.stories.fire_kill(entity, instigator=self.player, group_id=getattr(entity, "group_id", None))
 
             # Advance the fire tile's duration counter
             expired = current_tile.tick()
