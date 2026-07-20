@@ -102,6 +102,17 @@ class EscortCompanion(SummonedEntity):
         self.initiative = 0
         self.active_status_effects = []
 
+        # An escort can span an entire cross-chunk journey (see
+        # game.py's recruit_companion()/generate_overworld_map()), and
+        # _is_free() below already lets a companion step onto anything
+        # game_map.is_walkable() allows -- including water, same as the
+        # player. Without this, a companion wading into a river would
+        # render as a normal (non-submerged) sprite instead of the
+        # composited swimming sprite game.py's draw loop uses for the
+        # player and other can_swim entities (see the is_submerged
+        # check there).
+        self.can_swim = True
+
         # Which escort quest this companion belongs to, and what
         # delivering them safely pays out -- read by game.py's
         # Game.try_deliver_companions()/_grant_escort_reward().
