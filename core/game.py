@@ -3205,6 +3205,31 @@ class Game:
         # Remove dead monsters/NPCs
         self.entities = [e for e in self.entities if getattr(e, "alive", True)]
 
+        # self.turn_order is a separate list from self.entities (see
+        # generate_overworld_map()/generate_level()/recruit_companion()) and
+        # was never being pruned here — every monster that ever died over a
+        # play session stayed in turn_order permanently. Left unchecked, a
+        # long fight or an extended chase made next_turn() cycle through an
+        # ever-growing pile of stale, already-dead entries before reaching a
+        # live one, so per-turn cost crept up the longer play went on instead
+        # of staying flat. Track whichever entity's turn is currently in
+        # progress before filtering, so removing dead entries can't shift
+        # current_turn_index onto the wrong entity or skip/repeat a turn.
+        if self.turn_order:
+            current_entity = (
+                self.turn_order[self.current_turn_index]
+                if self.current_turn_index < len(self.turn_order)
+                else None
+            )
+            self.turn_order = [e for e in self.turn_order if getattr(e, "alive", True)]
+
+            if current_entity is not None and current_entity in self.turn_order:
+                self.current_turn_index = self.turn_order.index(current_entity)
+            elif self.turn_order:
+                self.current_turn_index %= len(self.turn_order)
+            else:
+                self.current_turn_index = 0
+
         # Handle items (depends on your structure: game.items_on_ground or game.map.items_on_ground)
         if hasattr(self, "items_on_ground"):
             self.items_on_ground = [i for i in self.items_on_ground if getattr(i, "alive", True)]
