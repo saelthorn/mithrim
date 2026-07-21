@@ -490,14 +490,16 @@ class SwampGenerator(TerrainGenerator):
                     game_map.tiles[y][x] = river
                 elif m > 0.82 and h < 0.50:
                     game_map.tiles[y][x] = lake
-                elif m > 0.65:
-                    game_map.tiles[y][x] = clearing
                 elif h > 0.80 and _chance(x, y, 5, 0.55):
                     # Was an unconditional `tree`, which made every hilltop a
                     # solid, gap-free block of forest. Thinning it here lets
                     # roughly half of it fall through to the tall_grass band
                     # below instead, breaking the canopy up with clearings.
                     game_map.tiles[y][x] = tree
+                elif m > 0.65:
+                    game_map.tiles[y][x] = reeds
+                elif m > 0.50:
+                    game_map.tiles[y][x] = clearing
                 else:
                     game_map.tiles[y][x] = ground
 
@@ -520,11 +522,11 @@ class SwampGenerator(TerrainGenerator):
                     continue
 
                 if m > 0.64 and h < 0.45 and _chance(x, y, 1, 1 / 11):
-                    game_map.tiles[y][x] = marsh_pool
+                    game_map.tiles[y][x] = river
                 elif tile is tree and _chance(x, y, 2, 1 / 13):
                     game_map.tiles[y][x] = dead_forest
                 elif m > 0.72 and _chance(x, y, 3, 1 / 19):
-                    game_map.tiles[y][x] = reeds
+                    game_map.tiles[y][x] = river
 
     def place_landmarks(self, game_map, heightmap, moisture, river_positions):
         candidates = []

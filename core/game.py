@@ -2474,13 +2474,30 @@ class Game:
         self.lit_wall_torches = cached["lit_wall_torches"]
         self.fov = cached["fov"]
 
-        # Both directions of travel (descending to a deeper level, or
-        # climbing back up to a shallower one) land the player beside this
-        # level's "up" stairs -- the stairs that lead back the way they just
-        # came, matching the entry point generate_dungeon() places rooms[0]
-        # (and therefore the player's very first spawn) around.
-        if 'up' in self.stairs_positions:
-            self.player.x, self.player.y = self.stairs_positions['up']
+        # Which staircase the player should reappear beside depends on which
+        # direction they just traveled, not just "this level's entrance":
+        #   - Descending into this level (spawn_on_stairs_up=False) means we
+        #     arrived from the shallower level above via ITS 'down' stairs,
+        #     so we land on THIS level's 'up' stairs -- the entry point
+        #     generate_dungeon() places rooms[0] (and the player's very
+        #     first spawn) around.
+        #   - Climbing back up into this level (spawn_on_stairs_up=True)
+        #     means we arrived from the deeper level below via ITS 'up'
+        #     stairs, so we must land on THIS level's 'down' stairs -- the
+        #     exact staircase the player originally descended through --
+        #     not back at the level's entrance. Landing at 'up' here was
+        #     the bug: it teleported the player back to the dungeon's start
+        #     instead of to the stairs they actually climbed.
+        # Each branch falls back to whichever stairs key IS present, in
+        # case a level was generated without one (e.g. a single-staircase
+        # or boss level), so we never silently no-op the spawn placement.
+        if spawn_on_stairs_up:
+            landing_stairs = self.stairs_positions.get('down', self.stairs_positions.get('up'))
+        else:
+            landing_stairs = self.stairs_positions.get('up', self.stairs_positions.get('down'))
+
+        if landing_stairs is not None:
+            self.player.x, self.player.y = landing_stairs
 
         self.entities = [self.player] + list(cached["entities"])
 
@@ -2533,7 +2550,15 @@ class Game:
         rooms, self.stairs_positions, self.torch_light_sources, prison_prisoners = generate_dungeon(self.game_map, level_number)
 
 
-        if spawn_on_stairs_up and 'up' in self.stairs_positions:
+        # Defensive path only: in normal play a level is always cached (see
+        # _restore_dungeon_level above) by the time the player could climb
+        # back up to it, so spawn_on_stairs_up=True never actually reaches
+        # fresh generation. If it ever does, mirror the same direction
+        # logic as the restore path: arriving from below lands on THIS
+        # level's 'down' stairs, not its 'up' entrance.
+        if spawn_on_stairs_up and 'down' in self.stairs_positions:
+            start_x, start_y = self.stairs_positions['down']
+        elif spawn_on_stairs_up and 'up' in self.stairs_positions:
             start_x, start_y = self.stairs_positions['up']
         else:
             start_x, start_y = rooms[0].center()
