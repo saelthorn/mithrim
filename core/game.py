@@ -21,6 +21,7 @@ class GameState:
     TRADE = "trade"
     CHEST_MENU = "chest_menu"  # Locked chest interaction menu
     SHOP_MENU  = "shop_menu"   # Merchant shop overlay
+    INNKEEPER_MENU = "innkeeper_menu"  # Innkeeper's Buy Food / Rest for the Night choice menu
     GAME_OVER = "game_over" # NEW: Add GAME_OVER state
     OVERWORLD = "overworld"  # Cellular-automata overworld map (dungeon_generator's sibling)
     WORLD_ENCOUNTER_MENU = "world_encounter_menu"  # Narrative overworld encounter choice menu
@@ -314,6 +315,8 @@ class Game:
 
         self.ability_in_use = None
         self._chest_menu_target = None  # Locked chest awaiting player's choice
+        self._innkeeper_menu_target = None  # Innkeeper awaiting player's Buy Food / Rest / Leave choice
+        self._innkeeper_menu_return_state = GameState.OVERWORLD  # Where INNKEEPER_MENU itself returns to (see open_innkeeper_menu())
         self._world_encounter_target = None    # Scenario dict awaiting the player's choice
         self._world_encounter_story_id = None  # StoryInstance id backing the currently-offered/active encounter
         self._world_encounter_cooldown = 0     # Steps left before another encounter can roll
@@ -1679,6 +1682,31 @@ class Game:
             companion.complete_escort(self)
 
         return True
+
+    def open_innkeeper_menu(self, innkeeper):
+        """
+        Open the Buy Food / Rest for the Night / Leave choice menu for
+        an adjacent Innkeeper (see the 'F to talk' handler and
+        GameState.INNKEEPER_MENU's key handling below). Mirrors the
+        Shopkeeper.offer_trade()/CHEST_MENU pattern already used
+        elsewhere: stash the target, remember what to return to, and
+        switch game_state -- rendering and input handling pick it up
+        from there (render_innkeeper_menu()/handle_innkeeper_menu_input()).
+
+        `_innkeeper_menu_return_state` is tracked separately from the
+        shared `_previous_game_state` field (rather than reusing it, as
+        CHEST_MENU/SHOP_MENU do) because the Buy Food option below opens
+        the shop overlay *on top of* this menu via Innkeeper.offer_trade(),
+        which itself reassigns `_previous_game_state` to INNKEEPER_MENU so
+        leaving the shop comes back here. Reusing that same field for "what
+        the innkeeper menu itself returns to" would get clobbered by that
+        nested trip to the shop, leaving no way back to the overworld.
+        """
+        self._previous_game_state = self.game_state
+        self._innkeeper_menu_return_state = self.game_state
+        self._innkeeper_menu_target = innkeeper
+        self.game_state = GameState.INNKEEPER_MENU
+        self.stories.fire_talk(innkeeper, instigator=self.player)
 
     def _grant_escort_reward(self, companion):
         """
@@ -3517,6 +3545,11 @@ class Game:
                     self.handle_shop_menu_input(event.key)
                     return True
 
+                # --- Innkeeper Menu ---
+                elif self.game_state == GameState.INNKEEPER_MENU:
+                    self.handle_innkeeper_menu_input(event.key)
+                    return True  # Consume all input while menu is open
+
                 else:
                     if event.key == pygame.K_SLASH:  # Enter key to submit input
                         if self.message_log.show_input_area:  # Check if input area is visible
@@ -3637,20 +3670,20 @@ class Game:
 
                         if self.game_state == GameState.OVERWORLD:
                             npc = self.check_overworld_npc_interaction()
-                            if npc:                        
-                                if isinstance(npc, Innkeeper) and self.try_deliver_companions(npc):
-                                    return True  # Escort(s) delivered -- skip the innkeeper's ordinary dialogue this turn
-                                shopkeeper = self.check_overworld_npc_interaction()  # Check for adjacent NPC
-                                if isinstance(shopkeeper, Shopkeeper):
-                                    shopkeeper.offer_trade(self.player, self)  # Call the trade method for the Shopkeeper
-                                    return True
-                                elif isinstance(npc, Trader):
-                                    shopkeeper.offer_trade(self.player, self)
-                                else:
-                                    self.message_log.add_message(f'{npc.name}: "{npc.get_dialogue()}"', (200, 200, 255))
-                                    self.stories.fire_talk(npc, instigator=self.player)
                             if isinstance(npc, EncounterVictim):
                                 npc.interact(self.player, self)
+                                return True
+                            elif isinstance(npc, Innkeeper):
+                                # An escort delivery takes priority over the
+                                # innkeeper's own Rest/Buy Food menu -- walking
+                                # up to them with companions in tow resolves
+                                # the delivery instead of opening the menu.
+                                if self.try_deliver_companions(npc):
+                                    return True
+                                self.open_innkeeper_menu(npc)
+                                return True
+                            elif isinstance(npc, (Shopkeeper, Trader)):
+                                npc.offer_trade(self.player, self)  # Call the trade method for the Shopkeeper/Trader
                                 return True
                             elif npc:
                                 self.message_log.add_message(f'{npc.name}: "{npc.get_dialogue()}"', (200, 200, 255))
@@ -4072,6 +4105,51 @@ class Game:
             self._shop_menu_merchant = None
             self._shop_selected_index = 0
             self._shop_mode = "buy"
+
+    def handle_innkeeper_menu_input(self, key):
+        """
+        Handles keyboard input while the Innkeeper's Rest/Buy Food/Leave
+        overlay (GameState.INNKEEPER_MENU, see open_innkeeper_menu() and
+        render_innkeeper_menu()) is open.
+
+        Mirrors the numbered-choice convention CHEST_MENU already
+        established (handle_input()'s "--- Locked Chest Menu ---" branch)
+        rather than the arrow-key list navigation handle_shop_menu_input()
+        uses -- with only two real actions plus "leave", a numbered choice
+        is simpler for the player and for this method alike.
+
+        [1] Rest for the Night -- resolves immediately (pay gold, restore
+            HP/resources, advance world time) via Innkeeper.rest_player(),
+            then closes the menu, exactly like CHEST_MENU's "pick the
+            lock"/"smash it" choices resolve and close in one step.
+        [2] Buy Food -- delegates to Innkeeper.offer_trade(), the same
+            method Shopkeeper/Trader NPCs already use to open the shared
+            shop overlay (see structures.py). offer_trade() stamps
+            game._previous_game_state with whatever game_state is active
+            when it's called -- since that's still INNKEEPER_MENU at this
+            point, leaving the shop (ESC/F) returns here rather than to
+            the overworld, so Buy Food -> Leave -> Rest is one continuous
+            conversation with the innkeeper instead of three separate
+            approaches.
+        [3] / ESC / F -- leave, no purchase or rest.
+        """
+        innkeeper = self._innkeeper_menu_target
+        if not innkeeper:
+            self.game_state = self._innkeeper_menu_return_state or GameState.OVERWORLD
+            return
+
+        if key == pygame.K_1:
+            result = innkeeper.rest_player(self.player, self)
+            self.message_log.add_message(result, (255, 240, 160))
+            self.game_state = self._innkeeper_menu_return_state or GameState.OVERWORLD
+            self._innkeeper_menu_target = None
+
+        elif key == pygame.K_2:
+            innkeeper.offer_trade(self.player, self)  # Opens SHOP_MENU scoped to the innkeeper's food menu
+
+        elif key in (pygame.K_3, pygame.K_ESCAPE, pygame.K_f):
+            self.game_state = self._innkeeper_menu_return_state or GameState.OVERWORLD
+            self._innkeeper_menu_target = None
 
     def handle_text_input(self, input_text):        
         """Handles text input from the player."""
@@ -5616,6 +5694,10 @@ class Game:
         if self.game_state == GameState.SHOP_MENU and self._shop_menu_merchant:
             self.render_shop_menu()
 
+        # Innkeeper's Rest / Buy Food / Leave overlay — drawn over the overworld, under nothing else
+        if self.game_state == GameState.INNKEEPER_MENU and self._innkeeper_menu_target:
+            self.render_innkeeper_menu()
+
         # NEW: Render game over screen if in GAME_OVER state
         if self.game_state == GameState.GAME_OVER:
             self.render_game_over_screen()
@@ -5690,6 +5772,89 @@ class Game:
             ("[1] Pick the Lock",  "DEX check  DC 12 (Thieves' Tools required)", (160, 200, 255)),
             ("[2] Smash It Open",  "STR check  DC 14 (Attracts monsters)", (255, 160, 100)),
             ("[3] Leave it Alone", "ESC also cancels",                     (150, 150, 150)),
+        ]
+
+        y = sy + PAD + 32
+        for header, sub, color in options:
+            h_surf = font_body.render(header, True, color)
+            s_surf = font_body.render(f"    {sub}", True, (90, 90, 100))
+            self.screen.blit(h_surf, (sx + PAD, y))
+            y += font_body.get_linesize() + 1
+            self.screen.blit(s_surf, (sx + PAD, y))
+            y += font_body.get_linesize() + 6
+
+    def render_innkeeper_menu(self):
+        """
+        Draws the Innkeeper's Rest for the Night / Buy Food / Leave choice
+        popup over the overworld. Visually mirrors render_chest_menu() --
+        same overlay size, fonts, and numbered-option layout -- so the two
+        "adjacent NPC/object offers a short numbered choice" interactions
+        read as one consistent UI language rather than two bespoke ones.
+
+        Unlike render_chest_menu()'s hard-coded option text, the two real
+        choices here are captioned from the live Innkeeper instance
+        (self._innkeeper_menu_target) -- its rest_cost/rest_hours and
+        current food stock -- so the popup never drifts out of sync with
+        what selecting them will actually do.
+        """
+        innkeeper = self._innkeeper_menu_target
+        if innkeeper is None:
+            return
+
+        try:
+            font_title = pygame.font.SysFont("consolas", 16, bold=True)
+            font_body  = pygame.font.SysFont("consolas", 14)
+        except Exception:
+            font_title = pygame.font.Font(None, 18)
+            font_body  = pygame.font.Font(None, 16)
+
+        # --- Layout (identical footprint to render_chest_menu) ---
+        PAD   = 14
+        W     = 440
+        H     = 180
+        sx    = (config.GAME_AREA_WIDTH - W) // 2
+        sy    = (config.SCREEN_HEIGHT   - H) // 2
+
+        # Dark semi-transparent background
+        bg = pygame.Surface((W, H), pygame.SRCALPHA)
+        bg.fill((10, 8, 14, 220))
+        self.screen.blit(bg, (sx, sy))
+
+        # Warm gold border, matching the Innkeeper NPC's own tile color
+        pygame.draw.rect(self.screen, (255, 215, 120), (sx, sy, W, H), 2, border_radius=4)
+
+        # Title
+        title_surf = font_title.render(f"  {innkeeper.name}", True, (255, 215, 120))
+        self.screen.blit(title_surf, (sx + PAD, sy + PAD))
+
+        # Divider
+        pygame.draw.line(
+            self.screen, (60, 60, 75),
+            (sx + PAD, sy + PAD + 22), (sx + W - PAD, sy + PAD + 22)
+        )
+
+        food_count = len(innkeeper.items_for_sale)
+        food_sub = (
+            f"{food_count} item(s) available"
+            if food_count else "Nothing left in stock right now"
+        )
+
+        options = [
+            (
+                "[1] Rest for the Night",
+                f"{innkeeper.rest_cost} gold  --  restores HP, advances {innkeeper.rest_hours} hours",
+                (160, 220, 160),
+            ),
+            (
+                "[2] Buy Food",
+                food_sub,
+                (255, 220, 150),
+            ),
+            (
+                "[3] Leave",
+                "ESC / F also cancels",
+                (150, 150, 150),
+            ),
         ]
 
         y = sy + PAD + 32

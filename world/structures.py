@@ -49,6 +49,83 @@ class TownNPC(NPC):
         super().__init__(x, y, char, name, color, dialogue)
 
 
+def _clone_item(item):
+    """
+    Return a fresh instance of `item`, matching the clone pattern
+    merchants already use when handing out one of their own template
+    items, so the player never ends up aliasing the template object
+    itself. Shared by Shopkeeper's stocking/bulk-buy and Innkeeper's
+    food menu below.
+    """
+    if isinstance(item, CampfireKit):
+        return CampfireKit()
+    return item.__class__(
+        name=item.name,
+        char=item.char,
+        color=item.color,
+        description=item.description,
+        **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+    )
+
+
+def _buy_from_stock(seller, player, item_name):
+    """
+    Shared "buy an item (or every food item at once) from a merchant's
+    items_for_sale list" logic, used by both Shopkeeper.buy_item() and
+    Innkeeper.buy_item() so the purchase rules (afford-check, inventory-
+    full refund, bulk "all food" buy) only live in one place. `seller`
+    only needs an `items_for_sale` list -- it doesn't need to be a
+    Shopkeeper itself, which is what lets Innkeeper reuse this too.
+    """
+    if item_name == "all food":
+        food_items = [item for item in seller.items_for_sale if isinstance(item, Food)]
+        if not food_items:
+            return "No food items are available for sale."
+
+        purchased_items = []
+        total_cost = 0
+        for item in list(food_items):
+            if player.gold < item.price:
+                continue
+
+            new_item = _clone_item(item)
+            if player.inventory.add_item(new_item):
+                player.gold -= item.price
+                total_cost += item.price
+                purchased_items.append(item.name)
+                seller.items_for_sale.remove(item)
+            else:
+                break
+
+        if not purchased_items:
+            return "You couldn't buy any food. Check your gold or inventory space."
+        item_list = ", ".join(purchased_items)
+        player.update_throw_knife_ability()
+        player.update_spellbook_abilities()
+        player.update_guard_ability()
+        return f"You bought {len(purchased_items)} food items for {total_cost} gold: {item_list}."
+
+    for item in seller.items_for_sale:
+        if item.name.lower() == item_name.lower():
+            if player.gold >= item.price:
+                player.gold -= item.price
+
+                # Give the actual item instance to the player
+                if player.inventory.add_item(item):
+                    seller.items_for_sale.remove(item)  # Remove the item from the seller
+                    player.update_throw_knife_ability()
+                    player.update_spellbook_abilities()
+                    player.update_guard_ability()
+                    return f"You bought {item.name}!"
+                else:
+                    # If adding failed, refund the player
+                    player.gold += item.price
+                    return "Your inventory is full!"
+            else:
+                return "Scram! you don't have enough gold!"
+    return "We don't sell that kind of item here!"
+
+
 class Townsfolk(TownNPC):
     def __init__(self, x, y, name=None):
         dialogue = [
@@ -61,6 +138,11 @@ class Townsfolk(TownNPC):
 
 
 class Innkeeper(TownNPC):
+    #: Gold charged for a night's stay -- see rest_player().
+    rest_cost = 5
+    #: Hours the world clock advances per rest -- see rest_player().
+    rest_hours = 8
+
     def __init__(self, x, y):
         dialogue = [
             "Welcome in, traveler. Warm floorboards beat cold roads.",
@@ -68,6 +150,64 @@ class Innkeeper(TownNPC):
             "You can learn plenty by listening before you descend.",
         ]
         super().__init__(x, y, 'A', 'Innkeeper', (255, 215, 120), dialogue)
+
+        # A small, fixed food menu -- unlike Shopkeeper, the innkeeper
+        # doesn't restock randomly or carry equipment, only supper and a
+        # bed. See structures.STRUCTURE_BLUEPRINTS' "tavern" blueprint.
+        food_menu = [bread, meat, fromage, green_apple, carrot, mushroom]
+        self.items_for_sale = [_clone_item(item) for item in food_menu]
+
+    def offer_trade(self, player, game):
+        """
+        Open the same shop overlay Shopkeeper.offer_trade() uses (see
+        game.py's render_shop_menu()/handle_shop_menu_input()) scoped to
+        the innkeeper's food menu -- that overlay only needs an object
+        with .name/.items_for_sale/.buy_item()/.sell_item(), so it works
+        unmodified for any merchant-shaped NPC, not just Shopkeeper.
+        """
+        game._previous_game_state = game.game_state
+        game._shop_menu_merchant  = self
+        game._shop_selected_index = 0
+        game._shop_mode           = "buy"
+        game.game_state           = GameState.SHOP_MENU
+
+    def buy_item(self, player, item_name):
+        return _buy_from_stock(self, player, item_name)
+
+    def sell_item(self, player, item_name):
+        """The innkeeper doesn't buy anything back -- kept so the shared
+        shop overlay's SELL tab has something safe to call rather than
+        crashing if a player tabs over to it out of habit."""
+        return f'{self.name} shakes their head. "I only deal in food and lodging here."'
+
+    def rest_player(self, player, game):
+        """
+        Handle the player paying for a night's stay: charges rest_cost
+        gold, fully restores HP, and advances the world clock by a full
+        night through StorySystems.fire_rest() -- the canonical inn/camp
+        rest path story_integration.py's docstring already earmarks for
+        this, so any story timer (deadlines, decay, scheduled events)
+        sees it exactly like any other rest.
+
+        Returns a message string for the caller to log, matching
+        buy_item()/sell_item()'s "return a string, let the caller log
+        it" convention.
+        """
+        if player.gold < self.rest_cost:
+            return f"You can't afford a room tonight. A bed costs {self.rest_cost} gold."
+
+        player.gold -= self.rest_cost
+        player.hp = player.max_hp
+
+        # Some classes track further per-rest resources (spell slots,
+        # ability charges, ...) behind their own long_rest() hook; restore
+        # those too if present, without this needing to know their shape.
+        long_rest = getattr(player, "long_rest", None)
+        if callable(long_rest):
+            long_rest()
+
+        game.stories.fire_rest(self.rest_hours)
+        return f"You rest through the night and wake up refreshed. (-{self.rest_cost} gold)"
 
 
 class Shopkeeper(TownNPC):
@@ -172,60 +312,7 @@ class Shopkeeper(TownNPC):
 
 
     def buy_item(self, player, item_name):
-        if item_name == "all food":
-            food_items = [item for item in self.items_for_sale if isinstance(item, Food)]
-            if not food_items:
-                return "No food items are available for sale."
-
-            purchased_items = []
-            total_cost = 0
-            for item in list(food_items):
-                if player.gold < item.price:
-                    continue
-
-                new_item = item.__class__(
-                    name=item.name,
-                    char=item.char,
-                    color=item.color,
-                    description=item.description,
-                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
-                )
-
-                if player.inventory.add_item(new_item):
-                    player.gold -= item.price
-                    total_cost += item.price
-                    purchased_items.append(item.name)
-                    self.items_for_sale.remove(item)
-                else:
-                    break
-
-            if not purchased_items:
-                return "You couldn't buy any food. Check your gold or inventory space."
-            item_list = ", ".join(purchased_items)
-            player.update_throw_knife_ability()
-            player.update_spellbook_abilities()
-            player.update_guard_ability()
-            return f"You bought {len(purchased_items)} food items for {total_cost} gold: {item_list}."
-
-        for item in self.items_for_sale:
-            if item.name.lower() == item_name.lower():
-                if player.gold >= item.price:
-                    player.gold -= item.price
-    
-                    # Give the actual item instance to the player
-                    if player.inventory.add_item(item):
-                        self.items_for_sale.remove(item)  # Remove the item from merchant
-                        player.update_throw_knife_ability()
-                        player.update_spellbook_abilities()
-                        player.update_guard_ability()
-                        return f"You bought {item.name}!"
-                    else:
-                        # If adding failed, refund the player
-                        player.gold += item.price
-                        return "Your inventory is full!"
-                else:
-                    return "Scram! you don't have enough gold!"
-        return "We don't sell that kind of item here!"
+        return _buy_from_stock(self, player, item_name)
     
 
 
