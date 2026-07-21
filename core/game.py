@@ -99,6 +99,7 @@ from world.world_map import (
     world_position_to_chunk_local,
 )
 from world.world_time import TimeUnit
+from world.lighting import ambient_tint_for_time, combine_tints, period_for_hour
 from world.encounters.prison_cell import (
     handle_prison_door_interaction, PrisonDoorTile, is_prison_cell_position
 )
@@ -5630,7 +5631,10 @@ class Game:
         # nothing here mutates the clock, so it's safe to render every frame
         # regardless of game_state.
         clock = self.stories.world_time.clock
-        time_text = f"Day {clock.day}, {clock.hour_of_day:02d}:{clock.minute_of_hour:02d}"
+        time_text = (
+            f"Day {clock.day}, {clock.hour_of_day:02d}:{clock.minute_of_hour:02d} "
+            f"({period_for_hour(clock.hour_of_day)})"
+        )
         time_surface = self.fps_font.render(time_text, True, (230, 210, 160))  # Warm parchment color
         self.screen.blit(time_surface, (10, 30))
 
@@ -5974,6 +5978,44 @@ class Game:
             self.screen.blit(subtext, subtext_rect)
             
 
+    def _ambient_light_tint(self):
+        """
+        Current time-of-day ambient light tint (see world/lighting.py),
+        or None where time of day shouldn't affect lighting at all.
+
+        Only the OVERWORLD is lit by the sky -- the DUNGEON and TAVERN
+        states keep their existing fixed, torch-lit mood regardless of
+        the hour, since they're indoors/underground and have no window
+        onto the world clock. A None here is exactly like any other
+        stage in lighting.combine_tints()'s stack being skipped: it
+        simply doesn't contribute.
+        """
+        if self.game_state != GameState.OVERWORLD:
+            return None
+        clock = self.stories.world_time.clock
+        return ambient_tint_for_time(clock.hour_of_day, clock.minute_of_hour)
+
+    def _fov_tint(self, visibility_type, has_torchlight, ambient_tint=None):
+        """
+        The flat per-FOV-state tint every tile/entity/item renderer
+        already used (player/torch/darkvision/explored/unexplored),
+        stacked on top of `ambient_tint` (see world/lighting.py's module
+        docstring for the intended ambient-light-under-local-light
+        ordering). Callers are expected to have already screened out
+        any visibility_type this doesn't recognize.
+        """
+        if visibility_type == 'player':
+            base = self._torch_flicker_tint if has_torchlight else (142, 152, 165, 255)
+        elif visibility_type == 'torch':
+            base = self._torch_flicker_tint
+        elif visibility_type == 'darkvision':
+            base = (72, 78, 86, 255)
+        elif visibility_type == 'explored':
+            base = (36, 30, 34, 255)
+        else:  # 'unexplored'
+            base = (8, 6, 8, 255)
+        return combine_tints(base, ambient_tint)
+
     def render_map_with_fov(self, full_redraw=False):
         if not hasattr(self, 'game_map') or self.game_map is None:
             return
@@ -5982,6 +6024,7 @@ class Game:
         camera_y_int = int(self.camera.y)
 
         has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)          
+        ambient_tint = self._ambient_light_tint()
 
         for y in range(camera_y_int, min(camera_y_int + self.camera.viewport_height + 1, self.game_map.height)):
             for x in range(camera_x_int, min(camera_x_int + self.camera.viewport_width + 1, self.game_map.width)):
@@ -5995,24 +6038,15 @@ class Game:
 
                 tile = self.game_map.tiles[y][x]      
 
-                # Set color tint based on visibility (applies to all tiles, including water) change FOV
-                render_color_tint = None
-                if visibility_type == 'player':
-                    if has_torchlight:
-                        render_color_tint = self._torch_flicker_tint
-                    else:
-                        render_color_tint = (142, 152, 165, 255)
-                elif visibility_type == 'torch':
-                    render_color_tint = self._torch_flicker_tint
-                elif visibility_type == 'darkvision':
-                    render_color_tint = (72, 78, 86, 255)
-                elif visibility_type == 'explored':
-                    render_color_tint = (36, 30, 34, 255)
-                elif visibility_type == 'unexplored':
-                    render_color_tint = (8, 6, 8, 255)  # Very dark tint for unexplored, but still render the tile
+                # Set color tint based on visibility (applies to all tiles, including water)
+                # change FOV, stacked underneath the current time-of-day ambient light
+                # (see world/lighting.py -- None indoors/underground, where it's a no-op).
+                if visibility_type == 'unexplored':
+                    render_color_tint = self._fov_tint(visibility_type, has_torchlight, ambient_tint)
                     continue
-                else:
+                elif visibility_type not in ('player', 'torch', 'darkvision', 'explored'):
                     continue  # Don't render if truly invisible
+                render_color_tint = self._fov_tint(visibility_type, has_torchlight, ambient_tint)
 
                 # Draw the tile using the restored sprite-based draw_tile
                 graphics.draw_tile(self.internal_surface, draw_x, draw_y, tile.char, color_tint=render_color_tint)
@@ -6106,21 +6140,10 @@ class Game:
     
                     has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)
     
-                    # KEPT: Visibility-based tinting (dimming for FOV effects)
-                    entity_color_tint = None
-                    if visibility_type == 'player':
-                        if has_torchlight:
-                            entity_color_tint = self._torch_flicker_tint  # Dimmer tint when torchlight active
-                        else:
-                            entity_color_tint = (142, 152, 165, 255)
-                    elif visibility_type == 'torch':
-                        entity_color_tint = self._torch_flicker_tint
-                    elif visibility_type == 'darkvision':
-                        entity_color_tint = (72, 78, 86, 255)
-                    elif visibility_type == 'explored':
-                        entity_color_tint = (36, 30, 34, 255)
-                    elif visibility_type == 'unexplored':
-                        entity_color_tint = (8, 6, 8, 255)
+                    # KEPT: Visibility-based tinting (dimming for FOV effects), now
+                    # stacked underneath the current time-of-day ambient light --
+                    # see world/lighting.py and the shared _fov_tint() helper above.
+                    entity_color_tint = self._fov_tint(visibility_type, has_torchlight, self._ambient_light_tint())
     
                     footprint_size = getattr(entity, 'footprint_size', 1)
                     tile_size_override = config.TILE_SIZE * footprint_size if footprint_size > 1 else None
@@ -6175,19 +6198,22 @@ class Game:
                 draw_y = screen_y_float * config.TILE_SIZE
                 if (0 <= draw_x < config.INTERNAL_GAME_AREA_PIXEL_WIDTH and
                     0 <= draw_y < map_render_height):
-                    # Bloodstains should appear dimmer in explored areas
+                    # Bloodstains should appear dimmer in explored areas. This is
+                    # its own red "color tint" stage (see world/lighting.py's
+                    # module docstring) -- ambient light still stacks on top of
+                    # it via combine_tints(), same as every other tile/entity.
                     visibility_type = self.fov.get_visibility_type(bloodstain.x, bloodstain.y)
-                    color_tint = None
                     if visibility_type == 'player':
-                        color_tint = (235, 0, 0, 150) # Slightly transparent red
+                        blood_tint = (235, 0, 0, 150) # Slightly transparent red
                     elif visibility_type == 'torch':
-                        color_tint = (185, 0, 0, 120)
+                        blood_tint = (185, 0, 0, 120)
                     elif visibility_type == 'darkvision':
-                        color_tint = (72, 0, 0, 100)
+                        blood_tint = (72, 0, 0, 100)
                     elif visibility_type == 'explored':
-                        color_tint = (36, 0, 0, 80) # Very dim in explored areas
+                        blood_tint = (36, 0, 0, 80) # Very dim in explored areas
                     else: # Unexplored, don't draw
                         continue
+                    color_tint = combine_tints(blood_tint, self._ambient_light_tint())
                     # Draw a semi-transparent red square or a specific bloodstain character
                     # You can use a custom character like '.' or ',' for bloodstains
                     # Or draw a semi-transparent rectangle over the tile
@@ -6228,20 +6254,9 @@ class Game:
 
                     has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)
 
-                    item_color_tint = None
-                    if visibility_type == 'player':
-                        if has_torchlight:
-                            item_color_tint = self._torch_flicker_tint # Dimmer tint when torchlight active
-                        else:
-                            item_color_tint = (142, 152, 165, 255)  
-                    elif visibility_type == 'torch':
-                        item_color_tint = self._torch_flicker_tint
-                    elif visibility_type == 'darkvision':
-                        item_color_tint = (72, 78, 86, 255)
-                    elif visibility_type == 'explored':
-                        item_color_tint = (36, 30, 34, 255)
-                    elif visibility_type == 'unexplored':
-                        item_color_tint = (8, 6, 8, 255) 
+                    # Same FOV tint + ambient time-of-day stack as tiles/entities --
+                    # see world/lighting.py and the shared _fov_tint() helper above.
+                    item_color_tint = self._fov_tint(visibility_type, has_torchlight, self._ambient_light_tint())
                     
                     # Always draw floor under items, as map rendering might have drawn a decorative tile
                     # --- MODIFIED: Pass float draw_x, draw_y to graphics.draw_tile ---
