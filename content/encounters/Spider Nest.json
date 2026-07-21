@@ -1,0 +1,98 @@
+{
+  "id": "world_encounter_spiders",
+
+  "discovery": "Thick webbing chokes the trail ahead. Something is thrashing, cocooned high between the trees.",
+  "landmark_tile": ["ambush_tree", "cobweb"],
+  "landmark_tile_amount": [1, 2],
+  "monster_pool": ["GiantSpider", "GiantSpider", "GiantRat"],
+  "monster_count": [2, 3],
+
+  "choices": [
+    {
+      "key": 1,
+      "action": "investigate",
+      "label": "Investigate",
+      "description": "Walk in and see what's happening",
+      "color": [255, 160, 100]
+    },
+    {
+      "key": 2,
+      "action": "sneak",
+      "label": "Sneak Around",
+      "description": "Stealth check to glimpse it unseen",
+      "color": [160, 200, 255]
+    },
+    {
+      "key": 3,
+      "action": "ignore",
+      "label": "Ignore",
+      "description": "ESC also cancels - just keep walking",
+      "color": [150, 150, 150],
+      "is_cancel": true
+    }
+  ],
+
+  "sneak_dc": 14,
+  "sneak_success": "You pick your way around the webbing without disturbing a single strand, the spiders none the wiser.",
+  "sneak_fail": "A strand snaps under your foot. Every spider on the web turns toward the vibration - toward you.",
+  "ignore": "You give the webbing a wide berth and keep walking. Whatever's cocooned up there stops thrashing before long.",
+
+  "victim": "traveler",
+  "victim_count": [1, 1],
+  "victim_data": {
+    "char": "tv",
+    "color": [210, 190, 160],
+    "names": ["Cocooned Traveler"],
+    "dialogue": "Careful - don't cut me loose right under the nest...",
+    "thanks": ["I couldn't move a muscle in that webbing. I owe you my life."],
+    "after": ["I'll be picking silk out of my hair for a week. Thank you, truly."]
+  },
+
+  "scar_tag": "world_encounter_spiders",
+  "reward_xp": 55,
+  "reward_gold": 5,
+  "reputation_faction": "northfield",
+  "reputation_delta": 3,
+  "ignored_reputation_delta": -3,
+
+  "aftermath": {
+    "discovery": "The spiders are dead. The traveler is free of the webbing but still shaking silk from their sleeves.",
+    "choices": [
+      {
+        "key": 1,
+        "action": "escort",
+        "label": "Escort Them to Town",
+        "description": "Walk them back to Northfield to recover",
+        "color": [255, 200, 140],
+        "outcome": "You walk them clear of the webs and back to Northfield. The innkeeper sits them by the fire and presses a little coin into your hand for the trouble.",
+        "hours": 0,
+        "escort": true,
+        "consequences": [
+          { "type": "modify_reputation", "faction": "northfield", "delta": 2 },
+          { "type": "reward_gold", "amount": 5 }
+        ]
+      },
+      {
+        "key": 2,
+        "action": "point_home",
+        "label": "Point Them Toward Home",
+        "description": "They say they can manage from here",
+        "color": [160, 200, 255],
+        "outcome": "Still a little unsteady, they thank you again and set off down the trail alone.",
+        "consequences": []
+      },
+      {
+        "key": 3,
+        "action": "leave",
+        "label": "Leave Them Be",
+        "description": "ESC also cancels - they're free, that's enough",
+        "color": [150, 150, 150],
+        "is_cancel": true,
+        "outcome": "You leave them picking silk from their clothes and continue on your way.",
+        "consequences": [
+          { "type": "modify_reputation", "faction": "northfield", "delta": -1 }
+        ]
+      }
+    ]
+  }
+}

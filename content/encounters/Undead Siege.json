@@ -49,21 +49,29 @@
     "cls": "GuardVictim"
   },
 
+  "waves": [
+    {
+      "discovery": "Just as the barricade falls quiet, the earth beyond it churns - a second, larger wave of undead is dragging itself out of the ground.",
+      "monster_pool": ["Skeleton", "Skeleton", "SkeletonArcher", "SkeletonArcher"],
+      "monster_count": [3, 5]
+    }
+  ],
+
   "scar_tag": "world_encounter_undead",
-  "reward_xp": 45,
-  "reward_gold": 15,
+  "reward_xp": 70,
+  "reward_gold": 20,
   "reputation_faction": "northfield",
   "reputation_delta": 5,
   "ignored_reputation_delta": -5,
 
   "aftermath": {
-    "discovery": "The undead are put down. The surviving guards are already dragging bodies clear of the barricade.",
+    "discovery": "The last of the undead crumble to dust. The surviving guards are already dragging bodies clear of the barricade, watching the treeline for any more.",
     "choices": [
       {
         "key": 1,
         "action": "help_fortify",
         "label": "Help Fortify the Barricade",
-        "description": "Stay and lend a hand before the next wave",
+        "description": "Stay and lend a hand in case more come",
         "color": [255, 200, 140],
         "outcome": "You spend the next while hauling timber and driving stakes alongside the guards. By the time you're done, the barricade could hold against twice as many.",
         "hours": 0,

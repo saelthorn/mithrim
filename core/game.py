@@ -158,7 +158,7 @@ from items.items import (
 )
 
 from core.pathfinding import astar
-from world.tile import floor, dungeon_floor_two, dungeon_floor_three, dungeon_floor_four, MimicTile, TrapTile, FireElementalTile, caravan, ritual_circle, barricade, ambush_tree, ground
+from world.tile import floor, dungeon_floor_two, dungeon_floor_three, dungeon_floor_four, MimicTile, TrapTile, FireElementalTile, caravan, ritual_circle, barricade, ambush_tree, ground, cob_web
 from world.bloodstain import Bloodstain
 from world.altar import Altar
 from world.water_features import river, lake, is_water_tile # NEW: Import water tiles and helper
@@ -718,6 +718,11 @@ class Game:
         "SkeletonArcher": SkeletonArcher,
         "Imp": Imp,
         "Cultist": Cultist,
+        "GiantRat": GiantRat,
+        "GiantSpider": GiantSpider,
+        "Lizardfolk": Lizardfolk,
+        "LizardfolkArcher": LizardfolkArcher,
+        "Wererat": Wererat,
     }
 
     # A world encounter's JSON may declare a "landmark_tile" (e.g.
@@ -741,6 +746,7 @@ class Game:
         "ritual_circle": ritual_circle,
         "barricade": barricade,
         "ambush_tree": ambush_tree,
+        "cobweb": cob_web
     }
 
     # The vocabulary of built-in *behaviors* a scenario's "choices" block
@@ -911,6 +917,47 @@ class Game:
             return None
         return {"discovery": aftermath.get("discovery", ""), "choices": choices}
 
+    def _normalize_world_encounter_waves(self, waves, source_name):
+        """
+        Validates a scenario's optional "waves" block -- extra surges of
+        monsters that spawn once the previous wave (the scenario's own
+        top-level monster_pool/monster_count, or a prior wave in this
+        same list) is entirely defeated, before the encounter's rewards/
+        aftermath fire (see _advance_world_encounter_wave()). Undead_
+        Siege.json uses this for a second surge of undead once the first
+        is cleared, but any scenario can declare one the same way.
+
+        Each wave needs its own "monster_pool" (resolved to Python
+        classes the same way the top-level one is, see
+        _load_world_encounter_scenarios()) and "monster_count"
+        ([min, max], same shape as the top-level field). "discovery" is
+        an optional message logged when the wave arrives, so the player
+        gets a beat of warning instead of monsters just appearing.
+        Returns an empty list for a scenario with no "waves" at all
+        (every encounter before this stayed a single fight, unchanged).
+        A malformed wave is dropped, with a load-error message, rather
+        than failing the whole file over one bad entry.
+        """
+        if not waves:
+            return []
+
+        normalized = []
+        for wave in waves:
+            try:
+                monster_pool = [self.WORLD_ENCOUNTER_MONSTER_CLASSES[name] for name in wave["monster_pool"]]
+                monster_count = tuple(wave["monster_count"])
+            except (KeyError, TypeError, ValueError) as exc:
+                self.message_log.add_message(
+                    f"Encounter load error ({source_name}): invalid wave {wave!r} ({exc})", (255, 100, 100)
+                )
+                continue
+            normalized.append({
+                "discovery": wave.get("discovery", ""),
+                "monster_pool": monster_pool,
+                "monster_count": monster_count,
+            })
+        return normalized
+
     def _load_world_encounter_scenarios(self):
         """
         Loads every *.json file under WORLD_ENCOUNTER_CONTENT_ROOT into a
@@ -942,6 +989,7 @@ class Game:
                 )
                 data["choices"] = self._normalize_world_encounter_choices(data.get("choices"), path.name)
                 data["aftermath"] = self._normalize_world_encounter_aftermath(data.get("aftermath"), path.name)
+                data["waves"] = self._normalize_world_encounter_waves(data.get("waves"), path.name)
             except (OSError, json.JSONDecodeError, KeyError, ValueError) as exc:
                 self.message_log.add_message(f"Encounter load error ({path.name}): {exc}", (255, 100, 100))
                 continue
@@ -1254,21 +1302,16 @@ class Game:
             x, y = spawn_candidates.pop(0)
             self.game_map.tiles[y][x] = tile_template
 
-    def _spawn_world_encounter_monsters(self, scenario, surprised=False, asleep=False):
+    def _world_encounter_spawn_candidates(self):
         """
-        Drops the scenario's hostile monsters near the player once the
-        encounter turns to combat (investigated, or spotted while sneaking).
-        Mirrors spawn_monsters_near_prison_alert()'s search-radius approach,
-        but anchored on the player instead of a prison door.
-
-        If asleep is True (a successful sneak), the monsters are spawned
-        inactive and sharing one encounter_group list - attacking any one of
-        them wakes the whole group at once (see Monster.take_damage).
-
-        Every spawned monster is tagged with this encounter's story-scoped
-        group_id (see _create_world_encounter_story()) so the KILL_NPC
-        TriggerRule wired in _wire_world_encounter_combat() can tell which
-        kills belong to this ambush versus any other monster on the map.
+        Open, walkable, unoccupied overworld tiles near the player --
+        the shared candidate pool _spawn_world_encounter_monsters() draws
+        the opening wave's (and any landmark tile's) positions from, and
+        _spawn_world_encounter_wave_monsters() reuses for every
+        follow-up wave after it (see WORLD_ENCOUNTER's optional "waves"
+        block, e.g. Undead_Siege.json's second surge of undead). Pulled
+        out on its own so both call sites stay in sync instead of
+        keeping two copies of the same radius/walkability/occupancy scan.
         """
         anchor_x, anchor_y = self.player.x, self.player.y
         radius = 5
@@ -1286,7 +1329,63 @@ class Game:
                 if any(e.x == x and e.y == y and getattr(e, "alive", True) for e in self.entities):
                     continue
                 spawn_candidates.append((x, y))
+        return spawn_candidates
 
+    def _spawn_world_encounter_wave_monsters(self, wave, group_id):
+        """
+        Spawns one follow-up wave's monsters (see _normalize_world_
+        encounter_waves()) near the player, once the previous wave/the
+        opening fight is entirely cleared -- see
+        _advance_world_encounter_wave(). Reuses the same spawn-candidate
+        search the opening wave draws from, but doesn't re-place a
+        landmark tile or re-roll victims: both already belong to the
+        scene from the initial spawn, and shouldn't be duplicated just
+        because more monsters arrived.
+
+        Tagged with the same group_id as the rest of the encounter, so
+        the existing KILL_NPC TriggerRule wired in
+        _start_world_encounter_combat() counts wave monsters exactly
+        like the opening ones -- no separate tracking needed.
+        """
+        spawn_candidates = self._world_encounter_spawn_candidates()
+        if not spawn_candidates:
+            return []
+
+        min_count, max_count = wave["monster_count"]
+        num_to_spawn = min(random.randint(min_count, max_count), len(spawn_candidates))
+
+        spawned = []
+        for _ in range(num_to_spawn):
+            monster_class = random.choice(wave["monster_pool"])
+            spawn_x, spawn_y = random.choice(spawn_candidates)
+            spawn_candidates.remove((spawn_x, spawn_y))
+            monster = monster_class(spawn_x, spawn_y)
+            monster.group_id = group_id
+            monster.roll_initiative()
+            self.entities.append(monster)
+            self.turn_order.append(monster)
+            spawned.append(monster)
+
+        self.turn_order.sort(key=lambda e: e.initiative, reverse=True)
+        return spawned
+
+    def _spawn_world_encounter_monsters(self, scenario, surprised=False, asleep=False):
+        """
+        Drops the scenario's hostile monsters near the player once the
+        encounter turns to combat (investigated, or spotted while sneaking).
+        Mirrors spawn_monsters_near_prison_alert()'s search-radius approach,
+        but anchored on the player instead of a prison door.
+
+        If asleep is True (a successful sneak), the monsters are spawned
+        inactive and sharing one encounter_group list - attacking any one of
+        them wakes the whole group at once (see Monster.take_damage).
+
+        Every spawned monster is tagged with this encounter's story-scoped
+        group_id (see _create_world_encounter_story()) so the KILL_NPC
+        TriggerRule wired in _wire_world_encounter_combat() can tell which
+        kills belong to this ambush versus any other monster on the map.
+        """
+        spawn_candidates = self._world_encounter_spawn_candidates()
         if not spawn_candidates:
             return []
 
@@ -1342,13 +1441,17 @@ class Game:
 
         director.start()
         director.story.set_flag("remaining", monster_count)
+        director.story.set_flag("wave_index", 0)
         self._wire_world_encounter_rewards(director, scenario)
 
         def _on_group_member_killed(story, story_director, event):
             remaining = story.get_flag("remaining", 1) - 1
             story_director.set_flag("remaining", remaining)
-            if remaining <= 0:
-                story_director.complete()
+            if remaining > 0:
+                return
+            if self._advance_world_encounter_wave(story, story_director, scenario, group_id):
+                return  # another wave just spawned -- stay ACTIVE until it's cleared too
+            story_director.complete()
 
         director.story.add_trigger_rule(TriggerRule(
             trigger_type=TriggerType.KILL_NPC,
@@ -1360,6 +1463,39 @@ class Game:
         ))
 
         return group_id
+
+    def _advance_world_encounter_wave(self, story, director, scenario, group_id):
+        """
+        Called once a wave's last tagged monster falls (see the KILL_NPC
+        TriggerRule wired just above in _start_world_encounter_combat()).
+        If the scenario declares more "waves" (see _normalize_world_
+        encounter_waves(), e.g. Undead_Siege.json's second, larger surge
+        of undead once the barricade's first attackers are cleared) than
+        have been spawned so far, spawns the next one and keeps the
+        story ACTIVE instead of completing it -- rewards and any
+        post-combat "aftermath" menu (_wire_world_encounter_rewards())
+        only fire once every wave is down, not after the opening one.
+
+        Returns True if a new wave was spawned (the caller should leave
+        the story running), or False once "waves" is exhausted -- or
+        there was nowhere left to spawn one -- signaling the caller to
+        complete the story as usual.
+        """
+        waves = scenario.get("waves") or []
+        wave_index = story.get_flag("wave_index", 0)
+        if wave_index >= len(waves):
+            return False
+
+        wave = waves[wave_index]
+        spawned = self._spawn_world_encounter_wave_monsters(wave, group_id)
+        if not spawned:
+            return False  # no room left to spawn one -- treat the encounter as resolved
+
+        director.set_flag("wave_index", wave_index + 1)
+        director.set_flag("remaining", len(spawned))
+        if wave["discovery"]:
+            self.message_log.add_message(wave["discovery"], (255, 200, 120))
+        return True
 
     def _wire_world_encounter_rewards(self, director, scenario):
         """

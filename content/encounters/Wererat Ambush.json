@@ -1,0 +1,103 @@
+{
+  "id": "world_encounter_wererats",
+
+  "discovery": "Feral, man-shaped shadows circle a wounded courier sprawled beside a shattered strongbox.",
+  "landmark_tile": ["barricade"],
+  "landmark_tile_amount": 1,
+  "monster_pool": ["Wererat", "Wererat", "GiantRat"],
+  "monster_count": [2, 3],
+
+  "choices": [
+    {
+      "key": 1,
+      "action": "investigate",
+      "label": "Investigate",
+      "description": "Walk in and see what's happening",
+      "color": [255, 160, 100]
+    },
+    {
+      "key": 2,
+      "action": "sneak",
+      "label": "Sneak Around",
+      "description": "Stealth check to glimpse it unseen",
+      "color": [160, 200, 255]
+    },
+    {
+      "key": 3,
+      "action": "ignore",
+      "label": "Ignore",
+      "description": "ESC also cancels - just keep walking",
+      "color": [150, 150, 150],
+      "is_cancel": true
+    }
+  ],
+
+  "sneak_dc": 15,
+  "sneak_success": "You keep to the shadows and count the wererats circling the courier before they ever catch your scent.",
+  "sneak_fail": "A wererat's nose twitches toward you before you're close enough to see clearly. In a blink, every yellow eye is on you.",
+  "ignore": "You back away from the strongbox and the shadows around it. Behind you, the courier's cries don't last long.",
+
+  "victim": "courier",
+  "victim_count": [1, 1],
+  "victim_data": {
+    "char": "cr",
+    "color": [220, 200, 150],
+    "names": ["Merchant Courier"],
+    "dialogue": "They came out of nowhere - please, help me hold them off!",
+    "thanks": [
+      "You saved my hide and the guild's shipment both. I won't forget this."
+    ],
+    "after": ["My employer will hear about this. You've more than earned their thanks."],
+    "reward_pool": "_PRISONER_LOOT"
+  },
+
+  "scar_tag": "world_encounter_wererats",
+  "reward_xp": 65,
+  "reward_gold": 15,
+  "reputation_faction": "merchants",
+  "reputation_delta": 4,
+  "ignored_reputation_delta": -3,
+
+  "aftermath": {
+    "discovery": "The wererats lie dead. The courier is bleeding but alive, guarding the broken strongbox like it still matters.",
+    "choices": [
+      {
+        "key": 1,
+        "action": "escort",
+        "label": "Escort the Courier to Town",
+        "description": "See them and the shipment safely to Northfield",
+        "color": [255, 200, 140],
+        "outcome": "You help the courier gather what's left of the shipment and walk them back to Northfield. The Merchant Guilds are quick to hear of it, and quicker to reward it.",
+        "hours": 0,
+        "escort": true,
+        "consequences": [
+          { "type": "modify_reputation", "faction": "merchants", "delta": 3 },
+          { "type": "reward_gold", "amount": 20 }
+        ]
+      },
+      {
+        "key": 2,
+        "action": "help_recover",
+        "label": "Help Recover the Shipment",
+        "description": "Gather what spilled from the strongbox first",
+        "color": [160, 200, 255],
+        "outcome": "You help scoop the scattered coin and papers back into the broken strongbox. The courier thanks you and presses on alone once they've caught their breath.",
+        "consequences": [
+          { "type": "reward_gold", "amount": 8 }
+        ]
+      },
+      {
+        "key": 3,
+        "action": "leave",
+        "label": "Leave",
+        "description": "ESC also cancels - the shipment isn't your problem",
+        "color": [150, 150, 150],
+        "is_cancel": true,
+        "outcome": "You leave the courier to gather the strongbox's contents alone and move on.",
+        "consequences": [
+          { "type": "modify_reputation", "faction": "merchants", "delta": -1 }
+        ]
+      }
+    ]
+  }
+}

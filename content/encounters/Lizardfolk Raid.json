@@ -1,0 +1,100 @@
+{
+  "id": "world_encounter_lizardfolk",
+
+  "discovery": "Lizardfolk raiders drag a fisherman from his overturned boat at the river's edge.",
+  "landmark_tile": ["barricade"],
+  "landmark_tile_amount": [1, 2],
+  "monster_pool": ["Lizardfolk", "Lizardfolk", "LizardfolkArcher"],
+  "monster_count": [2, 4],
+
+  "choices": [
+    {
+      "key": 1,
+      "action": "investigate",
+      "label": "Investigate",
+      "description": "Walk in and see what's happening",
+      "color": [255, 160, 100]
+    },
+    {
+      "key": 2,
+      "action": "sneak",
+      "label": "Sneak Around",
+      "description": "Stealth check to glimpse it unseen",
+      "color": [160, 200, 255]
+    },
+    {
+      "key": 3,
+      "action": "ignore",
+      "label": "Ignore",
+      "description": "ESC also cancels - just keep walking",
+      "color": [150, 150, 150],
+      "is_cancel": true
+    }
+  ],
+
+  "sneak_dc": 13,
+  "sneak_success": "You creep along the reeds and count the raiders unseen before deciding how to move in.",
+  "sneak_fail": "A twig snaps underfoot. The nearest lizardfolk's head snaps around, tongue flicking toward your scent.",
+  "ignore": "You leave the riverbank behind. The fisherman's shouts are cut short somewhere behind you.",
+
+  "victim": "fisherman",
+  "victim_count": [1, 1],
+  "victim_data": {
+    "char": "fm",
+    "color": [200, 220, 230],
+    "names": ["Fisherman"],
+    "dialogue": "They came up out of the reeds before I even saw them - help!",
+    "thanks": ["Thought I was going to end up as their supper. Thank you, friend."],
+    "after": ["My boat's ruined, but I'm alive. That's more than I hoped for a minute ago."]
+  },
+
+  "scar_tag": "world_encounter_lizardfolk",
+  "reward_xp": 60,
+  "reward_gold": 10,
+  "reputation_faction": "northfield",
+  "reputation_delta": 4,
+  "ignored_reputation_delta": -4,
+
+  "aftermath": {
+    "discovery": "The raiders are dead. The fisherman is soaked and shaken, eyeing the wreck of his boat.",
+    "choices": [
+      {
+        "key": 1,
+        "action": "escort",
+        "label": "Escort Him to Town",
+        "description": "Walk him back to Northfield to dry off",
+        "color": [255, 200, 140],
+        "outcome": "You walk him back to Northfield, dripping the whole way. The innkeeper gets him by the fire, and he insists on paying you back what little he has.",
+        "hours": 0,
+        "escort": true,
+        "consequences": [
+          { "type": "modify_reputation", "faction": "northfield", "delta": 2 },
+          { "type": "reward_gold", "amount": 10 }
+        ]
+      },
+      {
+        "key": 2,
+        "action": "help_salvage",
+        "label": "Help Salvage the Boat",
+        "description": "See what can still be recovered",
+        "color": [160, 200, 255],
+        "outcome": "You help drag the boat back onto the bank. It won't float again without real repairs, but the nets and gear are saved.",
+        "consequences": [
+          { "type": "reward_gold", "amount": 5 }
+        ]
+      },
+      {
+        "key": 3,
+        "action": "leave",
+        "label": "Leave",
+        "description": "ESC also cancels - he can manage from here",
+        "color": [150, 150, 150],
+        "is_cancel": true,
+        "outcome": "You leave him to his wrecked boat and continue along the river.",
+        "consequences": [
+          { "type": "modify_reputation", "faction": "northfield", "delta": -1 }
+        ]
+      }
+    ]
+  }
+}
