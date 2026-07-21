@@ -288,6 +288,15 @@ class Game:
         self.world_map = generate_world_map(self.world_seed)
         self.overworld_chunks = {}  # (chunk_x, chunk_y) -> {"map": GameMap, "dungeon_entrances": [...]}
         self.overworld_chunk_coord = (0, 0)
+        # Dungeon levels: the same "generate once, cache forever" idea as
+        # overworld_chunks above, but keyed by level number instead of chunk
+        # coordinate. Populated by _snapshot_dungeon_level() right before the
+        # player leaves a level (stairs, or climbing back out to the
+        # overworld) and consulted by generate_level(), so descending/
+        # ascending stairs -- or leaving the dungeon and diving back in --
+        # restores the level exactly as it was left instead of rerolling a
+        # brand new layout, monster spawns, and loot every time.
+        self.dungeon_levels = {}  # level_number -> {"map", "stairs_positions", "torch_light_sources", "lit_wall_torches", "fov", "entities"}
         self.overworld_player_pos = None
         self.chunk_biomes = {}
         self.dungeon_entrance_positions = []
@@ -2399,13 +2408,94 @@ class Game:
         # Fallback to room center if all attempts fail
         return room.center()
 
+    def _snapshot_dungeon_level(self, level_number):
+        """
+        Save the currently-loaded dungeon level's live state into
+        self.dungeon_levels, keyed by level number, so returning to it later
+        (via stairs, or leaving the dungeon and diving back in) restores it
+        exactly as the player left it -- monsters that died stay dead, items
+        that were picked up stay gone, remaining loot and lit torches stay
+        put -- instead of generating a brand new layout. Mirrors
+        generate_overworld_map()'s per-chunk caching of self.overworld_chunks.
+
+        Call this right before self.game_map/self.entities/etc. get
+        reassigned to a different level, while they still describe the level
+        being left.
+        """
+        self.dungeon_levels[level_number] = {
+            "map": self.game_map,
+            "stairs_positions": self.stairs_positions,
+            "torch_light_sources": self.torch_light_sources,
+            "lit_wall_torches": set(self.lit_wall_torches),
+            "fov": self.fov,
+            # Every entity on this level except the player, who carries
+            # over to whichever level (or the overworld) they move to next.
+            "entities": [e for e in self.entities if e is not self.player],
+        }
+
+    def _restore_dungeon_level(self, level_number, spawn_on_stairs_up):
+        """
+        Reload a previously-visited dungeon level from self.dungeon_levels
+        instead of generating a new one -- see _snapshot_dungeon_level().
+        """
+        cached = self.dungeon_levels[level_number]
+        self.game_map = cached["map"]
+        self.stairs_positions = cached["stairs_positions"]
+        self.torch_light_sources = cached["torch_light_sources"]
+        self.lit_wall_torches = cached["lit_wall_torches"]
+        self.fov = cached["fov"]
+
+        # Both directions of travel (descending to a deeper level, or
+        # climbing back up to a shallower one) land the player beside this
+        # level's "up" stairs -- the stairs that lead back the way they just
+        # came, matching the entry point generate_dungeon() places rooms[0]
+        # (and therefore the player's very first spawn) around.
+        if 'up' in self.stairs_positions:
+            self.player.x, self.player.y = self.stairs_positions['up']
+
+        self.entities = [self.player] + list(cached["entities"])
+
+        self.turn_order = [e for e in self.entities if not (isinstance(e, Mimic) and e.disguised)]
+        for entity in self.turn_order:
+            entity.roll_initiative()
+        self.turn_order = sorted(self.turn_order, key=lambda e: e.initiative, reverse=True)
+        self.current_turn_index = 0
+
+        ideal_x = self.player.x - self.camera.viewport_width // 2
+        ideal_y = self.player.y - self.camera.viewport_height // 2
+        ideal_x = max(0, min(ideal_x, self.game_map.width - self.camera.viewport_width))
+        ideal_y = max(0, min(ideal_y, self.game_map.height - self.camera.viewport_height))
+        self.camera.x = ideal_x
+        self.camera.y = ideal_y
+        self.camera.target_x = self.player.x
+        self.camera.target_y = self.player.y
+
+        self.update_fov()
+        self.bloodstains.clear()
+        self.floating_texts.clear()
+
+        self.message_log.add_message(f"=== RETURNED TO DUNGEON LEVEL {level_number} ===", (0, 255, 255))
+        self.minimap_needs_redraw = True
+
     def generate_level(self, level_number, spawn_on_stairs_up=False):
+        # Snapshot whichever dungeon level the player is currently standing
+        # on -- if any -- before swapping away from it. Guarded on
+        # game_state rather than unconditionally, since generate_level() is
+        # also how the player first enters the dungeon from the tavern/
+        # overworld, and there's nothing dungeon-side to save in that case.
+        if self.game_state == GameState.DUNGEON:
+            self._snapshot_dungeon_level(self.current_level)
+
         self.game_state = GameState.DUNGEON
         self._previous_game_state = GameState.DUNGEON
         self.current_level = level_number
         self.max_level_reached = max(self.max_level_reached, level_number)
-        if hasattr(self, "game_map") and hasattr(self.game_map, "items_on_ground"):
-            self.game_map.items_on_ground.clear()
+
+        if level_number in self.dungeon_levels:
+            self._restore_dungeon_level(level_number, spawn_on_stairs_up=spawn_on_stairs_up)
+            return
+
+        # -- first visit to this level: generate it from scratch ----------
         self.lit_wall_torches = set()  # Reset lit torches for the new level 
 
         self.game_map = GameMap(120, 100)
@@ -2735,6 +2825,12 @@ class Game:
             self.message_log.add_message(f"Stairs down at {self.stairs_positions.get('down')}", (150, 150, 255))
         self.minimap_needs_redraw = True # New map, redraw minimap
 
+        # Cache this freshly generated level immediately, not just when the
+        # player eventually leaves it -- harmless if _snapshot_dungeon_level()
+        # runs again later with updated (post-gameplay) state, since that
+        # simply overwrites this entry.
+        self._snapshot_dungeon_level(level_number)
+
     def get_player_hp_percentage(self):
         """Returns the player's current HP as a percentage."""
         if self.player.max_hp == 0:
@@ -2882,22 +2978,20 @@ class Game:
         return None
 
     def handle_level_transition(self, direction):
-        # Clear entities, items, bloodstains, floating texts, and map tile references before level change
-        self.entities.clear()
+        # Fire tiles, floating combat text, and bloodstains are transient,
+        # per-visit effects, not part of a level's persistent layout -- clear
+        # them same as before. Entities and items_on_ground are deliberately
+        # NOT cleared here anymore: generate_level() (or generate_overworld_map()
+        # for climbing out of level 1, below) now snapshots the level being
+        # left -- including its current entities/items -- into
+        # self.dungeon_levels before anything is swapped out, so clearing
+        # them here first would just cache an empty level instead of
+        # persisting it. See _snapshot_dungeon_level().
         self.active_fire_tiles.clear()  # Fire tiles belong to the old level; discard them
-        if hasattr(self, "game_map") and hasattr(self.game_map, "items_on_ground"):
-            self.game_map.items_on_ground.clear()
         if hasattr(self, "floating_texts"):
             self.floating_texts.clear()
         if hasattr(self, "bloodstains"):
             self.bloodstains.clear()
-        if hasattr(self, "game_map") and hasattr(self.game_map, "tiles"):
-            for row in self.game_map.tiles:
-                for tile in row:
-                    if hasattr(tile, "entity"):
-                        tile.entity = None
-                    if hasattr(tile, "item"):
-                        tile.item = None
 
         if direction == 'down':
             new_level = self.current_level + 1
@@ -2908,6 +3002,10 @@ class Game:
             self.message_log.add_message(f"Going up to level {new_level}...", (100, 200, 255))
             self.generate_level(new_level, spawn_on_stairs_up=True)
         elif direction == 'up' and self.current_level == 1:
+            # Leaving the dungeon entirely -- persist level 1's current state
+            # (same as generate_level() does between levels) before switching
+            # to the overworld map, so diving back in later restores it.
+            self._snapshot_dungeon_level(self.current_level)
             if self.entered_dungeon_from_overworld:
                 self.message_log.add_message("You climb back out into the open air...", (100, 200, 255))
                 self.generate_overworld_map()

@@ -69,7 +69,7 @@
         "description": "See them safely back to Northfield",
         "color": [255, 200, 140],
         "outcome": "You escort the battered caravan back to Northfield without further incident. The grateful merchants spread word of your bravery, and pool together a modest reward.",
-        "hours": 2,
+        "hours": 0,
         "escort": true,
         "consequences": [
           {

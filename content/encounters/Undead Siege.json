@@ -66,7 +66,7 @@
         "description": "Stay and lend a hand before the next wave",
         "color": [255, 200, 140],
         "outcome": "You spend the next while hauling timber and driving stakes alongside the guards. By the time you're done, the barricade could hold against twice as many.",
-        "hours": 4,
+        "hours": 0,
         "consequences": [
           { "type": "modify_reputation", "faction": "northfield", "delta": 3 },
           { "type": "reward_xp", "amount": 10 }
