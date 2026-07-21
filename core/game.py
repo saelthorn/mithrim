@@ -322,6 +322,7 @@ class Game:
         self._world_encounter_cooldown = 0     # Steps left before another encounter can roll
         self._world_encounter_aftermath = None # Scenario's "aftermath" block awaiting a post-combat choice
         self._world_encounter_target_victims = []  # Victims spawned for the current encounter, see recruit_companion()
+        self._world_encounter_last_id = None   # scenario["id"] last rolled, see _maybe_trigger_world_encounter()
         self._shop_menu_merchant = None   # Active merchant for shop overlay
         self._shop_selected_index = 0     # Highlighted item index in shop
         self._shop_mode = "buy"           # "buy" or "sell"
@@ -1210,7 +1211,7 @@ class Game:
         if random.random() > self.WORLD_ENCOUNTER_CHANCE:
             return False
 
-        scenario = random.choice(self.world_encounter_scenarios)
+        scenario = self._roll_world_encounter_scenario()
         self._world_encounter_target = scenario
         self._world_encounter_target_victims = []
         self._world_encounter_story_id = self._create_world_encounter_story(scenario)
@@ -1218,6 +1219,25 @@ class Game:
         self.message_log.add_message(random.choice(self.WORLD_ENCOUNTER_HOOKS), (200, 200, 255))
         self.game_state = GameState.WORLD_ENCOUNTER_MENU
         return True
+
+    def _roll_world_encounter_scenario(self):
+        """
+        Picks the scenario for a freshly-triggered world encounter,
+        excluding whichever one was last rolled (self._world_encounter_
+        last_id) so two ambushes in a row never repeat the exact same
+        flavor -- e.g. back-to-back Wolf Pack encounters right after
+        each other. Falls back to the full scenario list if content only
+        has one scenario loaded (nothing else to pick), so this never
+        raises on a small/test content set.
+        """
+        pool = [
+            scenario for scenario in self.world_encounter_scenarios
+            if scenario["id"] != self._world_encounter_last_id
+        ] or self.world_encounter_scenarios
+
+        scenario = random.choice(pool)
+        self._world_encounter_last_id = scenario["id"]
+        return scenario
 
     def _create_world_encounter_story(self, scenario):
         """
