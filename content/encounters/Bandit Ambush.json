@@ -5,7 +5,7 @@
   "landmark_tile": ["caravan", "barricade"],
   "landmark_tile_amount": [1, 3],
   "monster_pool": ["Goblin", "Goblin", "GoblinArcher", "Orc"],
-  "monster_count": [2, 3],
+  "monster_count": [3, 4],
 
   "choices": [
     {

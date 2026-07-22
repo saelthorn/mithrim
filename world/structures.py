@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 import random
 
 from entities.base_entity import NPC
-from world.tile import ground, grass, road, tall_grass, wall, tavern_floor, floor, bar_counter_two, bar_counter_three, bar_counter_four, table, crate, tavern_barrel_two
+from world.tile import ground, grass, road, tall_grass, wall, tavern_floor, floor, bar_counter_two, bar_counter_three, bar_counter_four, table, crate, tavern_barrel_two, altar
 
 from core.game import GameState
 from items.items import (
@@ -461,11 +461,10 @@ STRUCTURE_BLUEPRINTS = {
         "Shrine",
         [
             "  #  ",
+            " #&# ",
             " #.# ",
-            " #.# ",
-            " . . ",
         ],
-        {"#": wall, ".": floor},
+        {"#": wall, ".": floor, "&": altar},
         walkable_chars={"."},
         description="A simple stone shrine.",
     ),

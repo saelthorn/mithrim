@@ -5,7 +5,7 @@
   "landmark_tile": ["barricade"],
   "landmark_tile_amount": [2, 4],
   "monster_pool": ["Skeleton", "Skeleton", "SkeletonArcher"],
-  "monster_count": [3, 4],
+  "monster_count": [4, 5],
 
   "choices": [
     {

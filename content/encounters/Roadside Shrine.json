@@ -1,0 +1,43 @@
+{
+  "id": "world_encounter_shrine",
+
+  "discovery": "A weathered roadside shrine stands at the crossroads, its offering bowl half-filled with old coin and wilted flowers.",
+
+  "choices": [
+    {
+      "key": 1,
+      "action": "resolve",
+      "label": "Leave a Donation",
+      "description": "Drop 10 gold in the offering bowl",
+      "color": [255, 200, 140],
+      "outcome": "You set ten gold in the bowl among the older offerings. For a moment, the road ahead feels a little less lonely.",
+      "consequences": [
+        { "type": "reward_gold", "amount": -10 },
+        { "type": "modify_reputation", "faction": "church", "delta": 5 },
+        { "type": "reward_xp", "amount": 10 }
+      ]
+    },
+    {
+      "key": 2,
+      "action": "resolve",
+      "label": "Pay Your Respects",
+      "description": "Take a quiet moment, no coin needed",
+      "color": [160, 200, 255],
+      "outcome": "You bow your head at the shrine a moment before moving on, no coin spent but no less sincere for it.",
+      "consequences": [
+        { "type": "modify_reputation", "faction": "church", "delta": 1 },
+        { "type": "reward_xp", "amount": 5 }
+      ]
+    },
+    {
+      "key": 3,
+      "action": "resolve",
+      "label": "Walk On",
+      "description": "ESC also cancels - just keep walking",
+      "color": [150, 150, 150],
+      "is_cancel": true,
+      "outcome": "You walk past the shrine without stopping.",
+      "consequences": []
+    }
+  ]
+}

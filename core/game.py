@@ -686,7 +686,7 @@ class Game:
     # "choices" in Bandit_Ambush.json and _normalize_world_encounter_
     # choices()) before finding out what's actually going on.
     WORLD_ENCOUNTER_CHANCE = 0.01           # Rolled once per step taken in the overworld
-    WORLD_ENCOUNTER_COOLDOWN_STEPS = 100     # Minimum steps before another can trigger
+    WORLD_ENCOUNTER_COOLDOWN_STEPS = 120     # Minimum steps before another can trigger
     WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
 
     WORLD_ENCOUNTER_HOOKS = [
@@ -761,7 +761,16 @@ class Game:
     # the encounter like Ignore/ESC does) is entirely up to each
     # scenario's own JSON from this point on -- game.py no longer
     # hardcodes "there are exactly three options."
-    WORLD_ENCOUNTER_ACTIONS = ("investigate", "sneak", "ignore")
+    #
+    # "resolve" is the odd one out: investigate/sneak/ignore are fully
+    # scripted in Python (they always spawn monsters, or don't), while a
+    # "resolve" choice is entirely data-driven -- its own "outcome"/
+    # "consequences" (see _normalize_world_encounter_choices()) decide
+    # what happens, the same way a post-combat "aftermath" choice
+    # already works. This is what a non-combat encounter (one with no
+    # "monster_pool" at all -- see Lost_Pilgrim.json) uses instead of
+    # investigate/sneak, since there's no fight to start.
+    WORLD_ENCOUNTER_ACTIONS = ("investigate", "sneak", "ignore", "resolve")
 
     # Fallback menu for any world-encounter JSON that doesn't declare its
     # own "choices" block, so existing/older content files keep working
@@ -809,6 +818,16 @@ class Game:
         is_cancel) is optional and defaulted here. A choice naming an
         unknown action is dropped, with a load-error message, rather
         than failing the whole file over one bad entry.
+
+        Every choice also picks up the same "outcome"/"consequences"/
+        "hours"/"escort" fields _normalize_world_encounter_aftermath()'s
+        choices carry (defaulted to empty/false when a scenario doesn't
+        set them). investigate/sneak/ignore ignore all four -- their
+        behavior is fully scripted in Python -- but a "resolve" choice
+        (non-combat scenarios; see WORLD_ENCOUNTER_ACTIONS) reads them
+        exactly like an aftermath choice does, so one schema covers both
+        instead of two. A "resolve" choice missing "outcome" is dropped
+        the same way a choice with an unknown action is.
         """
         if not choices:
             return [dict(default) for default in self.DEFAULT_WORLD_ENCOUNTER_CHOICES]
@@ -821,6 +840,12 @@ class Game:
                     f"Encounter load error ({source_name}): invalid choice {choice!r}", (255, 100, 100)
                 )
                 continue
+            if action == "resolve" and "outcome" not in choice:
+                self.message_log.add_message(
+                    f"Encounter load error ({source_name}): 'resolve' choice needs an 'outcome' {choice!r}",
+                    (255, 100, 100),
+                )
+                continue
             normalized.append({
                 "key": choice["key"],
                 "action": action,
@@ -828,6 +853,10 @@ class Game:
                 "description": choice.get("description", ""),
                 "color": tuple(choice.get("color", (200, 200, 200))),
                 "is_cancel": choice.get("is_cancel", False),
+                "outcome": choice.get("outcome", ""),
+                "hours": choice.get("hours", 0),
+                "consequences": [consequence_from_dict(c) for c in choice.get("consequences", [])],
+                "escort": choice.get("escort", False),
             })
 
         return normalized or [dict(default) for default in self.DEFAULT_WORLD_ENCOUNTER_CHOICES]
@@ -978,9 +1007,16 @@ class Game:
             try:
                 data = json.loads(path.read_text())
                 data["monster_pool"] = [
-                    self.WORLD_ENCOUNTER_MONSTER_CLASSES[name] for name in data["monster_pool"]
+                    self.WORLD_ENCOUNTER_MONSTER_CLASSES[name] for name in data.get("monster_pool", [])
                 ]
-                data["monster_count"] = tuple(data["monster_count"])
+                data["monster_count"] = tuple(data.get("monster_count", (0, 0)))
+                # Whether this scenario is a fight at all. A non-combat
+                # scenario (no "monster_pool" declared, e.g. Lost_
+                # Pilgrim.json) skips spawning entirely and resolves
+                # through "resolve"-action choices instead of investigate/
+                # sneak -- see WORLD_ENCOUNTER_ACTIONS and
+                # _resolve_world_encounter_resolve().
+                data["combat"] = bool(data["monster_pool"])
                 data["victim_count"] = tuple(data.get("victim_count", (1, 1)))
                 data["landmark_tile"] = self._normalize_world_encounter_tile_pool(
                     data.get("landmark_tile")
@@ -1250,25 +1286,36 @@ class Game:
 
         Stage 0 = "in progress"; stage 1 (the final stage) = "resolved",
         reached once every monster tagged with this encounter's own
-        group_id has been killed (see _wire_world_encounter_combat()).
+        group_id has been killed (see _wire_world_encounter_combat()), or
+        -- for a non-combat scenario (see WORLD_ENCOUNTER_ACTIONS'
+        "resolve") -- the moment the player picks a resolving choice.
         The story stays UNINITIALIZED until the player actually commits
-        (investigate/sneak) -- see StoryDirector.start().
+        (investigate/sneak/resolve) -- see StoryDirector.start().
+
+        The IGNORED FailurePolicy below only gets registered when the
+        scenario actually declares "reputation_faction"/"ignored_
+        reputation_delta" -- i.e. it offers a bare "ignore" choice at
+        all. A non-combat scenario built entirely from "resolve" choices
+        (each of which fully describes its own consequences, including
+        any walk-away option) doesn't need this and can leave both
+        fields out.
         """
         director = self.stories.story_manager.create_story(stage_count=2)
         director.story.set_flag("group_id", f"world_encounter:{director.story.id}")
 
-        policy = FailurePolicy(
-            scar_tag=scenario["scar_tag"] + ":{mode}",
-            consequences={
-                FailureMode.IGNORED: [
-                    ModifyReputationConsequence(
-                        scenario["reputation_faction"], scenario["ignored_reputation_delta"]
-                    )
-                ]
-            },
-            applies_to=[FailureMode.IGNORED],
-        )
-        self.stories.failure_manager.register_policy(director.story.id, policy)
+        if "reputation_faction" in scenario:
+            policy = FailurePolicy(
+                scar_tag=scenario["scar_tag"] + ":{mode}",
+                consequences={
+                    FailureMode.IGNORED: [
+                        ModifyReputationConsequence(
+                            scenario["reputation_faction"], scenario["ignored_reputation_delta"]
+                        )
+                    ]
+                },
+                applies_to=[FailureMode.IGNORED],
+            )
+            self.stories.failure_manager.register_policy(director.story.id, policy)
         return director.story.id
 
     def _spawn_world_encounter_landmark_tile(self, scenario, spawn_candidates):
@@ -1598,13 +1645,16 @@ class Game:
         """
         Dispatches a selected WORLD_ENCOUNTER_MENU choice to its built-in
         behavior -- one of the WORLD_ENCOUNTER_ACTIONS handlers just
-        below (_resolve_world_encounter_investigate/_sneak/_ignore).
-        Everything about *how* a choice was offered (label, description,
-        color, key, is_cancel) already did its job in the menu; all that
-        matters here is which behavior its "action" names.
+        below (_resolve_world_encounter_investigate/_sneak/_ignore/
+        _resolve). Everything about *how* a choice was offered (label,
+        description, color, key, is_cancel) already did its job in the
+        menu; the resolver gets the full choice dict anyway (not just
+        its action name) since "resolve" needs its own "outcome"/
+        "consequences" -- investigate/sneak/ignore simply ignore the
+        argument, being fully scripted in Python.
         """
         resolver = getattr(self, f"_resolve_world_encounter_{choice['action']}")
-        resolver()
+        resolver(choice)
 
     def _world_encounter_choice_for_key(self, key, choices):
         """
@@ -1623,13 +1673,17 @@ class Game:
             return next((choice for choice in choices if choice.get("is_cancel")), None)
         return next((choice for choice in choices if pygame.K_0 + choice["key"] == key), None)
 
-    def _resolve_world_encounter_investigate(self):
+    def _resolve_world_encounter_investigate(self, choice):
         """
         "investigate" action: walk straight in - reveals the scenario and
         starts the fight. _spawn_world_encounter_monsters() starts this
         encounter's StoryInstance and wires its combat-completion reward;
         the reward itself only fires later, once the last tagged monster
-        dies.
+        dies. `choice` is unused -- this action is fully scripted and
+        doesn't vary by which choice offered it (accepted only so
+        _resolve_world_encounter_choice() can call every resolver the
+        same way; see _resolve_world_encounter_resolve() for a resolver
+        that actually reads it).
         """
         scenario = self._world_encounter_target
         self.message_log.add_message(scenario["discovery"], (255, 200, 120))
@@ -1640,12 +1694,13 @@ class Game:
         self._world_encounter_target = None
         self._world_encounter_story_id = None
 
-    def _resolve_world_encounter_sneak(self):
+    def _resolve_world_encounter_sneak(self, choice):
         """
         "sneak" action: DEX (Stealth) check.
         Success - the enemies are spawned asleep, giving the player a choice:
         slip past, or strike one down before the rest ever wake up.
         Failure - spotted; the enemies spawn awake and alerted.
+        `choice` is unused -- see _resolve_world_encounter_investigate().
         """
         scenario = self._world_encounter_target
         dex_roll  = random.randint(1, 20)
@@ -1673,7 +1728,7 @@ class Game:
         self._world_encounter_target = None
         self._world_encounter_story_id = None
 
-    def _resolve_world_encounter_ignore(self):
+    def _resolve_world_encounter_ignore(self, choice):
         """
         "ignore" action (usually also bound to ESC via a scenario's
         "is_cancel" choice -- see Bandit_Ambush.json): walk on - no fight,
@@ -1682,7 +1737,8 @@ class Game:
         never engaged: it stamps a FailureMode.IGNORED world scar (see
         _create_world_encounter_story()'s FailurePolicy) and applies the
         scenario's reputation penalty via the shared consequence
-        machinery, instead of a one-off inline hit.
+        machinery, instead of a one-off inline hit. `choice` is unused --
+        see _resolve_world_encounter_investigate().
         """
         scenario = self._world_encounter_target
         self.message_log.add_message(scenario["ignore"], (150, 150, 150))
@@ -1691,28 +1747,60 @@ class Game:
         self._world_encounter_target = None
         self._world_encounter_story_id = None
 
-    def _resolve_world_encounter_aftermath_choice(self, choice):
+    def _resolve_world_encounter_resolve(self, choice):
         """
-        Resolves a choice from a scenario's post-combat "aftermath" menu
-        (see _offer_world_encounter_aftermath()) -- e.g. escorting Wolf_
-        Pack.json's rescued child back to the innkeeper versus leaving
-        her to find her own way home. For most choices there's no per-
-        action Python method to dispatch to: the choice's own "outcome"
-        line and "consequences" (already resolved to Consequence objects
-        by _normalize_world_encounter_aftermath()) are all that's
-        needed, run through the same shared ConsequenceExecutor/
-        ExecutionContext every other reward path in this module uses.
+        "resolve" action: for a non-combat scenario (one with no
+        "monster_pool" at all, e.g. Lost_Pilgrim.json -- see
+        _load_world_encounter_scenarios()'s "combat" flag), a choice
+        settles the whole encounter immediately, with no fight and no
+        separate post-combat "aftermath" menu after it. The choice's own
+        "outcome"/"consequences" (parsed by _normalize_world_encounter_
+        choices() exactly like an aftermath choice's -- see
+        _apply_world_encounter_outcome_choice()) are the entire payoff,
+        so a non-combat scenario's choices fully describe every branch
+        themselves, including any walk-away option, rather than relying
+        on a bare scenario-level reward.
 
-        A choice flagged "escort": true is the one exception: rather
-        than paying out "consequences"/"hours" immediately, it recruits
-        this encounter's victim as a following companion (see
-        recruit_companion()) and holds them for delivery -- the escort
-        isn't actually finished yet just because the player agreed to
-        it, so its payoff and travel time only land once the companion
-        is safely walked to an inn and handed off to the innkeeper (see
-        try_deliver_companions()).
+        Completes this encounter's StoryInstance the same way a won
+        fight does (director.complete()), so a non-combat encounter
+        still plays by the same StoryEvent/FailureManager rules as a
+        combat one -- chains, scars, and condition tracking all see it
+        as a normal resolved story instead of one left UNINITIALIZED.
         """
-        self.message_log.add_message(choice["outcome"], (150, 255, 180) if not choice.get("is_cancel") else (150, 150, 150))
+        director = self.stories.story_manager.get_director(self._world_encounter_story_id)
+        director.start()
+        director.complete()
+
+        self._apply_world_encounter_outcome_choice(choice)
+
+        self.game_state = GameState.OVERWORLD
+        self._world_encounter_target = None
+        self._world_encounter_story_id = None
+
+    def _apply_world_encounter_outcome_choice(self, choice):
+        """
+        Shared resolution for any menu choice that fully describes its
+        own result via "outcome"/"consequences"/"hours"/"escort" (see
+        _normalize_world_encounter_choices()/_normalize_world_encounter_
+        aftermath()) -- a non-combat scenario's "resolve" choice (see
+        _resolve_world_encounter_resolve()) and a post-combat
+        "aftermath" choice (see _resolve_world_encounter_aftermath_
+        choice()) are the exact same shape of data, so both route
+        through here instead of duplicating the escort-vs-consequences
+        branch twice.
+
+        Logs the choice's own "outcome" line, then either recruits this
+        encounter's victim(s) as escorted companions (see
+        recruit_companion()) if the choice is flagged "escort" and
+        victims exist to escort, or runs its "consequences"/"hours"
+        immediately through the shared ConsequenceExecutor otherwise.
+        Leaves game_state and every _world_encounter_* menu field alone
+        -- callers close those out themselves, since "resolve" and
+        "aftermath" choices leave the encounter in different states.
+        """
+        self.message_log.add_message(
+            choice["outcome"], (150, 255, 180) if not choice.get("is_cancel") else (150, 150, 150)
+        )
 
         if choice.get("escort") and self._world_encounter_target_victims:
             # A scenario can rescue more than one victim (e.g. Bandit_
@@ -1740,6 +1828,19 @@ class Game:
 
             if choice.get("hours"):
                 self.stories.world_time.advance(choice["hours"], TimeUnit.HOUR)
+
+    def _resolve_world_encounter_aftermath_choice(self, choice):
+        """
+        Resolves a choice from a scenario's post-combat "aftermath" menu
+        (see _offer_world_encounter_aftermath()) -- e.g. escorting Wolf_
+        Pack.json's rescued child back to the innkeeper versus leaving
+        her to find her own way home. Resolution itself (the outcome
+        line, escort-vs-consequences) is shared with a non-combat
+        scenario's "resolve" choice via _apply_world_encounter_outcome_
+        choice(); this method only handles closing out the aftermath
+        menu specifically afterward.
+        """
+        self._apply_world_encounter_outcome_choice(choice)
 
         self._world_encounter_target_victims = []
         self.game_state = GameState.OVERWORLD
