@@ -2,8 +2,8 @@
   "id": "world_encounter_wererats",
 
   "discovery": "Feral, man-shaped shadows circle a wounded courier sprawled beside a shattered strongbox.",
-  "landmark_tile": ["barricade"],
-  "landmark_tile_amount": 1,
+  "landmark_tile": ["ambush_tree"],
+  "landmark_tile_amount": [1, 4],
   "monster_pool": ["Wererat", "Wererat", "GiantRat"],
   "monster_count": [2, 3],
 

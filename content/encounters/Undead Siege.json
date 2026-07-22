@@ -2,8 +2,8 @@
   "id": "world_encounter_undead",
 
   "discovery": "A handful of town guards are making a desperate last stand against a rising tide of undead.",
-  "landmark_tile": ["barricade"],
-  "landmark_tile_amount": [2, 4],
+  "landmark_tile": ["barricade", "ambush_tree"],
+  "landmark_tile_amount": [2, 6],
   "monster_pool": ["Skeleton", "Skeleton", "SkeletonArcher"],
   "monster_count": [4, 5],
 

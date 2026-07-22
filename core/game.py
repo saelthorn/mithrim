@@ -158,7 +158,7 @@ from items.items import (
 )
 
 from core.pathfinding import astar
-from world.tile import floor, dungeon_floor_two, dungeon_floor_three, dungeon_floor_four, MimicTile, TrapTile, FireElementalTile, caravan, ritual_circle, barricade, ambush_tree, ground, cob_web
+from world.tile import floor, dungeon_floor_two, dungeon_floor_three, dungeon_floor_four, MimicTile, TrapTile, FireElementalTile, caravan, ritual_circle, barricade, ambush_tree, ground, overworld_cobweb, gravestone, gravestone_two, gravestone_three, tent 
 from world.bloodstain import Bloodstain
 from world.altar import Altar
 from world.water_features import river, lake, is_water_tile # NEW: Import water tiles and helper
@@ -686,8 +686,9 @@ class Game:
     # "choices" in Bandit_Ambush.json and _normalize_world_encounter_
     # choices()) before finding out what's actually going on.
     WORLD_ENCOUNTER_CHANCE = 0.01           # Rolled once per step taken in the overworld
-    WORLD_ENCOUNTER_COOLDOWN_STEPS = 120     # Minimum steps before another can trigger
+    WORLD_ENCOUNTER_COOLDOWN_STEPS = 80     # Minimum steps before another can trigger
     WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
+    WORLD_ENCOUNTER_MIN_ENTITY_DISTANCE = 8  # Skip the roll if another live entity is already this close
 
     WORLD_ENCOUNTER_HOOKS = [
         "You hear screams ahead.",
@@ -747,7 +748,11 @@ class Game:
         "ritual_circle": ritual_circle,
         "barricade": barricade,
         "ambush_tree": ambush_tree,
-        "cobweb": cob_web
+        "overworld_cobweb": overworld_cobweb,
+        "gravestone": gravestone,
+        "gravestone_two": gravestone_two,
+        "gravestone_three": gravestone_three,
+        "tent": tent
     }
 
     # A world encounter's JSON may instead (or additionally) declare a
@@ -1242,6 +1247,25 @@ class Game:
         self.npc_registry[entity.id] = entity
         return entity.id
 
+    def _entity_within_range(self, radius):
+        """
+        Whether any other live entity (a monster, NPC, or companion
+        already in self.entities) currently sits within `radius` tiles
+        of the player, using Chebyshev distance to match the square
+        search patterns the rest of this file already uses (e.g.
+        OVERWORLD_GROUP_SEARCH_RADIUS). Used to keep a fresh world
+        encounter from spawning its own monster group right on top of
+        something the player can already see -- see
+        WORLD_ENCOUNTER_MIN_ENTITY_DISTANCE.
+        """
+        px, py = self.player.x, self.player.y
+        for entity in self.entities:
+            if entity is self.player or not getattr(entity, "alive", True):
+                continue
+            if max(abs(entity.x - px), abs(entity.y - py)) <= radius:
+                return True
+        return False
+
     def _maybe_trigger_world_encounter(self):
         """
         Rolls a small chance, once per overworld step, to interrupt travel with
@@ -1264,6 +1288,9 @@ class Game:
 
         tile_name = getattr(self.game_map.tiles[self.player.y][self.player.x], "name", "")
         if tile_name in self.WORLD_ENCOUNTER_STRUCTURE_TILES:
+            return False
+
+        if self._entity_within_range(self.WORLD_ENCOUNTER_MIN_ENTITY_DISTANCE):
             return False
 
         if random.random() > self.WORLD_ENCOUNTER_CHANCE:

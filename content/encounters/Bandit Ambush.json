@@ -2,7 +2,7 @@
   "id": "world_encounter_bandits",
 
   "discovery": "A gang of bandits has surrounded a merchant caravan, stripping valuables from the carts while terrified traders look on.",
-  "landmark_tile": ["caravan", "barricade"],
+  "landmark_tile": ["caravan", "tent"],
   "landmark_tile_amount": [1, 3],
   "monster_pool": ["Goblin", "Goblin", "GoblinArcher", "Orc"],
   "monster_count": [3, 4],

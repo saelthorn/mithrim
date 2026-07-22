@@ -2,7 +2,7 @@
   "id": "world_encounter_lizardfolk",
 
   "discovery": "Lizardfolk raiders drag a fisherman from his overturned boat at the river's edge.",
-  "landmark_tile": ["barricade"],
+  "landmark_tile": ["barricade", "tent"],
   "landmark_tile_amount": [1, 2],
   "monster_pool": ["Lizardfolk", "Lizardfolk", "LizardfolkArcher"],
   "monster_count": [2, 4],

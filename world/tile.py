@@ -76,6 +76,11 @@ caravan = Tile(blocked=True, char='crv', color=(139, 90, 43), block_sight=False,
 ritual_circle = Tile(blocked=True, char='rtc', color=(130, 30, 150), block_sight=False, destructible=False, name="Ritual Circle")
 barricade = Tile(blocked=True, char='brc', color=(101, 67, 33), block_sight=False, destructible=True, name="Barricade")
 ambush_tree = Tile(blocked=True, char='amt', color=(35, 90, 40), block_sight=True, destructible=False, name="Lone Tree")
+overworld_cobweb = Tile(blocked=True, char='ocw', color=(200, 200, 200), block_sight=False, destructible=True, name="Cobweb")
+tent = Tile(blocked=True, char='ten', color=(180, 40, 40), block_sight=True, destructible=True, name="Tent")
+gravestone = Tile(blocked=True, char='gvs1', color=(120, 120, 120), block_sight=False, destructible=True, name="Gravestone One")
+gravestone_two = Tile(blocked=True, char='gvs2', color=(120, 120, 120), block_sight=False, destructible=True, name="Gravestone Two")
+gravestone_three = Tile(blocked=True, char='gvs3', color=(120, 120, 120), block_sight=False, destructible=True, name="Gravestone Three")
 
 # Overworld terrain decoration (non-POI nature features)
 clearing = Tile(blocked=False, char='cl', color=(20, 100, 20), name="Clearing")

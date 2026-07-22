@@ -3,7 +3,7 @@
 
   "discovery": "A pack of wolves has a terrified child backed against a tree.",
   "landmark_tile": ["ambush_tree"],
-  "landmark_tile_amount": 1,
+  "landmark_tile_amount": [1, 3],
   "monster_pool": ["Wolf", "Wolf", "Wolf"],
   "monster_count": [2, 4],
 

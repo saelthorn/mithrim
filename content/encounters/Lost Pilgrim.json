@@ -17,12 +17,12 @@
   "choices": [
     {
       "key": 1,
-      "action": "resolve",
+      "action": "escort",
       "label": "Guide Them",
       "description": "Walk them to Northfield yourself",
       "color": [255, 200, 140],
       "outcome": "You offer to walk with them. The pilgrim tucks their torn map away and falls in step beside you, telling stories of the shrines they've visited along the way.",
-      "hours": 1,
+      "hours": 0,
       "escort": true,
       "consequences": [
         { "type": "modify_reputation", "faction": "church", "delta": 3 },

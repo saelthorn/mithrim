@@ -64,8 +64,8 @@ def setup_tile_mapping():
         'MDW': (6 * CELL_DIM,  1 * CELL_DIM),  # Mountain Dwarf Wizard
         'MDC': (7 * CELL_DIM,  1 * CELL_DIM),  # Mountain Dwarf Cleric
         # Duergar — shares the Hill Dwarf row until a dedicated row exists
-        'DGF': (8 * CELL_DIM,  1 * CELL_DIM),  # Duergar Fighter
-        'DGR': (9 * CELL_DIM,  1 * CELL_DIM),  # Duergar Rogue
+        'DGF': (8 * CELL_DIM,  1 * CELL_DIM),   # Duergar Fighter
+        'DGR': (9 * CELL_DIM,  1 * CELL_DIM),   # Duergar Rogue
         'DGW': (10 * CELL_DIM,  1 * CELL_DIM),  # Duergar Wizard
         'DGC': (11 * CELL_DIM,  1 * CELL_DIM),  # Duergar Cleric
 
@@ -80,8 +80,8 @@ def setup_tile_mapping():
         'HEW': (6 * CELL_DIM,  2 * CELL_DIM),  # High Elf Wizard
         'HEC': (7 * CELL_DIM,  2 * CELL_DIM),  # High Elf Cleric
         # Wood Elf — shares the Drow elf row until a dedicated row exists
-        'WEF': (8 * CELL_DIM,  2 * CELL_DIM),  # Wood Elf Fighter
-        'WER': (9 * CELL_DIM,  2 * CELL_DIM),  # Wood Elf Rogue
+        'WEF': (8 * CELL_DIM,  2 * CELL_DIM),   # Wood Elf Fighter
+        'WER': (9 * CELL_DIM,  2 * CELL_DIM),   # Wood Elf Rogue
         'WEW': (10 * CELL_DIM,  2 * CELL_DIM),  # Wood Elf Wizard
         'WEC': (11 * CELL_DIM,  2 * CELL_DIM),  # Wood Elf Cleric
 
@@ -127,8 +127,8 @@ def setup_tile_mapping():
         'GDW': (6 * CELL_DIM, 11 * CELL_DIM),  # Gold Dragonborn Wizard
         'GDC': (7 * CELL_DIM, 11 * CELL_DIM),  # Gold Dragonborn Cleric
         # Green
-        'GNF': (8 * CELL_DIM, 11 * CELL_DIM),  # Green Dragonborn Fighter
-        'GNR': (9 * CELL_DIM, 11 * CELL_DIM),  # Green Dragonborn Rogue
+        'GNF': (8 * CELL_DIM, 11 * CELL_DIM),   # Green Dragonborn Fighter
+        'GNR': (9 * CELL_DIM, 11 * CELL_DIM),   # Green Dragonborn Rogue
         'GNW': (10 * CELL_DIM, 11 * CELL_DIM),  # Green Dragonborn Wizard
         'GNC': (11 * CELL_DIM, 11 * CELL_DIM),  # Green Dragonborn Cleric
         # Blue
@@ -140,26 +140,26 @@ def setup_tile_mapping():
 
 
         # Map Tiles
-        'bl': (16 * CELL_DIM, 6 * CELL_DIM),# Bloodstain
-        '{': (0 * CELL_DIM, 6 * CELL_DIM),  # Tavern Crate
-        '}': (2 * CELL_DIM, 6 * CELL_DIM),  # Tavern Barrel
-        ',': (2 * CELL_DIM, 17 * CELL_DIM), # Tavern Floor
-        '?': (1 * CELL_DIM, 17 * CELL_DIM), # Kitchen Tavern Floor
-        '.': (0 * CELL_DIM, 3 * CELL_DIM),  # Floor
-        '#': (1 * CELL_DIM, 3 * CELL_DIM),  # Wall
-        '>': (8 * CELL_DIM, 3 * CELL_DIM),  # Stairs Down
-        '<': (9 * CELL_DIM, 3 * CELL_DIM),  # Stairs Up
-        '&': (10 * CELL_DIM, 3 * CELL_DIM), # Altar
-        '+': (2 * CELL_DIM, 3 * CELL_DIM),  # Tavern Door
-        ';': (1 * CELL_DIM, 4 * CELL_DIM),  # Bones
-        '%': (2 * CELL_DIM, 4 * CELL_DIM),  # Rubble
-        'x': (3 * CELL_DIM, 4 * CELL_DIM),  # Cobweb
-        '*': (4 * CELL_DIM, 4 * CELL_DIM),  # Mushroom
-        'fb': (5 * CELL_DIM, 4 * CELL_DIM), # Fresh Bones
-        '`': (6 * CELL_DIM, 4 * CELL_DIM),  # Dungeon Grass
-        'dp': (7 * CELL_DIM, 4 * CELL_DIM), # Dungeon Pillar
-        '.2': (8 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Two
-        '.3': (9 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Three
+        'bl': (16 * CELL_DIM, 6 * CELL_DIM), # Bloodstain
+        '{': (0 * CELL_DIM, 6 * CELL_DIM),   # Tavern Crate
+        '}': (2 * CELL_DIM, 6 * CELL_DIM),   # Tavern Barrel
+        ',': (2 * CELL_DIM, 17 * CELL_DIM),  # Tavern Floor
+        '?': (1 * CELL_DIM, 17 * CELL_DIM),  # Kitchen Tavern Floor
+        '.': (0 * CELL_DIM, 3 * CELL_DIM),   # Floor
+        '#': (1 * CELL_DIM, 3 * CELL_DIM),   # Wall
+        '>': (8 * CELL_DIM, 3 * CELL_DIM),   # Stairs Down
+        '<': (9 * CELL_DIM, 3 * CELL_DIM),   # Stairs Up
+        '&': (10 * CELL_DIM, 3 * CELL_DIM),  # Altar
+        '+': (2 * CELL_DIM, 3 * CELL_DIM),   # Tavern Door
+        ';': (1 * CELL_DIM, 4 * CELL_DIM),   # Bones
+        '%': (2 * CELL_DIM, 4 * CELL_DIM),   # Rubble
+        'x': (3 * CELL_DIM, 4 * CELL_DIM),   # Cobweb
+        '*': (4 * CELL_DIM, 4 * CELL_DIM),   # Mushroom
+        'fb': (5 * CELL_DIM, 4 * CELL_DIM),  # Fresh Bones
+        '`': (6 * CELL_DIM, 4 * CELL_DIM),   # Dungeon Grass
+        'dp': (7 * CELL_DIM, 4 * CELL_DIM),  # Dungeon Pillar
+        '.2': (8 * CELL_DIM, 4 * CELL_DIM),  # Dungeon Floor Two
+        '.3': (9 * CELL_DIM, 4 * CELL_DIM),  # Dungeon Floor Three
         '.5': (12 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Five 
         '.6': (13 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Six 
         '.4': (14 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Four
@@ -182,26 +182,31 @@ def setup_tile_mapping():
         '`3': (2 * CELL_DIM, 18 * CELL_DIM),   # Tall Grass
         'mnt': (3 * CELL_DIM, 18 * CELL_DIM),  # Mountain
 
-        'cl': (4 * CELL_DIM, 18 * CELL_DIM),  # Clearing
-        'GT': (5 * CELL_DIM, 18 * CELL_DIM),  # Giant Tree
+        'cl': (4 * CELL_DIM, 18 * CELL_DIM),   # Clearing
+        'GT': (5 * CELL_DIM, 18 * CELL_DIM),   # Giant Tree
         'pnd': (6 * CELL_DIM, 18 * CELL_DIM),  # Pond
-        'ff': (7 * CELL_DIM, 18 * CELL_DIM),  # Flower Field
+        'ff': (7 * CELL_DIM, 18 * CELL_DIM),   # Flower Field
         'clf': (1 * CELL_DIM, 18 * CELL_DIM),  # Cliff
-        'vy': (1 * CELL_DIM, 18 * CELL_DIM),  # Valley 
-        'wtf': (1 * CELL_DIM, 18 * CELL_DIM), # Waterfall
-        'sc': (8 * CELL_DIM, 18 * CELL_DIM), # Scree
-        'rg': (1 * CELL_DIM, 18 * CELL_DIM),  # Ridge
-        'md': (9 * CELL_DIM, 18 * CELL_DIM), # Meadow
-        'rk': (10 * CELL_DIM, 18 * CELL_DIM), # Rock Formation
-        'mp': (11 * CELL_DIM, 18 * CELL_DIM), # Marsh Pool
+        'vy': (1 * CELL_DIM, 18 * CELL_DIM),   # Valley 
+        'wtf': (1 * CELL_DIM, 18 * CELL_DIM),  # Waterfall
+        'sc': (8 * CELL_DIM, 18 * CELL_DIM),   # Scree
+        'rg': (1 * CELL_DIM, 18 * CELL_DIM),   # Ridge
+        'md': (9 * CELL_DIM, 18 * CELL_DIM),   # Meadow
+        'rk': (10 * CELL_DIM, 18 * CELL_DIM),  # Rock Formation
+        'mp': (11 * CELL_DIM, 18 * CELL_DIM),  # Marsh Pool
         'rds': (12 * CELL_DIM, 18 * CELL_DIM), # Reeds
         'ddf': (13 * CELL_DIM, 18 * CELL_DIM), # Dead Forest
 
 
-        'crv': (3 * CELL_DIM, 19 * CELL_DIM), # Caravan (Landmark)
-        'rtc': (6 * CELL_DIM, 19 * CELL_DIM), # Ritual Circle (Landmark)
-        'brc': (7 * CELL_DIM, 19 * CELL_DIM), # Barricade (Landmark)
-        'amt': (13 * CELL_DIM, 18 * CELL_DIM), # Ambush Tree (Landmark)
+        'amt': (13 * CELL_DIM, 18 * CELL_DIM),  # Ambush Tree (Landmark)
+        'ocw': (14 * CELL_DIM, 18 * CELL_DIM),  # Overworld Cobweb (Landmark)
+        'gvs1':(0 * CELL_DIM,  19 * CELL_DIM),  # Gravestone One (Landmark)
+        'gvs2':(1 * CELL_DIM,  19 * CELL_DIM),  # Gravestone Two (Landmark)
+        'gvs3':(2 * CELL_DIM,  19 * CELL_DIM),  # Gravestone Three (Landmark)
+        'crv': (3 * CELL_DIM,  19 * CELL_DIM),  # Caravan (Landmark)
+        'ten': (4 * CELL_DIM,  19 * CELL_DIM),  # Tent (Landmark)
+        'rtc': (6 * CELL_DIM,  19 * CELL_DIM),  # Ritual Circle (Landmark)
+        'brc': (7 * CELL_DIM,  19 * CELL_DIM),  # Barricade (Landmark)
 
 
         # Elemental Tiles
@@ -209,21 +214,21 @@ def setup_tile_mapping():
         
 
         # IMPORTANT: Ensure 'C' is your *closed* chest graphic
-        'C':  (4 * CELL_DIM, 5 * CELL_DIM),  # Chest (Closed)
-        'O':  (5 * CELL_DIM, 5 * CELL_DIM),  # Open Chest
+        'C':  (4 * CELL_DIM, 5 * CELL_DIM),   # Chest (Closed)
+        'O':  (5 * CELL_DIM, 5 * CELL_DIM),   # Open Chest
         # Locked chest variants — adjust all three coords to match your tileset
         'LC':  (4 * CELL_DIM, 5 * CELL_DIM),  # Locked Chest (closed)
         'olc': (5 * CELL_DIM, 5 * CELL_DIM),  # Locked Chest (opened)
         'LM':  (5 * CELL_DIM, 6 * CELL_DIM),  # Locked Chest Mimic (revealed)
-        'c': (3 * CELL_DIM, 3 * CELL_DIM),   # Chair (Tavern)
-        't': (4 * CELL_DIM, 3 * CELL_DIM),   # Table (Tavern)
-        '=': (5 * CELL_DIM, 3 * CELL_DIM),   # Bar Counter
-        'I': (3 * CELL_DIM, 17 * CELL_DIM),  # Bar Counter Two
-        '7': (4 * CELL_DIM, 17 * CELL_DIM),  # Bar Counter Three
-        '|': (5 * CELL_DIM, 17 * CELL_DIM),  # Bar Counter Four
-        'F': (6 * CELL_DIM, 3 * CELL_DIM),   # Fireplace
-        'i': (7 * CELL_DIM, 3 * CELL_DIM),   # Torch Wall
-        '}2': (6 * CELL_DIM, 17 * CELL_DIM), # Tavern Barrel Two
+        'c': (3 * CELL_DIM, 3 * CELL_DIM),    # Chair (Tavern)
+        't': (4 * CELL_DIM, 3 * CELL_DIM),    # Table (Tavern)
+        '=': (5 * CELL_DIM, 3 * CELL_DIM),    # Bar Counter
+        'I': (3 * CELL_DIM, 17 * CELL_DIM),   # Bar Counter Two
+        '7': (4 * CELL_DIM, 17 * CELL_DIM),   # Bar Counter Three
+        '|': (5 * CELL_DIM, 17 * CELL_DIM),   # Bar Counter Four
+        'F': (6 * CELL_DIM, 3 * CELL_DIM),    # Fireplace
+        'i': (7 * CELL_DIM, 3 * CELL_DIM),    # Torch Wall
+        '}2': (6 * CELL_DIM, 17 * CELL_DIM),  # Tavern Barrel Two
 
         # Static Decorations (using distinct chars)
         'b': (2 * CELL_DIM, 5 * CELL_DIM), # Static Barrel (original graphic)
@@ -269,52 +274,56 @@ def setup_tile_mapping():
         'WR': (7 * CELL_DIM, 9 * CELL_DIM),  # Wererat
         'WF': (7 * CELL_DIM, 8 * CELL_DIM),  # Wolf        
 
-        'YL': (8 * CELL_DIM, 7 * CELL_DIM),  # Yochlol
-        'DD': (8 * CELL_DIM, 8 * CELL_DIM),  # Drider
-        'DS': (8 * CELL_DIM, 9 * CELL_DIM),  # Death Slaad
-        'MS': (9 * CELL_DIM, 7 * CELL_DIM),  # Myconid Sprout
-        'MA': (9 * CELL_DIM, 8 * CELL_DIM),  # Myconid Adult 
-        'RS': (9 * CELL_DIM, 9 * CELL_DIM),  # Red Slaad
-        'MZ': (10 * CELL_DIM, 7 * CELL_DIM),  # Mezzoloth 
-        'GU': (10 * CELL_DIM, 8 * CELL_DIM),  # Gauth 
-        'AR': (10 * CELL_DIM, 9 * CELL_DIM),  # Arasta 
-        'ID': (11 * CELL_DIM, 7 * CELL_DIM), # Intellect Devourer
-        'IM': (11 * CELL_DIM, 8 * CELL_DIM),  # Imp
-        'AG': (11 * CELL_DIM, 9 * CELL_DIM),  # Alpha Grick 
-        'WRT': (12 * CELL_DIM, 7 * CELL_DIM), # Wraith
-        'TTP': (12 * CELL_DIM, 9 * CELL_DIM), # Tomb Tapper
-        'g': (13 * CELL_DIM,  7 * CELL_DIM),  # Guard (NPC)
-        'CUL': (13 * CELL_DIM, 8 * CELL_DIM), # Cultist
-        'pnp': (13 * CELL_DIM, 9 * CELL_DIM),   # Prisoner (NPC) 
+        'YL': (8 * CELL_DIM, 7 * CELL_DIM),    # Yochlol
+        'DD': (8 * CELL_DIM, 8 * CELL_DIM),    # Drider
+        'DS': (8 * CELL_DIM, 9 * CELL_DIM),    # Death Slaad
+        'MS': (9 * CELL_DIM, 7 * CELL_DIM),    # Myconid Sprout
+        'MA': (9 * CELL_DIM, 8 * CELL_DIM),    # Myconid Adult 
+        'RS': (9 * CELL_DIM, 9 * CELL_DIM),    # Red Slaad
+        'MZ': (10 * CELL_DIM, 7 * CELL_DIM),   # Mezzoloth 
+        'GU': (10 * CELL_DIM, 8 * CELL_DIM),   # Gauth 
+        'AR': (10 * CELL_DIM, 9 * CELL_DIM),   # Arasta 
+        'ID': (11 * CELL_DIM, 7 * CELL_DIM),   # Intellect Devourer
+        'IM': (11 * CELL_DIM, 8 * CELL_DIM),   # Imp
+        'AG': (11 * CELL_DIM, 9 * CELL_DIM),   # Alpha Grick 
+        'WRT': (12 * CELL_DIM, 7 * CELL_DIM),  # Wraith
+        'TTP': (12 * CELL_DIM, 9 * CELL_DIM),  # Tomb Tapper
+        'g':   (13 * CELL_DIM,  7 * CELL_DIM), # Guard (NPC)
+        'CUL': (13 * CELL_DIM, 8 * CELL_DIM),  # Cultist
+        'pnp': (13 * CELL_DIM, 9 * CELL_DIM),  # Prisoner (NPC) 
+        'tv':  (14 * CELL_DIM, 7 * CELL_DIM),  # Cocooned Traveler (NPC)
+        'pg':  (14 * CELL_DIM, 8 * CELL_DIM),  # Pilgrim (NPC)
+        'fm':  (14 * CELL_DIM, 9 * CELL_DIM),  # Fisherman (NPC)
 
 
         # Tavern Entities and Misc.
         'H': (6 * CELL_DIM,   0 * CELL_DIM),  # Healer (NPC)        
-        'rc': (7 * CELL_DIM,  0 * CELL_DIM), # Merchant (NPC)
+        'rc': (7 * CELL_DIM,  0 * CELL_DIM),  # Merchant (NPC)
         'p': (8 * CELL_DIM,   0 * CELL_DIM),  # Patron (NPC)
         'A': (9 * CELL_DIM,   0 * CELL_DIM),  # Bartender (NPC)
         'td': (10 * CELL_DIM,  0 * CELL_DIM), # Trader (NPC)
         'ch': (11 * CELL_DIM,  0 * CELL_DIM), # Child (NPC)
-        'mh': (11 * CELL_DIM, 6 * CELL_DIM), # Mage Hand (Skill)
-        'sw': (19 * CELL_DIM, 6 * CELL_DIM), # Spiritual Weapon (Skill)
-        'CS': (12 * CELL_DIM, 8 * CELL_DIM), # Celestial Spirit (Skill)
+        'cr': (12 * CELL_DIM,  0 * CELL_DIM), # Courier (NPC)
+        'mh': (11 * CELL_DIM,  6 * CELL_DIM), # Mage Hand (Skill)
+        'sw': (19 * CELL_DIM,  6 * CELL_DIM), # Spiritual Weapon (Skill)
+        'CS': (12 * CELL_DIM,  8 * CELL_DIM), # Celestial Spirit (Skill)
 
         # Item Characters
         'tt': (12 * CELL_DIM,   6 * CELL_DIM), # Thieves' Tools
         'cf': (13 * CELL_DIM,   6 * CELL_DIM), # Campfire 
         'pn': (14 * CELL_DIM,   6 * CELL_DIM), # Wood Plank (Junk)
-        'th': (15 * CELL_DIM,  6 * CELL_DIM), # Torch (Item)
-        'hsy': (17 * CELL_DIM, 6 * CELL_DIM), # Holy Symbol (Accessory)
-        'spb': (18 * CELL_DIM, 6 * CELL_DIM), # Spellbook (Off-hand Item)
+        'th': (15 * CELL_DIM,  6 * CELL_DIM),  # Torch (Item)
+        'hsy': (17 * CELL_DIM, 6 * CELL_DIM),  # Holy Symbol (Accessory)
+        'spb': (18 * CELL_DIM, 6 * CELL_DIM),  # Spellbook (Off-hand Item)
         '!': (0 * CELL_DIM,    13 * CELL_DIM), # Potions
 
         # Food Characters
-        'met': (14 * CELL_DIM, 0 * CELL_DIM), # Meat
-        'gra': (15 * CELL_DIM, 0 * CELL_DIM), # Green Apple
-        'frg': (16 * CELL_DIM, 0 * CELL_DIM), # Fromage
-        'brd': (17 * CELL_DIM, 0 * CELL_DIM), # Bread
-        'msm': (18 * CELL_DIM, 0 * CELL_DIM), # Mushroom
-        'crt': (19 * CELL_DIM, 0 * CELL_DIM), # Carrot
+        'met': (20 * CELL_DIM, 0 * CELL_DIM), # Meat
+        'gra': (21 * CELL_DIM, 0 * CELL_DIM), # Green Apple
+        'frg': (22 * CELL_DIM, 0 * CELL_DIM), # Fromage
+        'brd': (23 * CELL_DIM, 0 * CELL_DIM), # Bread
+        'msm': (24 * CELL_DIM, 0 * CELL_DIM), # Mushroom
+        'crt': (25 * CELL_DIM, 0 * CELL_DIM), # Carrot
 
         # Armors and Robes
         'pda': (1 * CELL_DIM, 13 * CELL_DIM),  # Leather Armor
