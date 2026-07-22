@@ -980,7 +980,6 @@ class Player: # This is our base class for playable characters
             self.abilities.pop("Guard", None)
 
     def has_holy_symbol_equipped(self):
-        print(f"Debug: Focus Item Check")
         return (
             self.equipped_focus is not None and 
             (getattr(self.equipped_focus, 'category', None) or '').lower() == 'holy symbol'
@@ -1788,6 +1787,7 @@ class Wizard(Player):
         self.equipped_helmet = mages_circlet
         self.equipped_armor = robes
         self.equipped_boots = leather_boots
+        self.equipped_focus = spell_book
         
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
         # These calculations MUST happen AFTER race traits are applied.

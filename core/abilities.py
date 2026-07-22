@@ -1725,11 +1725,7 @@ class SummonImp(Ability):
         self.imp_attack_power = 2 + max(0, (player_level - 1) // 4)
         self.imp_proficiency_bonus = 2 + max(0, (player_level - 1) // 5)
 
-        print(
-            f"[DEBUG] {self.name} scaled: imp_max_hp={self.imp_max_hp}, "
-            f"attack_power={self.imp_attack_power}, proficiency_bonus={self.imp_proficiency_bonus} "
-            f"at player level {player_level}"
-        )
+
 
 
 class CureWounds(Ability):
@@ -2036,11 +2032,7 @@ class SummonCelestial(Ability):
         self.celestial_attack_power = 5 + max(0, (player_level - 1) // 4)
         self.celestial_proficiency_bonus = 3 + max(0, (player_level - 1) // 5)
 
-        print(
-            f"[DEBUG] {self.name} scaled: celestial_max_hp={self.celestial_max_hp}, "
-            f"attack_power={self.celestial_attack_power}, proficiency_bonus={self.celestial_proficiency_bonus} "
-            f"at player level {player_level}"
-        )
+
 
 
 class DivineStrike(Ability):

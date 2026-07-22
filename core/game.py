@@ -750,6 +750,24 @@ class Game:
         "cobweb": cob_web
     }
 
+    # A world encounter's JSON may instead (or additionally) declare a
+    # "landmark_structure" (e.g. Roadside_Shrine.json's "shrine") -- a
+    # whole multi-tile building from structures.py's STRUCTURE_BLUEPRINTS,
+    # rather than a single decorative tile. Unlike "landmark_tile", which
+    # only gets placed once combat actually spawns (see
+    # _spawn_world_encounter_landmark_tile(), called from
+    # _spawn_world_encounter_monsters()), a landmark_structure is placed
+    # the moment the encounter triggers -- see
+    # _spawn_world_encounter_landmark_structure(), called from
+    # _maybe_trigger_world_encounter() -- since non-combat scenarios built
+    # entirely from "resolve" choices (see WORLD_ENCOUNTER_ACTIONS) never
+    # go through monster spawning at all, and the shrine/cabin/watchtower
+    # the discovery text describes should already be standing there the
+    # moment the player is offered the menu. No lookup table is needed
+    # here the way WORLD_ENCOUNTER_TILE_TYPES needs one -- structure keys
+    # are resolved directly against structures.py's own registry via
+    # get_structure_blueprint()/place_structure_at_anchor().
+
     # The vocabulary of built-in *behaviors* a scenario's "choices" block
     # can pick from via each choice's "action" field (see
     # _resolve_world_encounter_choice() and _normalize_world_encounter_
@@ -1024,6 +1042,10 @@ class Game:
                 data["landmark_tile_amount"] = self._normalize_world_encounter_range(
                     data.get("landmark_tile_amount", 1)
                 )
+                # Passed through as-is (a plain structures.py blueprint
+                # key, e.g. "shrine") or None -- see
+                # _spawn_world_encounter_landmark_structure().
+                data["landmark_structure"] = data.get("landmark_structure")
                 data["choices"] = self._normalize_world_encounter_choices(data.get("choices"), path.name)
                 data["aftermath"] = self._normalize_world_encounter_aftermath(data.get("aftermath"), path.name)
                 data["waves"] = self._normalize_world_encounter_waves(data.get("waves"), path.name)
@@ -1250,6 +1272,7 @@ class Game:
         scenario = self._roll_world_encounter_scenario()
         self._world_encounter_target = scenario
         self._world_encounter_target_victims = []
+        self._spawn_world_encounter_landmark_structure(scenario)
         self._world_encounter_story_id = self._create_world_encounter_story(scenario)
         self._world_encounter_cooldown = self.WORLD_ENCOUNTER_COOLDOWN_STEPS
         self.message_log.add_message(random.choice(self.WORLD_ENCOUNTER_HOOKS), (200, 200, 255))
@@ -1368,6 +1391,32 @@ class Game:
                 continue  # unknown key in the pool -- skip this placement, leave the candidate open
             x, y = spawn_candidates.pop(0)
             self.game_map.tiles[y][x] = tile_template
+
+    def _spawn_world_encounter_landmark_structure(self, scenario):
+        """
+        Places this scenario's "landmark_structure" (see
+        WORLD_ENCOUNTER_TILE_TYPES's docstring above it, e.g.
+        Roadside_Shrine.json's "shrine") as a full multi-tile building
+        from structures.py, anchored on the player's current position --
+        see place_structure_at_anchor(), which finds the closest clear
+        footprint nearby rather than requiring the exact anchor tile.
+
+        Called from _maybe_trigger_world_encounter() the moment a
+        scenario is rolled, not from _spawn_world_encounter_monsters()
+        like "landmark_tile" -- a non-combat scenario (see
+        WORLD_ENCOUNTER_ACTIONS' "resolve") never spawns monsters at all,
+        so the structure has to appear independently of that path. A
+        no-op for scenarios that don't declare one, or if the map has no
+        room for the footprint nearby (place_structure_at_anchor returns
+        None in that case).
+        """
+        structure_id = scenario.get("landmark_structure")
+        if not structure_id:
+            return
+
+        from world.structures import place_structure_at_anchor
+
+        place_structure_at_anchor(self.game_map, structure_id, self.player.x, self.player.y)
 
     def _world_encounter_spawn_candidates(self):
         """

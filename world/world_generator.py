@@ -443,7 +443,7 @@ class ForestGenerator(TerrainGenerator):
                     continue
 
                 if m > 0.44 and h < 0.40 and _chance(x, y, 1, 1 / 13):
-                    game_map.tiles[y][x] = pond
+                    game_map.tiles[y][x] = tree
                 elif tile is tree and _chance(x, y, 2, 1 / 17):
                     game_map.tiles[y][x] = giant_tree
                 elif m > 0.52 and _chance(x, y, 3, 1 / 19):

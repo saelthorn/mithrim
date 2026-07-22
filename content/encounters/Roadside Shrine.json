@@ -2,6 +2,7 @@
   "id": "world_encounter_shrine",
 
   "discovery": "A weathered roadside shrine stands at the crossroads, its offering bowl half-filled with old coin and wilted flowers.",
+  "landmark_structure": "shrine",
 
   "choices": [
     {
