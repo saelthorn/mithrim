@@ -1509,7 +1509,7 @@ class Game:
             self.turn_order.append(monster)
             spawned.append(monster)
 
-        self.turn_order.sort(key=lambda e: e.initiative, reverse=True)
+        self._resort_turn_order_preserving_current()
         return spawned
 
     def _spawn_world_encounter_monsters(self, scenario, surprised=False, asleep=False):
@@ -1559,7 +1559,7 @@ class Game:
             self.turn_order.append(monster)
             spawned.append(monster)
 
-        self.turn_order.sort(key=lambda e: e.initiative, reverse=True)
+        self._resort_turn_order_preserving_current()
 
         self._world_encounter_target_victims = self._spawn_world_encounter_victims(scenario, spawn_candidates, spawned)
 
@@ -1713,7 +1713,7 @@ class Game:
             for guard in fighters:
                 guard.roll_initiative()
                 self.turn_order.append(guard)
-            self.turn_order.sort(key=lambda e: e.initiative, reverse=True)
+            self._resort_turn_order_preserving_current()
 
         return victims
 
@@ -1985,7 +1985,7 @@ class Game:
         )
         self.entities.append(companion)
         self.turn_order.append(companion)
-        self.turn_order.sort(key=lambda e: e.initiative, reverse=True)
+        self._resort_turn_order_preserving_current()
         self.companions.append(companion)
 
         self.message_log.add_message(
@@ -2657,7 +2657,7 @@ class Game:
         
         # Re-sort turn order by initiative
         if spawned_count > 0:
-            self.turn_order.sort(key=lambda e: e.initiative, reverse=True)
+            self._resort_turn_order_preserving_current()
 
     def _handle_smash_chest(self, chest):
         """
@@ -3538,6 +3538,37 @@ class Game:
         if self.current_turn_index >= len(self.turn_order):
             self.current_turn_index = 0
         return self.turn_order[self.current_turn_index]
+
+    def _resort_turn_order_preserving_current(self):
+        """
+        Re-sort self.turn_order by initiative without losing track of
+        whose turn self.current_turn_index currently points at.
+
+        self.current_turn_index is just an integer -- it only means
+        "the current entity" relative to turn_order's *existing* order.
+        Any call site that inserts new entities (a wave of reinforcements,
+        a prison alert, a newly-recruited companion, ...) and then
+        re-sorts is effectively shuffling the list out from under that
+        index. If this can happen mid-combat -- e.g. a monster's death
+        during another entity's take_turn() triggers a new wave via a
+        TriggerRule effect, synchronously, in the middle of the turn-
+        processing loop in update() -- the index silently starts
+        pointing at the wrong entity afterward, which can desync turn
+        processing badly enough that it never cleanly lands on the
+        player's turn again (the game appears to freeze).
+
+        Always use this instead of calling turn_order.sort(...) directly
+        whenever new entities might be inserted while a turn could
+        already be in progress.
+        """
+        current_entity = (
+            self.turn_order[self.current_turn_index]
+            if self.turn_order and self.current_turn_index < len(self.turn_order)
+            else None
+        )
+        self.turn_order.sort(key=lambda e: e.initiative, reverse=True)
+        if current_entity is not None and current_entity in self.turn_order:
+            self.current_turn_index = self.turn_order.index(current_entity)
 
     def next_turn(self):
         if self.game_state == GameState.TAVERN:
@@ -5704,17 +5735,6 @@ class Game:
                     self.fade_in_alpha = 255
                     self.message_log.add_message("Welcome, new adventurer!", (0, 255, 0))                    
             return
-
-        # --- NEW: Only process turns for active entities ---
-        current = self.get_current_entity()
-        if current and current != self.player and current.alive:
-            if isinstance(current, Monster) and not current.is_active:
-                # Skip this monster's turn if it's not active
-                self.next_turn()
-            else:
-                current.take_turn(self.player, self.game_map, self)
-                self.next_turn()
-        
 
         if not self.player: # If player hasn't been created yet (e.g., in character creation)
             return # Do nothing else in update

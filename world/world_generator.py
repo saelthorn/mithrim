@@ -179,7 +179,7 @@ BIOME_SETTINGS = {
     ChunkBiome.MOUNTAINS: {
         "forest_chance": 0.15,
         "grass_chance": 0.02,
-        "height_offset": 0.18,
+        "height_offset": 0.16,
     },
 
     ChunkBiome.DESERT: {
@@ -574,8 +574,10 @@ class MountainGenerator(TerrainGenerator):
                     game_map.tiles[y][x] = scree
                 elif h > 0.55 and m > 0.50: #
                     game_map.tiles[y][x] = tree
-                else:
+                elif h > 0.40 and m > 0.35:
                     game_map.tiles[y][x] = clearing
+                else:
+                    game_map.tiles[y][x] = ground
 
         self.decorate(game_map, heightmap, moisture, river_positions)
         return self.place_landmarks(game_map, heightmap, moisture, river_positions)
@@ -2271,10 +2273,10 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
         world_map.set_region_name(chunk_coord, region_name)
         world_map.set_flavor(chunk_coord, flavor)
 
-    # ridges = _generate_mountain_ridges(width, height)
-    # for ridge in ridges:
-    #     for x, y in ridge:
-    #         game_map.tiles[y][x] = ground  # ridges are just a visual effect, not a separate tile type
+    ridges = _generate_mountain_ridges(width, height)
+    for ridge in ridges:
+        for x, y in ridge:
+            game_map.tiles[y][x] = ground  # ridges are just a visual effect, not a separate tile type
 
     for landmark in landmarks:
         if len(landmark) < 4:
