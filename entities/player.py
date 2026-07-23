@@ -1009,6 +1009,8 @@ class Player: # This is our base class for playable characters
                     # Recalculate attack bonus after equipping the off-hand weapon
                     self.update_attack_power()  # Call the method to update the attack bonus                    
                     self.update_spellbook_abilities()
+                    self.update_guard_ability()
+                    self.update_throw_knife_ability()
 
             # If the player is equipping a weapon, check for existing equipped weapon
             if self.equipped_weapon:

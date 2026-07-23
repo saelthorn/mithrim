@@ -1424,9 +1424,12 @@ class Game:
         Places this scenario's "landmark_structure" (see
         WORLD_ENCOUNTER_TILE_TYPES's docstring above it, e.g.
         Roadside_Shrine.json's "shrine") as a full multi-tile building
-        from structures.py, anchored on the player's current position --
-        see place_structure_at_anchor(), which finds the closest clear
-        footprint nearby rather than requiring the exact anchor tile.
+        from structures.py, anchored a few tiles off the player's current
+        position -- see place_structure_at_anchor(), which finds the
+        closest clear footprint nearby rather than requiring the exact
+        anchor tile, and _world_encounter_structure_anchor(), which picks
+        that nearby point so the search can't land the footprint
+        directly on top of the player.
 
         Called from _maybe_trigger_world_encounter() the moment a
         scenario is rolled, not from _spawn_world_encounter_monsters()
@@ -1443,7 +1446,33 @@ class Game:
 
         from world.structures import place_structure_at_anchor
 
-        place_structure_at_anchor(self.game_map, structure_id, self.player.x, self.player.y)
+        anchor_x, anchor_y = self._world_encounter_structure_anchor()
+        place_structure_at_anchor(self.game_map, structure_id, anchor_x, anchor_y)
+
+    def _world_encounter_structure_anchor(self):
+        """
+        Pick a point a few tiles off the player's own position to anchor
+        a landmark_structure's footprint search from.
+
+        place_structure_at_anchor() only avoids blocked/unwalkable
+        terrain when it searches outward for "the closest clear
+        footprint" -- it has no idea where the player is standing, so
+        anchoring directly on self.player.x/y risked the building's
+        footprint being placed right on top of (or immediately under)
+        them. Reuses _world_encounter_spawn_candidates() -- the same
+        walkable, unoccupied, non-water tiles (radius 5, excluding the
+        player's own 1-tile buffer) that monster/victim spawning already
+        draws from -- so the structure search starts far enough away
+        that its footprint can't reach back onto the player's tile.
+
+        Falls back to the player's own position if no nearby candidate
+        exists (e.g. hemmed in by water/impassable terrain) rather than
+        failing to anchor the structure at all.
+        """
+        candidates = self._world_encounter_spawn_candidates()
+        if not candidates:
+            return self.player.x, self.player.y
+        return random.choice(candidates)
 
     def _world_encounter_spawn_candidates(self):
         """
