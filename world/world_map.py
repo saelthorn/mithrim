@@ -332,7 +332,7 @@ def _biomes_are_adjacent(a, b):
         ChunkBiome.PLAINS: {ChunkBiome.PLAINS, ChunkBiome.FOREST, ChunkBiome.HILLS, ChunkBiome.SWAMP},
         ChunkBiome.SWAMP: {ChunkBiome.SWAMP, ChunkBiome.FOREST, ChunkBiome.PLAINS},
         ChunkBiome.HILLS: {ChunkBiome.HILLS, ChunkBiome.PLAINS, ChunkBiome.FOREST, ChunkBiome.MOUNTAINS},
-        ChunkBiome.MOUNTAINS: {ChunkBiome.MOUNTAINS, ChunkBiome.HILLS},
+        ChunkBiome.MOUNTAINS: {ChunkBiome.MOUNTAINS, ChunkBiome.HILLS, ChunkBiome.FOREST},
     }
     return b in adjacency.get(a, set()) or a in adjacency.get(b, set())
 
@@ -508,6 +508,36 @@ def _record_river_path(world_map, path):
         world_map.river_edges.setdefault((bx, by), set()).add(entry_direction)
 
 
+def _world_noise(perm, x, y, macro_scale, local_scale, local_weight, octaves, offset):
+    """
+    Sample one elevation/moisture value at world-map cell (x, y) as a
+    blend of two fBm layers: a broad, slow-varying "macro" layer (the
+    one this module always had -- continents, mountain ranges, climate
+    zones spanning many chunks) and a faster-varying "local" layer laid
+    on top of it.
+
+    Without the local layer, two chunks have to be `macro_scale` cells
+    apart (~23 chunks, at this module's default scales) before the
+    macro noise moves enough to plausibly change biome -- so a player
+    spawning in a mountain chunk could walk a dozen chunks in any
+    direction and still be in mountains, since every neighboring cell
+    was reading almost the same macro value. Blending in `local_weight`
+    of a layer that varies `local_scale` (a fraction of macro_scale)
+    gives each chunk its own texture on top of the broad shape, so
+    neighboring chunks routinely differ in elevation/moisture (and
+    therefore biome) while the macro layer still keeps mountain ranges,
+    oceans, etc. reading as coherent multi-chunk regions rather than
+    dissolving into pure noise.
+
+    `offset` shifts the sample point the same way the original moisture
+    sampling did, so elevation and moisture (and each one's macro/local
+    components) never sample the exact same noise field.
+    """
+    macro = (_fractal_noise(perm, (x + offset) / macro_scale, (y + offset) / macro_scale, octaves, 0.5, 2.0) + 1.0) / 2.0
+    local = (_fractal_noise(perm, (x + offset + 5000) / local_scale, (y + offset + 5000) / local_scale, max(2, octaves - 2), 0.5, 2.0) + 1.0) / 2.0
+    return macro * (1.0 - local_weight) + local * local_weight
+
+
 def generate_world_map(
     world_seed,
     width=WORLD_MAP_WIDTH,
@@ -518,6 +548,7 @@ def generate_world_map(
     max_region_size=14,
     elevation_curve=None,
     moisture_curve=None,
+    local_detail_weight=0.35,
 ):
     """
     Generate the coarse, persistent world map for a game: one elevation/
@@ -532,6 +563,12 @@ def generate_world_map(
     world *feels* without touching biome area fractions -- those are
     always derived fresh from whatever distribution the grids end up
     with, via compute_biome_thresholds() below.
+
+    `local_detail_weight` (0..1) controls how much of the faster-varying
+    "local" noise layer (see _world_noise()) is blended into the classic
+    macro layer -- higher means neighboring chunks diverge in biome more
+    readily, lower keeps the old behavior of very large, uniform biome
+    regions. 0.0 reproduces the original macro-only noise exactly.
     """
     # A different corner of the permutation table than per-chunk noise uses
     # (world_generator seeds its own permutation table from the same
@@ -542,15 +579,26 @@ def generate_world_map(
     world_map = WorldMap(width, height)
     elevation_scale = max(width, height) / 6
     moisture_scale = max(width, height) / 4
+    # The local layer varies ~5x faster than its macro counterpart --
+    # frequent enough that neighboring chunks routinely diverge, not so
+    # frequent that terrain reads as pure static instead of shaped land.
+    local_elevation_scale = elevation_scale / 5
+    local_moisture_scale = moisture_scale / 5
 
     for y in range(height):
         for x in range(width):
-            elevation = (_fractal_noise(perm, x / elevation_scale, y / elevation_scale, 5, 0.5, 2.0) + 1.0) / 2.0
+            elevation = _world_noise(
+                perm, x, y, elevation_scale, local_elevation_scale, local_detail_weight,
+                octaves=5, offset=0,
+            )
             world_map.elevation.set(x, y, elevation)
 
             # Offset the sample point for moisture so it isn't just a scaled
             # copy of the elevation noise (same trick generate_overworld uses).
-            moisture = (_fractal_noise(perm, (x + 1000) / moisture_scale, (y + 1000) / moisture_scale, 4, 0.5, 2.0) + 1.0) / 2.0
+            moisture = _world_noise(
+                perm, x, y, moisture_scale, local_moisture_scale, local_detail_weight,
+                octaves=4, offset=1000,
+            )
             world_map.moisture.set(x, y, moisture)
 
     # Summing several octaves of noise (fBm) statistically pulls the result
