@@ -1,41 +1,74 @@
 {
   "id": "world_encounter_spiders",
 
-  "discovery": "Thick webbing chokes the trail ahead. Something is thrashing, cocooned high between the trees.",
-  "landmark_tile": ["ambush_tree", "cobweb", "cobweb"],
-  "landmark_tile_amount": [2, 6],
-  "monster_pool": ["GiantSpider", "GiantSpider"],
-  "monster_count": [2, 3],
-
-  "choices": [
+  "stages": [
     {
-      "key": 1,
-      "action": "investigate",
-      "label": "Investigate",
-      "description": "Walk in and see what's happening",
-      "color": [255, 160, 100]
+      "discovery": "Strands of silk cling to the branches overhead, growing thicker with every step down the trail. The air smells faintly of rot, and somewhere above, something shifts against the webbing.",
+      "landmark_tile": "overworld_cobweb",
+      "landmark_tile_amount": [2, 4],
+      "choices": [
+        {
+          "key": 1,
+          "action": "advance",
+          "label": "Push Through the Webbing",
+          "description": "Follow the strands to their source",
+          "color": [255, 160, 100]
+        },
+        {
+          "key": 2,
+          "action": "advance",
+          "label": "Look for a Way Around",
+          "description": "Scan the canopy before committing",
+          "color": [160, 200, 255],
+          "outcome": "High above, cocooned between two branches, something thrashes briefly and goes still again. Whatever spun this web is still close by."
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Ignore",
+          "description": "ESC also cancels - just keep walking",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ],
+      "ignore": "You give the outer webbing a wide berth, keeping your distance from whatever built it, and continue on your way."
     },
     {
-      "key": 2,
-      "action": "sneak",
-      "label": "Sneak Around",
-      "description": "Stealth check to glimpse it unseen",
-      "color": [160, 200, 255]
-    },
-    {
-      "key": 3,
-      "action": "ignore",
-      "label": "Ignore",
-      "description": "ESC also cancels - just keep walking",
-      "color": [150, 150, 150],
-      "is_cancel": true
+      "discovery": "The trail opens into a hollow strung floor to canopy in silk. Several spiders skitter across the strands, and high overhead the cocooned shape is still thrashing.",
+      "landmark_tile": ["ambush_tree", "overworld_cobweb"],
+      "landmark_tile_amount": [2, 4],
+      "monster_pool": ["GiantSpider", "GiantSpider"],
+      "monster_count": [2, 3],
+      "sneak_dc": 14,
+      "sneak_success": "You pick your way around the webbing without disturbing a single strand, the spiders none the wiser.",
+      "sneak_fail": "A strand snaps under your foot. Every spider on the web turns toward the vibration - toward you.",
+      "ignore": "You give the webbing a wide berth and keep walking. Whatever's cocooned up there stops thrashing before long.",
+      "choices": [
+        {
+          "key": 1,
+          "action": "investigate",
+          "label": "Investigate",
+          "description": "Walk in and see what's happening",
+          "color": [255, 160, 100]
+        },
+        {
+          "key": 2,
+          "action": "sneak",
+          "label": "Sneak Around",
+          "description": "Stealth check to glimpse it unseen",
+          "color": [160, 200, 255]
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Ignore",
+          "description": "ESC also cancels - just keep walking",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ]
     }
   ],
-
-  "sneak_dc": 14,
-  "sneak_success": "You pick your way around the webbing without disturbing a single strand, the spiders none the wiser.",
-  "sneak_fail": "A strand snaps under your foot. Every spider on the web turns toward the vibration - toward you.",
-  "ignore": "You give the webbing a wide berth and keep walking. Whatever's cocooned up there stops thrashing before long.",
 
   "victim": "traveler",
   "victim_count": [1, 1],

@@ -1,41 +1,106 @@
 {
   "id": "world_encounter_bandits",
 
-  "discovery": "A gang of bandits has surrounded a merchant caravan, stripping valuables from the carts while terrified traders look on.",
-  "landmark_tile": ["caravan", "tent"],
-  "landmark_tile_amount": [1, 3],
-  "monster_pool": ["Goblin", "Goblin", "GoblinArcher", "Orc"],
-  "monster_count": [3, 4],
-
-  "choices": [
+  "stages": [
     {
-      "key": 1,
-      "action": "investigate",
-      "label": "Investigate",
-      "description": "Approach the scene openly",
-      "color": [255, 160, 100]
+      "discovery": "Deep wheel-ruts veer off the trail ahead. A merchant cart lies overturned in the bracken, one wheel still spinning, goods scattered through the grass.",
+      "landmark_tile": "caravan",
+      "landmark_tile_amount": 1,
+      "choices": [
+        {
+          "key": 1,
+          "action": "advance",
+          "label": "Follow the Tracks",
+          "description": "Press deeper down the trail of wreckage",
+          "color": [255, 160, 100]
+        },
+        {
+          "key": 2,
+          "action": "advance",
+          "label": "Search the Wreckage First",
+          "description": "A quick look before moving on",
+          "color": [160, 200, 255],
+          "outcome": "You find a handful of coins spilled in the grass, but nothing else worth carrying. The trail of ruts leads on.",
+          "consequences": [
+            { "type": "reward_gold", "amount": 3 }
+          ]
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Ignore",
+          "description": "ESC also cancels - leave it be",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ],
+      "ignore": "You leave the wrecked cart to the crows and continue on your way, choosing not to follow whoever did this."
     },
     {
-      "key": 2,
-      "action": "sneak",
-      "label": "Sneak Around",
-      "description": "Try to observe without being seen",
-      "color": [160, 200, 255]
+      "discovery": "Smoke curls above the tree line ahead. A rough camp sits in a hollow off the trail — hide tents, stacked crates, sharpened stakes driven into the earth. Harsh, unfamiliar voices carry on the wind.",
+      "landmark_tile": ["tent", "barricade"],
+      "landmark_tile_amount": [1, 2],
+      "choices": [
+        {
+          "key": 1,
+          "action": "advance",
+          "label": "Creep Closer",
+          "description": "Get near enough to see what's happening",
+          "color": [255, 160, 100]
+        },
+        {
+          "key": 2,
+          "action": "advance",
+          "label": "Circle the Camp First",
+          "description": "Get a look at what you're walking into",
+          "color": [160, 200, 255],
+          "outcome": "Keeping to the tree line, you count several armed shapes moving between the tents — and, kneeling near the fire, bound figures who don't look like they belong to this camp at all."
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Ignore",
+          "description": "ESC also cancels - turn back now",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ],
+      "ignore": "You back away from the camp and let it be. Whatever happened to the wagon isn't your fight — not today."
     },
     {
-      "key": 3,
-      "action": "ignore",
-      "label": "Ignore",
-      "description": "Leave them to their fate",
-      "color": [150, 150, 150],
-      "is_cancel": true
+      "discovery": "The trail opens into the hollow. Bandits lounge around a cookfire while bound merchants kneel nearby under guard — the same traders whose cart you passed, broken, on the road behind you.",
+      "monster_pool": ["Goblin", "Goblin", "GoblinArcher", "Orc"],
+      "monster_count": [3, 4],
+      "sneak_dc": 13,
+      "sneak_success": "Keeping low behind the crates, you watch the bandits pick over their captives' belongings, none the wiser to your approach. You'll have the first move.",
+      "sneak_fail": "A dry branch snaps beneath your foot. Every bandit in the camp turns toward you, weapons already drawn.",
+      "ignore": "You turn away as the bound merchants plead for help. Their desperate voices soon fade into the distance.",
+      "choices": [
+        {
+          "key": 1,
+          "action": "investigate",
+          "label": "Investigate",
+          "description": "Walk in and confront them openly",
+          "color": [255, 160, 100]
+        },
+        {
+          "key": 2,
+          "action": "sneak",
+          "label": "Sneak Around",
+          "description": "Try to get the drop on them",
+          "color": [160, 200, 255]
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Ignore",
+          "description": "Leave them to their fate",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ]
     }
   ],
-
-  "sneak_dc": 13,
-  "sneak_success": "Keeping low behind the brush, you watch the bandits finish looting the caravan before disappearing into the wilderness. Once they're gone, you search what little they left behind.",
-  "sneak_fail": "Your footing gives way with a sharp crack. Every bandit turns toward you, weapons drawn.",
-  "ignore": "You turn away as the merchants plead for help. Their desperate voices soon fade into the distance.",
 
   "victim": "merchant",
   "victim_count": [1, 2],

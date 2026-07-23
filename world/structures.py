@@ -460,9 +460,9 @@ STRUCTURE_BLUEPRINTS = {
         "shrine",
         "Shrine",
         [
-            "  #  ",
-            " #&# ",
-            " #.# ",
+            " # ",
+            "#&#",
+            "#.#",
         ],
         {"#": wall, ".": floor, "&": altar},
         walkable_chars={"."},

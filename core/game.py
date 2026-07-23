@@ -323,6 +323,8 @@ class Game:
         self._world_encounter_aftermath = None # Scenario's "aftermath" block awaiting a post-combat choice
         self._world_encounter_target_victims = []  # Victims spawned for the current encounter, see recruit_companion()
         self._world_encounter_last_id = None   # scenario["id"] last rolled, see _maybe_trigger_world_encounter()
+        self._world_encounter_stage_index = 0  # Index into scenario["stages"] currently on screen, see _enter_world_encounter_stage()
+        self._world_encounter_stage_spawn_candidates = []  # Open tiles left after the current stage's landmark, see _spawn_world_encounter_monsters()
         self._shop_menu_merchant = None   # Active merchant for shop overlay
         self._shop_selected_index = 0     # Highlighted item index in shop
         self._shop_mode = "buy"           # "buy" or "sell"
@@ -785,15 +787,50 @@ class Game:
     # scenario's own JSON from this point on -- game.py no longer
     # hardcodes "there are exactly three options."
     #
-    # "resolve" is the odd one out: investigate/sneak/ignore are fully
-    # scripted in Python (they always spawn monsters, or don't), while a
-    # "resolve" choice is entirely data-driven -- its own "outcome"/
-    # "consequences" (see _normalize_world_encounter_choices()) decide
-    # what happens, the same way a post-combat "aftermath" choice
-    # already works. This is what a non-combat encounter (one with no
-    # "monster_pool" at all -- see Lost_Pilgrim.json) uses instead of
-    # investigate/sneak, since there's no fight to start.
-    WORLD_ENCOUNTER_ACTIONS = ("investigate", "sneak", "ignore", "resolve")
+    # "resolve" is the odd one out: investigate/sneak/ignore/advance are
+    # fully scripted in Python, while a "resolve" choice is entirely
+    # data-driven -- its own "outcome"/"consequences" (see
+    # _normalize_world_encounter_choices()) decide what happens, the
+    # same way a post-combat "aftermath" choice already works. This is
+    # what a non-combat encounter (one with no "monster_pool" at all --
+    # see Lost_Pilgrim.json) uses instead of investigate/sneak, since
+    # there's no fight to start.
+    #
+    # "advance" is how a *staged* scenario (see "stages" below) walks the
+    # player past the beat currently on screen without investigating,
+    # sneaking, or ignoring it outright -- e.g. passing the broken wagon
+    # to press on toward the campfire beyond it. Like "resolve", its own
+    # "outcome"/"consequences" describe whatever happens along the way
+    # (a moment of unease, a scrap of loot), but "outcome" isn't required
+    # the way "resolve"'s is, since walking past a beat needn't say
+    # anything at all. See _resolve_world_encounter_advance().
+    WORLD_ENCOUNTER_ACTIONS = ("investigate", "sneak", "ignore", "resolve", "advance")
+
+    # A world encounter's JSON can either describe a single beat with its
+    # flat "discovery"/"landmark_tile"/"monster_pool"/"choices" fields
+    # (unchanged since before staging existed -- see Wolf_Pack.json and
+    # Spider_Nest.json) or an ordered "stages" list of several such
+    # beats, each revealed one at a time as the player presses forward:
+    #
+    #     "stages": [
+    #       {"discovery": "...", "landmark_tile": "wagon", "choices": [...advance/investigate/ignore...]},
+    #       {"discovery": "...", "landmark_tile": "campfire", "choices": [...advance/investigate/ignore...]},
+    #       {"discovery": "...", "monster_pool": [...], "monster_count": [3, 4], "choices": [...investigate/sneak/ignore...]}
+    #     ]
+    #
+    # Only the *final* stage typically declares "monster_pool" -- see
+    # Bandit_Ambush.json's wagon -> campfire -> goblin camp progression --
+    # but any stage may, and any stage's choices may offer "investigate"/
+    # "sneak" to start a fight right there instead of walking further in.
+    # A scenario with no "stages" block at all is treated as a single
+    # implicit stage built from its own top-level fields (see
+    # _load_world_encounter_scenarios()), so every scenario written before
+    # staging existed keeps working completely unchanged.
+    WORLD_ENCOUNTER_STAGE_FIELDS = (
+        "discovery", "landmark_tile", "landmark_tile_amount", "landmark_structure",
+        "monster_pool", "monster_count", "choices", "sneak_dc", "sneak_success",
+        "sneak_fail", "ignore",
+    )
 
     # Fallback menu for any world-encounter JSON that doesn't declare its
     # own "choices" block, so existing/older content files keep working
@@ -846,11 +883,13 @@ class Game:
         "hours"/"escort" fields _normalize_world_encounter_aftermath()'s
         choices carry (defaulted to empty/false when a scenario doesn't
         set them). investigate/sneak/ignore ignore all four -- their
-        behavior is fully scripted in Python -- but a "resolve" choice
-        (non-combat scenarios; see WORLD_ENCOUNTER_ACTIONS) reads them
-        exactly like an aftermath choice does, so one schema covers both
-        instead of two. A "resolve" choice missing "outcome" is dropped
-        the same way a choice with an unknown action is.
+        behavior is fully scripted in Python -- but "resolve" and
+        "advance" choices (see WORLD_ENCOUNTER_ACTIONS) read them
+        exactly like an aftermath choice does, so one schema covers all
+        three instead of several. A "resolve" choice missing "outcome"
+        is dropped the same way a choice with an unknown action is;
+        "advance" has no such requirement, since walking past a beat
+        needn't say anything at all.
         """
         if not choices:
             return [dict(default) for default in self.DEFAULT_WORLD_ENCOUNTER_CHOICES]
@@ -913,6 +952,49 @@ class Game:
         if isinstance(value, (list, tuple)):
             return list(value)
         return [value]
+
+    def _normalize_world_encounter_stage(self, stage_data, source_name, stage_index):
+        """
+        Normalizes one entry of a scenario's "stages" list (see
+        WORLD_ENCOUNTER_STAGE_FIELDS) into the shape the rest of the
+        world-encounter pipeline expects -- resolved monster classes,
+        a (min, max) tile amount, normalized choices, and so on. Also
+        used by _load_world_encounter_scenarios() to build the single
+        implicit stage of a legacy, non-staged scenario, so both paths
+        -- an authored "stages" list and an old flat scenario file --
+        produce identical stage dicts and every other method in this
+        pipeline only ever has to think in terms of "the current stage".
+
+        Not every stage needs every field: a narrative-only beat (e.g.
+        a broken wagon the player can only investigate/ignore/advance
+        past) simply omits "monster_pool"/"sneak_dc"/etc. and gets empty/
+        None defaults for them, exactly like a non-combat scenario's
+        single implicit stage already did before staging existed.
+        """
+        source = f"{source_name} stage {stage_index}"
+
+        monster_pool = [
+            self.WORLD_ENCOUNTER_MONSTER_CLASSES[name] for name in stage_data.get("monster_pool", [])
+        ]
+        return {
+            "discovery": stage_data.get("discovery", ""),
+            "landmark_tile": self._normalize_world_encounter_tile_pool(stage_data.get("landmark_tile")),
+            "landmark_tile_amount": self._normalize_world_encounter_range(
+                stage_data.get("landmark_tile_amount", 1)
+            ),
+            # Passed through as-is (a plain structures.py blueprint key,
+            # e.g. "shrine") or None -- see
+            # _spawn_world_encounter_landmark_structure().
+            "landmark_structure": stage_data.get("landmark_structure"),
+            "monster_pool": monster_pool,
+            "monster_count": tuple(stage_data.get("monster_count", (0, 0))),
+            "combat": bool(monster_pool),
+            "sneak_dc": stage_data.get("sneak_dc"),
+            "sneak_success": stage_data.get("sneak_success", ""),
+            "sneak_fail": stage_data.get("sneak_fail", ""),
+            "ignore": stage_data.get("ignore", ""),
+            "choices": self._normalize_world_encounter_choices(stage_data.get("choices"), source),
+        }
 
     def _normalize_world_encounter_aftermath(self, aftermath, source_name):
         """
@@ -1029,29 +1111,30 @@ class Game:
         for path in sorted(root.glob("*.json")):
             try:
                 data = json.loads(path.read_text())
-                data["monster_pool"] = [
-                    self.WORLD_ENCOUNTER_MONSTER_CLASSES[name] for name in data.get("monster_pool", [])
-                ]
-                data["monster_count"] = tuple(data.get("monster_count", (0, 0)))
-                # Whether this scenario is a fight at all. A non-combat
-                # scenario (no "monster_pool" declared, e.g. Lost_
-                # Pilgrim.json) skips spawning entirely and resolves
-                # through "resolve"-action choices instead of investigate/
-                # sneak -- see WORLD_ENCOUNTER_ACTIONS and
-                # _resolve_world_encounter_resolve().
-                data["combat"] = bool(data["monster_pool"])
+
+                # A scenario either authors an ordered "stages" list
+                # directly (see WORLD_ENCOUNTER_STAGE_FIELDS/Bandit_
+                # Ambush.json's wagon -> campfire -> goblin camp) or
+                # stays a single flat beat the old way (Wolf_Pack.json,
+                # Spider_Nest.json) -- normalized here into a one-entry
+                # "stages" list built from its own top-level fields, so
+                # every other method in the pipeline only ever deals
+                # with "the scenario's list of stages", never which
+                # shape the source file used.
+                if "stages" in data:
+                    stages = [
+                        self._normalize_world_encounter_stage(stage, path.name, index)
+                        for index, stage in enumerate(data["stages"])
+                    ]
+                else:
+                    legacy_stage = {field: data[field] for field in self.WORLD_ENCOUNTER_STAGE_FIELDS if field in data}
+                    stages = [self._normalize_world_encounter_stage(legacy_stage, path.name, 0)]
+
+                if not stages:
+                    raise ValueError("scenario declares no stages")
+                data["stages"] = stages
+
                 data["victim_count"] = tuple(data.get("victim_count", (1, 1)))
-                data["landmark_tile"] = self._normalize_world_encounter_tile_pool(
-                    data.get("landmark_tile")
-                )
-                data["landmark_tile_amount"] = self._normalize_world_encounter_range(
-                    data.get("landmark_tile_amount", 1)
-                )
-                # Passed through as-is (a plain structures.py blueprint
-                # key, e.g. "shrine") or None -- see
-                # _spawn_world_encounter_landmark_structure().
-                data["landmark_structure"] = data.get("landmark_structure")
-                data["choices"] = self._normalize_world_encounter_choices(data.get("choices"), path.name)
                 data["aftermath"] = self._normalize_world_encounter_aftermath(data.get("aftermath"), path.name)
                 data["waves"] = self._normalize_world_encounter_waves(data.get("waves"), path.name)
             except (OSError, json.JSONDecodeError, KeyError, ValueError) as exc:
@@ -1297,13 +1380,11 @@ class Game:
             return False
 
         scenario = self._roll_world_encounter_scenario()
-        self._world_encounter_target = scenario
         self._world_encounter_target_victims = []
-        self._spawn_world_encounter_landmark_structure(scenario)
         self._world_encounter_story_id = self._create_world_encounter_story(scenario)
         self._world_encounter_cooldown = self.WORLD_ENCOUNTER_COOLDOWN_STEPS
         self.message_log.add_message(random.choice(self.WORLD_ENCOUNTER_HOOKS), (200, 200, 255))
-        self.game_state = GameState.WORLD_ENCOUNTER_MENU
+        self._enter_world_encounter_stage(scenario, 0)
         return True
 
     def _roll_world_encounter_scenario(self):
@@ -1342,6 +1423,17 @@ class Game:
         The story stays UNINITIALIZED until the player actually commits
         (investigate/sneak/resolve) -- see StoryDirector.start().
 
+        This StoryInstance's own two-stage lifecycle is deliberately kept
+        separate from a *staged* scenario's narrative progress through
+        its "stages" list (see WORLD_ENCOUNTER_STAGE_FIELDS and
+        self._world_encounter_stage_index) -- walking from the broken
+        wagon to the campfire to the goblin camp never touches this
+        story at all, since the KILL_NPC TriggerRule wired in
+        _start_world_encounter_combat() is gated to `min_stage=0,
+        max_stage=0` and must stay valid throughout. The story only
+        starts once the player actually commits to a stage's fight or
+        resolution.
+
         The IGNORED FailurePolicy below only gets registered when the
         scenario actually declares "reputation_faction"/"ignored_
         reputation_delta" -- i.e. it offers a bare "ignore" choice at
@@ -1368,20 +1460,26 @@ class Game:
             self.stories.failure_manager.register_policy(director.story.id, policy)
         return director.story.id
 
-    def _spawn_world_encounter_landmark_tile(self, scenario, spawn_candidates):
+    def _spawn_world_encounter_landmark_tile(self, stage, spawn_candidates):
         """
-        Places this scenario's "landmark_tile" (see WORLD_ENCOUNTER_TILE_TYPES,
-        e.g. Bandit_Ambush.json's ransacked "caravan") directly on the
-        overworld map, at the open spawn candidates closest to the player
-        from _spawn_world_encounter_monsters -- giving the scene a
-        physical prop matching its discovery text ("rifling through their
-        cart") instead of only narration. A no-op for scenarios that don't
+        Places the current stage's "landmark_tile" (see
+        WORLD_ENCOUNTER_TILE_TYPES, e.g. Bandit_Ambush.json's ransacked
+        "caravan") directly on the overworld map, at the open spawn
+        candidates closest to the player -- giving the scene a physical
+        prop matching its discovery text ("rifling through their cart")
+        instead of only narration. A no-op for a stage that doesn't
         declare one.
+
+        Called once per stage, from _enter_world_encounter_stage(), so a
+        staged scenario's landmark changes as the player walks deeper in
+        (the wagon gives way to a campfire, which gives way to the camp
+        itself) -- not just once at the moment combat starts, the way a
+        single-stage scenario's landmark always has.
 
         "landmark_tile" is normalized to a *pool* of one or more tile keys
         by _normalize_world_encounter_tile_pool() at load time. Each
         individual placement below independently rolls a random key from
-        that pool, so a scenario like Bandit_Ambush.json's
+        that pool, so a stage like Bandit_Ambush.json's
         ["caravan", "barricade"] scatters a believable mix of wrecked
         cart and hasty barricade instead of several copies of the same
         prop; a single-key pool (e.g. Wolf_Pack.json's "ambush_tree")
@@ -1394,19 +1492,22 @@ class Game:
         amount"'s min/max (see _normalize_world_encounter_range(), which
         defaults a missing/int value to exactly one tile -- unchanged
         prior behavior), capped to however many open positions actually
-        exist. Placed nearest-to-player first, so a multi-tile scenario
+        exist. Placed nearest-to-player first, so a multi-tile stage
         reads as one cluster of wreckage/barricade/stones rather than
         scattering randomly across the whole spawn radius.
 
         Pops each chosen position out of `spawn_candidates` in place, so
-        the monsters/victims spawned right after this never land on top
-        of one.
+        anything spawned from the same pool right after this (a later
+        stage's own landmark, or this stage's monsters/victims once the
+        player investigates/sneaks) never lands on top of one -- see
+        _enter_world_encounter_stage()'s self._world_encounter_stage_
+        spawn_candidates, which is exactly the list this mutates.
         """
-        tile_pool = scenario.get("landmark_tile")
+        tile_pool = stage.get("landmark_tile")
         if not tile_pool or not spawn_candidates:
             return
 
-        min_amount, max_amount = scenario["landmark_tile_amount"]
+        min_amount, max_amount = stage["landmark_tile_amount"]
         amount = min(random.randint(min_amount, max_amount), len(spawn_candidates))
 
         anchor_x, anchor_y = self.player.x, self.player.y
@@ -1419,9 +1520,9 @@ class Game:
             x, y = spawn_candidates.pop(0)
             self.game_map.tiles[y][x] = tile_template
 
-    def _spawn_world_encounter_landmark_structure(self, scenario):
+    def _spawn_world_encounter_landmark_structure(self, stage):
         """
-        Places this scenario's "landmark_structure" (see
+        Places the current stage's "landmark_structure" (see
         WORLD_ENCOUNTER_TILE_TYPES's docstring above it, e.g.
         Roadside_Shrine.json's "shrine") as a full multi-tile building
         from structures.py, anchored a few tiles off the player's current
@@ -1431,16 +1532,16 @@ class Game:
         that nearby point so the search can't land the footprint
         directly on top of the player.
 
-        Called from _maybe_trigger_world_encounter() the moment a
-        scenario is rolled, not from _spawn_world_encounter_monsters()
-        like "landmark_tile" -- a non-combat scenario (see
-        WORLD_ENCOUNTER_ACTIONS' "resolve") never spawns monsters at all,
-        so the structure has to appear independently of that path. A
-        no-op for scenarios that don't declare one, or if the map has no
-        room for the footprint nearby (place_structure_at_anchor returns
-        None in that case).
+        Called once per stage, from _enter_world_encounter_stage(), not
+        from _spawn_world_encounter_monsters() like the monsters/victims
+        themselves -- a non-combat stage (see WORLD_ENCOUNTER_ACTIONS'
+        "resolve"/"advance") never spawns monsters at all, so the
+        structure has to appear independently of that path. A no-op for
+        a stage that doesn't declare one, or if the map has no room for
+        the footprint nearby (place_structure_at_anchor returns None in
+        that case).
         """
-        structure_id = scenario.get("landmark_structure")
+        structure_id = stage.get("landmark_structure")
         if not structure_id:
             return
 
@@ -1448,6 +1549,46 @@ class Game:
 
         anchor_x, anchor_y = self._world_encounter_structure_anchor()
         place_structure_at_anchor(self.game_map, structure_id, anchor_x, anchor_y)
+
+    def _enter_world_encounter_stage(self, scenario, stage_index):
+        """
+        Reveals one narrative beat of a (possibly staged) world
+        encounter: logs the stage's own "discovery" text, places its
+        landmark_tile/landmark_structure (if any), and opens its
+        WORLD_ENCOUNTER_MENU with that stage's own "choices".
+
+        Called once when the encounter first triggers (stage 0, from
+        _maybe_trigger_world_encounter()) and again each time an
+        "advance" choice walks the player past the current beat (see
+        _resolve_world_encounter_advance()) -- e.g. a broken wagon
+        giving way to a campfire, which gives way to the goblin camp
+        itself. A single-stage (non-staged) scenario simply calls this
+        once, exactly as before staging existed.
+
+        Caches the spawn candidates left over after this stage's own
+        landmark tile is placed (self._world_encounter_stage_spawn_
+        candidates) so that, if this turns out to be the stage the
+        player investigates/sneaks into, _spawn_world_encounter_monsters()
+        reuses the exact same open positions instead of risking a
+        monster/victim landing on the landmark tile just placed.
+        """
+        self._world_encounter_stage_index = stage_index
+        stage = scenario["stages"][stage_index]
+
+        if stage["discovery"]:
+            self.message_log.add_message(stage["discovery"], (255, 200, 120))
+
+        self._spawn_world_encounter_landmark_structure(stage)
+        self._world_encounter_stage_spawn_candidates = self._world_encounter_spawn_candidates()
+        self._spawn_world_encounter_landmark_tile(stage, self._world_encounter_stage_spawn_candidates)
+
+        self._world_encounter_target = scenario
+        self.game_state = GameState.WORLD_ENCOUNTER_MENU
+
+    def _current_world_encounter_stage(self):
+        """The stage dict currently on screen -- see
+        _enter_world_encounter_stage()/self._world_encounter_stage_index."""
+        return self._world_encounter_target["stages"][self._world_encounter_stage_index]
 
     def _world_encounter_structure_anchor(self):
         """
@@ -1541,12 +1682,20 @@ class Game:
         self._resort_turn_order_preserving_current()
         return spawned
 
-    def _spawn_world_encounter_monsters(self, scenario, surprised=False, asleep=False):
+    def _spawn_world_encounter_monsters(self, scenario, stage, surprised=False, asleep=False):
         """
-        Drops the scenario's hostile monsters near the player once the
-        encounter turns to combat (investigated, or spotted while sneaking).
-        Mirrors spawn_monsters_near_prison_alert()'s search-radius approach,
-        but anchored on the player instead of a prison door.
+        Drops `stage`'s hostile monsters near the player once the
+        encounter turns to combat (investigated, or spotted while sneaking
+        at whichever stage the player committed at). Mirrors
+        spawn_monsters_near_prison_alert()'s search-radius approach, but
+        anchored on the player instead of a prison door.
+
+        Reuses self._world_encounter_stage_spawn_candidates -- the open
+        positions _enter_world_encounter_stage() computed when this stage
+        was first revealed, already reduced by that stage's own landmark
+        tile -- rather than recomputing and re-placing the landmark here,
+        so a stage's wagon/campfire/camp prop is placed exactly once, the
+        moment it's revealed, and monsters/victims never land on top of it.
 
         If asleep is True (a successful sneak), the monsters are spawned
         inactive and sharing one encounter_group list - attacking any one of
@@ -1557,13 +1706,11 @@ class Game:
         TriggerRule wired in _wire_world_encounter_combat() can tell which
         kills belong to this ambush versus any other monster on the map.
         """
-        spawn_candidates = self._world_encounter_spawn_candidates()
+        spawn_candidates = self._world_encounter_stage_spawn_candidates
         if not spawn_candidates:
             return []
 
-        self._spawn_world_encounter_landmark_tile(scenario, spawn_candidates)
-
-        min_count, max_count = scenario["monster_count"]
+        min_count, max_count = stage["monster_count"]
         num_to_spawn = min(random.randint(min_count, max_count), len(spawn_candidates))
 
         group_id = self._start_world_encounter_combat(scenario, num_to_spawn)
@@ -1571,7 +1718,7 @@ class Game:
         spawned = []
         encounter_group = [] if asleep else None
         for _ in range(num_to_spawn):
-            monster_class = random.choice(scenario["monster_pool"])
+            monster_class = random.choice(stage["monster_pool"])
             spawn_x, spawn_y = random.choice(spawn_candidates)
             spawn_candidates.remove((spawn_x, spawn_y))
             monster = monster_class(spawn_x, spawn_y)
@@ -1751,12 +1898,14 @@ class Game:
         Dispatches a selected WORLD_ENCOUNTER_MENU choice to its built-in
         behavior -- one of the WORLD_ENCOUNTER_ACTIONS handlers just
         below (_resolve_world_encounter_investigate/_sneak/_ignore/
-        _resolve). Everything about *how* a choice was offered (label,
-        description, color, key, is_cancel) already did its job in the
-        menu; the resolver gets the full choice dict anyway (not just
-        its action name) since "resolve" needs its own "outcome"/
-        "consequences" -- investigate/sneak/ignore simply ignore the
-        argument, being fully scripted in Python.
+        _resolve/_advance), acting on whichever stage is currently on
+        screen (see _current_world_encounter_stage()). Everything about
+        *how* a choice was offered (label, description, color, key,
+        is_cancel) already did its job in the menu; the resolver gets the
+        full choice dict anyway (not just its action name) since
+        "resolve"/"advance" need their own "outcome"/"consequences" --
+        investigate/sneak/ignore mostly ignore the argument, being fully
+        scripted in Python.
         """
         resolver = getattr(self, f"_resolve_world_encounter_{choice['action']}")
         resolver(choice)
@@ -1789,10 +1938,17 @@ class Game:
         _resolve_world_encounter_choice() can call every resolver the
         same way; see _resolve_world_encounter_resolve() for a resolver
         that actually reads it).
+
+        Acts on the *current* stage (_current_world_encounter_stage()),
+        not the scenario as a whole -- a staged scenario has no top-level
+        "discovery"/"monster_pool" of its own, only per-stage ones (see
+        WORLD_ENCOUNTER_STAGE_FIELDS). The stage's discovery text was
+        already logged the moment it was revealed
+        (_enter_world_encounter_stage()), so it isn't repeated here.
         """
         scenario = self._world_encounter_target
-        self.message_log.add_message(scenario["discovery"], (255, 200, 120))
-        spawned = self._spawn_world_encounter_monsters(scenario)
+        stage = self._current_world_encounter_stage()
+        spawned = self._spawn_world_encounter_monsters(scenario, stage)
         if spawned:
             self.message_log.add_message("You step in to help, weapon drawn!", (255, 150, 100))
         self.game_state = GameState.OVERWORLD
@@ -1806,28 +1962,35 @@ class Game:
         slip past, or strike one down before the rest ever wake up.
         Failure - spotted; the enemies spawn awake and alerted.
         `choice` is unused -- see _resolve_world_encounter_investigate().
+
+        Acts on the current stage (_current_world_encounter_stage()) --
+        "sneak_dc"/"sneak_success"/"sneak_fail" live per-stage, same
+        reasoning as _resolve_world_encounter_investigate(). The stage's
+        discovery text was already logged when it was revealed, so only
+        the stealth-roll line and the success/fail line (genuinely new
+        information the sneak check itself reveals) are logged here.
         """
         scenario = self._world_encounter_target
+        stage = self._current_world_encounter_stage()
         dex_roll  = random.randint(1, 20)
         dex_mod   = self.player.get_ability_modifier(self.player.dexterity)
         if "stealth" in self.player.skill_proficiencies:
             dex_mod += self.player.proficiency_bonus
         dex_total = dex_roll + dex_mod
-        sneak_dc  = scenario["sneak_dc"]
+        sneak_dc  = stage["sneak_dc"]
 
         self.message_log.add_message(
             f"You creep closer to see what's happening. "
             f"(Stealth {dex_roll}{dex_mod:+d} = {dex_total} vs DC {sneak_dc})",
             (150, 200, 220)
         )
-        self.message_log.add_message(scenario["discovery"], (255, 200, 120))
 
         if dex_total >= sneak_dc:
-            self.message_log.add_message(scenario["sneak_success"], (150, 255, 180))
-            self._spawn_world_encounter_monsters(scenario, asleep=True)
+            self.message_log.add_message(stage["sneak_success"], (150, 255, 180))
+            self._spawn_world_encounter_monsters(scenario, stage, asleep=True)
         else:
-            self.message_log.add_message(scenario["sneak_fail"], (255, 120, 100))
-            self._spawn_world_encounter_monsters(scenario, surprised=True)
+            self.message_log.add_message(stage["sneak_fail"], (255, 120, 100))
+            self._spawn_world_encounter_monsters(scenario, stage, surprised=True)
 
         self.game_state = GameState.OVERWORLD
         self._world_encounter_target = None
@@ -1844,13 +2007,54 @@ class Game:
         scenario's reputation penalty via the shared consequence
         machinery, instead of a one-off inline hit. `choice` is unused --
         see _resolve_world_encounter_investigate().
+
+        Reads "ignore" flavor text off the *current* stage -- walking
+        away from the wagon reads differently than walking away from the
+        goblin camp itself -- but always marks the *whole encounter* as
+        ignored via the scenario-level story id, since the reputation/
+        scar consequences apply regardless of which stage the player
+        turned back at.
         """
-        scenario = self._world_encounter_target
-        self.message_log.add_message(scenario["ignore"], (150, 150, 150))
+        stage = self._current_world_encounter_stage()
+        self.message_log.add_message(stage["ignore"], (150, 150, 150))
         self.stories.failure_manager.mark_ignored(self._world_encounter_story_id)
         self.game_state = GameState.OVERWORLD
         self._world_encounter_target = None
         self._world_encounter_story_id = None
+
+    def _resolve_world_encounter_advance(self, choice):
+        """
+        "advance" action: walk past the current stage's beat without
+        investigating, sneaking, or ignoring it outright -- e.g. passing
+        a broken wagon to press on toward the campfire beyond it (see
+        WORLD_ENCOUNTER_STAGE_FIELDS's docstring for the full wagon ->
+        campfire -> goblin camp example this exists for).
+
+        Applies the choice's own optional "outcome"/"consequences"/
+        "hours" (a moment of unease, a scrap of loot picked up along the
+        way) through the same _apply_world_encounter_outcome_choice()
+        path a "resolve" choice uses -- unlike "resolve", "outcome" isn't
+        required here (see _normalize_world_encounter_choices()), so
+        advancing past a beat with nothing to say about it is fine.
+
+        Reveals the scenario's next stage (_enter_world_encounter_stage())
+        rather than closing the encounter out. Content is expected to
+        only offer "advance" on a non-final stage; if a scenario's JSON
+        mistakenly offers it on the last one, this falls back to walking
+        away (the same outcome "ignore" produces) instead of indexing
+        past the end of "stages".
+        """
+        scenario = self._world_encounter_target
+        self._apply_world_encounter_outcome_choice(choice)
+
+        next_index = self._world_encounter_stage_index + 1
+        if next_index >= len(scenario["stages"]):
+            self.game_state = GameState.OVERWORLD
+            self._world_encounter_target = None
+            self._world_encounter_story_id = None
+            return
+
+        self._enter_world_encounter_stage(scenario, next_index)
 
     def _resolve_world_encounter_resolve(self, choice):
         """
@@ -1902,10 +2106,17 @@ class Game:
         Leaves game_state and every _world_encounter_* menu field alone
         -- callers close those out themselves, since "resolve" and
         "aftermath" choices leave the encounter in different states.
+
+        Logging the "outcome" line is skipped entirely if it's empty --
+        "resolve"/"aftermath" choices always require one (see
+        _normalize_world_encounter_choices()/_normalize_world_encounter_
+        aftermath()), but an "advance" choice doesn't, and an empty line
+        in the message log helps no one.
         """
-        self.message_log.add_message(
-            choice["outcome"], (150, 255, 180) if not choice.get("is_cancel") else (150, 150, 150)
-        )
+        if choice["outcome"]:
+            self.message_log.add_message(
+                choice["outcome"], (150, 255, 180) if not choice.get("is_cancel") else (150, 150, 150)
+            )
 
         if choice.get("escort") and self._world_encounter_target_victims:
             # A scenario can rescue more than one victim (e.g. Bandit_
@@ -3942,7 +4153,8 @@ class Game:
 
                 # --- World Encounter Menu ---
                 elif self.game_state == GameState.WORLD_ENCOUNTER_MENU:
-                    choice = self._world_encounter_choice_for_key(event.key, self._world_encounter_target["choices"])
+                    stage = self._current_world_encounter_stage()
+                    choice = self._world_encounter_choice_for_key(event.key, stage["choices"])
                     if choice is not None:
                         self._resolve_world_encounter_choice(choice)
                         # Cancel-flagged choices (e.g. "Ignore") don't cost a
@@ -6287,15 +6499,20 @@ class Game:
 
     def render_world_encounter_menu(self):
         """
-        Draws the textbox popup for a random overworld encounter — the hook
-        text is already in the message log by this point, so this just shows
-        the scenario's own choices (see _normalize_world_encounter_choices()).
-        What's actually happening is only revealed once the player picks one
-        (see _resolve_world_encounter_choice() and the _resolve_world_
-        encounter_* action handlers). Key bindings come from each choice's
-        own "key" field; ESC always matches whichever choice is "is_cancel".
+        Draws the textbox popup for the current stage of a (possibly
+        staged) overworld encounter. Both the generic arrival hook
+        ("You hear screams ahead.") and this stage's own "discovery"
+        text are already in the message log by this point (see
+        _maybe_trigger_world_encounter()/_enter_world_encounter_stage()),
+        so this just shows the current stage's own choices (see
+        _normalize_world_encounter_choices()/_current_world_encounter_
+        stage()) -- which change as the player advances deeper into a
+        staged scenario (wagon -> campfire -> goblin camp). Key bindings
+        come from each choice's own "key" field; ESC always matches
+        whichever choice is "is_cancel".
         """
-        self._render_world_encounter_choice_popup("  What do you do?", self._world_encounter_target["choices"])
+        stage = self._current_world_encounter_stage()
+        self._render_world_encounter_choice_popup("  What do you do?", stage["choices"])
 
     def render_world_encounter_aftermath_menu(self):
         """
