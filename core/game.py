@@ -4327,15 +4327,27 @@ class Game:
 
                 # --- Normal Turn Handling (if no special action state is active) ---
                 if self.player.current_action_state is None:
-                    if event.key in (pygame.K_UP, pygame.K_w):
-                        dy = -1
-                    elif event.key in (pygame.K_DOWN, pygame.K_s):
-                        dy = 1
-                    elif event.key in (pygame.K_LEFT, pygame.K_a):
-                        dx = -1
-                    elif event.key in (pygame.K_RIGHT, pygame.K_d):
-                        dx = 1
-                    
+                    move_keys = (
+                        pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT,
+                        pygame.K_w, pygame.K_a, pygame.K_s, pygame.K_d,
+                    )
+                    if event.key in move_keys:
+                        # Diagonal movement: rather than reacting only to the
+                        # key that was just pressed, look at every movement
+                        # key currently held down (e.g. W still held while D
+                        # is tapped) and combine them into one diagonal step.
+                        # Opposite keys held together (e.g. A+D) cancel out
+                        # back to 0, same as no input on that axis.
+                        keys_held = pygame.key.get_pressed()
+                        if keys_held[pygame.K_UP] or keys_held[pygame.K_w]:
+                            dy -= 1
+                        if keys_held[pygame.K_DOWN] or keys_held[pygame.K_s]:
+                            dy += 1
+                        if keys_held[pygame.K_LEFT] or keys_held[pygame.K_a]:
+                            dx -= 1
+                        if keys_held[pygame.K_RIGHT] or keys_held[pygame.K_d]:
+                            dx += 1
+
                     if event.key == pygame.K_t:
                         self.message_log.add_message("You skip a turn...", (200, 200, 255))
                         action_taken = True

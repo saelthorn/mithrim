@@ -4,7 +4,7 @@
   "discovery": "Thick webbing chokes the trail ahead. Something is thrashing, cocooned high between the trees.",
   "landmark_tile": ["ambush_tree", "cobweb", "cobweb"],
   "landmark_tile_amount": [2, 6],
-  "monster_pool": ["GiantSpider", "GiantSpider", "GiantRat"],
+  "monster_pool": ["GiantSpider", "GiantSpider"],
   "monster_count": [2, 3],
 
   "choices": [
