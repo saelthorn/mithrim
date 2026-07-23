@@ -259,13 +259,71 @@ class Monster:
             target_x, target_y = random.choice(possible_moves)
             self.move_towards(target_x, target_y, game_map, game)
 
+    def _approach_tile_near(self, target_entity, game_map, game):
+        """
+        Return an open tile adjacent to target_entity for astar to path
+        toward, instead of target_entity's own tile.
+
+        A live target's own tile is occupied by a blocking entity -- the
+        target itself -- so it can never actually be reached by the
+        pathfinder. Asking astar to path directly onto an occupied goal
+        doesn't fail fast: it explores the *entire* reachable graph
+        before concluding no path exists, on every single call, since
+        there's no way to short-circuit "unreachable" until every
+        reachable tile has been ruled out. That's a wasted full-map
+        search any time a monster paths straight at a live target
+        (chasing/desperate-fight AI below) -- and once several monsters
+        cluster around the same target, several of these full-graph
+        searches happen on the very same turn, which is what shows up as
+        the game freezing during multi-monster fights.
+
+        Prefers whichever open, adjacent tile is closest to self, so the
+        monster still approaches from a sensible direction. Returns None
+        if every adjacent tile is currently occupied (the target is
+        fully surrounded) -- callers should fall back to waiting/greedy
+        movement in that case, never to pathing at the occupied tile.
+        """
+        candidates = []
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                tx, ty = target_entity.x + dx, target_entity.y + dy
+                if self.can_occupy_position(tx, ty, game_map, game.entities, exclusions=[self, target_entity]):
+                    candidates.append((tx, ty))
+
+        if not candidates:
+            return None
+        return min(candidates, key=lambda pos: self.distance_to(*pos))
+
     def move_towards(self, target_x, target_y, game_map, game):
         """
         Moves the monster one step towards the target using A* pathfinding.
         Handles footprint and destructible tiles.
         """
+        other_entities = [e for e in game.entities if e != self]
+
+        # If the destination is a live, blocking entity's own tile (e.g.
+        # kite()'s pursuit branch chasing the target directly), retarget
+        # to the nearest open tile next to it instead -- see
+        # _approach_tile_near()'s docstring for why pathing straight at
+        # an occupied tile is expensive, not just pointless.
+        blocker = next(
+            (
+                e for e in other_entities
+                if getattr(e, "alive", False) and getattr(e, "blocks_movement", False)
+                and (e.x, e.y) == (target_x, target_y)
+            ),
+            None,
+        )
+        if blocker is not None:
+            approach = self._approach_tile_near(blocker, game_map, game)
+            if approach is None:
+                return False  # blocker is fully surrounded -- nowhere useful to path to
+            target_x, target_y = approach
+
         path = astar(game_map, (self.x, self.y), (target_x, target_y), 
-                     entities=[e for e in game.entities if e != self], 
+                     entities=other_entities, 
                      moving_entity=self, 
                      ignore_destructible=True)
         if path and len(path) > 1:
@@ -1121,10 +1179,14 @@ class Monster:
                     return
                 else:
                     # Charge toward target aggressively
+                    approach_pos = self._approach_tile_near(target_entity, game_map, game)
+                    if approach_pos is None:
+                        game.message_log.add_message(f"The {self.name} is blocked and cannot reach {target_entity.name}!", (100, 100, 100))
+                        return
                     path = astar(
                         game_map,
                         (self.x, self.y),
-                        (target_entity.x, target_entity.y),
+                        approach_pos,
                         entities=[e for e in game.entities if e != self and e.alive and e.blocks_movement],
                         moving_entity=self
                     )
@@ -1160,13 +1222,30 @@ class Monster:
                 target_pos = (target_entity.x, target_entity.y) if game.check_line_of_sight(self.x, self.y, target_entity.x, target_entity.y) else self.last_known_player_position
 
                 if target_pos:
-                    path = astar(
-                        game_map,
-                        (self.x, self.y),
-                        target_pos,
-                        entities=[e for e in game.entities if e != self and e.alive and e.blocks_movement],
-                        moving_entity=self
-                    )
+                    # Heading straight for the live target's own tile is
+                    # never actually reachable (it's occupied by the
+                    # target itself) -- see _approach_tile_near()'s
+                    # docstring. A remembered last-known position isn't
+                    # necessarily occupied by anyone right now, so only
+                    # retarget when target_pos is the target's live tile.
+                    # If the target is fully surrounded (no approach tile
+                    # available at all), skip astar entirely rather than
+                    # falling back onto the occupied tile -- treat it the
+                    # same as "no path found" and go straight to the
+                    # greedy-movement fallback below.
+                    path = None
+                    astar_goal = target_pos
+                    if target_pos == (target_entity.x, target_entity.y):
+                        astar_goal = self._approach_tile_near(target_entity, game_map, game)
+
+                    if astar_goal is not None:
+                        path = astar(
+                            game_map,
+                            (self.x, self.y),
+                            astar_goal,
+                            entities=[e for e in game.entities if e != self and e.alive and e.blocks_movement],
+                            moving_entity=self
+                        )
                     if path and len(path) > 1:
                         next_step = path[1]
                         new_x, new_y = next_step
