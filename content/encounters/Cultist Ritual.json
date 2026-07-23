@@ -1,41 +1,103 @@
 {
   "id": "world_encounter_cultists",
 
-  "discovery": "Cloaked cultists chant around a bound figure atop a crude stone altar.",
-  "landmark_tile": ["ritual_circle", "ambush_tree"],
-  "landmark_tile_amount": [2, 3],
-  "monster_pool": ["Skeleton", "Imp", "Skeleton", "Cultist", "Cultist", "Cultist"],
-  "monster_count": [2, 4],
-
-  "choices": [
+  "stages": [
     {
-      "key": 1,
-      "action": "investigate",
-      "label": "Investigate",
-      "description": "Walk in and see what's happening",
-      "color": [255, 160, 100]
+      "discovery": "Smoke and chanting drift from a clearing off the trail, underscored by the crackle of torches at unnatural hours.",
+      "landmark_tile": ["ritual_circle"],
+      "landmark_tile_amount": [1, 1],
+      "choices": [
+        {
+          "key": 1,
+          "action": "advance",
+          "label": "Follow the Chanting",
+          "description": "Press toward the clearing",
+          "color": [255, 160, 100]
+        },
+        {
+          "key": 2,
+          "action": "advance",
+          "label": "Scout the Clearing First",
+          "description": "Get a look before moving in",
+          "color": [160, 200, 255],
+          "outcome": "Robed figures kneel in a ring around a crude stone altar, torches guttering despite the still air."
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Ignore",
+          "description": "ESC also cancels - leave it be",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ],
+      "ignore": "You leave the chanting behind and keep to the trail."
     },
     {
-      "key": 2,
-      "action": "sneak",
-      "label": "Sneak Around",
-      "description": "Stealth check to glimpse it unseen",
-      "color": [160, 200, 255]
+      "discovery": "The chanting rises to a fever pitch. At the altar's center, a bound figure struggles weakly against their restraints.",
+      "landmark_tile": ["ritual_circle", "ambush_tree"],
+      "landmark_tile_amount": [1, 2],
+      "choices": [
+        {
+          "key": 1,
+          "action": "advance",
+          "label": "Move In Before It's Too Late",
+          "description": "Close the distance now",
+          "color": [255, 160, 100]
+        },
+        {
+          "key": 2,
+          "action": "advance",
+          "label": "Count Their Numbers First",
+          "description": "Get a sense of what you're facing",
+          "color": [160, 200, 255],
+          "outcome": "You count robed cultists ringing the altar, along with darker shapes stirring restlessly at the circle's edge - summoned, not sworn."
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Ignore",
+          "description": "ESC also cancels - turn back now",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ],
+      "ignore": "You back away and leave the ritual to run its course."
     },
     {
-      "key": 3,
-      "action": "ignore",
-      "label": "Ignore",
-      "description": "ESC also cancels - just keep walking",
-      "color": [150, 150, 150],
-      "is_cancel": true
+      "discovery": "Cloaked cultists chant around a bound figure atop a crude stone altar.",
+      "monster_pool": ["Skeleton", "Imp", "Skeleton", "Cultist", "Cultist", "Cultist"],
+      "monster_count": [2, 4],
+      "sneak_dc": 15,
+      "sneak_success": "You creep close enough to catch the ritual's final words before a cultist notices movement at the treeline.",
+      "sneak_fail": "One of the cultists looks up mid-chant and points a bony finger straight at you.",
+      "ignore": "You back away quietly, leaving the ritual to whatever dark end it's building toward.",
+      "choices": [
+        {
+          "key": 1,
+          "action": "investigate",
+          "label": "Investigate",
+          "description": "Walk in and see what's happening",
+          "color": [255, 160, 100]
+        },
+        {
+          "key": 2,
+          "action": "sneak",
+          "label": "Sneak Around",
+          "description": "Stealth check to glimpse it unseen",
+          "color": [160, 200, 255]
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Ignore",
+          "description": "ESC also cancels - just keep walking",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ]
     }
   ],
-
-  "sneak_dc": 15,
-  "sneak_success": "You creep close enough to catch the ritual's final words before a cultist notices movement at the treeline.",
-  "sneak_fail": "One of the cultists looks up mid-chant and points a bony finger straight at you.",
-  "ignore": "You back away quietly, leaving the ritual to whatever dark end it's building toward.",
 
   "victim": "sacrifice",
   "victim_count": [1, 1],

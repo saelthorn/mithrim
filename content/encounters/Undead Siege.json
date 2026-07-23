@@ -1,41 +1,103 @@
 {
   "id": "world_encounter_undead",
 
-  "discovery": "A handful of town guards are making a desperate last stand against a rising tide of undead.",
-  "landmark_tile": ["barricade", "ambush_tree"],
-  "landmark_tile_amount": [2, 6],
-  "monster_pool": ["Skeleton", "Skeleton", "SkeletonArcher"],
-  "monster_count": [4, 5],
-
-  "choices": [
+  "stages": [
     {
-      "key": 1,
-      "action": "investigate",
-      "label": "Investigate",
-      "description": "Walk in and see what's happening",
-      "color": [255, 160, 100]
+      "discovery": "Distant screaming and clashing steel echo from beyond the ridge, underscored by something worse - a low, rattling moan that isn't human.",
+      "landmark_tile": ["barricade"],
+      "landmark_tile_amount": [1, 2],
+      "choices": [
+        {
+          "key": 1,
+          "action": "advance",
+          "label": "Head Toward the Sound",
+          "description": "Press on toward the noise",
+          "color": [255, 160, 100]
+        },
+        {
+          "key": 2,
+          "action": "advance",
+          "label": "Get a Vantage Point First",
+          "description": "Take a look before closing in",
+          "color": [160, 200, 255],
+          "outcome": "From higher ground you spot torchlight and a makeshift barricade - guards making a stand against something crawling out of the dark."
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Ignore",
+          "description": "ESC also cancels - just keep walking",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ],
+      "ignore": "You walk away and let the night keep whatever's brewing behind the ridge."
     },
     {
-      "key": 2,
-      "action": "sneak",
-      "label": "Sneak Around",
-      "description": "Stealth check to glimpse it unseen",
-      "color": [160, 200, 255]
+      "discovery": "You crest the ridge to a barricade groaning under the weight of clawing, bony hands. Torches gutter as skeletal shapes claw over the wood.",
+      "landmark_tile": ["barricade", "ambush_tree"],
+      "landmark_tile_amount": [1, 3],
+      "choices": [
+        {
+          "key": 1,
+          "action": "advance",
+          "label": "Charge the Barricade",
+          "description": "Rush in to help hold the line",
+          "color": [255, 160, 100]
+        },
+        {
+          "key": 2,
+          "action": "advance",
+          "label": "Assess the Line First",
+          "description": "Get a sense of what you're walking into",
+          "color": [160, 200, 255],
+          "outcome": "You count a handful of guards holding, and more dead climbing out of the earth than there are living hands to stop them."
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Ignore",
+          "description": "ESC also cancels - turn back now",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ],
+      "ignore": "You turn from the ridge and leave the guards to hold or fall on their own."
     },
     {
-      "key": 3,
-      "action": "ignore",
-      "label": "Ignore",
-      "description": "ESC also cancels - just keep walking",
-      "color": [150, 150, 150],
-      "is_cancel": true
+      "discovery": "A handful of town guards are making a desperate last stand against a rising tide of undead.",
+      "monster_pool": ["Skeleton", "Skeleton", "SkeletonArcher"],
+      "monster_count": [4, 5],
+      "sneak_dc": 12,
+      "sneak_success": "You skirt the battle and slip past while the undead are fully occupied with the guards.",
+      "sneak_fail": "A stray skeleton breaks off from the guards' line and shambles straight for you.",
+      "ignore": "You leave the guards to hold the line alone and hope they last the night.",
+      "choices": [
+        {
+          "key": 1,
+          "action": "investigate",
+          "label": "Investigate",
+          "description": "Walk in and see what's happening",
+          "color": [255, 160, 100]
+        },
+        {
+          "key": 2,
+          "action": "sneak",
+          "label": "Sneak Around",
+          "description": "Stealth check to glimpse it unseen",
+          "color": [160, 200, 255]
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Ignore",
+          "description": "ESC also cancels - just keep walking",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ]
     }
   ],
-
-  "sneak_dc": 12,
-  "sneak_success": "You skirt the battle and slip past while the undead are fully occupied with the guards.",
-  "sneak_fail": "A stray skeleton breaks off from the guards' line and shambles straight for you.",
-  "ignore": "You leave the guards to hold the line alone and hope they last the night.",
 
   "victim": "guard",
   "victim_count": [2, 3],

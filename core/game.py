@@ -325,6 +325,8 @@ class Game:
         self._world_encounter_last_id = None   # scenario["id"] last rolled, see _maybe_trigger_world_encounter()
         self._world_encounter_stage_index = 0  # Index into scenario["stages"] currently on screen, see _enter_world_encounter_stage()
         self._world_encounter_stage_spawn_candidates = []  # Open tiles left after the current stage's landmark, see _spawn_world_encounter_monsters()
+        self._world_encounter_pending_stage_index = None  # Next stage index queued by an "advance" choice, awaiting enough walking -- see _maybe_advance_world_encounter_stage()
+        self._world_encounter_advance_steps = 0  # Steps walked since that "advance" choice was picked, see _maybe_advance_world_encounter_stage()
         self._shop_menu_merchant = None   # Active merchant for shop overlay
         self._shop_selected_index = 0     # Highlighted item index in shop
         self._shop_mode = "buy"           # "buy" or "sell"
@@ -691,6 +693,18 @@ class Game:
     WORLD_ENCOUNTER_COOLDOWN_STEPS = 80     # Minimum steps before another can trigger
     WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
     WORLD_ENCOUNTER_MIN_ENTITY_DISTANCE = 8  # Skip the roll if another live entity is already this close
+
+    # An "advance" choice (see WORLD_ENCOUNTER_ACTIONS/_resolve_world_encounter_
+    # advance()) doesn't reveal a staged scenario's next beat instantly -- the
+    # player has to actually walk there. WORLD_ENCOUNTER_STAGE_ADVANCE_MIN_STEPS
+    # is a hard floor (the next stage can never trigger before this many steps
+    # have passed); once cleared, WORLD_ENCOUNTER_STAGE_ADVANCE_CHANCE is
+    # rolled once per additional step, same "small per-step chance" shape as
+    # WORLD_ENCOUNTER_CHANCE above, so the reveal lands a handful of steps
+    # past the floor rather than on the exact same step every time. See
+    # _maybe_advance_world_encounter_stage().
+    WORLD_ENCOUNTER_STAGE_ADVANCE_MIN_STEPS = 10
+    WORLD_ENCOUNTER_STAGE_ADVANCE_CHANCE = 0.15
 
     WORLD_ENCOUNTER_HOOKS = [
         "You hear screams ahead.",
@@ -1361,8 +1375,16 @@ class Game:
         escort makes the escort itself untrackable (linked_monsters/
         escort_id assume one encounter's aftermath at a time) and undercuts
         the "get them somewhere safe" tension the escort is going for.
+
+        Also skipped while a staged scenario's own next beat is queued (see
+        _maybe_advance_world_encounter_stage()) -- an unrelated ambush
+        shouldn't interrupt the walk toward a beat the player already
+        committed to advancing into.
         """
         if self.companions:
+            return False
+
+        if self._world_encounter_pending_stage_index is not None:
             return False
 
         if self._world_encounter_cooldown > 0:
@@ -1385,6 +1407,47 @@ class Game:
         self._world_encounter_cooldown = self.WORLD_ENCOUNTER_COOLDOWN_STEPS
         self.message_log.add_message(random.choice(self.WORLD_ENCOUNTER_HOOKS), (200, 200, 255))
         self._enter_world_encounter_stage(scenario, 0)
+        return True
+
+    def _maybe_advance_world_encounter_stage(self):
+        """
+        Rolls, once per overworld step, whether a staged scenario's queued
+        next beat (see _resolve_world_encounter_advance()) finally reveals
+        itself. A no-op returning False whenever nothing is queued
+        (self._world_encounter_pending_stage_index is None) -- the common
+        case, since most steps aren't taken mid-advance.
+
+        Counts steps in self._world_encounter_advance_steps rather than
+        rolling from the moment "advance" was picked, so the next beat
+        can never trigger before WORLD_ENCOUNTER_STAGE_ADVANCE_MIN_STEPS
+        have actually been walked -- "10 steps, then it's possible" reads
+        as a real stretch of travel instead of an instant reveal that
+        merely got delayed by a frame. Past that floor,
+        WORLD_ENCOUNTER_STAGE_ADVANCE_CHANCE is rolled every further step
+        (same "small per-step chance" shape as _maybe_trigger_world_
+        encounter()'s WORLD_ENCOUNTER_CHANCE) until it lands, so the
+        reveal doesn't fire on the exact same step every single time.
+
+        Called from the same movement site as _maybe_trigger_world_
+        encounter() (see that method's docstring for why a pending
+        advance also suppresses a brand new, unrelated encounter from
+        rolling in the meantime).
+        """
+        if self._world_encounter_pending_stage_index is None:
+            return False
+
+        self._world_encounter_advance_steps += 1
+        if self._world_encounter_advance_steps < self.WORLD_ENCOUNTER_STAGE_ADVANCE_MIN_STEPS:
+            return False
+
+        if random.random() > self.WORLD_ENCOUNTER_STAGE_ADVANCE_CHANCE:
+            return False
+
+        scenario = self._world_encounter_target
+        stage_index = self._world_encounter_pending_stage_index
+        self._world_encounter_pending_stage_index = None
+        self._world_encounter_advance_steps = 0
+        self._enter_world_encounter_stage(scenario, stage_index)
         return True
 
     def _roll_world_encounter_scenario(self):
@@ -2037,12 +2100,16 @@ class Game:
         required here (see _normalize_world_encounter_choices()), so
         advancing past a beat with nothing to say about it is fine.
 
-        Reveals the scenario's next stage (_enter_world_encounter_stage())
-        rather than closing the encounter out. Content is expected to
-        only offer "advance" on a non-final stage; if a scenario's JSON
-        mistakenly offers it on the last one, this falls back to walking
-        away (the same outcome "ignore" produces) instead of indexing
-        past the end of "stages".
+        Rather than revealing the scenario's next stage immediately, this
+        hands the menu back to the overworld and queues that stage for
+        _maybe_advance_world_encounter_stage() -- the player has to
+        actually cover ground (WORLD_ENCOUNTER_STAGE_ADVANCE_MIN_STEPS,
+        plus a per-step roll after that) before the next beat's discovery
+        text fires, so pressing on toward the campfire reads as a walk,
+        not a menu click. Content is expected to only offer "advance" on
+        a non-final stage; if a scenario's JSON mistakenly offers it on
+        the last one, this falls back to walking away (the same outcome
+        "ignore" produces) instead of indexing past the end of "stages".
         """
         scenario = self._world_encounter_target
         self._apply_world_encounter_outcome_choice(choice)
@@ -2052,9 +2119,13 @@ class Game:
             self.game_state = GameState.OVERWORLD
             self._world_encounter_target = None
             self._world_encounter_story_id = None
+            self._world_encounter_pending_stage_index = None
+            self._world_encounter_advance_steps = 0
             return
 
-        self._enter_world_encounter_stage(scenario, next_index)
+        self._world_encounter_pending_stage_index = next_index
+        self._world_encounter_advance_steps = 0
+        self.game_state = GameState.OVERWORLD
 
     def _resolve_world_encounter_resolve(self, choice):
         """
@@ -5364,6 +5435,12 @@ class Game:
                 # --- NEW: Random overworld encounter ---
                 # A small per-step chance to interrupt travel with a narrative
                 # choice menu instead of silently spawning a monster on the tile.
+                # A staged scenario's queued next beat (see _resolve_world_
+                # encounter_advance()) gets first say -- it's checked before
+                # rolling a brand new, unrelated encounter.
+                if self.game_state == GameState.OVERWORLD and self._maybe_advance_world_encounter_stage():
+                    return True  # Next beat's menu now showing
+
                 if self.game_state == GameState.OVERWORLD and self._maybe_trigger_world_encounter():
                     return True  # Menu now showing; resolve the encounter before anything else
 
