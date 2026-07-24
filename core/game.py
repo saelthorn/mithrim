@@ -704,7 +704,7 @@ class Game:
     # past the floor rather than on the exact same step every time. See
     # _maybe_advance_world_encounter_stage().
     WORLD_ENCOUNTER_STAGE_ADVANCE_MIN_STEPS = 10
-    WORLD_ENCOUNTER_STAGE_ADVANCE_CHANCE = 0.15
+    WORLD_ENCOUNTER_STAGE_ADVANCE_CHANCE = 0.20
 
     WORLD_ENCOUNTER_HOOKS = [
         "You hear screams ahead.",
@@ -3806,6 +3806,28 @@ class Game:
             self.minimap_needs_redraw = True
 
         # Existing monster activation logic...
+        self.refresh_monster_wake_state()
+
+    def refresh_monster_wake_state(self):
+        """
+        Wake/sleep every Monster based on its distance to and visibility
+        from the player, using whatever FOV grid is already computed.
+
+        Split out of update_fov() on purpose: this loop only reads the
+        player's *existing* self.fov (already-computed visibility/
+        distance) -- it never recomputes it. update_fov() itself calls
+        this right after it (re)computes FOV, following an actual player
+        move. Monster/summon movement -- which doesn't change the
+        player's position or anything sight-blocking -- should call this
+        directly instead of update_fov(), since the player's FOV grid
+        can't have changed just because a monster took a step. Calling
+        the full update_fov() (a raycast from the player's position, a
+        torch-light pass, and this same wake loop) after every single
+        monster's move, once per monster, all within the same
+        synchronous turn-processing batch (see game.py's `update()`), is
+        what turned "several monsters acting in one player turn" into a
+        visible freeze that got worse as monster count grew.
+        """
         WAKE_RADIUS = 10  # Tiles within which monsters wake up regardless of visibility
 
         for entity in self.entities:
@@ -3839,9 +3861,6 @@ class Game:
                     if entity.is_active and entity.sleep_cooldown <= 10:
                         entity.is_active = False
                         entity.sleep_cooldown = random.randint(5, 15)
-
-
-
 
     def get_current_entity(self):
         if not self.turn_order or self.game_state == GameState.TAVERN:

@@ -360,7 +360,7 @@ class Monster:
             if self.can_move_to(next_x, next_y, game_map, game):
                 self.x = next_x
                 self.y = next_y
-                game.update_fov()
+                game.refresh_monster_wake_state()
                 return True
             else:
                 return False
@@ -406,7 +406,7 @@ class Monster:
 
             if self.can_occupy_position(new_x, new_y, game_map, game.entities, exclusions=[self]):
                 self.x, self.y = new_x, new_y
-                game.update_fov()
+                game.refresh_monster_wake_state()
 
                 # Opportunity attacks from summons that lost adjacency
                 for summon in adjacent_summons:
@@ -502,7 +502,7 @@ class Monster:
         
         if best_move:
             self.x, self.y = best_move
-            game.update_fov()
+            game.refresh_monster_wake_state()
             self.kiting_turns_since_strafe = 0
             return True
         
@@ -517,7 +517,7 @@ class Monster:
                         check_y = self.y + move_dy
                         if self.can_occupy_position(check_x, check_y, game_map, game.entities, exclusions=[self]):
                             self.x, self.y = check_x, check_y
-                            game.update_fov()
+                            game.refresh_monster_wake_state()
                             self.kiting_turns_since_strafe = 0
                             return True
         
@@ -1236,7 +1236,7 @@ class Monster:
                         if self.can_move_to(new_x, new_y, game_map, game):
                             self.x = new_x
                             self.y = new_y
-                            game.update_fov()
+                            game.refresh_monster_wake_state()
                         else:
                             game.message_log.add_message(f"The {self.name} is blocked and cannot reach {target_entity.name}!", (100, 100, 100))
                     else:
@@ -1307,7 +1307,7 @@ class Monster:
                         if self.can_move_to(new_x, new_y, game_map, game):
                             self.x = new_x
                             self.y = new_y
-                            game.update_fov()
+                            game.refresh_monster_wake_state()
                         else:
                             game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
                     else:
@@ -1339,7 +1339,7 @@ class Monster:
                             if self.can_move_to(nx, ny, game_map, game):
                                 self.x = nx
                                 self.y = ny
-                                game.update_fov()
+                                game.refresh_monster_wake_state()
                                 moved = True
                                 break
 
