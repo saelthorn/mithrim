@@ -28,6 +28,210 @@ class GameState:
     WORLD_ENCOUNTER_AFTERMATH_MENU = "world_encounter_aftermath_menu"  # Post-combat branching choice, see scenario "aftermath"
 
 
+# Ambient flavor text shown at random on the player's turn (see Game.next_turn()).
+# Keyed first by which "place" the player is in (OVERWORLD vs. DUNGEON), then by
+# a coarse time-of-day period derived from the world clock (see
+# _ambient_time_period() below) -- so a message pool is picked for both *where*
+# and *when* the player currently is, rather than one flat pool per place.
+# Purely content/data: next_turn() only ever looks this table up, it never
+# hardcodes any message text itself, matching the framework-first,
+# data-driven approach used everywhere else in the narrative systems.
+AMBIENT_MESSAGES_BY_PERIOD = {
+    GameState.OVERWORLD: {
+        "dawn": [
+            "The morning mist curls between the trees like wandering spirits...",
+            "The faint scent of damp earth rises as the night releases its grip...",
+            "A lone raven cries somewhere beyond the fog...",
+            "Fresh tracks disappear into the dew before you can follow them...",
+            "The breeze carries the distant ringing of a temple bell...",
+            "A fox darts through the underbrush before vanishing from sight...",
+            "The world slowly stirs, though something still refuses to sleep...",
+            "A lonely crow watches from a dead branch before taking flight...",
+            "The chill of the night lingers stubbornly beneath the trees...",
+            "You catch the scent of wildflowers hidden somewhere nearby...",
+            "The horizon glows softly, promising warmth that has yet to arrive...",
+            "A distant rooster calls from lands far beyond the wilderness...",
+        ],
+        "morning": [
+            "The forest awakens with birdsong and rustling leaves...",
+            "A squirrel scampers across a fallen log before disappearing into the brush...",
+            "The wind carries the fresh scent of pine and moss...",
+            "You hear water flowing somewhere nearby...",
+            "Bees drift lazily between patches of wildflowers...",
+            "The sunlight dances across the leaves overhead...",
+            "A butterfly drifts lazily past before disappearing into the trees...",
+            "The warmth of the morning sun eases the night's lingering chill...",
+            "Somewhere in the distance, wood is being chopped rhythmically...",
+            "The grass bends beneath an unseen creature moving away...",
+            "The world feels peaceful—for now...",
+            "A faint trail of smoke rises somewhere beyond the hills...",
+        ],
+        "noon": [
+            "Cicadas sing relentlessly beneath the blazing sun...",
+            "The warmth draws the scent of grass and earth into the air...",
+            "The forest seems quieter beneath the oppressive heat...",
+            "A dragonfly darts across your path in a flash of iridescent color...",
+            "The wind has all but disappeared...",
+            "The stillness is broken only by the occasional bird overhead...",
+            "Even the insects seem sluggish beneath the midday heat...",
+            "A distant river sparkles beneath the relentless sun...",
+            "The shade beneath the trees offers welcome relief...",
+            "The air feels strangely heavy, as though a storm waits beyond the horizon...",
+            "The silence feels unnatural for this time of day...",
+            "A lone buzzard circles high overhead...",
+        ],
+        "afternoon": [
+            "The golden light softens the edges of the landscape...",
+            "The wind shifts, carrying unfamiliar scents...",
+            "The forest grows quieter as daylight begins to fade...",
+            "A deer watches from the edge of the woods before slipping away...",
+            "The distant call of a hunting horn echoes faintly...",
+            "Leaves tumble lazily across the old road...",
+            "The warmth of the day begins to fade from the stones beneath your feet...",
+            "You notice broken branches where something recently passed...",
+            "The shadows beneath the trees deepen with each passing hour...",
+            "A flock of birds suddenly erupts into the sky in the distance...",
+            "The breeze carries the faint scent of rain-soaked earth...",
+            "The wilderness grows restless as evening approaches...",
+        ],
+        "dusk": [
+            "The forest seems to hold its breath as daylight fades...",
+            "A murder of crows takes flight with harsh cries...",
+            "The fading light paints long shadows between the trees...",
+            "An owl calls from somewhere hidden in the darkness...",
+            "The air grows noticeably colder...",
+            "You hear movement nearby, but find nothing when you look...",
+            "The last rays of sunlight vanish behind the hills...",
+            "The insects grow louder as darkness settles over the land...",
+            "Something splashes in distant water...",
+            "The smell of damp leaves fills the cooling air...",
+            "A strange silence falls before the first sounds of the night emerge...",
+            "The world slowly gives itself over to darkness...",
+        ],
+        "night": [
+            "The darkness swallows the road behind you...",
+            "The wind whispers through the trees in voices almost human...",
+            "You hear slow footsteps... then nothing...",
+            "A raven's cry cuts through the stillness before fading away...",
+            "The moonlight turns every shadow into something unfamiliar...",
+            "The forest seems far larger after sunset...",
+            "The scent of smoke lingers, though no fire can be seen...",
+            "A twig snaps somewhere nearby...",
+            "You briefly glimpse glowing eyes watching from the darkness...",
+            "The night air bites with unexpected cold...",
+            "A distant scream echoes before abruptly falling silent...",
+            "The stars seem strangely dim tonight...",
+        ],
+        "late_night": [
+            "The darkness feels almost tangible...",
+            "Every sound seems louder in the stillness...",
+            "You catch yourself glancing over your shoulder...",
+            "The wind dies completely, leaving an eerie silence...",
+            "The moon disappears behind heavy clouds...",
+            "A distant howl lingers far longer than it should...",
+            "The hairs on the back of your neck stand on end...",
+            "You cannot shake the feeling that someone is following you...",
+            "The trees creak softly as though shifting in their sleep...",
+            "Something breathes just beyond the reach of your torchlight...",
+            "The silence is broken by a single, hollow knock in the distance...",
+            "You suddenly realize you haven't heard a single insect for several minutes...",
+        ],
+    },
+    GameState.DUNGEON: {
+        "dawn": [
+            "You imagine sunlight filtering through the world far above...",
+            "The stale air remains unchanged despite the new day...",
+            "A pebble tumbles somewhere deep within the darkness...",
+            "The silence is broken by the slow drip of water...",
+            "You feel strangely disconnected from the passage of time...",
+            "The dungeon greets the morning with only silence...",
+            "Something shifts within the walls before falling still...",
+        ],
+        "morning": [
+            "A faint breeze brushes past before disappearing...",
+            "The smell of mildew clings stubbornly to the stone...",
+            "Your footsteps echo farther than before...",
+            "The shadows seem thinner, though no light reaches them...",
+            "You hear distant scraping against ancient stone...",
+            "The walls glisten faintly with moisture...",
+            "The darkness seems almost patient...",
+        ],
+        "noon": [
+            "A low rumble echoes through the depths...",
+            "Water drips steadily somewhere unseen...",
+            "You hear what almost sounds like whispering...",
+            "The stale air feels heavier than before...",
+            "The silence grows uncomfortable...",
+            "The torchlight dances across old carvings worn by time...",
+            "Dust falls from the ceiling without warning...",
+        ],
+        "afternoon": [
+            "A cold draft slips through the corridor before vanishing...",
+            "The stones beneath your boots feel unnaturally cold...",
+            "Something knocks softly beyond the wall...",
+            "The shadows twist as your torch flickers...",
+            "You hear chains dragging somewhere deeper within...",
+            "The smell of ancient decay lingers in the air...",
+            "The dungeon feels as though it is watching...",
+        ],
+        "dusk": [
+            "The darkness beyond your torchlight seems deeper than before...",
+            "A faint laugh echoes from somewhere impossible to place...",
+            "Your flame sputters without warning...",
+            "You feel an inexplicable sense of unease...",
+            "A distant metallic clang reverberates through the halls...",
+            "The air suddenly turns icy cold...",
+            "The silence is interrupted by something scratching stone...",
+        ],
+        "night": [
+            "The darkness presses close around your torch...",
+            "You hear slow breathing that isn't your own...",
+            "A foul smell of rot drifts through the corridor...",
+            "The walls seem damp with something thicker than water...",
+            "Something moves just outside your field of view...",
+            "The dungeon groans softly beneath your feet...",
+            "A whisper brushes past your ear before disappearing...",
+        ],
+        "late_night": [
+            "The silence becomes almost unbearable...",
+            "The darkness feels alive...",
+            "You hear a single footstep echo behind you...",
+            "The torchlight seems weaker than before...",
+            "The air grows colder with every passing moment...",
+            "A distant scream reverberates briefly before being swallowed by silence...",
+            "The shadows linger just a little too long as your torch flickers...",
+        ],
+    },
+}
+
+
+def _ambient_time_period(hour_of_day):
+    """
+    Bucket a world-clock hour (0-23, see world_time.py's WorldClock.hour_of_day)
+    into one of the coarse periods AMBIENT_MESSAGES_BY_PERIOD is keyed by.
+
+    Kept separate from world/lighting.py's period_for_hour() (used for the
+    on-screen clock readout) so ambient flavor text can use its own set of
+    named buckets without being coupled to however many/which periods that
+    module's own day/night-cycle lighting logic happens to define.
+    """
+    if 5 <= hour_of_day < 7:
+        return "dawn"
+    if 7 <= hour_of_day < 11:
+        return "morning"
+    if 11 <= hour_of_day < 14:
+        return "noon"
+    if 14 <= hour_of_day < 17:
+        return "afternoon"
+    if 17 <= hour_of_day < 20:
+        return "dusk"
+    if 20 <= hour_of_day < 24:
+        return "night"
+    return "late_night"  # 0-4
+
+
+
+
 
 class ChunkBiome(Enum):
     PLAINS = "plains"
@@ -4006,24 +4210,12 @@ class Game:
             self.player_bonus_action_used = False  # Reset bonus action availability on a new player turn
             self.tick_fire_tiles()  # Advance fire tile durations and deal burn damage
             if random.random() < 0.1:
-                ambient_msgs = [
-                    "The dungeon emits an eerie glow...",
-                    "Something shuffles in the darkness...",
-                    "You hear distant dripping water echo through the halls...",
-                    "A cold draft snakes across the floor, chilling your bones...",
-                    "The walls seem to breathe for a moment, then fall silent...",
-                    "Far off, chains rattle against stone...",
-                    "A whisper brushes your ear, though no one is near...",
-                    "Dust stirs as if unseen footsteps pass by...",
-                    "A faint growl rumbles from somewhere deeper...",
-                    "Your torch sputters, shadows twisting unnaturally...",
-                    "The air tastes of iron and old blood...",
-                    "You catch the fleeting scent of rot and damp earth...",
-                    "The silence grows so heavy, it feels like pressure on your chest...",
-                    "Something skitters just beyond the edge of your vision...",
-                    "The stone beneath your feet groans as if alive..."
-                ]
-                self.message_log.add_message(random.choice(ambient_msgs), (180, 180, 180))
+                place = GameState.OVERWORLD if self.game_state == GameState.OVERWORLD else GameState.DUNGEON
+                hour_of_day = self.stories.world_time.clock.hour_of_day
+                period = _ambient_time_period(hour_of_day)
+                ambient_msgs = AMBIENT_MESSAGES_BY_PERIOD[place][period]
+                tint = (180, 200, 160) if place == GameState.OVERWORLD else (180, 180, 180)
+                self.message_log.add_message(random.choice(ambient_msgs), tint)
 
 
     def tick_fire_tiles(self):
