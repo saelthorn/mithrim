@@ -255,6 +255,10 @@ class Game:
         self.trader = None
         
         self.entities = []  # Initialize the entities list here
+        # Cache consumed by Monster.take_turn()'s target-priority check --
+        # see _refresh_owned_blocking_entities_cache(), (re)computed once
+        # per player action rather than once per monster.
+        self._owned_blocking_entities = []
         self.turn_order = []  # Initialize the turn order list
         self.current_turn_index = 0
         # NPCs currently being escorted -- a subset of self.entities/
@@ -704,7 +708,7 @@ class Game:
     # past the floor rather than on the exact same step every time. See
     # _maybe_advance_world_encounter_stage().
     WORLD_ENCOUNTER_STAGE_ADVANCE_MIN_STEPS = 10
-    WORLD_ENCOUNTER_STAGE_ADVANCE_CHANCE = 0.20
+    WORLD_ENCOUNTER_STAGE_ADVANCE_CHANCE = 0.15
 
     WORLD_ENCOUNTER_HOOKS = [
         "You hear screams ahead.",
@@ -3808,6 +3812,30 @@ class Game:
         # Existing monster activation logic...
         self.refresh_monster_wake_state()
 
+    def _refresh_owned_blocking_entities_cache(self):
+        """
+        Recompute self._owned_blocking_entities: every alive, blocking
+        entity owned by the player (summons, escorts, ...), for
+        Monster.take_turn()'s target-priority check to consume.
+
+        Called once per player action (see update()'s batch turn-
+        processing block), not once per monster -- this is the same
+        "compute once, let every consumer read it" idea as
+        refresh_monster_wake_state(), applied to a scan that used to run
+        from scratch, with three hasattr() checks per entity, at the top
+        of *every single active monster's turn* -- including plain
+        attack turns, not just movement. That made it a bigger cost
+        during an actual fight than the FOV-recompute issue ever was,
+        since a monster mid-melee never moves but still took this hit
+        every turn.
+        """
+        self._owned_blocking_entities = [
+            entity for entity in self.entities
+            if getattr(entity, 'owner', None) is self.player
+            and getattr(entity, 'alive', False)
+            and getattr(entity, 'blocks_movement', False)
+        ]
+
     def refresh_monster_wake_state(self):
         """
         Wake/sleep every Monster based on its distance to and visibility
@@ -6119,6 +6147,16 @@ class Game:
 
         # --- NEW: Batch Monster Turn Processing ---
         if self.game_state == GameState.DUNGEON or self.game_state == GameState.OVERWORLD and self.player.alive:
+            # Snapshot the player's owned, blocking entities (summons, escorts,
+            # ...) once for this whole batch of monster turns, instead of every
+            # monster re-scanning the full self.entities list from scratch (see
+            # Monster.take_turn()'s target-priority check). This list only
+            # changes when a summon spawns or dies -- rare compared to how many
+            # monster turns get processed per player action -- and Monster.
+            # take_turn() still re-checks .alive on each candidate itself, so a
+            # summon dying mid-batch (to an earlier monster's attack) can't
+            # produce a stale/invalid target, only briefly stale *ordering*.
+            self._refresh_owned_blocking_entities_cache()
             # Loop to process turns until it's the player's turn or no more entities
             while True:
                 self.cleanup_entities() # Always clean up before getting current entity

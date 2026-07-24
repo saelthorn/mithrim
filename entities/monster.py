@@ -1048,14 +1048,21 @@ class Monster:
         if not self.alive:
             return
 
-        # Check for player's summoned entities and prioritize attacking them
+        # Check for player's summoned entities and prioritize attacking them.
+        # Candidates come from game._owned_blocking_entities, refreshed once
+        # per player action (see Game._refresh_owned_blocking_entities_cache())
+        # instead of every monster re-scanning the full entity list here --
+        # this used to run unconditionally on every active monster's turn,
+        # attack turns included, which made it the dominant per-turn cost in
+        # a crowded fight even after movement-triggered FOV recomputes were
+        # fixed. .alive is still re-checked per candidate below, so a summon
+        # that died earlier in this same batch (to another monster's attack)
+        # is simply skipped rather than trusted from the snapshot.
         target_entity = None
         target_distance = float('inf')
 
-        for entity in game.entities:
-            if (hasattr(entity, 'owner') and entity.owner == player and
-                hasattr(entity, 'alive') and entity.alive and
-                hasattr(entity, 'blocks_movement') and entity.blocks_movement):
+        for entity in getattr(game, '_owned_blocking_entities', None) or []:
+            if entity.alive:
                 dist = self.distance_to(entity.x, entity.y)
                 if dist < target_distance:
                     target_distance = dist

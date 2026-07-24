@@ -79,8 +79,8 @@ class Player: # This is our base class for playable characters
         self.gold = 50
 
         # Player-specific attributes
-        self.level = 6
-        self.current_xp = 14000  # Cumulative XP (player starts at level 1)
+        self.level = 20
+        self.current_xp = 355000  # Cumulative XP (player starts at level 1)
         self.xp_to_next_level = XP_PROGRESSION.get(self.level + 1, float('inf'))  # XP needed for next level
 
         # --- D&D 5e Ability Scores (Base values, will be overridden by subclasses) ---
