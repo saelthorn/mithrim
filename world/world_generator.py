@@ -340,6 +340,8 @@ class PlainsGenerator(TerrainGenerator):
 
                 if (x, y) in river_tiles:
                     game_map.tiles[y][x] = river
+                elif m > 0.82 and h < 0.50:
+                    game_map.tiles[y][x] = lake
                 elif h > 0.78:
                     game_map.tiles[y][x] = clearing
                 elif h > 0.60:

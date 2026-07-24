@@ -17,16 +17,20 @@ from core.floating_text import FloatingText
 
 from enum import Enum
 
-# Cap on astar()'s per-call node-expansion budget for monster combat
-# pursuit (CHASING/DESPERATE_FIGHT below), much smaller than astar()'s
-# own default of 4000. Those calls always target a nearby, currently-
-# engaged entity, so they never legitimately need a map-spanning search
-# -- and since every non-adjacent monster's turn runs this synchronously,
-# in the same batch pass, before a single frame renders (see game.py's
-# turn-processing loop), an uncapped budget is what turns a crowded fight
-# (several monsters routing around each other to reach the same target)
-# into a visible stutter/freeze that gets worse as monster count grows.
-COMBAT_PATHFINDING_MAX_EXPANSIONS = 400
+# Cap on astar()'s per-call node-expansion budget for every monster
+# pathfinding call below (chasing, desperate-fight charges, kiting
+# pursuit, and investigate/patrol via move_towards), much smaller than
+# astar()'s own default of 4000. None of these ever legitimately need a
+# map-spanning search -- a monster is always either engaged with a
+# nearby target or investigating a position it saw the player at within
+# its own detection_range. And since every active monster's turn runs
+# synchronously, in the same batch pass, on every single player action
+# -- including plain movement, not just combat -- before a single frame
+# renders (see game.py's turn-processing loop), an uncapped budget is
+# what turns "several monsters searching at once" (a crowded fight, or
+# just a handful investigating after losing the player) into a visible
+# stutter/freeze that gets worse as monster count grows.
+MONSTER_PATHFINDING_MAX_EXPANSIONS = 400
 
 class AI_State(Enum):
     CHASING = 1
@@ -324,19 +328,31 @@ class Monster:
             ),
             None,
         )
-        max_expansions = 4000
         if blocker is not None:
             approach = self._approach_tile_near(blocker, game_map, game)
             if approach is None:
                 return False  # blocker is fully surrounded -- nowhere useful to path to
             target_x, target_y = approach
-            max_expansions = COMBAT_PATHFINDING_MAX_EXPANSIONS
 
+        # Every caller of move_towards() -- patrol (always one adjacent
+        # tile away), kiting pursuit, and AI_State.INVESTIGATE chasing a
+        # last_known_player_position -- only ever needs a local search,
+        # never astar()'s full default budget of 4000. That default was
+        # still reachable here whenever the destination wasn't a live
+        # blocking entity (the INVESTIGATE case in particular, since it's
+        # chasing a remembered position, not an entity move_towards can
+        # detect as a "blocker"). Every player action -- including plain
+        # movement, not just combat -- advances a full turn for every
+        # monster in turn_order in one synchronous pass before a frame
+        # renders (see game.py's turn-processing loop), so several
+        # investigating monsters each paying close to the full budget on
+        # every single player step is exactly what shows up as the game
+        # freezing during ordinary movement, not just combat.
         path = astar(game_map, (self.x, self.y), (target_x, target_y), 
                      entities=other_entities, 
                      moving_entity=self, 
                      ignore_destructible=True,
-                     max_expansions=max_expansions)
+                     max_expansions=MONSTER_PATHFINDING_MAX_EXPANSIONS)
         if path and len(path) > 1:
             next_x, next_y = path[1]
             dx = next_x - self.x
@@ -1211,7 +1227,7 @@ class Monster:
                         approach_pos,
                         entities=[e for e in game.entities if e != self and e.alive and e.blocks_movement],
                         moving_entity=self,
-                        max_expansions=COMBAT_PATHFINDING_MAX_EXPANSIONS
+                        max_expansions=MONSTER_PATHFINDING_MAX_EXPANSIONS
                     )
                     if path and len(path) > 1:
                         next_step = path[1]
@@ -1282,7 +1298,7 @@ class Monster:
                             # count grows -- and the target is always
                             # nearby here, so a small local search is all
                             # this legitimately needs.
-                            max_expansions=COMBAT_PATHFINDING_MAX_EXPANSIONS
+                            max_expansions=MONSTER_PATHFINDING_MAX_EXPANSIONS
                         )
                     if path and len(path) > 1:
                         next_step = path[1]
