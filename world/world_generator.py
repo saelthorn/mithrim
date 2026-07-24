@@ -2275,10 +2275,10 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
         world_map.set_region_name(chunk_coord, region_name)
         world_map.set_flavor(chunk_coord, flavor)
 
-    ridges = _generate_mountain_ridges(width, height)
-    for ridge in ridges:
-        for x, y in ridge:
-            game_map.tiles[y][x] = ground  # ridges are just a visual effect, not a separate tile type
+    # ridges = _generate_mountain_ridges(width, height)
+    # for ridge in ridges:
+    #     for x, y in ridge:
+    #         game_map.tiles[y][x] = ground  # ridges are just a visual effect, not a separate tile type
 
     for landmark in landmarks:
         if len(landmark) < 4:

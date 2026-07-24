@@ -6,6 +6,22 @@ from core.pathfinding import astar
 from core import game
 from core.floating_text import FloatingText
 
+# Cap on astar()'s per-call node-expansion budget for every summon's
+# pathfinding below (EscortCompanion's fallback search, and Imp/
+# Celestial/SpiritualWeaponEntity chasing the nearest enemy), matching
+# the cap applied to monster AI in entities/monster.py for the same
+# reason: every one of these calls targets something already within a
+# handful of tiles (an owner to follow, an enemy within an 8-tile
+# detection radius), so a map-spanning search is never actually needed.
+# Every summon sits in turn_order and takes a turn on every single
+# player action -- movement included, not just combat -- in the same
+# synchronous batch pass before a frame renders (see game.py's turn-
+# processing loop). Several summons/companions each left free to search
+# toward astar()'s uncapped default of 4000 is exactly what turns "the
+# player has an Imp, a Celestial, and two escort companions active at
+# once" into a visible stutter/freeze.
+SUMMON_PATHFINDING_MAX_EXPANSIONS = 400
+
 class SummonedEntity(NPC):
     """
     Base class for any entity summoned by a player ability.
@@ -248,7 +264,8 @@ class EscortCompanion(SummonedEntity):
         Imp.take_turn()'s Priority 2), only actually invoked on the
         turns _step_toward() couldn't resolve on its own.
         """
-        path = astar(game_map, (self.x, self.y), (target_x, target_y))
+        path = astar(game_map, (self.x, self.y), (target_x, target_y),
+                     max_expansions=SUMMON_PATHFINDING_MAX_EXPANSIONS)
         if not path or len(path) < 2:
             return  # No route to the player right now (e.g. a closed door between them)
 
@@ -463,7 +480,8 @@ class Imp(SummonedEntity):
             nearest_enemy = min(enemies_in_range, key=lambda e: abs(self.x - e.x) + abs(self.y - e.y))
 
             # Use A* pathfinding to find a path to the enemy
-            path = astar(game_map, (self.x, self.y), (nearest_enemy.x, nearest_enemy.y))
+            path = astar(game_map, (self.x, self.y), (nearest_enemy.x, nearest_enemy.y),
+                         max_expansions=SUMMON_PATHFINDING_MAX_EXPANSIONS)
             if path and len(path) > 1:  # path[0] is current position, path[1] is next step
                 next_x, next_y = path[1]
 
@@ -662,7 +680,8 @@ class Celestial(SummonedEntity):
             nearest_enemy = min(enemies_in_range, key=lambda e: abs(self.x - e.x) + abs(self.y - e.y))
 
             # Use A* pathfinding to find a path to the enemy
-            path = astar(game_map, (self.x, self.y), (nearest_enemy.x, nearest_enemy.y))
+            path = astar(game_map, (self.x, self.y), (nearest_enemy.x, nearest_enemy.y),
+                         max_expansions=SUMMON_PATHFINDING_MAX_EXPANSIONS)
             if path and len(path) > 1:  # path[0] is current position, path[1] is next step
                 next_x, next_y = path[1]
 
@@ -853,7 +872,8 @@ class SpiritualWeaponEntity(SummonedEntity):
         if enemies_in_range:
             nearest_enemy = min(enemies_in_range, key=lambda e: abs(self.x - e.x) + abs(self.y - e.y))
             
-            path = astar(game_map, (self.x, self.y), (nearest_enemy.x, nearest_enemy.y))
+            path = astar(game_map, (self.x, self.y), (nearest_enemy.x, nearest_enemy.y),
+                         max_expansions=SUMMON_PATHFINDING_MAX_EXPANSIONS)
             if path and len(path) > 1:
                 next_x, next_y = path[1]
                 if game_map.is_walkable(next_x, next_y):

@@ -4032,6 +4032,34 @@ class Game:
         # Remove dead monsters/NPCs
         self.entities = [e for e in self.entities if getattr(e, "alive", True)]
 
+        # self.companions (see recruit_companion()/EscortCompanion in
+        # entities/summons.py) is a third list tracking the same escort
+        # entities, separate from self.entities/self.turn_order above --
+        # and unlike those two, nothing generically prunes it. Normally
+        # that's fine: EscortCompanion.die()/complete_escort() call
+        # _leave_party(), which removes the companion from all three
+        # lists itself. But die() is only ever invoked automatically for
+        # Monster instances (see tick_fire_tiles(), which checks
+        # "isinstance(entity, Monster)" before calling entity.die()) --
+        # a companion standing on a fire tile (or hit by any other damage
+        # source that just sets alive=False directly, the way take_damage()
+        # does, without going through Monster.die()) becomes dead without
+        # _leave_party() ever running. It still gets filtered out of
+        # self.entities/self.turn_order above (those only check "alive"),
+        # but it stays in self.companions forever -- and that list being
+        # non-empty permanently blocks the player from entering a dungeon
+        # (see handle_player_action's "You can't take {names} down there"
+        # check), so a companion dying this way silently soft-locks
+        # dungeon descent for the rest of the playthrough. Routing through
+        # the companion's own die() (rather than just filtering the list)
+        # keeps the normal "has fallen" message and cleanup behavior even
+        # for this indirect death path; it's a safe no-op for companions
+        # that already left the party normally, since they're no longer
+        # in self.companions by the time this runs.
+        for companion in list(self.companions):
+            if not getattr(companion, "alive", True):
+                companion.die(self)
+
         # self.turn_order is a separate list from self.entities (see
         # generate_overworld_map()/generate_level()/recruit_companion()) and
         # was never being pruned here — every monster that ever died over a
