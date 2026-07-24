@@ -37,7 +37,7 @@
       "ignore": "You leave the wrecked cart to the crows and continue on your way, choosing not to follow whoever did this."
     },
     {
-      "discovery": "Smoke curls above the tree line ahead. A rough camp sits in a hollow off the trail — hide tents, stacked crates, sharpened stakes driven into the earth. Harsh, unfamiliar voices carry on the wind.",
+      "discovery": "Smoke curls above the tree line ahead. A rough camp sits in a hollow off the trail hide tents, stacked crates, sharpened stakes driven into the earth. Harsh, unfamiliar voices carry on the wind.",
       "landmark_tile": ["tent", "barricade"],
       "landmark_tile_amount": [1, 2],
       "choices": [

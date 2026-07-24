@@ -26,6 +26,7 @@ class GameState:
     OVERWORLD = "overworld"  # Cellular-automata overworld map (dungeon_generator's sibling)
     WORLD_ENCOUNTER_MENU = "world_encounter_menu"  # Narrative overworld encounter choice menu
     WORLD_ENCOUNTER_AFTERMATH_MENU = "world_encounter_aftermath_menu"  # Post-combat branching choice, see scenario "aftermath"
+    WORLD_ENCOUNTER_DISCOVERY = "world_encounter_discovery"  # A stage's/aftermath's "discovery" text, shown alone with a "Continue" prompt before its choice menu opens
 
 
 # Ambient flavor text shown at random on the player's turn (see Game.next_turn()).
@@ -534,6 +535,8 @@ class Game:
         self._world_encounter_stage_index = 0  # Index into scenario["stages"] currently on screen, see _enter_world_encounter_stage()
         self._world_encounter_stage_spawn_candidates = []  # Open tiles left after the current stage's landmark, see _spawn_world_encounter_monsters()
         self._world_encounter_pending_stage_index = None  # Next stage index queued by an "advance" choice, awaiting enough walking -- see _maybe_advance_world_encounter_stage()
+        self._world_encounter_discovery_text = ""      # "discovery" text currently on screen, see _show_world_encounter_discovery()
+        self._world_encounter_discovery_next_state = None  # GameState to enter once the player continues past the discovery prompt
         self._world_encounter_advance_steps = 0  # Steps walked since that "advance" choice was picked, see _maybe_advance_world_encounter_stage()
         self._shop_menu_merchant = None   # Active merchant for shop overlay
         self._shop_selected_index = 0     # Highlighted item index in shop
@@ -1854,7 +1857,38 @@ class Game:
         self._spawn_world_encounter_landmark_tile(stage, self._world_encounter_stage_spawn_candidates)
 
         self._world_encounter_target = scenario
-        self.game_state = GameState.WORLD_ENCOUNTER_MENU
+        self._show_world_encounter_discovery(stage["discovery"], GameState.WORLD_ENCOUNTER_MENU)
+
+    def _show_world_encounter_discovery(self, text, next_state):
+        """
+        Puts a beat's "discovery" text on screen by itself, with a single
+        "Continue" prompt, before handing off to `next_state` (whichever
+        choice menu -- WORLD_ENCOUNTER_MENU or WORLD_ENCOUNTER_AFTERMATH_
+        MENU -- actually offers the player something to decide). The text
+        itself was already written to the message log by the caller
+        (_enter_world_encounter_stage()/_offer_world_encounter_aftermath())
+        so it stays in the scrollback either way; this only controls what
+        the modal popup shows before the real choices appear.
+
+        A stage/aftermath with no discovery text at all (rare, but not
+        disallowed by the schema) skips the prompt and goes straight to
+        `next_state`, since there'd be nothing to show but "Continue".
+        """
+        if not text:
+            self.game_state = next_state
+            return
+        self._world_encounter_discovery_text = text
+        self._world_encounter_discovery_next_state = next_state
+        self.game_state = GameState.WORLD_ENCOUNTER_DISCOVERY
+
+    def _continue_past_world_encounter_discovery(self):
+        """Dismiss the discovery prompt and open whichever choice menu it
+        was standing in front of. Doesn't cost the player a turn -- same
+        as opening any other menu."""
+        next_state = self._world_encounter_discovery_next_state or GameState.OVERWORLD
+        self._world_encounter_discovery_text = ""
+        self._world_encounter_discovery_next_state = None
+        self.game_state = next_state
 
     def _current_world_encounter_stage(self):
         """The stage dict currently on screen -- see
@@ -2127,7 +2161,7 @@ class Game:
         if aftermath["discovery"]:
             self.message_log.add_message(aftermath["discovery"], (255, 200, 120))
         self._world_encounter_aftermath = aftermath
-        self.game_state = GameState.WORLD_ENCOUNTER_AFTERMATH_MENU
+        self._show_world_encounter_discovery(aftermath["discovery"], GameState.WORLD_ENCOUNTER_AFTERMATH_MENU)
 
     def _spawn_world_encounter_victims(self, scenario, spawn_candidates, linked_monsters):
         """
@@ -4489,6 +4523,12 @@ class Game:
                         self._chest_menu_target = None
                     return True  # Consume all input while menu is open
 
+                # --- World Encounter Discovery Prompt ---
+                elif self.game_state == GameState.WORLD_ENCOUNTER_DISCOVERY:
+                    if event.key in (pygame.K_1, pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE):
+                        self._continue_past_world_encounter_discovery()
+                    return True  # Consume all input while the prompt is open
+
                 # --- World Encounter Menu ---
                 elif self.game_state == GameState.WORLD_ENCOUNTER_MENU:
                     stage = self._current_world_encounter_stage()
@@ -6667,6 +6707,11 @@ class Game:
         if self.game_state == GameState.CHEST_MENU and self._chest_menu_target:
             self.render_chest_menu(self._chest_menu_target)
 
+        # World encounter discovery prompt — the beat's narration by itself,
+        # with a "Continue" option, before its choice menu opens
+        if self.game_state == GameState.WORLD_ENCOUNTER_DISCOVERY and self._world_encounter_discovery_text:
+            self.render_world_encounter_discovery_menu()
+
         # World encounter menu — drawn over the overworld, under nothing else
         if self.game_state == GameState.WORLD_ENCOUNTER_MENU and self._world_encounter_target:
             self.render_world_encounter_menu()
@@ -6850,6 +6895,67 @@ class Game:
             y += font_body.get_linesize() + 1
             self.screen.blit(s_surf, (sx + PAD, y))
             y += font_body.get_linesize() + 6
+
+    def render_world_encounter_discovery_menu(self):
+        """
+        Draws a beat's "discovery" text by itself, word-wrapped, with a
+        single numbered "Continue" prompt underneath -- e.g.:
+
+            "Smoke and chanting drift from a clearing off the trail,
+            underscored by the crackle of torches at unnatural hours."
+
+            1. Continue
+
+        Shown before render_world_encounter_menu()/render_world_encounter_
+        aftermath_menu() so the player reads what's happening before being
+        asked to decide anything about it. Same box/border styling as
+        _render_world_encounter_choice_popup(), but with wrapped body text
+        in place of a list of choices, since there's only ever the one.
+        """
+        try:
+            font_title = pygame.font.SysFont("consolas", 16, bold=True)
+            font_body  = pygame.font.SysFont("consolas", 14)
+        except Exception:
+            font_title = pygame.font.Font(None, 18)
+            font_body  = pygame.font.Font(None, 16)
+
+        PAD         = 14
+        W           = 440
+        text_w      = W - PAD * 2
+        lines       = self._wrap_text(self._world_encounter_discovery_text, font_body, text_w)
+        LINE_H      = font_body.get_linesize()
+        PROMPT_H    = font_title.get_linesize()
+        DIVIDER_GAP = PAD // 2  # breathing room on each side of the divider
+
+        # Top padding + wrapped narration + divider (with a gap on either
+        # side) + the "[1] Continue" row + bottom padding -- exactly the
+        # vertical space the drawing loop below actually fills.
+        H  = PAD + LINE_H * len(lines) + DIVIDER_GAP * 2 + PROMPT_H + PAD
+        sx = (config.GAME_AREA_WIDTH - W) // 2
+        sy = (config.SCREEN_HEIGHT   - H) // 2
+
+        # Dark semi-transparent background, same palette as the choice popup
+        bg = pygame.Surface((W, H), pygame.SRCALPHA)
+        bg.fill((10, 8, 14, 220))
+        self.screen.blit(bg, (sx, sy))
+
+        pygame.draw.rect(self.screen, (150, 140, 190), (sx, sy, W, H), 2, border_radius=4)
+
+        # Wrapped discovery text
+        y = sy + PAD
+        for line in lines:
+            line_surf = font_body.render(line, True, (230, 220, 255))
+            self.screen.blit(line_surf, (sx + PAD, y))
+            y += LINE_H
+
+        # Divider between the narration and the "Continue" prompt
+        y += DIVIDER_GAP
+        pygame.draw.line(self.screen, (60, 60, 75), (sx + PAD, y), (sx + W - PAD, y))
+        y += DIVIDER_GAP
+
+        # Continue prompt
+        prompt_surf = font_title.render("[1] Continue", True, (200, 190, 230))
+        self.screen.blit(prompt_surf, (sx + PAD, y))
 
     def render_world_encounter_menu(self):
         """
