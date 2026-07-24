@@ -17,6 +17,17 @@ from core.floating_text import FloatingText
 
 from enum import Enum
 
+# Cap on astar()'s per-call node-expansion budget for monster combat
+# pursuit (CHASING/DESPERATE_FIGHT below), much smaller than astar()'s
+# own default of 4000. Those calls always target a nearby, currently-
+# engaged entity, so they never legitimately need a map-spanning search
+# -- and since every non-adjacent monster's turn runs this synchronously,
+# in the same batch pass, before a single frame renders (see game.py's
+# turn-processing loop), an uncapped budget is what turns a crowded fight
+# (several monsters routing around each other to reach the same target)
+# into a visible stutter/freeze that gets worse as monster count grows.
+COMBAT_PATHFINDING_MAX_EXPANSIONS = 400
+
 class AI_State(Enum):
     CHASING = 1
     FLEEING = 2
@@ -264,24 +275,21 @@ class Monster:
         Return an open tile adjacent to target_entity for astar to path
         toward, instead of target_entity's own tile.
 
-        A live target's own tile is occupied by a blocking entity -- the
-        target itself -- so it can never actually be reached by the
-        pathfinder. Asking astar to path directly onto an occupied goal
-        doesn't fail fast: it explores the *entire* reachable graph
-        before concluding no path exists, on every single call, since
-        there's no way to short-circuit "unreachable" until every
-        reachable tile has been ruled out. That's a wasted full-map
-        search any time a monster paths straight at a live target
-        (chasing/desperate-fight AI below) -- and once several monsters
-        cluster around the same target, several of these full-graph
-        searches happen on the very same turn, which is what shows up as
-        the game freezing during multi-monster fights.
+        astar() itself is fine with an occupied goal (see pathfinding.py
+        -- it explicitly excludes the destination from its blocked-tile
+        check), but this monster could never actually finish that move
+        anyway: can_move_to() refuses to step onto a tile occupied by
+        another blocking entity, target included. Pathing straight at
+        the target's own tile therefore wastes the search on a step
+        that would just get rejected at the end -- this redirects to
+        wherever the monster should actually end up standing, next to
+        the target and in attack range.
 
         Prefers whichever open, adjacent tile is closest to self, so the
         monster still approaches from a sensible direction. Returns None
         if every adjacent tile is currently occupied (the target is
         fully surrounded) -- callers should fall back to waiting/greedy
-        movement in that case, never to pathing at the occupied tile.
+        movement in that case rather than pathing at the occupied tile.
         """
         candidates = []
         for dx in (-1, 0, 1):
@@ -316,16 +324,19 @@ class Monster:
             ),
             None,
         )
+        max_expansions = 4000
         if blocker is not None:
             approach = self._approach_tile_near(blocker, game_map, game)
             if approach is None:
                 return False  # blocker is fully surrounded -- nowhere useful to path to
             target_x, target_y = approach
+            max_expansions = COMBAT_PATHFINDING_MAX_EXPANSIONS
 
         path = astar(game_map, (self.x, self.y), (target_x, target_y), 
                      entities=other_entities, 
                      moving_entity=self, 
-                     ignore_destructible=True)
+                     ignore_destructible=True,
+                     max_expansions=max_expansions)
         if path and len(path) > 1:
             next_x, next_y = path[1]
             dx = next_x - self.x
@@ -1178,7 +1189,18 @@ class Monster:
                     self.attack(target_entity, game)
                     return
                 else:
-                    # Charge toward target aggressively
+                    # Charge toward target aggressively. A capped
+                    # max_expansions here (rather than astar()'s default
+                    # 4000) matters specifically in crowded fights: this
+                    # runs once per non-adjacent monster's turn, all
+                    # within the same synchronous batch pass before a
+                    # frame renders (see game.py's turn-processing loop),
+                    # so several monsters each climbing toward the full
+                    # budget while routing around each other in the same
+                    # frame is what shows up as a stutter/freeze as
+                    # monster count grows. The target is always nearby by
+                    # definition here, so a small local search radius is
+                    # all this ever legitimately needs.
                     approach_pos = self._approach_tile_near(target_entity, game_map, game)
                     if approach_pos is None:
                         game.message_log.add_message(f"The {self.name} is blocked and cannot reach {target_entity.name}!", (100, 100, 100))
@@ -1188,7 +1210,8 @@ class Monster:
                         (self.x, self.y),
                         approach_pos,
                         entities=[e for e in game.entities if e != self and e.alive and e.blocks_movement],
-                        moving_entity=self
+                        moving_entity=self,
+                        max_expansions=COMBAT_PATHFINDING_MAX_EXPANSIONS
                     )
                     if path and len(path) > 1:
                         next_step = path[1]
@@ -1222,17 +1245,19 @@ class Monster:
                 target_pos = (target_entity.x, target_entity.y) if game.check_line_of_sight(self.x, self.y, target_entity.x, target_entity.y) else self.last_known_player_position
 
                 if target_pos:
-                    # Heading straight for the live target's own tile is
-                    # never actually reachable (it's occupied by the
-                    # target itself) -- see _approach_tile_near()'s
-                    # docstring. A remembered last-known position isn't
-                    # necessarily occupied by anyone right now, so only
-                    # retarget when target_pos is the target's live tile.
-                    # If the target is fully surrounded (no approach tile
-                    # available at all), skip astar entirely rather than
-                    # falling back onto the occupied tile -- treat it the
-                    # same as "no path found" and go straight to the
-                    # greedy-movement fallback below.
+                    # Retarget from the target's own tile to an open tile
+                    # next to it -- not because astar can't path there
+                    # (it explicitly allows an occupied goal, see
+                    # pathfinding.py), but because can_move_to() would
+                    # refuse to actually step onto it anyway, so pathing
+                    # there directly would just waste the search. A
+                    # remembered last-known position isn't necessarily
+                    # occupied by anyone right now, so only retarget when
+                    # target_pos is the target's live tile. If the target
+                    # is fully surrounded (no approach tile available at
+                    # all), skip astar entirely and go straight to the
+                    # greedy-movement fallback below, same as "no path
+                    # found".
                     path = None
                     astar_goal = target_pos
                     if target_pos == (target_entity.x, target_entity.y):
@@ -1244,7 +1269,20 @@ class Monster:
                             (self.x, self.y),
                             astar_goal,
                             entities=[e for e in game.entities if e != self and e.alive and e.blocks_movement],
-                            moving_entity=self
+                            moving_entity=self,
+                            # Capped rather than astar()'s default 4000 --
+                            # this runs once per non-adjacent monster's
+                            # turn, all within the same synchronous batch
+                            # pass before a frame renders (see game.py's
+                            # turn-processing loop). A crowded fight is
+                            # exactly the case where several monsters each
+                            # climb toward the full budget routing around
+                            # each other in the same frame, which is what
+                            # shows up as a stutter/freeze as monster
+                            # count grows -- and the target is always
+                            # nearby here, so a small local search is all
+                            # this legitimately needs.
+                            max_expansions=COMBAT_PATHFINDING_MAX_EXPANSIONS
                         )
                     if path and len(path) > 1:
                         next_step = path[1]
