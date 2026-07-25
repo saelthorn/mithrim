@@ -27,6 +27,7 @@ class GameState:
     WORLD_ENCOUNTER_MENU = "world_encounter_menu"  # Narrative overworld encounter choice menu
     WORLD_ENCOUNTER_AFTERMATH_MENU = "world_encounter_aftermath_menu"  # Post-combat branching choice, see scenario "aftermath"
     WORLD_ENCOUNTER_DISCOVERY = "world_encounter_discovery"  # A stage's/aftermath's "discovery" text, shown alone with a "Continue" prompt before its choice menu opens
+    DEATH_SAVE_MENU = "death_save_menu"  # Player unconscious at 0 hp, rolling death saving throws (see Player.roll_death_save())
 
 
 # Ambient flavor text shown at random on the player's turn (see Game.next_turn()).
@@ -204,6 +205,33 @@ AMBIENT_MESSAGES_BY_PERIOD = {
         ],
     },
 }
+
+
+# Flavor text pool for GameState.DEATH_SAVE_MENU (see Game._enter_death_save_menu()
+# / Game._pick_death_save_ambient_message()). Purely atmospheric, no mechanical
+# effect -- one line is picked fresh each turn the player spends unconscious,
+# alongside a line naming whatever last struck them down, if that's known.
+DEATH_SAVE_AMBIENT_MESSAGES = [
+    "The world is a dim, ringing blur...",
+    "Somewhere close, footsteps circle nearer...",
+    "Your own heartbeat is the loudest sound left in the world...",
+    "Cold seeps up from the ground beneath you...",
+    "Shapes move at the edge of your vision, too faint to name...",
+    "A weight presses on your chest, heavier with every breath...",
+    "Voices drift past, muffled as if through water...",
+    "You can't feel your hands anymore...",
+]
+
+# Templates filled in with Player.last_attacker_name/last_damage_taken when
+# those are known, so the menu can name whoever struck the player down.
+DEATH_SAVE_ATTACKER_MESSAGE_TEMPLATES = [
+    "The last thing you remember is {attacker}'s blow landing...",
+    "{attacker} looms somewhere above you, waiting to see if you rise...",
+    "You can still feel where {attacker} struck you...",
+]
+DEATH_SAVE_ATTACKER_DAMAGE_TEMPLATE = (
+    "{attacker} hit you for {damage} {damage_type} before everything went dark..."
+)
 
 
 def _ambient_time_period(hour_of_day):
@@ -754,6 +782,13 @@ class Game:
         self.fade_out_speed = 15 # NEW: Speed of the fade-out
         self.fade_in_alpha = 255
         self.fade_in_speed = 15
+
+        # --- Death saving throw menu (GameState.DEATH_SAVE_MENU) ---
+        # Which game_state to return to once the current death save is
+        # resolved, and the ambient flavor line currently on display -- see
+        # _enter_death_save_menu()/_pick_death_save_ambient_message().
+        self._death_save_return_state = GameState.OVERWORLD
+        self.death_save_ambient_message = ""
 
         # Overworld chunk transition — a quick black fade-out/fade-in played whenever
         # the player walks into a new chunk, so the (potentially slow) chunk generation
@@ -3298,13 +3333,14 @@ class Game:
         else:
             # --- Failure ---
             splinter_dmg = random.randint(1, 4)
-            self.player.hp = max(0, self.player.hp - splinter_dmg)
             self.message_log.add_message(
                 f"The chest holds! You recoil from the impact, taking {splinter_dmg} damage.",
                 (220, 80, 80)
             )
-            if self.player.hp <= 0:
-                self.game_state = GameState.GAME_OVER
+            # Routed through take_damage() (rather than poking .hp directly)
+            # so a chest that knocks the player to 0 hp triggers death saves
+            # instead of an instant kill, same as every other damage source.
+            self.player.take_damage(splinter_dmg, self, damage_type='bludgeoning')
 
             ambush_chance = 0.35
 
@@ -4544,6 +4580,11 @@ class Game:
                         self.game_state = self._previous_game_state
                         self._chest_menu_target = None
                     return True  # Consume all input while menu is open
+
+                # --- Death Saving Throw Menu ---
+                elif self.game_state == GameState.DEATH_SAVE_MENU:
+                    self.handle_death_save_menu_input(event.key)
+                    return True  # Consume all input while unconscious
 
                 # --- World Encounter Discovery Prompt ---
                 elif self.game_state == GameState.WORLD_ENCOUNTER_DISCOVERY:
@@ -6448,6 +6489,14 @@ class Game:
                     self.next_turn()
                     continue # Go back to the start of the while loop
 
+            # The batch loop above broke because it's now the player's turn.
+            # If they're unconscious at 0 hp (Player.is_dying), hand off to
+            # the death-save menu instead of waiting on movement/action
+            # input -- rolling the save, not moving, is what a downed
+            # player's turn consists of.
+            if self.player.is_dying and not self.player_has_acted and self.get_current_entity() == self.player:
+                self._enter_death_save_menu()
+
         self.floating_texts = [text for text in self.floating_texts if text.update()]        
         
         # This condition was already here, but now it's after the player check
@@ -6490,6 +6539,65 @@ class Game:
             else:
                 self.camera.update(self.player.x, self.player.y, self.game_map.width, self.game_map.height)        
 
+
+    def _pick_death_save_ambient_message(self):
+        """
+        Choose one flavor line for the death-save menu: usually a generic
+        "fading consciousness" line, but favors naming the last attacker
+        (and how hard they hit) when Player.take_damage() has recorded one,
+        so the menu reads as "who/what put you here" rather than being
+        purely atmospheric.
+        """
+        attacker = self.player.last_attacker_name
+        if not attacker:
+            return random.choice(DEATH_SAVE_AMBIENT_MESSAGES)
+
+        lines = list(DEATH_SAVE_AMBIENT_MESSAGES)
+        lines.extend(
+            template.format(attacker=attacker) for template in DEATH_SAVE_ATTACKER_MESSAGE_TEMPLATES
+        )
+        if self.player.last_damage_taken:
+            lines.append(DEATH_SAVE_ATTACKER_DAMAGE_TEMPLATE.format(
+                attacker=attacker,
+                damage=self.player.last_damage_taken,
+                damage_type=self.player.last_damage_type or "damage",
+            ))
+        return random.choice(lines)
+
+    def _enter_death_save_menu(self):
+        """
+        Switch to GameState.DEATH_SAVE_MENU at the start of a turn where the
+        player is unconscious at 0 hp (Player.is_dying). Remembers whatever
+        state we should return to once the roll is resolved, and picks a
+        fresh ambient line -- see handle_death_save_menu_input() for the
+        actual roll, triggered by player input.
+        """
+        if self.game_state != GameState.DEATH_SAVE_MENU:
+            self._death_save_return_state = self.game_state
+        self.game_state = GameState.DEATH_SAVE_MENU
+        self.death_save_ambient_message = self._pick_death_save_ambient_message()
+
+    def handle_death_save_menu_input(self, key):
+        """
+        Resolve the DEATH_SAVE_MENU prompt: rolling the save consumes the
+        player's turn, whatever the outcome, so this always hands control
+        back to next_turn()'s usual machinery afterward -- monsters keep
+        acting on their turns while the player lies unconscious.
+        """
+        if key not in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_KP_ENTER):
+            return
+
+        self.player.roll_death_save(self)
+
+        if not self.player.alive:
+            self.handle_game_over()
+            return
+
+        # Whether the player stabilized, woke up, or is still down at 0
+        # successes/failures, the turn is spent -- return to the map and
+        # let the normal turn loop advance to whatever acts next.
+        self.game_state = self._death_save_return_state
+        self.player_has_acted = True
 
     def handle_game_over(self):
         if not self._game_over_displayed:
@@ -6729,6 +6837,10 @@ class Game:
         if self.game_state == GameState.CHEST_MENU and self._chest_menu_target:
             self.render_chest_menu(self._chest_menu_target)
 
+        # Death saving throw menu — drawn over the map, under nothing else
+        if self.game_state == GameState.DEATH_SAVE_MENU:
+            self.render_death_save_menu()
+
         # World encounter discovery prompt — the beat's narration by itself,
         # with a "Continue" option, before its choice menu opens
         if self.game_state == GameState.WORLD_ENCOUNTER_DISCOVERY and self._world_encounter_discovery_text:
@@ -6838,6 +6950,80 @@ class Game:
             y += font_body.get_linesize() + 1
             self.screen.blit(s_surf, (sx + PAD, y))
             y += font_body.get_linesize() + 6
+
+    def render_death_save_menu(self):
+        """
+        Draws the death-saving-throw overlay while the player is unconscious
+        at 0 hp: the running success/failure pips, an ambient flavor line
+        (see Game._pick_death_save_ambient_message() -- names the last
+        attacker when one is known), and the roll prompt. Visually mirrors
+        render_chest_menu()'s overlay size/fonts so it reads as the same
+        "popup over the map" language as every other menu here, rather than
+        a bespoke death screen.
+        """
+        try:
+            font_title = pygame.font.SysFont("consolas", 16, bold=True)
+            font_body  = pygame.font.SysFont("consolas", 14)
+            font_pips  = pygame.font.SysFont("consolas", 18, bold=True)
+        except Exception:
+            font_title = pygame.font.Font(None, 18)
+            font_body  = pygame.font.Font(None, 16)
+            font_pips  = pygame.font.Font(None, 20)
+
+        # --- Layout ---
+        PAD = 14
+        W   = 440
+        H   = 190
+        sx  = (config.GAME_AREA_WIDTH - W) // 2
+        sy  = (config.SCREEN_HEIGHT   - H) // 2
+
+        # Dark, blood-tinted semi-transparent background
+        bg = pygame.Surface((W, H), pygame.SRCALPHA)
+        bg.fill((16, 6, 8, 225))
+        self.screen.blit(bg, (sx, sy))
+
+        pygame.draw.rect(self.screen, (150, 40, 40), (sx, sy, W, H), 2, border_radius=4)
+
+        title_surf = font_title.render("  Death Saving Throw", True, (220, 80, 80))
+        self.screen.blit(title_surf, (sx + PAD, sy + PAD))
+
+        pygame.draw.line(
+            self.screen, (60, 30, 32),
+            (sx + PAD, sy + PAD + 22), (sx + W - PAD, sy + PAD + 22)
+        )
+
+        y = sy + PAD + 32
+
+        # Ambient flavor line, wrapped to the popup width.
+        for line in self._wrap_text(self.death_save_ambient_message, font_body, W - PAD * 2):
+            line_surf = font_body.render(line, True, (170, 150, 150))
+            self.screen.blit(line_surf, (sx + PAD, y))
+            y += font_body.get_linesize()
+        y += 10
+
+        # Success/failure pips -- filled circle for a resolved save, hollow
+        # for one still pending, three of each per the 5e rule.
+        successes = self.player.death_save_successes
+        failures  = self.player.death_save_failures
+
+        label_surf = font_body.render("Successes", True, (150, 220, 150))
+        self.screen.blit(label_surf, (sx + PAD, y))
+        pip_text = "".join("●" if i < successes else "○" for i in range(3))
+        pip_surf = font_pips.render(pip_text, True, (120, 220, 120))
+        self.screen.blit(pip_surf, (sx + PAD + 130, y - 2))
+
+        y += font_body.get_linesize() + 6
+
+        label_surf = font_body.render("Failures", True, (220, 150, 150))
+        self.screen.blit(label_surf, (sx + PAD, y))
+        pip_text = "".join("●" if i < failures else "○" for i in range(3))
+        pip_surf = font_pips.render(pip_text, True, (220, 100, 100))
+        self.screen.blit(pip_surf, (sx + PAD + 130, y - 2))
+
+        y += font_body.get_linesize() + 14
+
+        prompt_surf = font_body.render("[Space / Enter]  Roll", True, (200, 200, 200))
+        self.screen.blit(prompt_surf, (sx + PAD, y))
 
     def render_innkeeper_menu(self):
         """
