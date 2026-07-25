@@ -2359,22 +2359,27 @@ class Game:
         a non-final stage; if a scenario's JSON mistakenly offers it on
         the last one, this falls back to walking away (the same outcome
         "ignore" produces) instead of indexing past the end of "stages".
+
+        A choice's own "outcome" line (e.g. Wolf_Pack.json's "Track
+        Carefully") is shown as its own discovery prompt (see
+        _show_world_encounter_discovery()) before the overworld actually
+        takes back control -- empty for most "advance" choices, in which
+        case the prompt is skipped and the handoff is immediate.
         """
         scenario = self._world_encounter_target
         self._apply_world_encounter_outcome_choice(choice)
 
         next_index = self._world_encounter_stage_index + 1
         if next_index >= len(scenario["stages"]):
-            self.game_state = GameState.OVERWORLD
             self._world_encounter_target = None
             self._world_encounter_story_id = None
             self._world_encounter_pending_stage_index = None
             self._world_encounter_advance_steps = 0
-            return
+        else:
+            self._world_encounter_pending_stage_index = next_index
+            self._world_encounter_advance_steps = 0
 
-        self._world_encounter_pending_stage_index = next_index
-        self._world_encounter_advance_steps = 0
-        self.game_state = GameState.OVERWORLD
+        self._show_world_encounter_discovery(choice["outcome"], GameState.OVERWORLD)
 
     def _resolve_world_encounter_resolve(self, choice):
         """
@@ -2395,6 +2400,11 @@ class Game:
         still plays by the same StoryEvent/FailureManager rules as a
         combat one -- chains, scars, and condition tracking all see it
         as a normal resolved story instead of one left UNINITIALIZED.
+
+        The choice's "outcome" line (always present -- see
+        _normalize_world_encounter_choices()) is shown as its own
+        discovery prompt (see _show_world_encounter_discovery()) before
+        the overworld takes back control.
         """
         director = self.stories.story_manager.get_director(self._world_encounter_story_id)
         director.start()
@@ -2402,9 +2412,9 @@ class Game:
 
         self._apply_world_encounter_outcome_choice(choice)
 
-        self.game_state = GameState.OVERWORLD
         self._world_encounter_target = None
         self._world_encounter_story_id = None
+        self._show_world_encounter_discovery(choice["outcome"], GameState.OVERWORLD)
 
     def _apply_world_encounter_outcome_choice(self, choice):
         """
@@ -2475,12 +2485,17 @@ class Game:
         scenario's "resolve" choice via _apply_world_encounter_outcome_
         choice(); this method only handles closing out the aftermath
         menu specifically afterward.
+
+        The choice's "outcome" line (always present -- see
+        _normalize_world_encounter_aftermath()) is shown as its own
+        discovery prompt (see _show_world_encounter_discovery()) before
+        the overworld takes back control.
         """
         self._apply_world_encounter_outcome_choice(choice)
 
         self._world_encounter_target_victims = []
-        self.game_state = GameState.OVERWORLD
         self._world_encounter_aftermath = None
+        self._show_world_encounter_discovery(choice["outcome"], GameState.OVERWORLD)
 
     # --- Escort companions --------------------------------------------------
     # A companion is a rescued/recruited NPC who follows the player (see
@@ -4532,7 +4547,7 @@ class Game:
 
                 # --- World Encounter Discovery Prompt ---
                 elif self.game_state == GameState.WORLD_ENCOUNTER_DISCOVERY:
-                    if event.key in (pygame.K_1, pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE):
+                    if event.key in (pygame.K_1, pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE, pygame.K_ESCAPE):
                         self._continue_past_world_encounter_discovery()
                     return True  # Consume all input while the prompt is open
 
@@ -6747,15 +6762,19 @@ class Game:
 
         # World clock (world_time.py's WorldClock, via self.stories.world_time) --
         # "Day N, HH:00", drawn just below the FPS counter. Purely a readout;
-        # nothing here mutates the clock, so it's safe to render every frame
-        # regardless of game_state.
-        clock = self.stories.world_time.clock
-        time_text = (
-            f"Day {clock.day}, {clock.hour_of_day:02d}:{clock.minute_of_hour:02d} "
-            f"({period_for_hour(clock.hour_of_day)})"
-        )
-        time_surface = self.fps_font.render(time_text, True, (230, 210, 160))  # Warm parchment color
-        self.screen.blit(time_surface, (10, 30))
+        # nothing here mutates the clock. Only shown once the player exists --
+        # self.player is None during CHARACTER_CREATION/LINEAGE_SELECTION/
+        # CLASS_SELECTION (and briefly again after a death-screen reset), and
+        # the clock would otherwise read as meaningless "Day 0, 00:00" noise
+        # before the player has actually been spawned into the world.
+        if self.player is not None:
+            clock = self.stories.world_time.clock
+            time_text = (
+                f"Day {clock.day}, {clock.hour_of_day:02d}:{clock.minute_of_hour:02d} "
+                f"({period_for_hour(clock.hour_of_day)})"
+            )
+            time_surface = self.fps_font.render(time_text, True, (230, 210, 160))  # Warm parchment color
+            self.screen.blit(time_surface, (10, 30))
 
         
         # --- Final Display Update ---
