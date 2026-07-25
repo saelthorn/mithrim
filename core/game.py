@@ -2274,6 +2274,9 @@ class Game:
         discovery text was already logged when it was revealed, so only
         the stealth-roll line and the success/fail line (genuinely new
         information the sneak check itself reveals) are logged here.
+        The success/fail line is also shown as its own discovery prompt
+        (see _show_world_encounter_discovery()) so the player reads it
+        before combat actually resumes.
         """
         scenario = self._world_encounter_target
         stage = self._current_world_encounter_stage()
@@ -2291,15 +2294,17 @@ class Game:
         )
 
         if dex_total >= sneak_dc:
-            self.message_log.add_message(stage["sneak_success"], (150, 255, 180))
+            outcome_text = stage["sneak_success"]
+            self.message_log.add_message(outcome_text, (150, 255, 180))
             self._spawn_world_encounter_monsters(scenario, stage, asleep=True)
         else:
-            self.message_log.add_message(stage["sneak_fail"], (255, 120, 100))
+            outcome_text = stage["sneak_fail"]
+            self.message_log.add_message(outcome_text, (255, 120, 100))
             self._spawn_world_encounter_monsters(scenario, stage, surprised=True)
 
-        self.game_state = GameState.OVERWORLD
         self._world_encounter_target = None
         self._world_encounter_story_id = None
+        self._show_world_encounter_discovery(outcome_text, GameState.OVERWORLD)
 
     def _resolve_world_encounter_ignore(self, choice):
         """
@@ -2318,14 +2323,16 @@ class Game:
         goblin camp itself -- but always marks the *whole encounter* as
         ignored via the scenario-level story id, since the reputation/
         scar consequences apply regardless of which stage the player
-        turned back at.
+        turned back at. Shown as its own discovery prompt (see
+        _show_world_encounter_discovery()) before control returns to the
+        overworld, same as the sneak success/fail lines.
         """
         stage = self._current_world_encounter_stage()
         self.message_log.add_message(stage["ignore"], (150, 150, 150))
         self.stories.failure_manager.mark_ignored(self._world_encounter_story_id)
-        self.game_state = GameState.OVERWORLD
         self._world_encounter_target = None
         self._world_encounter_story_id = None
+        self._show_world_encounter_discovery(stage["ignore"], GameState.OVERWORLD)
 
     def _resolve_world_encounter_advance(self, choice):
         """

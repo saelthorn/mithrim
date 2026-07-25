@@ -35,7 +35,7 @@
     },
     {
       "discovery": "Upstream, the reeds thrash and a man's voice cries out, cut short by a guttural hiss.",
-      "landmark_tile": ["barricade", "tent"],
+      "landmark_tile": ["barricade", "pond"],
       "landmark_tile_amount": [1, 2],
       "choices": [
         {
