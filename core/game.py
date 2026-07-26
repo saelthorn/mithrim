@@ -4407,7 +4407,24 @@ class Game:
                 if self.current_turn_index < len(self.turn_order)
                 else None
             )
-            self.turn_order = [e for e in self.turn_order if getattr(e, "alive", True)]
+            # The player is deliberately exempted from this prune, even once
+            # not .alive: dying no longer removes the player from turn_order
+            # instantly (see Player.is_dying/take_damage() -- death saves
+            # keep them "in the fight," unconscious, for several turns; and
+            # even an outright death still needs one more lap through the
+            # batch loop in update() to be recognized as "the player's turn"
+            # so the top-of-update() game-over check can fire on the next
+            # frame). Dropping the player here instead makes
+            # get_current_entity() never equal self.player again, so the
+            # batch loop's "break once it's the player's turn" condition can
+            # never be satisfied -- it just spins through the remaining
+            # monsters' turns forever. See the matching "if not
+            # self.player.alive: break" guard in update()'s batch loop for
+            # the other half of this fix.
+            self.turn_order = [
+                e for e in self.turn_order
+                if e is self.player or getattr(e, "alive", True)
+            ]
 
             if current_entity is not None and current_entity in self.turn_order:
                 self.current_turn_index = self.turn_order.index(current_entity)
@@ -6479,6 +6496,16 @@ class Game:
                             continue
                     # Call take_turn for any entity that has it
                     current_entity.take_turn(self.player, self.game_map, self)
+
+                    if not self.player.alive:
+                        # That attack (or its death-save fallout -- see
+                        # Player.take_damage()/_fail_death_saves()) just
+                        # killed the player outright. Stop simulating the
+                        # remaining monsters' turns against a corpse and
+                        # let the top-of-update() game-over check handle
+                        # the transition to GAME_OVER on the next frame.
+                        break
+
                     # Entity has acted, advance turn.
                     self.next_turn() # This will call cleanup_entities again and advance index
                     # Continue the while loop to process the next entity.
@@ -6724,13 +6751,13 @@ class Game:
 
                             # Set color tint based on visibility
                             if visibility_type == 'player':
-                                altar_color_tint = (142, 152, 165, 255)
+                                altar_color_tint = (255, 255, 255, 255)
                             elif visibility_type == 'torch':
-                                altar_color_tint = (255, 170, 82, 255)
+                                altar_color_tint = (255, 190, 102, 255)
                             elif visibility_type == 'darkvision':
-                                altar_color_tint = (72, 78, 86, 255)
+                                altar_color_tint = (82, 88, 96, 255)
                             elif visibility_type == 'explored':
-                                altar_color_tint = (36, 30, 34, 255)
+                                altar_color_tint = (62, 56, 54, 255)
                             else:
                                 continue  # Don't render if not visible
                             
