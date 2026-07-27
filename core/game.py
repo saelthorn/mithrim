@@ -510,6 +510,19 @@ class Game:
         # NEW: Start in character creation state
         self.game_state = GameState.CHARACTER_CREATION 
         self._previous_game_state = None
+        # The last "place" the player actually stood in -- OVERWORLD or
+        # DUNGEON -- independent of whatever menu (shop, chest, world
+        # encounter, ...) is currently drawn on top of it. Menus overlay
+        # the scene without moving the player anywhere, so anything that
+        # depends on where the player physically is (right now just
+        # _ambient_light_tint()'s sky-vs-underground check) should read
+        # this instead of self.game_state directly -- otherwise the sky's
+        # time-of-day tint would flatten out the instant a menu opened and
+        # snap back the instant it closed. Only updated at the handful of
+        # spots that actually move the player between places (see
+        # generate_overworld_map()/enter_dungeon_level() and friends);
+        # every menu-open/close path leaves it alone.
+        self._environment_state = GameState.OVERWORLD
         self.current_level = 1  
         self.max_level_reached = 1
 
@@ -936,7 +949,7 @@ class Game:
     # "choices" in Bandit_Ambush.json and _normalize_world_encounter_
     # choices()) before finding out what's actually going on.
     WORLD_ENCOUNTER_CHANCE = 0.01           # Rolled once per step taken in the overworld
-    WORLD_ENCOUNTER_COOLDOWN_STEPS = 80     # Minimum steps before another can trigger
+    WORLD_ENCOUNTER_COOLDOWN_STEPS = 60     # Minimum steps before another can trigger
     WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
     WORLD_ENCOUNTER_MIN_ENTITY_DISTANCE = 8  # Skip the roll if another live entity is already this close
 
@@ -949,7 +962,7 @@ class Game:
     # WORLD_ENCOUNTER_CHANCE above, so the reveal lands a handful of steps
     # past the floor rather than on the exact same step every time. See
     # _maybe_advance_world_encounter_stage().
-    WORLD_ENCOUNTER_STAGE_ADVANCE_MIN_STEPS = 10
+    WORLD_ENCOUNTER_STAGE_ADVANCE_MIN_STEPS = 5
     WORLD_ENCOUNTER_STAGE_ADVANCE_CHANCE = 0.15
 
     WORLD_ENCOUNTER_HOOKS = [
@@ -2985,6 +2998,7 @@ class Game:
         """
         self.game_state = GameState.OVERWORLD
         self._previous_game_state = GameState.OVERWORLD
+        self._environment_state = GameState.OVERWORLD
 
         if chunk_coord is None:
             chunk_coord = self.overworld_chunk_coord
@@ -3478,6 +3492,7 @@ class Game:
 
         self.game_state = GameState.DUNGEON
         self._previous_game_state = GameState.DUNGEON
+        self._environment_state = GameState.DUNGEON
         self.current_level = level_number
         self.max_level_reached = max(self.max_level_reached, level_number)
 
@@ -4605,7 +4620,7 @@ class Game:
 
                 # --- World Encounter Discovery Prompt ---
                 elif self.game_state == GameState.WORLD_ENCOUNTER_DISCOVERY:
-                    if event.key in (pygame.K_1, pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE, pygame.K_ESCAPE):
+                    if event.key in (pygame.K_1, pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE):
                         self._continue_past_world_encounter_discovery()
                     return True  # Consume all input while the prompt is open
 
@@ -5902,7 +5917,10 @@ class Game:
         
         if skill_check_total >= destruction_dc:
             self.message_log.add_message(f"You successfully smash the {target_tile.name}!", (0, 255, 0))
-            self.game_map.tiles[y][x] = ground
+            if self.game_state == GameState.OVERWORLD:
+                self.game_map.tiles[y][x] = ground
+            elif self.game_state == GameState.DUNGEON:
+                self.game_map.tiles[y][x] = floor
             self.minimap_needs_redraw = True # Map changed, redraw minimap
             
             # --- NEW: 10% chance to drop a Lesser Healing Potion ---
@@ -6611,7 +6629,7 @@ class Game:
         back to next_turn()'s usual machinery afterward -- monsters keep
         acting on their turns while the player lies unconscious.
         """
-        if key not in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_KP_ENTER):
+        if key not in (pygame.K_RETURN, pygame.K_KP_ENTER):
             return
 
         self.player.roll_death_save(self)
@@ -7489,8 +7507,17 @@ class Game:
         onto the world clock. A None here is exactly like any other
         stage in lighting.combine_tints()'s stack being skipped: it
         simply doesn't contribute.
+
+        Checks `_environment_state`, not `game_state` directly: opening a
+        menu (shop, chest, world encounter, ...) swaps game_state to that
+        menu's own state without actually moving the player anywhere, so
+        judging "am I outdoors" off game_state would flatten the sky's
+        time-of-day tint the instant any menu opened and snap it back the
+        instant the menu closed. _environment_state only changes when the
+        player actually does move between overworld and dungeon, so the
+        ambient tint stays exactly as it was underneath the menu.
         """
-        if self.game_state != GameState.OVERWORLD:
+        if self._environment_state != GameState.OVERWORLD:
             return None
         clock = self.stories.world_time.clock
         return ambient_tint_for_time(clock.hour_of_day, clock.minute_of_hour)
