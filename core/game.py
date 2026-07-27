@@ -948,10 +948,19 @@ class Game:
     # whichever choices the triggered scenario's own JSON declares (see
     # "choices" in Bandit_Ambush.json and _normalize_world_encounter_
     # choices()) before finding out what's actually going on.
-    WORLD_ENCOUNTER_CHANCE = 0.01           # Rolled once per step taken in the overworld
+    WORLD_ENCOUNTER_CHANCE = 0.02           # Rolled once per step taken in the overworld
     WORLD_ENCOUNTER_COOLDOWN_STEPS = 60     # Minimum steps before another can trigger
     WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
     WORLD_ENCOUNTER_MIN_ENTITY_DISTANCE = 8  # Skip the roll if another live entity is already this close
+
+    # Minimum empty tiles kept between two structures' footprints when a
+    # stage's "landmark_structure" names more than one (see
+    # _place_world_encounter_structure_cluster()), plus extra random slack
+    # layered on top purely for visual variety -- same "guaranteed floor,
+    # jittered on top" shape world_generator.py's _place_town() uses for
+    # TOWN_BUILDING_GAP/TOWN_LAYOUT_JITTER.
+    WORLD_ENCOUNTER_STRUCTURE_GAP = 2
+    WORLD_ENCOUNTER_STRUCTURE_JITTER = 3
 
     # An "advance" choice (see WORLD_ENCOUNTER_ACTIONS/_resolve_world_encounter_
     # advance()) doesn't reveal a staged scenario's next beat instantly -- the
@@ -1047,6 +1056,15 @@ class Game:
     # here the way WORLD_ENCOUNTER_TILE_TYPES needs one -- structure keys
     # are resolved directly against structures.py's own registry via
     # get_structure_blueprint()/place_structure_at_anchor().
+    #
+    # "landmark_structure" may be a single key (e.g. Roadside_Shrine.json's
+    # "shrine") or a list of keys (e.g. Undead_Siege.json's
+    # ["tavern", "house", "house"] for a small roadside hamlet) -- see
+    # _normalize_world_encounter_structure_list(). A multi-key value places
+    # every named structure at once as one loose cluster (see
+    # _place_world_encounter_structure_cluster()), the same "single key or
+    # list of keys" shape "landmark_tile" already uses, just placing every
+    # entry instead of drawing one at random per placement.
 
     # The vocabulary of built-in *behaviors* a scenario's "choices" block
     # can pick from via each choice's "action" field (see
@@ -1226,6 +1244,29 @@ class Game:
             return list(value)
         return [value]
 
+    def _normalize_world_encounter_structure_list(self, value):
+        """
+        Accepts a scenario's "landmark_structure" field in either of two
+        shapes -- a single key (e.g. Roadside_Shrine.json's "shrine") or a
+        list of keys (e.g. Undead_Siege.json's ["tavern", "house", "house"])
+        -- and always returns a list, so _spawn_world_encounter_landmark_
+        structure() can treat every scenario as "one or more structures to
+        place together" without caring which form the JSON used.
+
+        Same normalization shape as _normalize_world_encounter_tile_pool()
+        just above, but kept as its own method rather than reused directly:
+        a landmark_tile pool is drawn from at random per placement, while
+        every key here gets placed, as a single cluster (see
+        _place_world_encounter_structure_cluster()) -- different enough
+        semantics that sharing one method would be misleading to read at
+        the call site.
+        """
+        if value is None:
+            return []
+        if isinstance(value, (list, tuple)):
+            return list(value)
+        return [value]
+
     def _normalize_world_encounter_stage(self, stage_data, source_name, stage_index):
         """
         Normalizes one entry of a scenario's "stages" list (see
@@ -1255,10 +1296,14 @@ class Game:
             "landmark_tile_amount": self._normalize_world_encounter_range(
                 stage_data.get("landmark_tile_amount", 1)
             ),
-            # Passed through as-is (a plain structures.py blueprint key,
-            # e.g. "shrine") or None -- see
-            # _spawn_world_encounter_landmark_structure().
-            "landmark_structure": stage_data.get("landmark_structure"),
+            # Always a list, even for a scenario declaring a single key
+            # (e.g. "shrine") rather than ["tavern", "house"] -- see
+            # _normalize_world_encounter_structure_list() and
+            # _spawn_world_encounter_landmark_structure(). An empty list
+            # means the stage declares no landmark_structure at all.
+            "landmark_structure": self._normalize_world_encounter_structure_list(
+                stage_data.get("landmark_structure")
+            ),
             "monster_pool": monster_pool,
             "monster_count": tuple(stage_data.get("monster_count", (0, 0))),
             "combat": bool(monster_pool),
@@ -1844,33 +1889,127 @@ class Game:
 
     def _spawn_world_encounter_landmark_structure(self, stage):
         """
-        Places the current stage's "landmark_structure" (see
+        Places the current stage's "landmark_structure" list (see
         WORLD_ENCOUNTER_TILE_TYPES's docstring above it, e.g.
-        Roadside_Shrine.json's "shrine") as a full multi-tile building
-        from structures.py, anchored a few tiles off the player's current
-        position -- see place_structure_at_anchor(), which finds the
-        closest clear footprint nearby rather than requiring the exact
-        anchor tile, and _world_encounter_structure_anchor(), which picks
-        that nearby point so the search can't land the footprint
-        directly on top of the player.
+        Roadside_Shrine.json's single "shrine", or Undead_Siege.json's
+        multi-building ["tavern", "house", "house"]) as one or more
+        full multi-tile buildings from structures.py, anchored a few
+        tiles off the player's current position -- see
+        _world_encounter_structure_anchor(), which picks that nearby
+        point so the footprint search can't land directly on top of the
+        player.
 
         Called once per stage, from _enter_world_encounter_stage(), not
         from _spawn_world_encounter_monsters() like the monsters/victims
         themselves -- a non-combat stage (see WORLD_ENCOUNTER_ACTIONS'
         "resolve"/"advance") never spawns monsters at all, so the
-        structure has to appear independently of that path. A no-op for
-        a stage that doesn't declare one, or if the map has no room for
-        the footprint nearby (place_structure_at_anchor returns None in
-        that case).
+        structure(s) have to appear independently of that path. A no-op
+        for a stage that doesn't declare any.
         """
-        structure_id = stage.get("landmark_structure")
-        if not structure_id:
+        structure_ids = stage.get("landmark_structure")
+        if not structure_ids:
             return
 
-        from world.structures import place_structure_at_anchor
-
         anchor_x, anchor_y = self._world_encounter_structure_anchor()
-        place_structure_at_anchor(self.game_map, structure_id, anchor_x, anchor_y)
+        self._place_world_encounter_structure_cluster(structure_ids, anchor_x, anchor_y)
+
+    def _place_world_encounter_structure_cluster(self, structure_ids, anchor_x, anchor_y):
+        """
+        Places every structure in `structure_ids` (see
+        _normalize_world_encounter_structure_list()) as a single loose
+        cluster anchored near (anchor_x, anchor_y) -- e.g. a "small town"
+        of a tavern plus a couple of houses, all appearing together,
+        rather than landmark_structure being limited to exactly one
+        building.
+
+        Mirrors world_generator.py's _place_town(): the first structure
+        anchors the cluster; each later one is offset from the *previous*
+        one by their combined footprint half-widths plus a gap (see
+        _world_encounter_structure_offset(), the same math as that
+        module's _anchor_offset()), in a randomly rolled direction with a
+        little perpendicular drift for visual variety -- a guaranteed
+        minimum spacing with extra jitter layered on top, generalized to
+        however many structures a stage names instead of a fixed
+        tavern/shop/house layout. place_structure_at_anchor() may still
+        nudge an individual building a tile or two to find clear ground,
+        so like _place_town, this spacing is a target, not an absolute
+        guarantee.
+
+        Unknown structure ids, or ones that can't find any clear
+        footprint nearby, are skipped individually (place_structure_at_
+        anchor returns None) rather than aborting the whole cluster --
+        the same "don't fail the whole placement over one bad entry"
+        approach _spawn_world_encounter_landmark_tile() takes with
+        unknown tile keys.
+
+        Every successfully placed structure also spawns its own NPC
+        population (structures.py's blueprint.npc_map), exactly like
+        _spawn_player_in_starting_tavern() already does when placing a
+        tavern directly rather than through _place_town() -- otherwise a
+        multi-building "town" landmark would read as an empty film set.
+        """
+        from world.structures import get_structure_blueprint, npcs_for_placement, place_structure_at_anchor
+
+        previous_anchor = None  # (x, y, width, height) of the last structure actually placed
+        for structure_id in structure_ids:
+            blueprint = get_structure_blueprint(structure_id)
+            if blueprint is None:
+                continue
+            width, height = len(blueprint.tile_map[0]), len(blueprint.tile_map)
+
+            if previous_anchor is None:
+                structure_anchor_x, structure_anchor_y = anchor_x, anchor_y
+            else:
+                structure_anchor_x, structure_anchor_y = self._world_encounter_next_cluster_anchor(
+                    previous_anchor, width, height
+                )
+
+            placed_tiles = place_structure_at_anchor(self.game_map, structure_id, structure_anchor_x, structure_anchor_y)
+            if not placed_tiles:
+                continue  # no clear footprint nearby -- leave the rest of the cluster unaffected
+
+            previous_anchor = (structure_anchor_x, structure_anchor_y, width, height)
+            self.entities.extend(npcs_for_placement(structure_id, placed_tiles))
+
+    def _world_encounter_next_cluster_anchor(self, previous_anchor, width, height):
+        """
+        Given the (x, y, width, height) of the previously placed structure
+        in a cluster, roll an anchor point for the next one: a random side
+        (right/left/below/above), offset by their combined footprint
+        half-widths plus WORLD_ENCOUNTER_STRUCTURE_GAP (never less, since
+        every jitter roll below only adds slack on top of that floor), and
+        a small perpendicular drift so a longer cluster reads as a
+        scattered hamlet rather than a rigid line of buildings. See
+        _place_world_encounter_structure_cluster()'s docstring for how
+        this mirrors world_generator.py's _place_town().
+        """
+        previous_x, previous_y, previous_width, previous_height = previous_anchor
+        gap = self.WORLD_ENCOUNTER_STRUCTURE_GAP + random.randint(0, self.WORLD_ENCOUNTER_STRUCTURE_JITTER)
+        drift = random.randint(-self.WORLD_ENCOUNTER_STRUCTURE_JITTER, self.WORLD_ENCOUNTER_STRUCTURE_JITTER)
+        side = random.choice(("right", "left", "below", "above"))
+
+        if side == "right":
+            return previous_x + self._world_encounter_structure_offset(previous_width, width, gap), previous_y + drift
+        if side == "left":
+            return previous_x - self._world_encounter_structure_offset(previous_width, width, gap), previous_y + drift
+        if side == "below":
+            return previous_x + drift, previous_y + self._world_encounter_structure_offset(previous_height, height, gap)
+        return previous_x + drift, previous_y - self._world_encounter_structure_offset(previous_height, height, gap)
+
+    @staticmethod
+    def _world_encounter_structure_offset(size_a, size_b, gap):
+        """
+        Distance to add to one structure's anchor coordinate to get the
+        anchor coordinate of a second structure placed directly after it,
+        leaving at least `gap` empty tiles between their two footprints.
+        Identical math to world_generator.py's module-level
+        _anchor_offset() (place_structure_at_anchor() centers a building
+        on its anchor using `origin = anchor - size // 2`, so this mirrors
+        that rather than guessing at spacing with hand-picked offsets) --
+        duplicated here as a small static method instead of importing a
+        private helper across modules.
+        """
+        return (size_a - size_a // 2) + gap + (size_b // 2)
 
     def _enter_world_encounter_stage(self, scenario, stage_index):
         """

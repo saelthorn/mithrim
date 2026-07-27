@@ -66,6 +66,7 @@
     },
     {
       "discovery": "A handful of town guards are making a desperate last stand against a rising tide of undead.",
+      "landmark_structure": ["tavern", "house", "house"],
       "monster_pool": ["Skeleton", "Skeleton", "SkeletonArcher"],
       "monster_count": [4, 5],
       "sneak_dc": 12,
