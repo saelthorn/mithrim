@@ -22,6 +22,20 @@ from core.floating_text import FloatingText
 # once" into a visible stutter/freeze.
 SUMMON_PATHFINDING_MAX_EXPANSIONS = 400
 
+
+def _chebyshev_distance(ax, ay, bx, by):
+    """
+    King-move distance between two tiles: how many steps it takes a piece
+    that can move diagonally to close the gap. Every summon's "is this
+    close enough" / "is this adjacent" check below uses this instead of
+    Manhattan distance (abs(dx) + abs(dy)), which treats a diagonal
+    neighbor as two tiles away and used to make a diagonally-adjacent
+    summon think it wasn't close enough yet, or a diagonally-adjacent
+    enemy think it wasn't in melee range yet.
+    """
+    return max(abs(ax - bx), abs(ay - by))
+
+
 class SummonedEntity(NPC):
     """
     Base class for any entity summoned by a player ability.
@@ -190,7 +204,7 @@ class EscortCompanion(SummonedEntity):
         if not self.alive:
             return
 
-        distance_to_player = abs(self.x - self.owner.x) + abs(self.y - self.owner.y)
+        distance_to_player = _chebyshev_distance(self.x, self.y, self.owner.x, self.owner.y)
         if distance_to_player <= self.FOLLOW_DISTANCE:
             return  # Close enough -- let the player lead
 
@@ -230,26 +244,36 @@ class EscortCompanion(SummonedEntity):
     def _step_toward(self, game_map, game_instance, target_x, target_y):
         """
         Cheap, search-free steering step: move one tile toward
-        (target_x, target_y) along whichever axis has the larger gap,
-        falling back to the other axis if that tile isn't free. No grid
-        search at all, so this is effectively free to call every turn --
-        it's what handles the common case of open terrain between the
-        companion and the player. Returns True if it moved, False if
-        neither candidate tile was free (an obstacle is in the way and
-        the caller should fall back to _pathfind_toward()).
+        (target_x, target_y), preferring a diagonal step (closes both
+        axes' gap at once) and falling back to whichever single axis has
+        the larger gap, then the other axis, if that tile isn't free. No
+        grid search at all, so this is effectively free to call every
+        turn -- it's what handles the common case of open terrain between
+        the companion and the player. Returns True if it moved, False if
+        none of the candidate tiles were free (an obstacle is in the way
+        and the caller should fall back to _pathfind_toward()).
         """
         dx = target_x - self.x
         dy = target_y - self.y
         step_x = (dx > 0) - (dx < 0)  # -1, 0, or 1
         step_y = (dy > 0) - (dy < 0)
 
-        candidates = []
+        cardinal_candidates = []
         if step_x != 0:
-            candidates.append((self.x + step_x, self.y))
+            cardinal_candidates.append((self.x + step_x, self.y))
         if step_y != 0:
-            candidates.append((self.x, self.y + step_y))
+            cardinal_candidates.append((self.x, self.y + step_y))
         if abs(dx) < abs(dy):
-            candidates.reverse()  # Lead with whichever axis has more ground to cover.
+            cardinal_candidates.reverse()  # Lead with whichever axis has more ground to cover.
+
+        candidates = []
+        if step_x != 0 and step_y != 0:
+            # A diagonal step closes both axes in one move, so it's
+            # always the best option when the target isn't purely
+            # horizontal/vertical from here -- try it before either
+            # single-axis fallback above.
+            candidates.append((self.x + step_x, self.y + step_y))
+        candidates.extend(cardinal_candidates)
 
         for next_x, next_y in candidates:
             if self._is_free(next_x, next_y, game_map, game_instance):
@@ -450,7 +474,7 @@ class Imp(SummonedEntity):
             if isinstance(entity, (DungeonHealer, DungeonMerchant)):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
-                distance = abs(self.x - entity.x) + abs(self.y - entity.y)
+                distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
                 if distance == 1:  # Adjacent (melee range)
                     adjacent_enemies.append(entity)
                     print(f"[DEBUG] Found adjacent enemy: {entity.name} at distance {distance}")
@@ -471,7 +495,7 @@ class Imp(SummonedEntity):
             if isinstance(entity, (DungeonHealer, DungeonMerchant)):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
-                distance = abs(self.x - entity.x) + abs(self.y - entity.y)
+                distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
                 if distance <= 8:  # Within 8 tiles
                     enemies_in_range.append(entity)
 
@@ -499,7 +523,7 @@ class Imp(SummonedEntity):
                         return
 
         # Priority 3: If not adjacent to player, move towards the player
-        distance_to_player = abs(self.x - self.owner.x) + abs(self.y - self.owner.y)
+        distance_to_player = _chebyshev_distance(self.x, self.y, self.owner.x, self.owner.y)
         
         if distance_to_player > 1:
             dx = 0
@@ -652,7 +676,7 @@ class Celestial(SummonedEntity):
             if isinstance(entity, (DungeonHealer, DungeonMerchant)):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
-                distance = abs(self.x - entity.x) + abs(self.y - entity.y)
+                distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
                 if distance == 1:  # Adjacent (melee range)
                     adjacent_enemies.append(entity)
 
@@ -671,7 +695,7 @@ class Celestial(SummonedEntity):
             if isinstance(entity, (DungeonHealer, DungeonMerchant)):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
-                distance = abs(self.x - entity.x) + abs(self.y - entity.y)
+                distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
                 if distance <= 8:  # Within 8 tiles
                     enemies_in_range.append(entity)
 
@@ -698,7 +722,7 @@ class Celestial(SummonedEntity):
                         return
                     
         # Priority 3: If not adjacent to player, move towards the player
-        distance_to_player = abs(self.x - self.owner.x) + abs(self.y - self.owner.y)
+        distance_to_player = _chebyshev_distance(self.x, self.y, self.owner.x, self.owner.y)
 
         if distance_to_player > 1:
             dx = 0
@@ -849,7 +873,7 @@ class SpiritualWeaponEntity(SummonedEntity):
             if isinstance(entity, (DungeonHealer, DungeonMerchant)):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
-                distance = abs(self.x - entity.x) + abs(self.y - entity.y)
+                distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
                 if distance == 1:  # Adjacent (melee range)
                     adjacent_enemies.append(entity)
 
@@ -865,7 +889,7 @@ class SpiritualWeaponEntity(SummonedEntity):
             if isinstance(entity, (DungeonHealer, DungeonMerchant)):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
-                distance = abs(self.x - entity.x) + abs(self.y - entity.y)
+                distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
                 if distance <= 8:  # Within 8 tiles
                     enemies_in_range.append(entity)
 
@@ -887,7 +911,7 @@ class SpiritualWeaponEntity(SummonedEntity):
                         self.y = next_y       
                         return
 
-        distance_to_player = abs(self.x - self.owner.x) + abs(self.y - self.owner.y)
+        distance_to_player = _chebyshev_distance(self.x, self.y, self.owner.x, self.owner.y)
 
         if distance_to_player > 1:
             dx = 0
