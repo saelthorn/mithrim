@@ -1,0 +1,77 @@
+{
+  "id": "world_encounter_troll_toll",
+
+  "stages": [
+    {
+      "discovery": "The road narrows where it crosses a swift stream, and the crossing is blocked - felled trees and boulders piled waist-high, still slick with sap. Something enormous shifts behind the pile.",
+      "landmark_tile": ["barricade"],
+      "landmark_tile_amount": 1,
+      "choices": [
+        {
+          "key": 1,
+          "action": "advance",
+          "label": "Approach the Crossing",
+          "description": "Get a closer look at the blockade",
+          "color": [255, 160, 100]
+        },
+        {
+          "key": 2,
+          "action": "advance",
+          "label": "Watch From a Distance",
+          "description": "See what's guarding it before getting close",
+          "color": [160, 200, 255],
+          "outcome": "A hulking, green-skinned shape hauls itself up onto the barricade, sniffing the air for the scent of anyone foolish enough to cross without paying its toll."
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Find Another Way",
+          "description": "ESC also cancels - the long way around is still a way",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ],
+      "ignore": "You backtrack and find a longer route around the crossing, leaving whatever guards it undisturbed."
+    },
+    {
+      "discovery": "A troll looms over the blockade, knuckles dragging, nostrils flaring at your scent. It doesn't look interested in negotiating a toll.",
+      "monster_pool": ["Troll"],
+      "monster_count": [1, 1],
+      "sneak_dc": 15,
+      "sneak_success": "The troll's nose swings past you without catching your scent, and you slip along the bank and around the blockade entirely.",
+      "sneak_fail": "The troll's head snaps toward you mid-step, nostrils flaring wide - it's caught your scent.",
+      "ignore": "You leave the crossing to the troll and turn back the way you came.",
+      "choices": [
+        {
+          "key": 1,
+          "action": "investigate",
+          "label": "Investigate",
+          "description": "Stand your ground and fight",
+          "color": [255, 160, 100]
+        },
+        {
+          "key": 2,
+          "action": "sneak",
+          "label": "Sneak Around",
+          "description": "Try to slip past along the bank",
+          "color": [160, 200, 255]
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Find Another Way",
+          "description": "Turn back and find a longer route",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ]
+    }
+  ],
+
+  "scar_tag": "world_encounter_troll_toll",
+  "reward_xp": 65,
+  "reward_gold": 15,
+  "reputation_faction": "northfield",
+  "reputation_delta": 4,
+  "ignored_reputation_delta": 0
+}

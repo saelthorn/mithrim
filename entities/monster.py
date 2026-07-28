@@ -40,6 +40,42 @@ class AI_State(Enum):
     KITING = 5
 
 
+class Disposition(Enum):
+    """
+    How a monster is inclined to treat the player before anything has
+    happened between them yet -- distinct from AI_State, which governs
+    *how* an already-hostile monster behaves turn to turn (chasing,
+    fleeing, kiting, ...) once it's decided to fight. Disposition governs
+    whether Monster.take_turn() ever runs that combat AI at all:
+
+      - AGGRESSIVE: attacks/chases on sight, exactly like every monster
+        behaved before this existed. The default for every Monster, so
+        nothing changes for existing content unless it opts in below.
+      - PASSIVE: ignores the player entirely -- no detection, no
+        chasing, not even at melee range -- until the player actually
+        lands a hit (see Monster.provoke(), called from take_damage()).
+        A myconid grove or centaur band the player can walk straight
+        past, or straight up to, without a fight starting on its own.
+      - NEUTRAL: behaves identically to PASSIVE for now (ignores thea
+        player until struck). Kept as its own value, rather than
+        reusing PASSIVE, so content can label "wary but not fleeing"
+        wildlife distinctly from "doesn't even notice you" wildlife --
+        and so a future refinement (e.g. neutral creatures backing away
+        if the player lingers adjacent) has somewhere to hang that
+        behavior without another new attribute.
+
+    Set directly on an already-constructed monster (e.g.
+    Game._spawn_world_encounter_passive_creatures() sets this right
+    after spawning) rather than threaded through every subclass's
+    __init__ -- a monster's *type* doesn't imply its disposition, since
+    the same Centaur could be spawned hostile in one encounter and
+    passive in another.
+    """
+    AGGRESSIVE = "aggressive"
+    PASSIVE = "passive"
+    NEUTRAL = "neutral"
+
+
 # --- MONSTER GROUP DEFINITIONS ---
 MONSTER_GROUPS = {
     # Paired/Pack Monsters
@@ -88,6 +124,20 @@ MONSTER_GROUPS = {
 }
 
 class Monster:
+    # Whether Game.spawn_overworld_monster_groups() should spawn this type
+    # with Disposition.PASSIVE instead of the AGGRESSIVE every monster
+    # keeps by default -- wildlife/wandering bands (see Centaur,
+    # CentaurArcher, MyconidSprout below) the player can walk past, or up
+    # to, without a fight starting on its own, the same disposition
+    # Myconid_Grove.json/Centaur_Crossing.json's world-encounter versions
+    # of these creatures already model, just encountered directly on the
+    # map instead of through a discovery menu. A class attribute (not an
+    # instance one) since it describes the *type*, not any one spawn --
+    # overridden per-subclass below; Monster.provoke() still permanently
+    # flips an individual instance to AGGRESSIVE the moment it's actually
+    # struck, regardless of this flag.
+    spawns_passive_in_overworld = False
+
     def __init__(self, x, y, char, name, color):
         self.x = x
         self.y = y
@@ -110,6 +160,15 @@ class Monster:
 
         self.is_active = False
         self.sleep_cooldown = 0        
+
+        # How this monster is inclined to treat the player before anything
+        # has happened between them yet -- see the Disposition docstring
+        # near the top of this file. Defaults to AGGRESSIVE (every monster's
+        # behavior before this existed); a spawn site (e.g. Game.spawn_
+        # overworld_monster_groups()'s OVERWORLD_PASSIVE_MONSTER_TYPES) sets
+        # this to PASSIVE/NEUTRAL directly on the instance afterward, since
+        # a monster's *type* doesn't imply its disposition. See provoke().
+        self.disposition = Disposition.AGGRESSIVE
 
         # Set by world encounters when the player successfully sneaks up on a
         # group (see Game._spawn_world_encounter_monsters): every monster in
@@ -763,6 +822,26 @@ class Monster:
             game.floating_texts.append(miss_text)
 
 
+    def provoke(self, game_instance=None):
+        """
+        Force this monster into AGGRESSIVE disposition, permanently, and
+        wake it if it wasn't already active. Called from take_damage() so
+        a PASSIVE/NEUTRAL creature (see the Disposition docstring near the
+        top of this file) that was ignoring the player starts fighting
+        back the instant it takes a hit -- from the player or from
+        anything else that can call take_damage() (a stray fire tile, a
+        summoned ally), not just a deliberate melee attack -- exactly like
+        Myconid_Grove.json/Centaur_Crossing.json's world-encounter
+        versions of the same creatures never offer a way to fight after
+        choosing to walk away peacefully. A no-op disposition-wise (aside
+        from the wake-up) if the monster was already AGGRESSIVE.
+        """
+        was_provoked = self.disposition != Disposition.AGGRESSIVE
+        self.disposition = Disposition.AGGRESSIVE
+        self.is_active = True
+        if was_provoked and game_instance:
+            game_instance.message_log.add_message(f"The {self.name} turns on you!", (255, 100, 100))
+
     def take_damage(self, amount, game_instance=None, damage_type=None):
         """Handle taking damage and return actual damage taken"""
         # A sleeping monster that gets hit rouses its whole ambush group at
@@ -776,7 +855,7 @@ class Monster:
                 game_instance.message_log.add_message(
                     "The rest spring awake at the commotion!", (255, 150, 100)
                 )
-        self.is_active = True
+        self.provoke(game_instance)
 
         damage_taken = amount 
         self.hp -= damage_taken
@@ -1046,6 +1125,19 @@ class Monster:
 
         self.process_status_effects(game)
         if not self.alive:
+            return
+
+        # PASSIVE/NEUTRAL monsters (see the Disposition docstring near the
+        # top of this file) never detect, target, or chase anything on
+        # their own -- they just stand/wander undisturbed until provoke()
+        # (called from take_damage() the instant they're hit) permanently
+        # flips them to AGGRESSIVE, at which point this check stops
+        # short-circuiting and every turn from then on runs the normal AI
+        # below exactly like any other monster. Status effects above still
+        # process regardless (a passive creature that wandered onto a fire
+        # tile still burns), since disposition only governs whether *this*
+        # monster initiates anything against the player.
+        if self.disposition != Disposition.AGGRESSIVE:
             return
 
         # Check for player's summoned entities and prioritize attacking them.
@@ -1842,6 +1934,8 @@ class Orc(Monster):
         }
 
 class Centaur(Monster):
+    spawns_passive_in_overworld = True
+
     def __init__(self, x, y):
         super().__init__(x, y, 'CE', 'Centaur', (139, 69, 19))
         self.hp = 45
@@ -1871,6 +1965,8 @@ class Centaur(Monster):
         }        
 
 class CentaurArcher(Monster):
+    spawns_passive_in_overworld = True
+
     def __init__(self, x, y):
         super().__init__(x, y, 'CA', 'Centaur Archer', (160, 82, 45))
         self.hp = 45
@@ -2449,6 +2545,8 @@ class DeathSlaad(Monster):
         }
 
 class MyconidSprout(Monster):
+    spawns_passive_in_overworld = True
+
     def __init__(self, x, y):
         super().__init__(x, y, 'MS', 'Myconid Sprout', (120, 200, 120))
 

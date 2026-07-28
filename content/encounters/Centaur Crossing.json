@@ -1,0 +1,43 @@
+{
+  "id": "world_encounter_centaur_crossing",
+
+  "stages": [
+    {
+      "discovery": "A band of centaurs blocks the trail ahead, spears grounded but ready, watching you approach with unreadable, level stares. This stretch of woodland is theirs, and they know it.",
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Offer a Toll",
+          "description": "Pay 15 gold for safe passage",
+          "color": [255, 200, 140],
+          "outcome": "You hold out the gold. A broad-shouldered centaur takes it without a word, then steps aside, and the rest of the band parts to let you through.",
+          "consequences": [
+            { "type": "reward_gold", "amount": -15 },
+            { "type": "reward_xp", "amount": 10 }
+          ]
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Ask for Passage",
+          "description": "Speak plainly and hope for goodwill",
+          "color": [160, 200, 255],
+          "outcome": "The lead centaur studies you a long moment before dipping her spear in a slow nod. \"Walk quickly, and walk light,\" she says, and the band lets you through.",
+          "consequences": [
+            { "type": "reward_xp", "amount": 5 }
+          ]
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Turn Back",
+          "description": "ESC also cancels - find another way around",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ],
+      "ignore": "You turn back and find a longer path around the centaurs' woodland, leaving the crossing to them."
+    }
+  ]
+}

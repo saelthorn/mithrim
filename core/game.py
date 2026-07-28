@@ -355,7 +355,7 @@ from entities.monster import (
     Owlbear, Demogorgon, Grick, GibberingMouther, MindFlayer, Minotaur,
     Wererat, Wolf, Yochlol, Drider, RedSlaad, DeathSlaad, MyconidSprout,
     MyconidAdult, Mezzoloth, Gauth, Arasta, AlphaGrick, IntellectDevourer, 
-    Imp, Wraith, TombTapper, Cultist
+    Imp, Wraith, TombTapper, Cultist, Disposition
 
 )
 
@@ -887,6 +887,12 @@ class Game:
         primary monster roll into a compatible pack, but instead of a single
         dungeon room, each group clusters around its own randomly chosen
         anchor point scattered across the open chunk.
+
+        A pack member whose class has Monster.spawns_passive_in_overworld
+        set (see Centaur/CentaurArcher/MyconidSprout in entities/monster.py)
+        spawns with Disposition.PASSIVE rather than the AGGRESSIVE every
+        other monster keeps by default -- see that attribute and Monster.
+        provoke() in entities/monster.py.
         """
         from entities.monster import MONSTER_GROUPS
 
@@ -937,7 +943,10 @@ class Game:
                 monster_class = globals().get(monster_type_name, primary_monster_class)
                 spawn_x, spawn_y = random.choice(valid_positions)
                 valid_positions.remove((spawn_x, spawn_y))
-                spawned.append(monster_class(spawn_x, spawn_y))
+                monster = monster_class(spawn_x, spawn_y)
+                if monster_class.spawns_passive_in_overworld:
+                    monster.disposition = Disposition.PASSIVE
+                spawned.append(monster)
 
         return spawned
 
@@ -948,7 +957,7 @@ class Game:
     # whichever choices the triggered scenario's own JSON declares (see
     # "choices" in Bandit_Ambush.json and _normalize_world_encounter_
     # choices()) before finding out what's actually going on.
-    WORLD_ENCOUNTER_CHANCE = 0.02           # Rolled once per step taken in the overworld
+    WORLD_ENCOUNTER_CHANCE = 0.01           # Rolled once per step taken in the overworld
     WORLD_ENCOUNTER_COOLDOWN_STEPS = 60     # Minimum steps before another can trigger
     WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
     WORLD_ENCOUNTER_MIN_ENTITY_DISTANCE = 8  # Skip the roll if another live entity is already this close
@@ -1009,6 +1018,7 @@ class Game:
         "Lizardfolk": Lizardfolk,
         "LizardfolkArcher": LizardfolkArcher,
         "Wererat": Wererat,
+        "Troll": Troll,
     }
 
     # A world encounter's JSON may declare a "landmark_tile" (e.g.

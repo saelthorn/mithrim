@@ -1,0 +1,72 @@
+{
+  "id": "world_encounter_rat_cabin",
+
+  "stages": [
+    {
+      "discovery": "A leaning cabin sits back from the road, its door hanging ajar. A steady scratching and squeaking carries from inside - something has moved in since the last tenant left.",
+      "landmark_structure": "small_cabin",
+      "choices": [
+        {
+          "key": 1,
+          "action": "advance",
+          "label": "Push the Door Open",
+          "description": "Go in and see what's nesting there",
+          "color": [255, 160, 100]
+        },
+        {
+          "key": 2,
+          "action": "advance",
+          "label": "Peer Through the Window",
+          "description": "Take a look before committing",
+          "color": [160, 200, 255],
+          "outcome": "Through the grimy glass you count several oversized rats tearing through what's left of the pantry."
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Leave It",
+          "description": "ESC also cancels - not worth the bother",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ],
+      "ignore": "You leave the cabin and its new tenants to themselves and continue down the road."
+    },
+    {
+      "discovery": "Inside, the floorboards are gnawed through and the pantry is in ruins. A nest of giant rats scatters at the sound of your footsteps, then turns to bare its teeth.",
+      "monster_pool": ["GiantRat", "GiantRat", "GiantRat"],
+      "monster_count": [3, 6],
+      "sneak_dc": 9,
+      "sneak_success": "You keep to the doorway and count the nest without waking it, then back out the way you came.",
+      "sneak_fail": "A floorboard creaks underfoot and the whole nest turns on you at once.",
+      "ignore": "You back out of the cabin and leave the rats to their ruined pantry.",
+      "choices": [
+        {
+          "key": 1,
+          "action": "investigate",
+          "label": "Investigate",
+          "description": "Wade in and clear the nest",
+          "color": [255, 160, 100]
+        },
+        {
+          "key": 2,
+          "action": "sneak",
+          "label": "Sneak Around",
+          "description": "Try to get a look without disturbing them",
+          "color": [160, 200, 255]
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Leave It",
+          "description": "ESC also cancels - just back out",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ]
+    }
+  ],
+
+  "reward_xp": 20,
+  "reward_gold": 5
+}

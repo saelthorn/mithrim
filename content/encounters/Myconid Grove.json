@@ -1,0 +1,43 @@
+{
+  "id": "world_encounter_myconid_grove",
+
+  "stages": [
+    {
+      "discovery": "A ring of pale, faintly glowing mushroom-folk stand motionless among the toadstools, swaying gently though there's no wind. They seem to be watching you without eyes.",
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Offer a Gift",
+          "description": "Leave a bit of food among the ring",
+          "color": [255, 200, 140],
+          "outcome": "You set a heel of bread at the ring's edge. The myconids sway toward it, and a soft cloud of luminous spores drifts your way, leaving you strangely at ease.",
+          "consequences": [
+            { "type": "reward_xp", "amount": 15 }
+          ]
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Stand Quietly Among Them",
+          "description": "Just watch, and let them watch back",
+          "color": [160, 200, 255],
+          "outcome": "You stand still until the swaying settles into a slow, unified rhythm you find yourself falling into without meaning to. After a while, you walk on undisturbed.",
+          "consequences": [
+            { "type": "reward_xp", "amount": 5 }
+          ]
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Move On",
+          "description": "ESC also cancels - leave the grove undisturbed",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You give the ring a wide berth and continue on your way.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}
