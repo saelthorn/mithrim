@@ -4,6 +4,9 @@
   "stages": [
     {
       "discovery": "A band of centaurs blocks the trail ahead, spears grounded but ready, watching you approach with unreadable, level stares. This stretch of woodland is theirs, and they know it.",
+      "monster_pool": ["Centaur", "CentaurArcher"],
+      "monster_count": [3, 5],
+      "investigate_message": "You step past the leveled spears and walk right up to them, empty-handed.",
       "choices": [
         {
           "key": 1,
@@ -30,6 +33,13 @@
         },
         {
           "key": 3,
+          "action": "investigate",
+          "label": "Approach the Band",
+          "description": "Walk up and see them for yourself",
+          "color": [200, 160, 255]
+        },
+        {
+          "key": 4,
           "action": "ignore",
           "label": "Turn Back",
           "description": "ESC also cancels - find another way around",
@@ -39,5 +49,8 @@
       ],
       "ignore": "You turn back and find a longer path around the centaurs' woodland, leaving the crossing to them."
     }
-  ]
+  ],
+
+  "reward_xp": 60,
+  "reward_gold": 15
 }

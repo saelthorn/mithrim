@@ -56,7 +56,7 @@ class Disposition(Enum):
         lands a hit (see Monster.provoke(), called from take_damage()).
         A myconid grove or centaur band the player can walk straight
         past, or straight up to, without a fight starting on its own.
-      - NEUTRAL: behaves identically to PASSIVE for now (ignores thea
+      - NEUTRAL: behaves identically to PASSIVE for now (ignores the
         player until struck). Kept as its own value, rather than
         reusing PASSIVE, so content can label "wary but not fleeing"
         wildlife distinctly from "doesn't even notice you" wildlife --
@@ -124,20 +124,6 @@ MONSTER_GROUPS = {
 }
 
 class Monster:
-    # Whether Game.spawn_overworld_monster_groups() should spawn this type
-    # with Disposition.PASSIVE instead of the AGGRESSIVE every monster
-    # keeps by default -- wildlife/wandering bands (see Centaur,
-    # CentaurArcher, MyconidSprout below) the player can walk past, or up
-    # to, without a fight starting on its own, the same disposition
-    # Myconid_Grove.json/Centaur_Crossing.json's world-encounter versions
-    # of these creatures already model, just encountered directly on the
-    # map instead of through a discovery menu. A class attribute (not an
-    # instance one) since it describes the *type*, not any one spawn --
-    # overridden per-subclass below; Monster.provoke() still permanently
-    # flips an individual instance to AGGRESSIVE the moment it's actually
-    # struck, regardless of this flag.
-    spawns_passive_in_overworld = False
-
     def __init__(self, x, y, char, name, color):
         self.x = x
         self.y = y
@@ -1934,8 +1920,6 @@ class Orc(Monster):
         }
 
 class Centaur(Monster):
-    spawns_passive_in_overworld = True
-
     def __init__(self, x, y):
         super().__init__(x, y, 'CE', 'Centaur', (139, 69, 19))
         self.hp = 45
@@ -1964,9 +1948,15 @@ class Centaur(Monster):
             "CHA": False,
         }        
 
-class CentaurArcher(Monster):
-    spawns_passive_in_overworld = True
+        # Territorial, not hostile on sight -- see the Disposition docstring
+        # near the top of this file and Monster.provoke(). The player can
+        # walk right up to a centaur band without a fight starting; landing
+        # a hit on one (from the player or anything else) permanently flips
+        # it, and every centaur it shares an encounter_group/pack with, to
+        # AGGRESSIVE from then on.
+        self.disposition = Disposition.PASSIVE
 
+class CentaurArcher(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'CA', 'Centaur Archer', (160, 82, 45))
         self.hp = 45
@@ -2003,6 +1993,9 @@ class CentaurArcher(Monster):
             "WIS": False,
             "CHA": False,
         }        
+
+        # See Centaur.__init__ above -- same territorial-not-hostile default.
+        self.disposition = Disposition.PASSIVE
 
 class Troll(Monster):
     def __init__(self, x, y):
@@ -2545,8 +2538,6 @@ class DeathSlaad(Monster):
         }
 
 class MyconidSprout(Monster):
-    spawns_passive_in_overworld = True
-
     def __init__(self, x, y):
         super().__init__(x, y, 'MS', 'Myconid Sprout', (120, 200, 120))
 
@@ -2573,6 +2564,13 @@ class MyconidSprout(Monster):
             "WIS": False,
             "CHA": False,
         }
+
+        # A grove of myconid sprouts sways and watches, but doesn't attack
+        # on sight -- see the Disposition docstring near the top of this
+        # file and Monster.provoke(). Landing a hit on one (from the player
+        # or anything else) permanently flips it, and the rest of its
+        # encounter_group/pack, to AGGRESSIVE from then on.
+        self.disposition = Disposition.PASSIVE
 
 
 class MyconidAdult(Monster):
@@ -2602,6 +2600,11 @@ class MyconidAdult(Monster):
             "WIS": True,
             "CHA": False,
         }
+
+        # See MyconidSprout.__init__ above -- same not-hostile-on-sight
+        # default, so a grove mixing sprouts and adults is uniformly
+        # peaceful until something provokes it.
+        self.disposition = Disposition.PASSIVE
 
 class Mezzoloth(Monster):
     def __init__(self, x, y):

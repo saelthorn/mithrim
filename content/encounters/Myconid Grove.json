@@ -4,6 +4,9 @@
   "stages": [
     {
       "discovery": "A ring of pale, faintly glowing mushroom-folk stand motionless among the toadstools, swaying gently though there's no wind. They seem to be watching you without eyes.",
+      "monster_pool": ["MyconidSprout", "MyconidAdult"],
+      "monster_count": [2, 4],
+      "investigate_message": "You step past the ring of mushroom caps for a closer look.",
       "choices": [
         {
           "key": 1,
@@ -29,15 +32,24 @@
         },
         {
           "key": 3,
-          "action": "resolve",
+          "action": "investigate",
+          "label": "Step Into the Ring",
+          "description": "Walk in among them for a closer look",
+          "color": [140, 220, 160]
+        },
+        {
+          "key": 4,
+          "action": "ignore",
           "label": "Move On",
           "description": "ESC also cancels - leave the grove undisturbed",
           "color": [150, 150, 150],
-          "is_cancel": true,
-          "outcome": "You give the ring a wide berth and continue on your way.",
-          "consequences": []
+          "is_cancel": true
         }
-      ]
+      ],
+      "ignore": "You give the ring a wide berth and continue on your way."
     }
-  ]
+  ],
+
+  "reward_xp": 40,
+  "reward_gold": 10
 }

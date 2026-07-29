@@ -355,7 +355,7 @@ from entities.monster import (
     Owlbear, Demogorgon, Grick, GibberingMouther, MindFlayer, Minotaur,
     Wererat, Wolf, Yochlol, Drider, RedSlaad, DeathSlaad, MyconidSprout,
     MyconidAdult, Mezzoloth, Gauth, Arasta, AlphaGrick, IntellectDevourer, 
-    Imp, Wraith, TombTapper, Cultist, Disposition
+    Imp, Wraith, TombTapper, Cultist
 
 )
 
@@ -887,12 +887,6 @@ class Game:
         primary monster roll into a compatible pack, but instead of a single
         dungeon room, each group clusters around its own randomly chosen
         anchor point scattered across the open chunk.
-
-        A pack member whose class has Monster.spawns_passive_in_overworld
-        set (see Centaur/CentaurArcher/MyconidSprout in entities/monster.py)
-        spawns with Disposition.PASSIVE rather than the AGGRESSIVE every
-        other monster keeps by default -- see that attribute and Monster.
-        provoke() in entities/monster.py.
         """
         from entities.monster import MONSTER_GROUPS
 
@@ -943,10 +937,7 @@ class Game:
                 monster_class = globals().get(monster_type_name, primary_monster_class)
                 spawn_x, spawn_y = random.choice(valid_positions)
                 valid_positions.remove((spawn_x, spawn_y))
-                monster = monster_class(spawn_x, spawn_y)
-                if monster_class.spawns_passive_in_overworld:
-                    monster.disposition = Disposition.PASSIVE
-                spawned.append(monster)
+                spawned.append(monster_class(spawn_x, spawn_y))
 
         return spawned
 
@@ -957,7 +948,7 @@ class Game:
     # whichever choices the triggered scenario's own JSON declares (see
     # "choices" in Bandit_Ambush.json and _normalize_world_encounter_
     # choices()) before finding out what's actually going on.
-    WORLD_ENCOUNTER_CHANCE = 0.01           # Rolled once per step taken in the overworld
+    WORLD_ENCOUNTER_CHANCE = 0.02           # Rolled once per step taken in the overworld
     WORLD_ENCOUNTER_COOLDOWN_STEPS = 60     # Minimum steps before another can trigger
     WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
     WORLD_ENCOUNTER_MIN_ENTITY_DISTANCE = 8  # Skip the roll if another live entity is already this close
@@ -981,7 +972,7 @@ class Game:
     # past the floor rather than on the exact same step every time. See
     # _maybe_advance_world_encounter_stage().
     WORLD_ENCOUNTER_STAGE_ADVANCE_MIN_STEPS = 5
-    WORLD_ENCOUNTER_STAGE_ADVANCE_CHANCE = 0.15
+    WORLD_ENCOUNTER_STAGE_ADVANCE_CHANCE = 0.20
 
     WORLD_ENCOUNTER_HOOKS = [
         "You hear screams ahead.",
@@ -1019,6 +1010,10 @@ class Game:
         "LizardfolkArcher": LizardfolkArcher,
         "Wererat": Wererat,
         "Troll": Troll,
+        "Centaur": Centaur,
+        "CentaurArcher": CentaurArcher,
+        "MyconidSprout": MyconidSprout,
+        "MyconidAdult": MyconidAdult,
     }
 
     # A world encounter's JSON may declare a "landmark_tile" (e.g.
@@ -1130,7 +1125,7 @@ class Game:
     WORLD_ENCOUNTER_STAGE_FIELDS = (
         "discovery", "landmark_tile", "landmark_tile_amount", "landmark_structure",
         "monster_pool", "monster_count", "choices", "sneak_dc", "sneak_success",
-        "sneak_fail", "ignore",
+        "sneak_fail", "ignore", "investigate_message",
     )
 
     # Fallback menu for any world-encounter JSON that doesn't declare its
@@ -1321,6 +1316,14 @@ class Game:
             "sneak_success": stage_data.get("sneak_success", ""),
             "sneak_fail": stage_data.get("sneak_fail", ""),
             "ignore": stage_data.get("ignore", ""),
+            # Logged by _resolve_world_encounter_investigate() once its
+            # monster_pool is spawned. Defaults to the line every combat
+            # stage used unconditionally before this field existed, so
+            # only a stage that actually wants different flavor (e.g. one
+            # spawning PASSIVE wildlife -- see Disposition in entities/
+            # monster.py -- that the player is walking up to, not attacking)
+            # needs to set it.
+            "investigate_message": stage_data.get("investigate_message", "You step in to help, weapon drawn!"),
             "choices": self._normalize_world_encounter_choices(stage_data.get("choices"), source),
         }
 
@@ -2452,7 +2455,7 @@ class Game:
         stage = self._current_world_encounter_stage()
         spawned = self._spawn_world_encounter_monsters(scenario, stage)
         if spawned:
-            self.message_log.add_message("You step in to help, weapon drawn!", (255, 150, 100))
+            self.message_log.add_message(stage["investigate_message"], (255, 150, 100))
         self.game_state = GameState.OVERWORLD
         self._world_encounter_target = None
         self._world_encounter_story_id = None
