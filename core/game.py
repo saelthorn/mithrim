@@ -3,6 +3,7 @@ import random
 import config
 import math 
 import json
+import uuid
 import tracemalloc      # Lifesaver
 from pathlib import Path
 from enum import Enum
@@ -927,6 +928,12 @@ class Game:
             min_spawn, max_spawn = (1, 4) if len(compatible_types) > 1 else (1, 2)
             num_to_spawn = random.randint(min_spawn, max_spawn)
 
+            # Shared by every monster spawned around this anchor -- see
+            # Monster.group_id/provoke(): attacking one PASSIVE/NEUTRAL
+            # member of the cluster (a centaur band, a myconid grove, ...)
+            # alerts the rest of it at the same time.
+            group_id = f"overworld_pack:{uuid.uuid4().hex[:8]}"
+
             for _ in range(num_to_spawn):
                 if not valid_positions:
                     break
@@ -937,7 +944,9 @@ class Game:
                 monster_class = globals().get(monster_type_name, primary_monster_class)
                 spawn_x, spawn_y = random.choice(valid_positions)
                 valid_positions.remove((spawn_x, spawn_y))
-                spawned.append(monster_class(spawn_x, spawn_y))
+                monster = monster_class(spawn_x, spawn_y)
+                monster.group_id = group_id
+                spawned.append(monster)
 
         return spawned
 
@@ -5746,7 +5755,12 @@ class Game:
         min_spawn = 1
         max_spawn = 4 if len(compatible_types) > 1 else 2  # Solo monsters spawn 1-2, packs 1-4
         num_to_spawn = random.randint(min_spawn, max_spawn)
-        
+
+        # Shared by every monster spawned into this room -- see
+        # Monster.group_id/provoke(): attacking one PASSIVE/NEUTRAL member
+        # of the pack alerts the rest of it at the same time.
+        group_id = f"dungeon_pack:{uuid.uuid4().hex[:8]}"
+
         # Find all valid spawn positions within the room
         valid_positions = []
         for y in range(room.y1 + 1, room.y2):
@@ -5783,6 +5797,7 @@ class Game:
             
             # Create and add the monster
             monster = monster_class(spawn_x, spawn_y)
+            monster.group_id = group_id
             self.entities.append(monster)
             spawned_count += 1
         

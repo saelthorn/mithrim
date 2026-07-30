@@ -60,6 +60,12 @@ bar_counter_two = Tile(blocked=True, char='I', color=(160, 82, 45), block_sight=
 bar_counter_three = Tile(blocked=True, char='7', color=(160, 82, 45), block_sight=False, name="Bar Counter Three")
 bar_counter_four = Tile(blocked=True, char='|', color=(160, 82, 45), block_sight=False, name="Bar Counter Four")
 
+forge = Tile(blocked=True, char='fg', color=(128, 128, 128), name="Forge")
+anvil = Tile(blocked=True, char='7', color=(128, 128, 128), name="Anvil")
+shelf = Tile(blocked=True, char='5', color=(139, 69, 19), name="Shelf")
+bed = Tile(blocked=True, char='--', color=(139, 69, 19), name="Bed")
+hay = Tile(blocked=True, char='hy', color=(139, 69, 19), name="Hay")
+
 # Overworld tile templates (used by world_generator.py)
 road = Tile(blocked=False, char='rd', color=(128, 128, 128), name="Road")
 ground = Tile(blocked=False, char='grd', color=(20, 100, 20), name="Ground")

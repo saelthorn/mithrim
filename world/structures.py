@@ -2,7 +2,10 @@ from dataclasses import dataclass, field
 import random
 
 from entities.base_entity import NPC
-from world.tile import ground, grass, road, tall_grass, wall, tavern_floor, floor, bar_counter_two, bar_counter_three, bar_counter_four, table, crate, tavern_barrel_two, altar, door
+from world.tile import (
+    ground, grass, road, tall_grass, wall, tavern_floor, floor, bar_counter_two, bar_counter_three, bar_counter_four, 
+    table, crate, tavern_barrel_two, altar, door, forge, anvil, shelf, bed, hay, bar_counter
+)
 
 from core.game import GameState
 from items.items import (
@@ -135,6 +138,28 @@ class Townsfolk(TownNPC):
             "Every town around here has a story about someone who went missing.",
         ]
         super().__init__(x, y, 'p', name or random.choice(TOWNSFOLK_NAMES), (205, 205, 185), dialogue)
+
+
+class Blacksmith(TownNPC):
+    def __init__(self, x, y, name):
+        dialogue = [
+            "I am still unpacking the shelves, but I know a good buyer when I see one.",
+            "Bring back anything odd from the ruins. Odd things sell.",
+            "A careful blade and a dry torch are worth more than bravado.",            
+        ]
+        super().__init__(x, y, 'p', name or random.choice(TOWNSFOLK_NAMES), (205, 205, 185), dialogue)
+
+
+class Priest(TownNPC):
+    def __init__(self, x, y, name=None):
+        dialogue = [
+            "Roads have been busier since the old entrances opened again.",
+            "Mind the wilds after dusk. The grass gets quiet before trouble.",
+            "If you are heading below, make sure you have food and light.",
+            "Every town around here has a story about someone who went missing.",
+        ]
+        super().__init__(x, y, 'p', name or random.choice(TOWNSFOLK_NAMES), (205, 205, 185), dialogue)
+
 
 
 class Innkeeper(TownNPC):
@@ -398,6 +423,11 @@ def _spawn_shopkeeper(x, y):
 def _spawn_villager(x, y):
     return Townsfolk(x, y)
 
+def _spawn_blacksmith(x, y):
+    return 
+
+def _spawn_priest(x, y):
+    return Priest(x, y)
 
 STRUCTURE_BLUEPRINTS = {
     "witch_hut": build_blueprint(
@@ -522,6 +552,82 @@ STRUCTURE_BLUEPRINTS = {
         description="A modest family home.",
         npc_map={"V": _spawn_villager},
     ),
+
+    "blacksmith": build_blueprint(
+        # SQUARE + CHIMNEY: compact square with a stack poking out the roofline
+        "blacksmith",
+        "Blacksmith",
+        [
+            "   ##     ",
+            " #######  ",
+            " +.....#  ",
+            " #..F..#  ",
+            " #.N.B.#  ",
+            " #s....#  ",
+            " #######  ",
+            "          ",
+        ],
+        {"#": wall, ".": floor, "B": floor, "F": forge, "N": anvil, "s": shelf, "+": door},
+        walkable_chars={".", "B", "+"},
+        description="A soot-stained smithy, its chimney visible over the rooftops.",
+        npc_map={"B": _spawn_blacksmith},
+    ),
+
+    "general_store": build_blueprint(
+        # WIDE RECTANGLE: long, low shopfront -- unmistakably squat compared to everything else
+        "general_store",
+        "General Store",
+        [
+            "              ",
+            " ############ ",
+            " +..........# ",
+            " #.s..M..s..# ",
+            " #.s..K.p...# ",
+            " ######+##### ",
+        ],
+        {"#": wall, ".": floor, "s": shelf, "M": bar_counter, "K": floor, "p": floor, "+": door},
+        walkable_chars={".", "K", "p", "+"},
+        description="A cramped general store selling a bit of everything.",
+        npc_map={"K": _spawn_shopkeeper, "p": _spawn_villager},
+    ),
+
+    "house": build_blueprint(
+        # SMALL SQUARE: deliberately the plainest, smallest footprint -- reads as "just a house"
+        "house",
+        "House",
+        [
+            "        ",
+            " ###### ",
+            " +....# ",
+            " #Vb..# ",
+            " #.b.t# ",
+            " ###### ",
+            "        ",
+        ],
+        {"#": wall, ".": floor, "b": bed, "t": table, "V": floor, "+": door},
+        walkable_chars={".", "V", "+"},
+        description="A modest villager's home.",
+        npc_map={"V": _spawn_villager},
+    ),
+
+    "stable": build_blueprint(
+        # LONG BARN: very elongated and short -- the most stretched-out silhouette on the map
+        "stable",
+        "Stable",
+        [
+            "                ",
+            " ############## ",
+            " +............# ",
+            " #h.h.h.h.h.h.# ",
+            " ############## ",
+            "                ",
+        ],
+        {"#": wall, ".": floor, "h": hay, "+": door},
+        walkable_chars={".", "+"},
+        description="A drafty stable smelling of hay and horses.",
+        npc_map={},
+    ),
+
 }
 
 

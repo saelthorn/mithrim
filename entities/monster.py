@@ -162,6 +162,15 @@ class Monster:
         # below) wakes the rest of the group at the same time.
         self.encounter_group = None
 
+        # Shared id tagging every monster spawned together as one pack --
+        # a world-encounter ambush (Game._spawn_world_encounter_monsters),
+        # an overworld wildlife cluster (Game.spawn_overworld_monster_groups),
+        # or a dungeon room's pack (Game.spawn_monster_group). None means
+        # "not part of a tagged group" (a lone spawn). See provoke(): landing
+        # a hit on one PASSIVE/NEUTRAL member of a group turns the whole
+        # group AGGRESSIVE at once, not just the monster actually struck.
+        self.group_id = None
+
         self.patrol_radius = 12
         self.investigate_turns_left = 4  # Turns left to investigate
         self.investigate_search_radius = 3  # Radius around last known position to search
@@ -821,12 +830,51 @@ class Monster:
         versions of the same creatures never offer a way to fight after
         choosing to walk away peacefully. A no-op disposition-wise (aside
         from the wake-up) if the monster was already AGGRESSIVE.
+
+        The first time this actually flips the disposition, it also
+        alerts the rest of this monster's group (see `group_id`) -- a
+        centaur band or myconid grove fights as one the instant any single
+        member is struck, not just the one that got hit.
         """
         was_provoked = self.disposition != Disposition.AGGRESSIVE
         self.disposition = Disposition.AGGRESSIVE
         self.is_active = True
         if was_provoked and game_instance:
             game_instance.message_log.add_message(f"The {self.name} turns on you!", (255, 100, 100))
+            self._alert_group(game_instance)
+
+    def _alert_group(self, game_instance):
+        """
+        Turn every other living monster sharing this one's `group_id`
+        AGGRESSIVE too, so attacking one member of a spawned pack (see
+        `group_id`'s docstring in __init__) brings the whole group into
+        the fight at once instead of picking its members off one at a
+        time while the rest look on. Only reached from provoke() the
+        instant *this* monster is the one flipping from non-aggressive,
+        so a group alert only ever fires once per fight, not once per hit.
+        """
+        if not self.group_id:
+            return
+
+        alerted_any = False
+        for entity in getattr(game_instance, "entities", ()):
+            if entity is self or not isinstance(entity, Monster):
+                continue
+            if not entity.alive or entity.group_id != self.group_id:
+                continue
+            if entity.disposition == Disposition.AGGRESSIVE:
+                continue
+
+            entity.disposition = Disposition.AGGRESSIVE
+            entity.is_active = True
+            entity.last_known_player_position = self.last_known_player_position
+            entity.ai_state = AI_State.CHASING
+            alerted_any = True
+
+        if alerted_any:
+            game_instance.message_log.add_message(
+                "The rest of the group turns hostile!", (255, 100, 100)
+            )
 
     def take_damage(self, amount, game_instance=None, damage_type=None):
         """Handle taking damage and return actual damage taken"""
@@ -2056,6 +2104,8 @@ class Lizardfolk(Monster):
             "CHA": False,
         }        
 
+        self.disposition = Disposition.PASSIVE
+
 class LizardfolkArcher(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'LA', 'Lizardfolk Archer', (60, 179, 113))
@@ -2089,6 +2139,9 @@ class LizardfolkArcher(Monster):
             "WIS": False,
             "CHA": False,
         }
+
+        self.disposition = Disposition.PASSIVE
+                
 
 class GiantSpider(Monster):
     def __init__(self, x, y):
