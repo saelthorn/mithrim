@@ -971,6 +971,19 @@ class Game:
     WORLD_ENCOUNTER_STRUCTURE_GAP = 2
     WORLD_ENCOUNTER_STRUCTURE_JITTER = 3
 
+    # How far off the player a landmark_structure gets anchored (see
+    # _world_encounter_structure_anchor()) -- Chebyshev distance, matching
+    # this project's diagonal-adjacency convention (max(|dx|, |dy|), not
+    # Manhattan). A single building only needs to clear
+    # WORLD_ENCOUNTER_STRUCTURE_MIN_DISTANCE; a multi-building cluster
+    # (e.g. Undead_Siege.json's tavern-plus-houses) anchors further out
+    # still, since _world_encounter_next_cluster_anchor() spreads later
+    # buildings outward from the first one in a random direction and
+    # could otherwise drift a house back toward the player.
+    WORLD_ENCOUNTER_STRUCTURE_MIN_DISTANCE = 6
+    WORLD_ENCOUNTER_STRUCTURE_CLUSTER_MIN_DISTANCE = 8
+    WORLD_ENCOUNTER_STRUCTURE_SEARCH_RADIUS = 12
+
     # An "advance" choice (see WORLD_ENCOUNTER_ACTIONS/_resolve_world_encounter_
     # advance()) doesn't reveal a staged scenario's next beat instantly -- the
     # player has to actually walk there. WORLD_ENCOUNTER_STAGE_ADVANCE_MIN_STEPS
@@ -1915,11 +1928,12 @@ class Game:
         WORLD_ENCOUNTER_TILE_TYPES's docstring above it, e.g.
         Roadside_Shrine.json's single "shrine", or Undead_Siege.json's
         multi-building ["tavern", "house", "house"]) as one or more
-        full multi-tile buildings from structures.py, anchored a few
-        tiles off the player's current position -- see
-        _world_encounter_structure_anchor(), which picks that nearby
-        point so the footprint search can't land directly on top of the
-        player.
+        full multi-tile buildings from structures.py, anchored well off
+        the player's current position -- see
+        _world_encounter_structure_anchor(), which picks that distant
+        point (further still for a multi-building cluster) so the
+        footprint search reads as something discovered nearby rather
+        than dropped on top of the player.
 
         Called once per stage, from _enter_world_encounter_stage(), not
         from _spawn_world_encounter_monsters() like the monsters/victims
@@ -1932,7 +1946,7 @@ class Game:
         if not structure_ids:
             return
 
-        anchor_x, anchor_y = self._world_encounter_structure_anchor()
+        anchor_x, anchor_y = self._world_encounter_structure_anchor(cluster_size=len(structure_ids))
         self._place_world_encounter_structure_cluster(structure_ids, anchor_x, anchor_y)
 
     def _place_world_encounter_structure_cluster(self, structure_ids, anchor_x, anchor_y):
@@ -2104,30 +2118,71 @@ class Game:
         _enter_world_encounter_stage()/self._world_encounter_stage_index."""
         return self._world_encounter_target["stages"][self._world_encounter_stage_index]
 
-    def _world_encounter_structure_anchor(self):
+    def _world_encounter_structure_anchor(self, cluster_size=1):
         """
-        Pick a point a few tiles off the player's own position to anchor
-        a landmark_structure's footprint search from.
+        Pick a point well off the player's own position to anchor a
+        landmark_structure's footprint search from -- at least
+        WORLD_ENCOUNTER_STRUCTURE_MIN_DISTANCE tiles away, or
+        WORLD_ENCOUNTER_STRUCTURE_CLUSTER_MIN_DISTANCE when `cluster_size`
+        names more than one structure (e.g. Undead_Siege.json's
+        tavern-plus-houses -- see _spawn_world_encounter_landmark_structure()).
 
         place_structure_at_anchor() only avoids blocked/unwalkable
         terrain when it searches outward for "the closest clear
-        footprint" -- it has no idea where the player is standing, so
-        anchoring directly on self.player.x/y risked the building's
-        footprint being placed right on top of (or immediately under)
-        them. Reuses _world_encounter_spawn_candidates() -- the same
-        walkable, unoccupied, non-water tiles (radius 5, excluding the
-        player's own 1-tile buffer) that monster/victim spawning already
-        draws from -- so the structure search starts far enough away
-        that its footprint can't reach back onto the player's tile.
+        footprint" -- it has no idea where the player is standing, so a
+        nearby anchor risked the building (or, for a cluster, one of the
+        later buildings _world_encounter_next_cluster_anchor() spreads
+        outward from the first) reading as though it materialized right
+        on top of the player instead of being discovered a short walk
+        away. This is deliberately a wider, further-out search than
+        _world_encounter_spawn_candidates() (which keeps monster/victim
+        spawns close, radius 5, so the opening fight is immediately at
+        hand) -- structures and monsters want opposite distances from
+        the player.
 
-        Falls back to the player's own position if no nearby candidate
-        exists (e.g. hemmed in by water/impassable terrain) rather than
-        failing to anchor the structure at all.
+        Falls back to the player's own position if nothing that far out
+        is walkable/clear (e.g. hemmed in by water/impassable terrain)
+        rather than failing to anchor the structure at all.
         """
-        candidates = self._world_encounter_spawn_candidates()
+        min_distance = (
+            self.WORLD_ENCOUNTER_STRUCTURE_CLUSTER_MIN_DISTANCE
+            if cluster_size > 1
+            else self.WORLD_ENCOUNTER_STRUCTURE_MIN_DISTANCE
+        )
+        candidates = self._world_encounter_structure_anchor_candidates(min_distance)
         if not candidates:
             return self.player.x, self.player.y
         return random.choice(candidates)
+
+    def _world_encounter_structure_anchor_candidates(self, min_distance):
+        """
+        Walkable, unoccupied, non-water overworld tiles at least
+        `min_distance` tiles (Chebyshev -- max(|dx|, |dy|), matching this
+        project's diagonal-adjacency convention rather than Manhattan)
+        from the player, out to WORLD_ENCOUNTER_STRUCTURE_SEARCH_RADIUS.
+        This is the ring _world_encounter_structure_anchor() draws its
+        anchor from -- kept separate from _world_encounter_spawn_
+        candidates() since that pool has no minimum distance and only
+        reaches out to radius 5, too close for a structure that should
+        read as discovered rather than conjured underfoot.
+        """
+        anchor_x, anchor_y = self.player.x, self.player.y
+        radius = self.WORLD_ENCOUNTER_STRUCTURE_SEARCH_RADIUS
+
+        candidates = []
+        for dy in range(-radius, radius + 1):
+            for dx in range(-radius, radius + 1):
+                if max(abs(dx), abs(dy)) < min_distance:
+                    continue  # too close -- keep the structure a walk away from the player
+                x, y = anchor_x + dx, anchor_y + dy
+                if not (0 <= x < self.game_map.width and 0 <= y < self.game_map.height):
+                    continue
+                if not self.game_map.is_walkable(x, y) or is_water_tile(self.game_map.tiles[y][x]):
+                    continue
+                if any(e.x == x and e.y == y and getattr(e, "alive", True) for e in self.entities):
+                    continue
+                candidates.append((x, y))
+        return candidates
 
     def _world_encounter_spawn_candidates(self):
         """

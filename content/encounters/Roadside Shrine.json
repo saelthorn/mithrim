@@ -9,19 +9,6 @@
         {
           "key": 1,
           "action": "resolve",
-          "label": "Leave a Donation",
-          "description": "Drop 10 gold in the offering bowl",
-          "color": [255, 200, 140],
-          "outcome": "You set ten gold in the bowl among the older offerings. For a moment, the road ahead feels a little less lonely.",
-          "consequences": [
-            { "type": "reward_gold", "amount": -10 },
-            { "type": "modify_reputation", "faction": "church", "delta": 5 },
-            { "type": "reward_xp", "amount": 10 }
-          ]
-        },
-        {
-          "key": 2,
-          "action": "resolve",
           "label": "Pay Your Respects",
           "description": "Take a quiet moment, no coin needed",
           "color": [160, 200, 255],
@@ -32,7 +19,7 @@
           ]
         },
         {
-          "key": 3,
+          "key": 2,
           "action": "resolve",
           "label": "Walk On",
           "description": "ESC also cancels - just keep walking",

@@ -2058,6 +2058,8 @@ class Troll(Monster):
         self.detection_range = 8
         self.num_damage_dice = 2
         self.is_intelligent = False
+        
+        self.footprint_size = 2
 
         self.loot_table = [
             (steel_maul, 0.85),
