@@ -38,12 +38,12 @@ class InteractionMode:
     handling in Game's event loop) -- exactly one mode is active at a time, stored on
     Game.interaction_mode.
 
-    NORMAL, STEAL, and GRAB are wired up: F1 talks to NPCs/uses landmarks (the
-    original default), F2 attempts a pickpocket (_attempt_pickpocket()), and F3
-    picks up ground loot at the player's feet (handle_item_pickup()) instead of
-    talking to whatever NPC is adjacent. F4 (INFO) is switched into but doesn't
-    yet change interaction behavior -- that comes once ambient-info logic is
-    added at the interact-key call sites.
+    NORMAL, STEAL, GRAB, and INFO are all wired up: F1 talks to NPCs/uses
+    landmarks (the original default), F2 attempts a pickpocket
+    (_attempt_pickpocket()), F3 picks up ground loot at the player's feet
+    (handle_item_pickup()) instead of talking to whatever NPC is adjacent,
+    and F4 reports the current time/location instead of interacting with
+    anything (_describe_surroundings()).
     """
     NORMAL = "normal"  # Talk to NPCs, use landmarks/torches -- today's default behavior
     STEAL = "steal"    # Attempt to pickpocket an adjacent NPC instead of talking to them
@@ -4243,6 +4243,38 @@ class Game:
 
         return True
 
+    def _describe_surroundings(self):
+        """
+        Build the F4 (InteractionMode.INFO) ambient status line: the
+        current world time plus whatever's worth knowing about the
+        player's present location -- biome and weather out in the world,
+        floor number underground, nothing special in the tavern.
+
+        Reuses the same WorldClock/period_for_hour()/get_chunk_biome()
+        lookups render()'s HUD clock readout and the biome cache already
+        use, so this line never drifts out of sync with what's actually
+        shown on screen. Purely a readout -- like that HUD text, nothing
+        here mutates game state.
+        """
+        clock = self.stories.world_time.clock
+        time_part = (
+            f"Day {clock.day}, {clock.hour_of_day:02d}:{clock.minute_of_hour:02d} "
+            f"({period_for_hour(clock.hour_of_day)})"
+        )
+
+        if self.game_state == GameState.OVERWORLD:
+            biome = self.get_chunk_biome(self.overworld_chunk_coord)
+            place_part = f"You are standing in {biome.value.title()} terrain."
+            weather = getattr(self, "weather", "clear")
+            if weather and weather != "clear":
+                place_part += f" The weather is {weather}."
+        elif self.game_state == GameState.DUNGEON:
+            place_part = f"You are on dungeon level {self.current_level}."
+        else:
+            place_part = "You take in your surroundings."
+
+        return f"{time_part} -- {place_part}"
+
     def interact_with_landmark(self, landmark):
         """
         Handle the player interacting with an adjacent story landmark:
@@ -5116,6 +5148,13 @@ class Game:
                             self.try_light_wall_torch()
                             return True  # Consume event regardless (don't fall to quick-bar)                    
 
+                        if self.interaction_mode == InteractionMode.INFO:
+                            # Location-based, not NPC-based, so this doesn't need
+                            # check_overworld_npc_interaction()/check_dungeon_npc_interaction()
+                            # at all -- one check covers both DUNGEON and OVERWORLD.
+                            self.message_log.add_message(self._describe_surroundings(), (180, 220, 255))
+                            return True
+
                         if self.game_state == GameState.OVERWORLD:
                             npc = self.check_overworld_npc_interaction()
 
@@ -5188,6 +5227,9 @@ class Game:
 
                 if self.game_state in GameState.TAVERN:
                     if event.key == pygame.K_f:  # Check if 'F' is pressed
+                        if self.interaction_mode == InteractionMode.INFO:
+                            self.message_log.add_message(self._describe_surroundings(), (180, 220, 255))
+                            return True
                         npc = self.check_npc_interaction()  # Check for adjacent NPC
                         if self.interaction_mode == InteractionMode.STEAL:
                             if npc:
