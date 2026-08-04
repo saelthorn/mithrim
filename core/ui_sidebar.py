@@ -332,12 +332,12 @@ def draw_sidebar(game) -> None:
             location_label = f"Depth  B{game.current_level}F"
         _txt(screen, fSm, location_label, _CYAN, x0, y)
         y += fSm.get_linesize() + 3
-        current_ent = game.get_current_entity()
-        if current_ent:
-            turn_color = _GRN_HI if current_ent == player else _RED_LO
-            turn_label = "Your turn" if current_ent == player else f"{current_ent.name}'s turn"
-            _txt(screen, fSm, turn_label, turn_color, x0, y)
-            y += fSm.get_linesize() + 3
+        # current_ent = game.get_current_entity()
+        # if current_ent:
+        #     turn_color = _GRN_HI if current_ent == player else _RED_LO
+        #     turn_label = "Your turn" if current_ent == player else f"{current_ent.name}'s turn"
+        #     _txt(screen, fSm, turn_label, turn_color, x0, y)
+        #     y += fSm.get_linesize() + 3
 
     # Interaction mode (F1-F4, see game.py's InteractionMode) -- shown in
     # every state that has one, tavern included, since F2/F3/F4 all work there too.
