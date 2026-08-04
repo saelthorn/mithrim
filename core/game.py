@@ -45,14 +45,14 @@ class InteractionMode:
     and F4 reports the current time/location instead of interacting with
     anything (_describe_surroundings()).
     """
-    NORMAL = "normal"  # Talk to NPCs, use landmarks/torches -- today's default behavior
+    DIALOGUE = "dialogue"  # Talk to NPCs, use landmarks/torches -- today's default behavior
     STEAL = "steal"    # Attempt to pickpocket an adjacent NPC instead of talking to them
     GRAB = "grab"      # Pick up items/loot from the ground instead of talking to NPCs
     INFO = "info"      # No world interaction -- reports ambient info about surroundings instead
 
     # Human-readable label shown in the mode-switch message and any future HUD indicator.
     LABELS = {
-        NORMAL: "Normal",
+        DIALOGUE: "Dialogue",
         STEAL: "Steal",
         GRAB: "Grab",
         INFO: "Info",
@@ -548,7 +548,7 @@ class Game:
         # InteractionMode. Switched with F1-F4; only NORMAL (the default)
         # does anything today, the others are switched into ahead of their
         # own interaction logic being added.
-        self.interaction_mode = InteractionMode.NORMAL
+        self.interaction_mode = InteractionMode.DIALOGUE
         # The last "place" the player actually stood in -- OVERWORLD or
         # DUNGEON -- independent of whatever menu (shop, chest, world
         # encounter, ...) is currently drawn on top of it. Menus overlay
@@ -5131,7 +5131,7 @@ class Game:
                     if self.game_state in (GameState.DUNGEON, GameState.OVERWORLD, GameState.TAVERN):
                         new_mode = None
                         if event.key == pygame.K_F1:
-                            new_mode = InteractionMode.NORMAL
+                            new_mode = InteractionMode.DIALOGUE
                         elif event.key == pygame.K_F2:
                             new_mode = InteractionMode.STEAL
                         elif event.key == pygame.K_F3:
@@ -5530,9 +5530,7 @@ class Game:
                         if self.game_state == GameState.DUNGEON or self.game_state == GameState.OVERWORLD:
                             # --- MODIFIED START ---
                             # Prioritize picking up items at player's feet
-                            if self.handle_item_pickup():
-                                action_taken = True                             
-                            else:
+                            if self.interaction_mode == InteractionMode.GRAB:
                                 # Check for Altar at player's position (before other interactions)
                                 altar_at_pos = self.get_altar_at(self.player.x, self.player.y)
                                 if altar_at_pos:

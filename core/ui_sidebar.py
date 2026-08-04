@@ -342,7 +342,7 @@ def draw_sidebar(game) -> None:
     # Interaction mode (F1-F4, see game.py's InteractionMode) -- shown in
     # every state that has one, tavern included, since F2/F3/F4 all work there too.
     mode_label, mode_color = _INTERACTION_MODE_STYLE.get(
-        getattr(game, "interaction_mode", "normal"), _INTERACTION_MODE_STYLE["normal"]
+        getattr(game, "interaction_mode", "dialogue"), _INTERACTION_MODE_STYLE["dialogue"]
     )
     _txt(screen, fSm, f"Interact  {mode_label}", mode_color, x0, y)
     y += fSm.get_linesize() + 3
@@ -376,7 +376,7 @@ def config_panel_w(game) -> int:
 # importing GameState -- ui_sidebar.py stays a leaf module game.py can
 # import from without a circular import back the other way.
 _INTERACTION_MODE_STYLE = {
-    "normal": ("Normal", _TEXT_NORMAL),
+    "dialogue": ("Dialogue", _TEXT_NORMAL),
     "steal":  ("Steal",  _RED_LO),
     "grab":   ("Grab",   _GOLD),
     "info":   ("Info",   _CYAN),
