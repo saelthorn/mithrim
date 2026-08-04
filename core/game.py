@@ -1246,6 +1246,20 @@ class Game:
         is dropped the same way a choice with an unknown action is;
         "advance" has no such requirement, since walking past a beat
         needn't say anything at all.
+
+        An "advance" choice may also declare "next_stage": the "id" of
+        whichever stage (see _normalize_world_encounter_stage()) it
+        should reveal next. This is what lets a scenario's choices
+        actually branch -- e.g. Spider_Nest.json's "Push Through the
+        Webbing" and "Look for a Way Around" naming two different
+        next_stage ids -- instead of every "advance" choice on a stage
+        silently funneling back to the same next entry in "stages"
+        regardless of which one the player picked. Left unset, an
+        "advance" choice falls back to that old linear "next entry in
+        the list" behavior (see _resolve_world_encounter_advance()), so
+        a scenario that never sets it keeps working exactly as before.
+        Only meaningful on "advance" -- every other action already ends
+        or fully resolves the encounter without revealing another stage.
         """
         if not choices:
             return [dict(default) for default in self.DEFAULT_WORLD_ENCOUNTER_CHOICES]
@@ -1275,6 +1289,7 @@ class Game:
                 "hours": choice.get("hours", 0),
                 "consequences": [consequence_from_dict(c) for c in choice.get("consequences", [])],
                 "escort": choice.get("escort", False),
+                "next_stage": choice.get("next_stage"),
             })
 
         return normalized or [dict(default) for default in self.DEFAULT_WORLD_ENCOUNTER_CHOICES]
@@ -1356,6 +1371,13 @@ class Game:
             self.WORLD_ENCOUNTER_MONSTER_CLASSES[name] for name in stage_data.get("monster_pool", [])
         ]
         return {
+            # Defaults to the stage's own position in "stages" (as a
+            # string) so a scenario that never names its stages keeps
+            # behaving exactly as before -- only content that wants a
+            # choice to jump somewhere other than "the next entry in the
+            # list" (see "next_stage" in _normalize_world_encounter_
+            # choices()) needs to give a stage an explicit "id".
+            "id": str(stage_data.get("id", stage_index)),
             "discovery": stage_data.get("discovery", ""),
             "landmark_tile": self._normalize_world_encounter_tile_pool(stage_data.get("landmark_tile")),
             "landmark_tile_amount": self._normalize_world_encounter_range(
@@ -1524,6 +1546,30 @@ class Game:
                 if not stages:
                     raise ValueError("scenario declares no stages")
                 data["stages"] = stages
+
+                # stage id -> index into "stages", so an "advance"
+                # choice's "next_stage" (see _normalize_world_encounter_
+                # choices()) can name where it branches to without the
+                # rest of the pipeline needing to know ids exist at all
+                # -- _resolve_world_encounter_advance() still only ever
+                # deals in plain list indices. A choice naming an id this
+                # scenario doesn't have is a content bug (a typo, or a
+                # stage renamed without updating what points to it); it's
+                # dropped back to the default "next entry in the list"
+                # behavior with a load-error message, rather than either
+                # crashing the whole file or silently going nowhere.
+                stage_index_by_id = {stage["id"]: index for index, stage in enumerate(stages)}
+                for stage in stages:
+                    for choice in stage["choices"]:
+                        next_stage_id = choice.get("next_stage")
+                        if next_stage_id is not None and next_stage_id not in stage_index_by_id:
+                            self.message_log.add_message(
+                                f"Encounter load error ({path.name}): 'advance' choice "
+                                f"{choice['label']!r} targets unknown next_stage {next_stage_id!r}",
+                                (255, 100, 100),
+                            )
+                            choice["next_stage"] = None
+                data["stage_index_by_id"] = stage_index_by_id
 
                 data["victim_count"] = tuple(data.get("victim_count", (1, 1)))
                 data["aftermath"] = self._normalize_world_encounter_aftermath(data.get("aftermath"), path.name)
@@ -2662,6 +2708,15 @@ class Game:
         the last one, this falls back to walking away (the same outcome
         "ignore" produces) instead of indexing past the end of "stages".
 
+        Which stage comes next is the choice's own "next_stage" (see
+        _normalize_world_encounter_choices()) when it names one -- this
+        is what lets different "advance" choices on the same stage lead
+        somewhere different, a real branch rather than every option
+        funneling back to the same next beat. A choice that leaves
+        "next_stage" unset keeps the old behavior of simply walking on
+        to the next entry in "stages", so linear, unbranched scenarios
+        (or every stage before a scenario's first fork) need no changes.
+
         A choice's own "outcome" line (e.g. Wolf_Pack.json's "Track
         Carefully") is shown as its own discovery prompt (see
         _show_world_encounter_discovery()) before the overworld actually
@@ -2671,7 +2726,12 @@ class Game:
         scenario = self._world_encounter_target
         self._apply_world_encounter_outcome_choice(choice)
 
-        next_index = self._world_encounter_stage_index + 1
+        next_stage_id = choice.get("next_stage")
+        if next_stage_id is not None:
+            next_index = scenario["stage_index_by_id"][next_stage_id]
+        else:
+            next_index = self._world_encounter_stage_index + 1
+
         if next_index >= len(scenario["stages"]):
             self._world_encounter_target = None
             self._world_encounter_story_id = None
