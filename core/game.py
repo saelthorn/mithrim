@@ -38,9 +38,12 @@ class InteractionMode:
     handling in Game's event loop) -- exactly one mode is active at a time, stored on
     Game.interaction_mode.
 
-    NORMAL is the only mode wired up so far: F2 (STEAL), F3 (GRAB), and F4 (INFO) are
-    switched into but don't yet change interaction behavior -- that comes later, once
-    each mode's own logic is added at the interact-key call sites.
+    NORMAL, STEAL, and GRAB are wired up: F1 talks to NPCs/uses landmarks (the
+    original default), F2 attempts a pickpocket (_attempt_pickpocket()), and F3
+    picks up ground loot at the player's feet (handle_item_pickup()) instead of
+    talking to whatever NPC is adjacent. F4 (INFO) is switched into but doesn't
+    yet change interaction behavior -- that comes once ambient-info logic is
+    added at the interact-key call sites.
     """
     NORMAL = "normal"  # Talk to NPCs, use landmarks/torches -- today's default behavior
     STEAL = "steal"    # Attempt to pickpocket an adjacent NPC instead of talking to them
@@ -529,6 +532,11 @@ class Game:
         self.companions = []
         self.bloodstains = []
         self.active_fire_tiles = []  # Tracks (x, y) positions of active FireElementalTiles
+        # Marks (by id(npc)) which NPCs have already been successfully
+        # pickpocketed this session -- see _attempt_pickpocket(), used by
+        # F2/InteractionMode.STEAL -- so a mark can't be robbed repeatedly.
+        # A failed attempt does NOT get added here; the player can try again.
+        self._pickpocketed_npc_ids = set()
         
         self._recalculate_dimensions() 
         self._init_fonts()
@@ -4167,6 +4175,74 @@ class Game:
                 return landmark
         return None
 
+    def _pickpocket_dc_for(self, npc):
+        """
+        Difficulty of the Sleight of Hand check to pick this NPC's pocket
+        (see _attempt_pickpocket()). Merchants and innkeepers handle coin
+        all day and keep half an eye on their purse; ordinary townsfolk
+        are easier marks. Falls back to that same easier DC for any NPC
+        type not called out here, rather than refusing the attempt.
+        """
+        if isinstance(npc, (Shopkeeper, Trader, DungeonMerchant, Merchant, Innkeeper)):
+            return 15
+        return 12
+
+    def _attempt_pickpocket(self, npc):
+        """
+        Resolve an F2 (InteractionMode.STEAL) interaction against an
+        adjacent NPC: a DEX (Sleight of Hand) check against a flat,
+        NPC-type-dependent DC (see _pickpocket_dc_for()). Mirrors the
+        roll/log format _resolve_world_encounter_sneak() uses for its
+        stealth check, so both read the same way in the message log.
+
+        Success grants a small amount of gold (via the same
+        RewardGoldConsequence/ConsequenceExecutor path world encounter
+        rewards use) and marks this NPC as already picked
+        (self._pickpocketed_npc_ids) so the same mark can't be robbed
+        over and over. Failure doesn't lock the NPC out of future
+        attempts -- instead, if the NPC declares a `faction` attribute,
+        it dings the player's reputation with that faction, so getting
+        caught still costs something without needing bespoke "alerted"/
+        hostile wiring added to every NPC type.
+
+        Always returns True (the calling KEYDOWN handler treats that as
+        "event consumed"), whether or not the attempt actually happened.
+        """
+        if id(npc) in self._pickpocketed_npc_ids:
+            self.message_log.add_message(f"There's nothing left to take from {npc.name}.", (150, 150, 150))
+            return True
+
+        dex_roll = random.randint(1, 20)
+        dex_mod = self.player.get_ability_modifier(self.player.dexterity)
+        if "sleight_of_hand" in self.player.skill_proficiencies:
+            dex_mod += self.player.proficiency_bonus
+        dex_total = dex_roll + dex_mod
+        dc = self._pickpocket_dc_for(npc)
+
+        self.message_log.add_message(
+            f"You try to lift something off {npc.name}. "
+            f"(Sleight of Hand {dex_roll}{dex_mod:+d} = {dex_total} vs DC {dc})",
+            (150, 200, 220)
+        )
+
+        executor = self.stories.story_manager.consequence_executor
+        context = self.stories.execution_context
+
+        if dex_total >= dc:
+            stolen_gold = random.randint(3, 12)
+            executor.execute(RewardGoldConsequence(stolen_gold), context)
+            self._pickpocketed_npc_ids.add(id(npc))
+            self.message_log.add_message(f"{npc.name} doesn't notice a thing.", (150, 255, 180))
+        else:
+            faction = getattr(npc, "faction", None)
+            if faction:
+                executor.execute(ModifyReputationConsequence(faction, -2), context)
+            self.message_log.add_message(
+                f'{npc.name} catches your hand. "Watch yourself!"', (255, 120, 100)
+            )
+
+        return True
+
     def interact_with_landmark(self, landmark):
         """
         Handle the player interacting with an adjacent story landmark:
@@ -5042,6 +5118,24 @@ class Game:
 
                         if self.game_state == GameState.OVERWORLD:
                             npc = self.check_overworld_npc_interaction()
+
+                            if self.interaction_mode == InteractionMode.STEAL:
+                                # Encounter victims are being rescued, not robbed --
+                                # everyone else adjacent is fair game for a pickpocket attempt.
+                                if npc and not isinstance(npc, EncounterVictim):
+                                    return self._attempt_pickpocket(npc)
+                                self.message_log.add_message("There's no one close enough to steal from.", (150, 150, 150))
+                                return True
+
+                            if self.interaction_mode == InteractionMode.GRAB:
+                                # Ground loot only -- NPCs (talk/trade/rescue) are not
+                                # reachable through F while in Grab mode, same way they
+                                # aren't reachable through Steal mode above.
+                                if self.handle_item_pickup():
+                                    return True
+                                self.message_log.add_message("There's nothing here to grab.", (150, 150, 150))
+                                return True
+
                             if isinstance(npc, EncounterVictim):
                                 npc.interact(self.player, self)
                                 return True
@@ -5068,6 +5162,18 @@ class Game:
                                 return True
 
                         merchant = self.check_dungeon_npc_interaction()  # Check for adjacent NPC
+                        if self.interaction_mode == InteractionMode.STEAL:
+                            if merchant:
+                                return self._attempt_pickpocket(merchant)
+                            self.message_log.add_message("There's no one close enough to steal from.", (150, 150, 150))
+                            return True
+                        if self.interaction_mode == InteractionMode.GRAB:
+                            # Reached for GameState.DUNGEON (the OVERWORLD branch above
+                            # already returned before getting here for that state).
+                            if self.handle_item_pickup():
+                                return True
+                            self.message_log.add_message("There's nothing here to grab.", (150, 150, 150))
+                            return True
                         if isinstance(merchant, DungeonMerchant):
                             merchant.offer_trade(self.player, self)  # Call the trade method for the Merchant
                             return True  # Consume event
@@ -5083,6 +5189,16 @@ class Game:
                 if self.game_state in GameState.TAVERN:
                     if event.key == pygame.K_f:  # Check if 'F' is pressed
                         npc = self.check_npc_interaction()  # Check for adjacent NPC
+                        if self.interaction_mode == InteractionMode.STEAL:
+                            if npc:
+                                return self._attempt_pickpocket(npc)
+                            self.message_log.add_message("There's no one close enough to steal from.", (150, 150, 150))
+                            return True
+                        if self.interaction_mode == InteractionMode.GRAB:
+                            if self.handle_item_pickup():
+                                return True
+                            self.message_log.add_message("There's nothing here to grab.", (150, 150, 150))
+                            return True
                         if npc:
                             if isinstance(npc, Merchant):
                                 npc.offer_trade(self.player, self)  # Call the trade method for the Merchant
