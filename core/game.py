@@ -31,6 +31,31 @@ class GameState:
     DEATH_SAVE_MENU = "death_save_menu"  # Player unconscious at 0 hp, rolling death saving throws (see Player.roll_death_save())
 
 
+class InteractionMode:
+    """
+    Which behavior the player's interact key (F, see check_overworld_npc_interaction()
+    et al.) currently performs. Toggled with F1-F4 (see the always-accessible hotkey
+    handling in Game's event loop) -- exactly one mode is active at a time, stored on
+    Game.interaction_mode.
+
+    NORMAL is the only mode wired up so far: F2 (STEAL), F3 (GRAB), and F4 (INFO) are
+    switched into but don't yet change interaction behavior -- that comes later, once
+    each mode's own logic is added at the interact-key call sites.
+    """
+    NORMAL = "normal"  # Talk to NPCs, use landmarks/torches -- today's default behavior
+    STEAL = "steal"    # Attempt to pickpocket an adjacent NPC instead of talking to them
+    GRAB = "grab"      # Pick up items/loot from the ground instead of talking to NPCs
+    INFO = "info"      # No world interaction -- reports ambient info about surroundings instead
+
+    # Human-readable label shown in the mode-switch message and any future HUD indicator.
+    LABELS = {
+        NORMAL: "Normal",
+        STEAL: "Steal",
+        GRAB: "Grab",
+        INFO: "Info",
+    }
+
+
 # Ambient flavor text shown at random on the player's turn (see Game.next_turn()).
 # Keyed first by which "place" the player is in (OVERWORLD vs. DUNGEON), then by
 # a coarse time-of-day period derived from the world clock (see
@@ -511,6 +536,11 @@ class Game:
         # NEW: Start in character creation state
         self.game_state = GameState.CHARACTER_CREATION 
         self._previous_game_state = None
+        # Which behavior the interact key currently performs -- see
+        # InteractionMode. Switched with F1-F4; only NORMAL (the default)
+        # does anything today, the others are switched into ahead of their
+        # own interaction logic being added.
+        self.interaction_mode = InteractionMode.NORMAL
         # The last "place" the player actually stood in -- OVERWORLD or
         # DUNGEON -- independent of whatever menu (shop, chest, world
         # encounter, ...) is currently drawn on top of it. Menus overlay
@@ -4924,6 +4954,29 @@ class Game:
                                 self.next_turn()  # End the player's turn after resting
                         return True  # Consume event 
                     
+
+                    # --- Interaction mode switching (F1-F4) ---
+                    # Lets the player choose what the interact key (F) does next,
+                    # rather than it always trying every kind of interaction at
+                    # once. Only meaningful out in the world -- ignored during
+                    # character creation, menus, targeting, etc.
+                    if self.game_state in (GameState.DUNGEON, GameState.OVERWORLD, GameState.TAVERN):
+                        new_mode = None
+                        if event.key == pygame.K_F1:
+                            new_mode = InteractionMode.NORMAL
+                        elif event.key == pygame.K_F2:
+                            new_mode = InteractionMode.STEAL
+                        elif event.key == pygame.K_F3:
+                            new_mode = InteractionMode.GRAB
+                        elif event.key == pygame.K_F4:
+                            new_mode = InteractionMode.INFO
+
+                        if new_mode is not None:
+                            self.interaction_mode = new_mode
+                            self.message_log.add_message(
+                                f"Interaction mode: {InteractionMode.LABELS[new_mode]}", (180, 220, 255)
+                            )
+                            return True  # Consume event, doesn't cost a turn
 
                     # --- Always accessible menus ---
                     if event.key == pygame.K_c:
