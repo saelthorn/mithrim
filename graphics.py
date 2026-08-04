@@ -220,6 +220,8 @@ def setup_tile_mapping():
         'LC':  (4 * CELL_DIM, 5 * CELL_DIM),  # Locked Chest (closed)
         'olc': (5 * CELL_DIM, 5 * CELL_DIM),  # Locked Chest (opened)
         'LM':  (5 * CELL_DIM, 6 * CELL_DIM),  # Locked Chest Mimic (revealed)
+        
+        
         'c': (3 * CELL_DIM, 3 * CELL_DIM),    # Chair (Tavern)
         't': (4 * CELL_DIM, 3 * CELL_DIM),    # Table (Tavern)
         '=': (5 * CELL_DIM, 3 * CELL_DIM),    # Bar Counter
@@ -229,6 +231,13 @@ def setup_tile_mapping():
         'F': (6 * CELL_DIM, 3 * CELL_DIM),    # Fireplace
         'i': (7 * CELL_DIM, 3 * CELL_DIM),    # Torch Wall
         '}2': (6 * CELL_DIM, 17 * CELL_DIM),  # Tavern Barrel Two
+        '5':  (7 * CELL_DIM, 17 * CELL_DIM),  # Shelf
+        '52': (8 * CELL_DIM, 17 * CELL_DIM),  # Shelf Two
+        '--': (9 * CELL_DIM, 17 * CELL_DIM),  # Bed
+        'fg': (10 * CELL_DIM, 3 * CELL_DIM),   # Forge
+        'av':  (11 * CELL_DIM, 3 * CELL_DIM),   # Anvil
+        'hy': (12 * CELL_DIM, 3 * CELL_DIM),  # Hay
+
 
         # Static Decorations (using distinct chars)
         'b': (2 * CELL_DIM, 5 * CELL_DIM), # Static Barrel (original graphic)

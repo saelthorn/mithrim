@@ -5531,6 +5531,8 @@ class Game:
                             # --- MODIFIED START ---
                             # Prioritize picking up items at player's feet
                             if self.interaction_mode == InteractionMode.GRAB:
+                                action_taken = True
+                            else:
                                 # Check for Altar at player's position (before other interactions)
                                 altar_at_pos = self.get_altar_at(self.player.x, self.player.y)
                                 if altar_at_pos:
