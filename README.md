@@ -4,10 +4,9 @@
 
 *A dark fantasy, turn-based roguelike inspired by Dungeons & Dragons 5th Edition.*
 
-![banner](assets/mithrim_bg.png)
+<img width="1621" height="985" alt="mithrim_bg" src="https://github.com/user-attachments/assets/aa4b1c03-84a8-4b92-9981-03bcaeea1d2e" />
 
 ![Python](https://img.shields.io/badge/Python-3.x-blue)
-![Pygame](https://img.shields.io/badge/Pygame-CE-green)
 ![Status](https://img.shields.io/badge/Status-Active%20Development-orange)
 ![License](https://img.shields.io/badge/License-See%20LICENSE-lightgrey)
 
