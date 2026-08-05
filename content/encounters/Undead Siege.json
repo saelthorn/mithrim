@@ -1,25 +1,38 @@
 {
   "id": "world_encounter_undead",
-
+  "min_level": 9,
   "stages": [
     {
       "discovery": "Distant screaming and clashing steel echo from beyond the ridge, underscored by something worse - a low, rattling moan that isn't human.",
-      "landmark_tile": ["barricade"],
-      "landmark_tile_amount": [1, 2],
+      "landmark_tile": [
+        "barricade"
+      ],
+      "landmark_tile_amount": [
+        1,
+        2
+      ],
       "choices": [
         {
           "key": 1,
           "action": "advance",
           "label": "Head Toward the Sound",
           "description": "Press on toward the noise",
-          "color": [255, 160, 100]
+          "color": [
+            255,
+            160,
+            100
+          ]
         },
         {
           "key": 2,
           "action": "advance",
           "label": "Get a Vantage Point First",
           "description": "Take a look before closing in",
-          "color": [160, 200, 255],
+          "color": [
+            160,
+            200,
+            255
+          ],
           "outcome": "From higher ground you spot torchlight and a makeshift barricade - guards making a stand against something crawling out of the dark."
         },
         {
@@ -27,7 +40,11 @@
           "action": "ignore",
           "label": "Ignore",
           "description": "ESC also cancels - just keep walking",
-          "color": [150, 150, 150],
+          "color": [
+            150,
+            150,
+            150
+          ],
           "is_cancel": true
         }
       ],
@@ -35,22 +52,36 @@
     },
     {
       "discovery": "You crest the ridge to a barricade groaning under the weight of clawing, bony hands. Torches gutter as skeletal shapes claw over the wood.",
-      "landmark_tile": ["barricade", "ambush_tree"],
-      "landmark_tile_amount": [1, 3],
+      "landmark_tile": [
+        "barricade",
+        "ambush_tree"
+      ],
+      "landmark_tile_amount": [
+        1,
+        3
+      ],
       "choices": [
         {
           "key": 1,
           "action": "advance",
           "label": "Charge the Barricade",
           "description": "Rush in to help hold the line",
-          "color": [255, 160, 100]
+          "color": [
+            255,
+            160,
+            100
+          ]
         },
         {
           "key": 2,
           "action": "advance",
           "label": "Assess the Line First",
           "description": "Get a sense of what you're walking into",
-          "color": [160, 200, 255],
+          "color": [
+            160,
+            200,
+            255
+          ],
           "outcome": "You count a handful of guards holding, and more dead climbing out of the earth than there are living hands to stop them."
         },
         {
@@ -58,7 +89,11 @@
           "action": "ignore",
           "label": "Ignore",
           "description": "ESC also cancels - turn back now",
-          "color": [150, 150, 150],
+          "color": [
+            150,
+            150,
+            150
+          ],
           "is_cancel": true
         }
       ],
@@ -66,9 +101,20 @@
     },
     {
       "discovery": "A handful of town guards are making a desperate last stand against a rising tide of undead.",
-      "landmark_structure": ["tavern", "house", "house"],
-      "monster_pool": ["Skeleton", "Skeleton", "SkeletonArcher"],
-      "monster_count": [4, 5],
+      "landmark_structure": [
+        "tavern",
+        "house",
+        "house"
+      ],
+      "monster_pool": [
+        "Skeleton",
+        "Skeleton",
+        "SkeletonArcher"
+      ],
+      "monster_count": [
+        4,
+        5
+      ],
       "sneak_dc": 12,
       "sneak_success": "You skirt the battle and slip past while the undead are fully occupied with the guards.",
       "sneak_fail": "A stray skeleton breaks off from the guards' line and shambles straight for you.",
@@ -79,54 +125,83 @@
           "action": "investigate",
           "label": "Investigate",
           "description": "Walk in and see what's happening",
-          "color": [255, 160, 100]
+          "color": [
+            255,
+            160,
+            100
+          ]
         },
         {
           "key": 2,
           "action": "sneak",
           "label": "Sneak Around",
           "description": "Stealth check to glimpse it unseen",
-          "color": [160, 200, 255]
+          "color": [
+            160,
+            200,
+            255
+          ]
         },
         {
           "key": 3,
           "action": "ignore",
           "label": "Ignore",
           "description": "ESC also cancels - just keep walking",
-          "color": [150, 150, 150],
+          "color": [
+            150,
+            150,
+            150
+          ],
           "is_cancel": true
         }
       ]
     }
   ],
-
   "victim": "guard",
-  "victim_count": [2, 3],
+  "victim_count": [
+    2,
+    3
+  ],
   "victim_data": {
     "char": "g",
-    "color": [150, 170, 220],
-    "names": ["Town Guard"],
+    "color": [
+      150,
+      170,
+      220
+    ],
+    "names": [
+      "Town Guard"
+    ],
     "dialogue": "We can't hold much longer - lend us a hand!",
-    "thanks": ["We held the line thanks to you. Well fought, adventurer."],
-    "after": ["Still catching my breath - but we're alive, thanks to you."],
+    "thanks": [
+      "We held the line thanks to you. Well fought, adventurer."
+    ],
+    "after": [
+      "Still catching my breath - but we're alive, thanks to you."
+    ],
     "cls": "GuardVictim"
   },
-
   "waves": [
     {
       "discovery": "Just as the barricade falls quiet, the earth beyond it churns - a second, larger wave of undead is dragging itself out of the ground.",
-      "monster_pool": ["Skeleton", "Skeleton", "SkeletonArcher", "SkeletonArcher"],
-      "monster_count": [3, 5]
+      "monster_pool": [
+        "Skeleton",
+        "Skeleton",
+        "SkeletonArcher",
+        "SkeletonArcher"
+      ],
+      "monster_count": [
+        3,
+        5
+      ]
     }
   ],
-
   "scar_tag": "world_encounter_undead",
   "reward_xp": 70,
   "reward_gold": 20,
   "reputation_faction": "northfield",
   "reputation_delta": 5,
   "ignored_reputation_delta": -5,
-
   "aftermath": {
     "discovery": "The last of the undead crumble to dust. The surviving guards are already dragging bodies clear of the barricade, watching the treeline for any more.",
     "choices": [
@@ -135,12 +210,23 @@
         "action": "help_fortify",
         "label": "Help Fortify the Barricade",
         "description": "Stay and lend a hand in case more come",
-        "color": [255, 200, 140],
+        "color": [
+          255,
+          200,
+          140
+        ],
         "outcome": "You spend the next while hauling timber and driving stakes alongside the guards. By the time you're done, the barricade could hold against twice as many.",
         "hours": 0,
         "consequences": [
-          { "type": "modify_reputation", "faction": "northfield", "delta": 3 },
-          { "type": "reward_xp", "amount": 10 }
+          {
+            "type": "modify_reputation",
+            "faction": "northfield",
+            "delta": 3
+          },
+          {
+            "type": "reward_xp",
+            "amount": 10
+          }
         ]
       },
       {
@@ -148,7 +234,11 @@
         "action": "leave",
         "label": "Move On",
         "description": "ESC also cancels - the guards can finish on their own",
-        "color": [150, 150, 150],
+        "color": [
+          150,
+          150,
+          150
+        ],
         "is_cancel": true,
         "outcome": "You leave the guards to finish shoring up the barricade themselves and continue on your way.",
         "consequences": []

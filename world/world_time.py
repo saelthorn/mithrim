@@ -312,8 +312,8 @@ class WorldTimeManager:
     (running due story-evolution events, notifying stories) happens
     automatically.
     """
-
-    def __init__(self, trigger_system: Optional[TriggerSystem] = None, start_hour: int = 7):
+    
+    def __init__(self, trigger_system: Optional[TriggerSystem] = None, start_hour: int = 8):
         self.clock: WorldClock = WorldClock(start_hour)
         self.scheduler: TimeScheduler = TimeScheduler()
         # Shared with StoryManager when one is available, so scheduled

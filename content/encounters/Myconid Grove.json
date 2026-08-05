@@ -1,11 +1,18 @@
 {
   "id": "world_encounter_myconid_grove",
-
+  "min_level": 1,
+  "max_level": 6,
   "stages": [
     {
       "discovery": "A ring of pale, faintly glowing mushroom-folk stand motionless among the toadstools, swaying gently though there's no wind. They seem to be watching you without eyes.",
-      "monster_pool": ["MyconidSprout", "MyconidAdult"],
-      "monster_count": [2, 4],
+      "monster_pool": [
+        "MyconidSprout",
+        "MyconidAdult"
+      ],
+      "monster_count": [
+        2,
+        4
+      ],
       "investigate_message": "You step past the ring of mushroom caps for a closer look.",
       "choices": [
         {
@@ -13,10 +20,17 @@
           "action": "resolve",
           "label": "Offer a Gift",
           "description": "Leave a bit of food among the ring",
-          "color": [255, 200, 140],
+          "color": [
+            255,
+            200,
+            140
+          ],
           "outcome": "You set a heel of bread at the ring's edge. The myconids sway toward it, and a soft cloud of luminous spores drifts your way, leaving you strangely at ease.",
           "consequences": [
-            { "type": "reward_xp", "amount": 15 }
+            {
+              "type": "reward_xp",
+              "amount": 15
+            }
           ]
         },
         {
@@ -24,10 +38,17 @@
           "action": "resolve",
           "label": "Stand Quietly Among Them",
           "description": "Just watch, and let them watch back",
-          "color": [160, 200, 255],
+          "color": [
+            160,
+            200,
+            255
+          ],
           "outcome": "You stand still until the swaying settles into a slow, unified rhythm you find yourself falling into without meaning to. After a while, you walk on undisturbed.",
           "consequences": [
-            { "type": "reward_xp", "amount": 5 }
+            {
+              "type": "reward_xp",
+              "amount": 5
+            }
           ]
         },
         {
@@ -35,21 +56,28 @@
           "action": "investigate",
           "label": "Step Into the Ring",
           "description": "Walk in among them for a closer look",
-          "color": [140, 220, 160]
+          "color": [
+            140,
+            220,
+            160
+          ]
         },
         {
           "key": 4,
           "action": "ignore",
           "label": "Move On",
           "description": "ESC also cancels - leave the grove undisturbed",
-          "color": [150, 150, 150],
+          "color": [
+            150,
+            150,
+            150
+          ],
           "is_cancel": true
         }
       ],
       "ignore": "You give the ring a wide berth and continue on your way."
     }
   ],
-
   "reward_xp": 40,
   "reward_gold": 10
 }

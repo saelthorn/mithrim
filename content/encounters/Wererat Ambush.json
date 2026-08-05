@@ -1,25 +1,39 @@
 {
   "id": "world_encounter_wererats",
-
+  "min_level": 6,
+  "max_level": 12,
   "stages": [
     {
       "discovery": "Clawed prints crisscross the muddy trail, and drops of blood lead off into the underbrush toward a stand of trees.",
-      "landmark_tile": ["ambush_tree"],
-      "landmark_tile_amount": [1, 2],
+      "landmark_tile": [
+        "ambush_tree"
+      ],
+      "landmark_tile_amount": [
+        1,
+        2
+      ],
       "choices": [
         {
           "key": 1,
           "action": "advance",
           "label": "Follow the Trail",
           "description": "Press on toward the trees",
-          "color": [255, 160, 100]
+          "color": [
+            255,
+            160,
+            100
+          ]
         },
         {
           "key": 2,
           "action": "advance",
           "label": "Examine the Tracks First",
           "description": "A closer look before moving on",
-          "color": [160, 200, 255],
+          "color": [
+            160,
+            200,
+            255
+          ],
           "outcome": "The prints are too large for any rat you know - more paw than foot, walking upright. Whatever made them isn't finished.",
           "consequences": []
         },
@@ -28,7 +42,11 @@
           "action": "ignore",
           "label": "Ignore",
           "description": "ESC also cancels - leave it be",
-          "color": [150, 150, 150],
+          "color": [
+            150,
+            150,
+            150
+          ],
           "is_cancel": true
         }
       ],
@@ -36,22 +54,35 @@
     },
     {
       "discovery": "Beyond the trees, you hear frantic, ragged breathing and the scrape of claws on stone - something is circling, and something else is still alive.",
-      "landmark_tile": ["ambush_tree"],
-      "landmark_tile_amount": [1, 2],
+      "landmark_tile": [
+        "ambush_tree"
+      ],
+      "landmark_tile_amount": [
+        1,
+        2
+      ],
       "choices": [
         {
           "key": 1,
           "action": "advance",
           "label": "Move In",
           "description": "Press toward the sound",
-          "color": [255, 160, 100]
+          "color": [
+            255,
+            160,
+            100
+          ]
         },
         {
           "key": 2,
           "action": "advance",
           "label": "Circle First",
           "description": "Get a look at what you're walking into",
-          "color": [160, 200, 255],
+          "color": [
+            160,
+            200,
+            255
+          ],
           "outcome": "Through the brush you count several hunched, rat-like shapes pacing around a fallen courier and a shattered strongbox, their fur bristling in the moonlight."
         },
         {
@@ -59,7 +90,11 @@
           "action": "ignore",
           "label": "Ignore",
           "description": "ESC also cancels - turn back now",
-          "color": [150, 150, 150],
+          "color": [
+            150,
+            150,
+            150
+          ],
           "is_cancel": true
         }
       ],
@@ -67,8 +102,15 @@
     },
     {
       "discovery": "Feral, man-shaped shadows circle a wounded courier sprawled beside a shattered strongbox.",
-      "monster_pool": ["Wererat", "Wererat", "GiantRat"],
-      "monster_count": [2, 3],
+      "monster_pool": [
+        "Wererat",
+        "Wererat",
+        "GiantRat"
+      ],
+      "monster_count": [
+        2,
+        3
+      ],
       "sneak_dc": 15,
       "sneak_success": "You keep to the shadows and count the wererats circling the courier before they ever catch your scent.",
       "sneak_fail": "A wererat's nose twitches toward you before you're close enough to see clearly. In a blink, every yellow eye is on you.",
@@ -79,48 +121,68 @@
           "action": "investigate",
           "label": "Investigate",
           "description": "Walk in and see what's happening",
-          "color": [255, 160, 100]
+          "color": [
+            255,
+            160,
+            100
+          ]
         },
         {
           "key": 2,
           "action": "sneak",
           "label": "Sneak Around",
           "description": "Stealth check to glimpse it unseen",
-          "color": [160, 200, 255]
+          "color": [
+            160,
+            200,
+            255
+          ]
         },
         {
           "key": 3,
           "action": "ignore",
           "label": "Ignore",
           "description": "ESC also cancels - just keep walking",
-          "color": [150, 150, 150],
+          "color": [
+            150,
+            150,
+            150
+          ],
           "is_cancel": true
         }
       ]
     }
   ],
-
   "victim": "courier",
-  "victim_count": [1, 1],
+  "victim_count": [
+    1,
+    1
+  ],
   "victim_data": {
     "char": "cr",
-    "color": [220, 200, 150],
-    "names": ["Merchant Courier"],
+    "color": [
+      220,
+      200,
+      150
+    ],
+    "names": [
+      "Merchant Courier"
+    ],
     "dialogue": "They came out of nowhere - please, help me hold them off!",
     "thanks": [
       "You saved my hide and the guild's shipment both. I won't forget this."
     ],
-    "after": ["My employer will hear about this. You've more than earned their thanks."],
+    "after": [
+      "My employer will hear about this. You've more than earned their thanks."
+    ],
     "reward_pool": "_PRISONER_LOOT"
   },
-
   "scar_tag": "world_encounter_wererats",
   "reward_xp": 65,
   "reward_gold": 15,
   "reputation_faction": "merchants",
   "reputation_delta": 4,
   "ignored_reputation_delta": -3,
-
   "aftermath": {
     "discovery": "The wererats lie dead. The courier is bleeding but alive, guarding the broken strongbox like it still matters.",
     "choices": [
@@ -129,13 +191,24 @@
         "action": "escort",
         "label": "Escort the Courier to Town",
         "description": "See them and the shipment safely to Northfield",
-        "color": [255, 200, 140],
+        "color": [
+          255,
+          200,
+          140
+        ],
         "outcome": "You help the courier gather what's left of the shipment and walk them back to Northfield. The Merchant Guilds are quick to hear of it, and quicker to reward it.",
         "hours": 0,
         "escort": true,
         "consequences": [
-          { "type": "modify_reputation", "faction": "merchants", "delta": 3 },
-          { "type": "reward_gold", "amount": 20 }
+          {
+            "type": "modify_reputation",
+            "faction": "merchants",
+            "delta": 3
+          },
+          {
+            "type": "reward_gold",
+            "amount": 20
+          }
         ]
       },
       {
@@ -143,10 +216,17 @@
         "action": "help_recover",
         "label": "Help Recover the Shipment",
         "description": "Gather what spilled from the strongbox first",
-        "color": [160, 200, 255],
+        "color": [
+          160,
+          200,
+          255
+        ],
         "outcome": "You help scoop the scattered coin and papers back into the broken strongbox. The courier thanks you and presses on alone once they've caught their breath.",
         "consequences": [
-          { "type": "reward_gold", "amount": 8 }
+          {
+            "type": "reward_gold",
+            "amount": 8
+          }
         ]
       },
       {
@@ -154,11 +234,19 @@
         "action": "leave",
         "label": "Leave",
         "description": "ESC also cancels - the shipment isn't your problem",
-        "color": [150, 150, 150],
+        "color": [
+          150,
+          150,
+          150
+        ],
         "is_cancel": true,
         "outcome": "You leave the courier to gather the strongbox's contents alone and move on.",
         "consequences": [
-          { "type": "modify_reputation", "faction": "merchants", "delta": -1 }
+          {
+            "type": "modify_reputation",
+            "faction": "merchants",
+            "delta": -1
+          }
         ]
       }
     ]

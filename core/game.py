@@ -1000,6 +1000,15 @@ class Game:
     WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
     WORLD_ENCOUNTER_MIN_ENTITY_DISTANCE = 8  # Skip the roll if another live entity is already this close
 
+    # Default player-level band for a scenario that declares neither
+    # "min_level" nor "max_level" -- wide open, so every encounter authored
+    # before level-gating existed (or any scenario that's genuinely meant
+    # to stay relevant at any level, like Roadside_Shrine.json) keeps
+    # rolling exactly as it always has. See
+    # _normalize_world_encounter_level_range()/_roll_world_encounter_scenario().
+    WORLD_ENCOUNTER_DEFAULT_MIN_LEVEL = 1
+    WORLD_ENCOUNTER_DEFAULT_MAX_LEVEL = None
+
     # Minimum empty tiles kept between two structures' footprints when a
     # stage's "landmark_structure" names more than one (see
     # _place_world_encounter_structure_cluster()), plus extra random slack
@@ -1506,6 +1515,52 @@ class Game:
             })
         return normalized
 
+    def _normalize_world_encounter_level_range(self, data, source_name):
+        """
+        Validates a scenario's optional top-level "min_level"/"max_level"
+        fields -- the band of player levels this encounter is written
+        for (a level 1 character shouldn't stumble into Troll_Toll.json,
+        and a high-level veteran shouldn't keep tripping Rat_Infested_
+        Cabin.json). Consulted by _roll_world_encounter_scenario() when
+        picking which scenario to offer next.
+
+        Both fields are optional and independent: a missing "min_level"
+        falls back to WORLD_ENCOUNTER_DEFAULT_MIN_LEVEL, a missing
+        "max_level" to WORLD_ENCOUNTER_DEFAULT_MAX_LEVEL (None, meaning
+        no ceiling) -- so a scenario can set a floor without a ceiling
+        (Undead_Siege.json staying relevant at any high level) or omit
+        both entirely (Roadside_Shrine.json, always in the pool). An
+        unparseable value logs a load error and falls back to the wide-
+        open default band rather than dropping the scenario; a min above
+        max is corrected by swapping, also with a load error, so a typo
+        shrinks the band to nothing instead of silently excluding the
+        scenario forever.
+        """
+        min_level = data.get("min_level", self.WORLD_ENCOUNTER_DEFAULT_MIN_LEVEL)
+        max_level = data.get("max_level", self.WORLD_ENCOUNTER_DEFAULT_MAX_LEVEL)
+
+        try:
+            min_level = int(min_level)
+            max_level = int(max_level) if max_level is not None else None
+        except (TypeError, ValueError):
+            self.message_log.add_message(
+                f"Encounter load error ({source_name}): invalid min_level/max_level "
+                f"({min_level!r}/{max_level!r}), defaulting to unrestricted",
+                (255, 100, 100),
+            )
+            return self.WORLD_ENCOUNTER_DEFAULT_MIN_LEVEL, self.WORLD_ENCOUNTER_DEFAULT_MAX_LEVEL
+
+        min_level = max(1, min_level)
+        if max_level is not None and max_level < min_level:
+            self.message_log.add_message(
+                f"Encounter load error ({source_name}): min_level {min_level} "
+                f"exceeds max_level {max_level}, swapping",
+                (255, 100, 100),
+            )
+            min_level, max_level = max_level, min_level
+
+        return min_level, max_level
+
     def _load_world_encounter_scenarios(self):
         """
         Loads every *.json file under WORLD_ENCOUNTER_CONTENT_ROOT into a
@@ -1574,6 +1629,7 @@ class Game:
                 data["victim_count"] = tuple(data.get("victim_count", (1, 1)))
                 data["aftermath"] = self._normalize_world_encounter_aftermath(data.get("aftermath"), path.name)
                 data["waves"] = self._normalize_world_encounter_waves(data.get("waves"), path.name)
+                data["min_level"], data["max_level"] = self._normalize_world_encounter_level_range(data, path.name)
             except (OSError, json.JSONDecodeError, KeyError, ValueError) as exc:
                 self.message_log.add_message(f"Encounter load error ({path.name}): {exc}", (255, 100, 100))
                 continue
@@ -1873,20 +1929,50 @@ class Game:
         self._enter_world_encounter_stage(scenario, stage_index)
         return True
 
+    def _world_encounter_matches_player_level(self, scenario):
+        """
+        Whether `scenario`'s ["min_level", "max_level"] band (see
+        _normalize_world_encounter_level_range()) covers the player's
+        current level. A missing player (shouldn't happen once the
+        overworld is reachable, but see the "before character creation"
+        caution elsewhere in this file) is treated as level 1, so the
+        check fails closed toward the earliest-game content rather than
+        raising.
+        """
+        player_level = getattr(self.player, "level", 1)
+        if player_level < scenario["min_level"]:
+            return False
+        if scenario["max_level"] is not None and player_level > scenario["max_level"]:
+            return False
+        return True
+
     def _roll_world_encounter_scenario(self):
         """
-        Picks the scenario for a freshly-triggered world encounter,
-        excluding whichever one was last rolled (self._world_encounter_
-        last_id) so two ambushes in a row never repeat the exact same
-        flavor -- e.g. back-to-back Wolf Pack encounters right after
-        each other. Falls back to the full scenario list if content only
-        has one scenario loaded (nothing else to pick), so this never
-        raises on a small/test content set.
+        Picks the scenario for a freshly-triggered world encounter.
+
+        First narrows to scenarios whose level band covers the player
+        right now (_world_encounter_matches_player_level()), so a fresh
+        level 1 character doesn't stumble into Troll_Toll.json and a
+        high-level veteran doesn't keep tripping Rat_Infested_Cabin.json.
+        Within that level-appropriate pool, excludes whichever scenario
+        was last rolled (self._world_encounter_last_id) so two ambushes
+        in a row never repeat the exact same flavor.
+
+        Both narrowing steps fall back gracefully rather than ever
+        raising: if nothing in the full scenario list matches the
+        player's level (a sparse content set, or a level outside
+        anything authored), the level filter is dropped and every
+        scenario is back in the running; if the level-appropriate pool
+        turns out to be exactly the one just rolled, the last-id
+        exclusion is dropped instead of leaving an empty pool.
         """
-        pool = [
+        level_appropriate = [
             scenario for scenario in self.world_encounter_scenarios
-            if scenario["id"] != self._world_encounter_last_id
-        ] or self.world_encounter_scenarios
+            if self._world_encounter_matches_player_level(scenario)
+        ]
+        pool = level_appropriate or self.world_encounter_scenarios
+
+        pool = [scenario for scenario in pool if scenario["id"] != self._world_encounter_last_id] or pool
 
         scenario = random.choice(pool)
         self._world_encounter_last_id = scenario["id"]

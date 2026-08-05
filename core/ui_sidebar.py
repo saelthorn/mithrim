@@ -414,19 +414,20 @@ def _build_controls(game) -> list[str]:
     
     gs = game.game_state
     controls = []
-    if gs == "tavern":
-        if game.check_tavern_door_interaction():
-            controls.append("+ → enter dungeon")
-        npc = game.check_npc_interaction()
+    if gs == "overworld":
+        npc = game.check_overworld_npc_interaction()
         if npc:
-            controls.append(f"F → talk to {npc.name}")
-        controls += ["arrows/WASD  move", "I  inventory", "C  character"]
+            controls.append(f"F → {npc.name}")
+        else:
+            controls.append("F1 talk/ F2 steal/ F3 use/ F4 info")
+        controls += ["T  skip turn", "R  rest",
+                     "I  inventory", "C  character sheet", ]
     elif gs == "dungeon":
         npc = game.check_dungeon_npc_interaction()
         if npc:
             controls.append(f"F → {npc.name}")
         else:
-            controls.append("SPACE  attack / pick up / interact")
+            controls.append("F1 talk/ F2 steal/ F3 use/ F4 info")
         controls += ["T  skip turn", "R  rest",
                      "I  inventory", "C  character sheet", ]
     elif gs == "inventory":

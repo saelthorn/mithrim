@@ -1,6 +1,6 @@
 {
   "id": "world_encounter_shrine",
-
+  "min_level": 1,
   "stages": [
     {
       "discovery": "A weathered roadside shrine stands at the crossroads, its offering bowl half-filled with old coin and wilted flowers.",
@@ -11,11 +11,22 @@
           "action": "resolve",
           "label": "Pay Your Respects",
           "description": "Take a quiet moment, no coin needed",
-          "color": [160, 200, 255],
+          "color": [
+            160,
+            200,
+            255
+          ],
           "outcome": "You bow your head at the shrine a moment before moving on, no coin spent but no less sincere for it.",
           "consequences": [
-            { "type": "modify_reputation", "faction": "church", "delta": 1 },
-            { "type": "reward_xp", "amount": 5 }
+            {
+              "type": "modify_reputation",
+              "faction": "church",
+              "delta": 1
+            },
+            {
+              "type": "reward_xp",
+              "amount": 5
+            }
           ]
         },
         {
@@ -23,7 +34,11 @@
           "action": "resolve",
           "label": "Walk On",
           "description": "ESC also cancels - just keep walking",
-          "color": [150, 150, 150],
+          "color": [
+            150,
+            150,
+            150
+          ],
           "is_cancel": true,
           "outcome": "You walk past the shrine without stopping.",
           "consequences": []

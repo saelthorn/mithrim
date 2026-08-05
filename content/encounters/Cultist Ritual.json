@@ -1,25 +1,39 @@
 {
   "id": "world_encounter_cultists",
-
+  "min_level": 8,
+  "max_level": 14,
   "stages": [
     {
       "discovery": "Smoke and chanting drift from a clearing off the trail, underscored by the crackle of torches at unnatural hours.",
-      "landmark_tile": ["ritual_circle"],
-      "landmark_tile_amount": [1, 1],
+      "landmark_tile": [
+        "ritual_circle"
+      ],
+      "landmark_tile_amount": [
+        1,
+        1
+      ],
       "choices": [
         {
           "key": 1,
           "action": "advance",
           "label": "Follow the Chanting",
           "description": "Press toward the clearing",
-          "color": [255, 160, 100]
+          "color": [
+            255,
+            160,
+            100
+          ]
         },
         {
           "key": 2,
           "action": "advance",
           "label": "Scout the Clearing First",
           "description": "Get a look before moving in",
-          "color": [160, 200, 255],
+          "color": [
+            160,
+            200,
+            255
+          ],
           "outcome": "Robed figures kneel in a ring around a crude stone altar, torches guttering despite the still air."
         },
         {
@@ -27,7 +41,11 @@
           "action": "ignore",
           "label": "Ignore",
           "description": "ESC also cancels - leave it be",
-          "color": [150, 150, 150],
+          "color": [
+            150,
+            150,
+            150
+          ],
           "is_cancel": true
         }
       ],
@@ -35,22 +53,36 @@
     },
     {
       "discovery": "The chanting rises to a fever pitch. At the altar's center, a bound figure struggles weakly against their restraints.",
-      "landmark_tile": ["ritual_circle", "ambush_tree"],
-      "landmark_tile_amount": [1, 2],
+      "landmark_tile": [
+        "ritual_circle",
+        "ambush_tree"
+      ],
+      "landmark_tile_amount": [
+        1,
+        2
+      ],
       "choices": [
         {
           "key": 1,
           "action": "advance",
           "label": "Move In Before It's Too Late",
           "description": "Close the distance now",
-          "color": [255, 160, 100]
+          "color": [
+            255,
+            160,
+            100
+          ]
         },
         {
           "key": 2,
           "action": "advance",
           "label": "Count Their Numbers First",
           "description": "Get a sense of what you're facing",
-          "color": [160, 200, 255],
+          "color": [
+            160,
+            200,
+            255
+          ],
           "outcome": "You count robed cultists ringing the altar, along with darker shapes stirring restlessly at the circle's edge - summoned, not sworn."
         },
         {
@@ -58,7 +90,11 @@
           "action": "ignore",
           "label": "Ignore",
           "description": "ESC also cancels - turn back now",
-          "color": [150, 150, 150],
+          "color": [
+            150,
+            150,
+            150
+          ],
           "is_cancel": true
         }
       ],
@@ -66,8 +102,18 @@
     },
     {
       "discovery": "Cloaked cultists chant around a bound figure atop a crude stone altar.",
-      "monster_pool": ["Skeleton", "Imp", "Skeleton", "Cultist", "Cultist", "Cultist"],
-      "monster_count": [2, 4],
+      "monster_pool": [
+        "Skeleton",
+        "Imp",
+        "Skeleton",
+        "Cultist",
+        "Cultist",
+        "Cultist"
+      ],
+      "monster_count": [
+        2,
+        4
+      ],
       "sneak_dc": 15,
       "sneak_success": "You creep close enough to catch the ritual's final words before a cultist notices movement at the treeline.",
       "sneak_fail": "One of the cultists looks up mid-chant and points a bony finger straight at you.",
@@ -78,49 +124,69 @@
           "action": "investigate",
           "label": "Investigate",
           "description": "Walk in and see what's happening",
-          "color": [255, 160, 100]
+          "color": [
+            255,
+            160,
+            100
+          ]
         },
         {
           "key": 2,
           "action": "sneak",
           "label": "Sneak Around",
           "description": "Stealth check to glimpse it unseen",
-          "color": [160, 200, 255]
+          "color": [
+            160,
+            200,
+            255
+          ]
         },
         {
           "key": 3,
           "action": "ignore",
           "label": "Ignore",
           "description": "ESC also cancels - just keep walking",
-          "color": [150, 150, 150],
+          "color": [
+            150,
+            150,
+            150
+          ],
           "is_cancel": true
         }
       ]
     }
   ],
-
   "victim": "sacrifice",
-  "victim_count": [1, 1],
+  "victim_count": [
+    1,
+    1
+  ],
   "victim_data": {
     "char": "pnp",
-    "color": [180, 180, 220],
-    "names": ["Bound Figure"],
+    "color": [
+      180,
+      180,
+      220
+    ],
+    "names": [
+      "Bound Figure"
+    ],
     "dialogue": "Please... cut me loose before they finish the chant...",
     "thanks": [
       "Free at last... here, take this - it's the least I can offer.",
       "I thought I was done for. Please, take this for saving me."
     ],
-    "after": ["Thank you again, adventurer. I'll not forget this."],
+    "after": [
+      "Thank you again, adventurer. I'll not forget this."
+    ],
     "reward_pool": "_PRISONER_LOOT"
   },
-
   "scar_tag": "world_encounter_cultists",
   "reward_xp": 50,
   "reward_gold": 10,
   "reputation_faction": "wardens",
   "reputation_delta": 3,
   "ignored_reputation_delta": -1,
-
   "aftermath": {
     "discovery": "The cultists are dead. The figure on the altar is alive, but barely - and terrified.",
     "choices": [
@@ -129,13 +195,24 @@
         "action": "escort",
         "label": "Escort Them to the Wardens",
         "description": "See them safely into the Wardens' protection",
-        "color": [255, 200, 140],
+        "color": [
+          255,
+          200,
+          140
+        ],
         "outcome": "You help the captive down from the altar. Still shaking, they cling close and follow your lead toward the nearest inn, where the Wardens can be sent for once they're safe.",
         "hours": 0,
         "escort": true,
         "consequences": [
-          { "type": "modify_reputation", "faction": "wardens", "delta": 3 },
-          { "type": "reward_gold", "amount": 5 }
+          {
+            "type": "modify_reputation",
+            "faction": "wardens",
+            "delta": 3
+          },
+          {
+            "type": "reward_gold",
+            "amount": 5
+          }
         ]
       },
       {
@@ -143,10 +220,18 @@
         "action": "release",
         "label": "Cut Them Loose",
         "description": "Free them and let them find their own way",
-        "color": [160, 200, 255],
+        "color": [
+          160,
+          200,
+          255
+        ],
         "outcome": "You cut the bindings and help them to their feet. They stumble off into the dark without looking back, too shaken to say anything.",
         "consequences": [
-          { "type": "modify_reputation", "faction": "wardens", "delta": 1 }
+          {
+            "type": "modify_reputation",
+            "faction": "wardens",
+            "delta": 1
+          }
         ]
       },
       {
@@ -154,11 +239,19 @@
         "action": "leave",
         "label": "Leave the Altar Behind",
         "description": "ESC also cancels - the ritual is stopped, that's enough",
-        "color": [150, 150, 150],
+        "color": [
+          150,
+          150,
+          150
+        ],
         "is_cancel": true,
         "outcome": "You leave the altar and its captive behind, telling yourself stopping the ritual was enough for one night.",
         "consequences": [
-          { "type": "modify_reputation", "faction": "wardens", "delta": -1 }
+          {
+            "type": "modify_reputation",
+            "faction": "wardens",
+            "delta": -1
+          }
         ]
       }
     ]
