@@ -23,7 +23,7 @@ _GRN_HI      = ( 72, 132,  78)   # swamp/alchemy green
 _PUR_LO      = (58,  34,  72)    # muted abyssal violet
 _PUR_HI      = (112,  78, 138)   # cursed amethyst
 
-_HUNGER_FULL = (156, 118, 52)   # Warm bronze
+_HUNGER_FULL = (156, 118, 52)    # Warm bronze
 _HUNGER_OK = (132, 102, 46)      # Faded ochre
 _HUNGER_LOW = (170, 116, 42)     # Burnt amber
 
@@ -376,10 +376,10 @@ def config_panel_w(game) -> int:
 # importing GameState -- ui_sidebar.py stays a leaf module game.py can
 # import from without a circular import back the other way.
 _INTERACTION_MODE_STYLE = {
-    "dialogue": ("Dialogue", _TEXT_NORMAL),
+    "dialogue": ("Dialogue", _ORANGE),
     "steal":  ("Steal",  _RED_LO),
-    "grab":   ("Grab",   _GOLD),
-    "info":   ("Info",   _CYAN),
+    "interact":   ("Use",   _GOLD),
+    "info":   ("Info",   _TEXT_BRIGHT),
 }
 
 

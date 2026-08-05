@@ -38,7 +38,7 @@ class InteractionMode:
     handling in Game's event loop) -- exactly one mode is active at a time, stored on
     Game.interaction_mode.
 
-    NORMAL, STEAL, GRAB, and INFO are all wired up: F1 talks to NPCs/uses
+    NORMAL, STEAL, INTERACT, and INFO are all wired up: F1 talks to NPCs/uses
     landmarks (the original default), F2 attempts a pickpocket
     (_attempt_pickpocket()), F3 picks up ground loot at the player's feet
     (handle_item_pickup()) instead of talking to whatever NPC is adjacent,
@@ -47,14 +47,14 @@ class InteractionMode:
     """
     DIALOGUE = "dialogue"  # Talk to NPCs, use landmarks/torches -- today's default behavior
     STEAL = "steal"    # Attempt to pickpocket an adjacent NPC instead of talking to them
-    GRAB = "grab"      # Pick up items/loot from the ground instead of talking to NPCs
+    INTERACT = "interact"      # Pick up items/loot from the ground instead of talking to NPCs
     INFO = "info"      # No world interaction -- reports ambient info about surroundings instead
 
     # Human-readable label shown in the mode-switch message and any future HUD indicator.
     LABELS = {
         DIALOGUE: "Dialogue",
         STEAL: "Steal",
-        GRAB: "Grab",
+        INTERACT: "Interact",
         INFO: "Info",
     }
 
@@ -5135,7 +5135,7 @@ class Game:
                         elif event.key == pygame.K_F2:
                             new_mode = InteractionMode.STEAL
                         elif event.key == pygame.K_F3:
-                            new_mode = InteractionMode.GRAB
+                            new_mode = InteractionMode.INTERACT
                         elif event.key == pygame.K_F4:
                             new_mode = InteractionMode.INFO
 
@@ -5226,9 +5226,9 @@ class Game:
                                 self.message_log.add_message("There's no one close enough to steal from.", (150, 150, 150))
                                 return True
 
-                            if self.interaction_mode == InteractionMode.GRAB:
+                            if self.interaction_mode == InteractionMode.INTERACT:
                                 # Ground loot only -- NPCs (talk/trade/rescue) are not
-                                # reachable through F while in Grab mode, same way they
+                                # reachable through F while in Interact mode, same way they
                                 # aren't reachable through Steal mode above.
                                 if self.handle_item_pickup():
                                     return True
@@ -5266,7 +5266,7 @@ class Game:
                                 return self._attempt_pickpocket(merchant)
                             self.message_log.add_message("There's no one close enough to steal from.", (150, 150, 150))
                             return True
-                        if self.interaction_mode == InteractionMode.GRAB:
+                        if self.interaction_mode == InteractionMode.INTERACT:
                             # Reached for GameState.DUNGEON (the OVERWORLD branch above
                             # already returned before getting here for that state).
                             if self.handle_item_pickup():
@@ -5296,7 +5296,7 @@ class Game:
                                 return self._attempt_pickpocket(npc)
                             self.message_log.add_message("There's no one close enough to steal from.", (150, 150, 150))
                             return True
-                        if self.interaction_mode == InteractionMode.GRAB:
+                        if self.interaction_mode == InteractionMode.INTERACT:
                             if self.handle_item_pickup():
                                 return True
                             self.message_log.add_message("There's nothing here to grab.", (150, 150, 150))
@@ -5530,8 +5530,11 @@ class Game:
                         if self.game_state == GameState.DUNGEON or self.game_state == GameState.OVERWORLD:
                             # --- MODIFIED START ---
                             # Prioritize picking up items at player's feet
-                            if self.interaction_mode == InteractionMode.GRAB:
-                                action_taken = True
+                            if self.interaction_mode == InteractionMode.INTERACT:
+                                if self.handle_item_pickup():
+                                    return True
+                                self.message_log.add_message("There's nothing here to grab.", (150, 150, 150))
+                                return True
                             else:
                                 # Check for Altar at player's position (before other interactions)
                                 altar_at_pos = self.get_altar_at(self.player.x, self.player.y)
