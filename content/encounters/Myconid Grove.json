@@ -35,7 +35,7 @@
         },
         {
           "key": 2,
-          "action": "resolve",
+          "action": "investigate",
           "label": "Stand Quietly Among Them",
           "description": "Just watch, and let them watch back",
           "color": [

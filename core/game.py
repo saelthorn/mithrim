@@ -23,6 +23,7 @@ class GameState:
     CHEST_MENU = "chest_menu"  # Locked chest interaction menu
     SHOP_MENU  = "shop_menu"   # Merchant shop overlay
     INNKEEPER_MENU = "innkeeper_menu"  # Innkeeper's Buy Food / Rest for the Night choice menu
+    REST_MENU = "rest_menu"  # Player short rest / long rest choice menu
     GAME_OVER = "game_over" # NEW: Add GAME_OVER state
     OVERWORLD = "overworld"  # Cellular-automata overworld map (dungeon_generator's sibling)
     WORLD_ENCOUNTER_MENU = "world_encounter_menu"  # Narrative overworld encounter choice menu
@@ -606,6 +607,7 @@ class Game:
         self._chest_menu_target = None  # Locked chest awaiting player's choice
         self._innkeeper_menu_target = None  # Innkeeper awaiting player's Buy Food / Rest / Leave choice
         self._innkeeper_menu_return_state = GameState.OVERWORLD  # Where INNKEEPER_MENU itself returns to (see open_innkeeper_menu())
+        self._rest_menu_target = None  # Player rest choice menu target
         self._world_encounter_target = None    # Scenario dict awaiting the player's choice
         self._world_encounter_story_id = None  # StoryInstance id backing the currently-offered/active encounter
         self._world_encounter_cooldown = 0     # Steps left before another encounter can roll
@@ -3064,6 +3066,14 @@ class Game:
         self.game_state = GameState.INNKEEPER_MENU
         self.stories.fire_talk(innkeeper, instigator=self.player)
 
+    def open_rest_menu(self):
+        """Open the short rest / long rest choice menu."""
+        if not self.player:
+            return
+        self._previous_game_state = self.game_state
+        self._rest_menu_target = self.player
+        self.game_state = GameState.REST_MENU
+
     def _grant_escort_reward(self, companion):
         """
         Runs a delivered companion's held-back reward Consequences
@@ -5200,6 +5210,11 @@ class Game:
                     self.handle_innkeeper_menu_input(event.key)
                     return True  # Consume all input while menu is open
 
+                # --- Rest Menu ---
+                elif self.game_state == GameState.REST_MENU:
+                    self.handle_rest_menu_input(event.key)
+                    return True  # Consume all input while menu is open
+
                 else:
                     if event.key == pygame.K_SLASH:  # Enter key to submit input
                         if self.message_log.show_input_area:  # Check if input area is visible
@@ -5249,10 +5264,8 @@ class Game:
 
                     # Handle resting
                     if event.key == pygame.K_r:
-                        if self.player:
-                            print("Attempting to rest...")  # Debugging statement
-                            if self.player.rest(self):
-                                self.next_turn()  # End the player's turn after resting
+                        if self.player and self.game_state in (GameState.DUNGEON, GameState.OVERWORLD, GameState.TAVERN):
+                            self.open_rest_menu()
                         return True  # Consume event 
                     
 
@@ -5888,6 +5901,27 @@ class Game:
         elif key in (pygame.K_3, pygame.K_ESCAPE, pygame.K_f):
             self.game_state = self._innkeeper_menu_return_state or GameState.OVERWORLD
             self._innkeeper_menu_target = None
+
+    def handle_rest_menu_input(self, key):
+        """Handle short rest / long rest choices from the rest menu."""
+        if not self.player:
+            self.game_state = self._previous_game_state or GameState.OVERWORLD
+            self._rest_menu_target = None
+            return
+
+        if key == pygame.K_1:
+            if self.player.rest(self, hours=1):
+                self.next_turn()
+            self.game_state = self._previous_game_state or GameState.OVERWORLD
+            self._rest_menu_target = None
+        elif key == pygame.K_2:
+            if self.player.rest(self, hours=8):
+                self.next_turn()
+            self.game_state = self._previous_game_state or GameState.OVERWORLD
+            self._rest_menu_target = None
+        elif key in (pygame.K_3, pygame.K_ESCAPE, pygame.K_f):
+            self.game_state = self._previous_game_state or GameState.OVERWORLD
+            self._rest_menu_target = None
 
     def handle_text_input(self, input_text):        
         """Handles text input from the player."""
@@ -7536,6 +7570,10 @@ class Game:
         if self.game_state == GameState.INNKEEPER_MENU and self._innkeeper_menu_target:
             self.render_innkeeper_menu()
 
+        # Short rest / long rest overlay — drawn over the world, under nothing else
+        if self.game_state == GameState.REST_MENU and self._rest_menu_target:
+            self.render_rest_menu()
+
         # NEW: Render game over screen if in GAME_OVER state
         if self.game_state == GameState.GAME_OVER:
             self.render_game_over_screen()
@@ -7770,6 +7808,65 @@ class Game:
                 "[3] Leave",
                 "ESC / F also cancels",
                 (150, 150, 150),
+            ),
+        ]
+
+        y = sy + PAD + 32
+        for header, sub, color in options:
+            h_surf = font_body.render(header, True, color)
+            s_surf = font_body.render(f"    {sub}", True, (90, 90, 100))
+            self.screen.blit(h_surf, (sx + PAD, y))
+            y += font_body.get_linesize() + 1
+            self.screen.blit(s_surf, (sx + PAD, y))
+            y += font_body.get_linesize() + 6
+
+    def render_rest_menu(self):
+        """Draw the short rest / long rest choice popup over the map."""
+        if self._rest_menu_target is None:
+            return
+
+        try:
+            font_title = pygame.font.SysFont("consolas", 16, bold=True)
+            font_body = pygame.font.SysFont("consolas", 14)
+        except Exception:
+            font_title = pygame.font.Font(None, 18)
+            font_body = pygame.font.Font(None, 16)
+
+        PAD = 14
+        W = 420
+        H = 170
+        sx = (config.GAME_AREA_WIDTH - W) // 2
+        sy = (config.SCREEN_HEIGHT - H) // 2
+
+        bg = pygame.Surface((W, H), pygame.SRCALPHA)
+        bg.fill((10, 8, 14, 220))
+        self.screen.blit(bg, (sx, sy))
+
+        pygame.draw.rect(self.screen, (150, 215, 170), (sx, sy, W, H), 2, border_radius=4)
+
+        title_surf = font_title.render("  Rest", True, (150, 215, 170))
+        self.screen.blit(title_surf, (sx + PAD, sy + PAD))
+
+        pygame.draw.line(
+            self.screen, (60, 60, 75),
+            (sx + PAD, sy + PAD + 22), (sx + W - PAD, sy + PAD + 22)
+        )
+
+        options = [
+            (
+                "[1] Short Rest", 
+                f"Spend 1 hour and recover a little", 
+                (160, 220, 160)
+            ),
+            (
+                "[2] Long Rest", 
+                f"Spend 8 hours and recover more fully", 
+                (255, 220, 150)
+            ),
+            (
+                "[3] Cancel", 
+                f"ESC / F also cancels", 
+                (150, 150, 150)
             ),
         ]
 

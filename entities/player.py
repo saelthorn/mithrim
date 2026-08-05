@@ -774,9 +774,17 @@ class Player: # This is our base class for playable characters
         return False
 
 
-    def rest(self, game_instance):
-        """Handle resting mechanics and reset ability cooldowns."""
+    def rest(self, game_instance, hours=1):
+        """Handle resting mechanics and reset ability cooldowns.
+
+        `hours` is the amount of world time to advance when the player
+        chooses a short or long rest from the new rest menu. Existing
+        callers that do not pass a value continue to use the default 1-hour
+        short rest behavior.
+        """
         print("Rest method called")  # Debugging statement
+
+        hours = max(1, int(hours))
 
         # Check for enemies within 10 tiles
         for entity in game_instance.entities:
@@ -794,6 +802,10 @@ class Player: # This is our base class for playable characters
                     game_instance.message_log.add_message(random.choice(rest_block_msgs), (255, 0, 0))
                     return False
 
+        # Advance world time via the canonical story path so scheduled
+        # world events see the rest exactly like any other time passage.
+        if hasattr(game_instance, "stories") and hasattr(game_instance.stories, "fire_rest"):
+            game_instance.stories.fire_rest(hours, instigator=self)
 
         # Check if the Campfire Kit is on the ground
         campfire_kit = next((item for item in game_instance.game_map.items_on_ground if isinstance(item, CampfireKit)), None)
@@ -855,6 +867,8 @@ class Player: # This is our base class for playable characters
                 game_instance.message_log.add_message(random.choice(ambush_msgs), (255, 0, 0))
                 self.trigger_ambush(game_instance)
                 return True  # Resting was interrupted by ambush
+
+        return True
 
 
     def trigger_ambush(self, game_instance):

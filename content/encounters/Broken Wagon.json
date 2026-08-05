@@ -1,0 +1,67 @@
+{
+    "id": "world_encounter_broken_wagon",
+    "min_level": 1,
+    "stages": [
+        {
+            "discovery": "A wagon wheel has shattered across the trail. An exhausted family sits nearby while one man struggles to lift the axle alone.",
+            "landmark_tile": "wagon",
+            "choices": [
+                {
+                    "key": 1,
+                    "action": "resolve",
+                    "label": "Help Repair the Wagon",
+                    "description": "Lend a hand to the family",
+                    "hours": 6,
+                    "color": [
+                        160,
+                        200,
+                        255
+                    ],
+                    "outcome": "You help the family repair the wagon, earning their gratitude and a small reward.",
+                    "consequences": [
+                        {
+                            "type": "reward_gold",
+                            "amount": 10
+                        },
+                        {
+                            "type": "reward_xp",
+                            "amount": 100
+                        }
+                    ]
+                },
+                {
+                    "key": 2,
+                    "action": "resolve",
+                    "label": "Lend Supplies",
+                    "description": "Offer to lend them some supplies",
+                    "color": [
+                        255,
+                        160,
+                        100
+                    ],
+                    "outcome": "You offer to lend the family some supplies, and they gratefully accept.",
+                    "consequences": [
+                        {
+                            "type": "reward_xp",
+                            "amount": 10
+                        }
+                    ]
+                },
+                {
+                    "key": 3,
+                    "action": "ignore",
+                    "label": "Keep Walking",
+                    "description": "ESC also cancels - leave it be",
+                    "color": [
+                        150,
+                        150,
+                        150
+                    ],
+                    "is_cancel": true,
+                    "outcome": "You decide to leave the family to their own devices and continue on your way.",
+                    "consequences": []
+                }
+            ]
+        }
+    ]
+}
