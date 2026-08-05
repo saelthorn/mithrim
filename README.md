@@ -1,145 +1,317 @@
+<div align="center">
+
 # Mithrim
 
-<img width="1621" height="985" alt="mithrim_bg" src="https://github.com/user-attachments/assets/aa4b1c03-84a8-4b92-9981-03bcaeea1d2e" />
+*A dark fantasy, turn-based roguelike inspired by Dungeons & Dragons 5th Edition.*
 
-Mithrim is a turn-based open-world roguelike RPG inspired by Dungeons & Dragons 5e, built from scratch in Python using Pygame.
+![banner](assets/mithrim_bg.png)
 
-Explore a procedurally generated world filled with forests, rivers, roads, dungeons, settlements, wandering monsters, merchants, and hidden secrets. Create a unique adventurer, build your character through race and class choices, uncover powerful equipment, and survive increasingly dangerous encounters in a world where every playthrough is different.
+![Python](https://img.shields.io/badge/Python-3.x-blue)
+![Pygame](https://img.shields.io/badge/Pygame-CE-green)
+![Status](https://img.shields.io/badge/Status-Active%20Development-orange)
+![License](https://img.shields.io/badge/License-See%20LICENSE-lightgrey)
 
----
-
-## 🚀 Features
-
-### 🌍 Procedural Open World
-Instead of isolated dungeon floors, Mithrim generates an expansive overworld containing:
-- 🌲 Dense forests and grasslands
-- 🌊 Rivers generated using procedural river carving
-- 🛣️ Roads connecting settlements
-- 🏡 Villages and taverns
-- ⛰️ Multiple dungeon entrances
-- 🐺 Wildlife and roaming monsters
-- ⚡ Dynamic chunk loading for virtually unlimited exploration
-
-*Every world is generated from a random seed, making each adventure unique.*
-
-### ⚔️ Tactical D&D-inspired Combat
-Combat follows a fully turn-based initiative system inspired by D&D 5e. Features include:
-- **Initiative order** & **Tactical positioning**
-- **Opportunity attacks** & **Critical hits/failures**
-- **Saving throws** with **Advantage & disadvantage**
-- **Status effects**, **Melee/ranged combat**, and **Spellcasting**
-
-*Every creature has its own statistics including Armor Class, attack modifiers, proficiencies, resistances, movement speed, and AI behavior.*
-
-### 🎭 Character Creation
-Create a unique adventurer by choosing from multiple races, subraces, and classes.
-
-#### **Races**
-- Human, Elf, Dwarf, Dragonborn, Tiefling
-- *Numerous subraces from Humans, Wood Elves, to Duergars providing unique:* Ability score bonuses, weapon proficiencies, resistances, movement traits, darkvision, and racial abilities.
-
-#### **Classes**
-- Fighter, Rogue, Wizard, Cleric
-- *Each class includes exclusive abilities inspired by D&D 5e.*
-
-### 👾 Massive Bestiary
-Mithrim currently contains **50+ handcrafted entities**, including monsters, NPCs, wildlife, merchants, dungeon inhabitants, and bosses. Enemies range from common goblins and wolves to dragons, mind flayers, beholders, demons, and legendary bosses.
-- 🧠 Unique AI & Combat abilities
-- ⚔️ Different equipment & Status effects
-- 💰 Loot tables & Spawn rules
-
-### 🏙️ Living World
-The world is populated by interactive NPCs that offer:
-- 🤝 Trading & Dialogue
-- 💤 Resting & Healing
-- 🗺️ Quest hubs *(planned)*
-
-*Players encounter wandering enemies, settlements, merchants, environmental hazards, and hidden encounters while exploring.*
-
-### 🏰 Procedural Dungeon Generation
-Every dungeon is generated on demand with:
-- 🗺️ Unique room layouts & Corridors
-- 💧 Rivers, Lakes, and Environmental hazards
-- ⛩️ Hidden altars, Traps, and Mimics
-- 💎 Loot rooms & Random monster populations
-
-*No two dungeons are exactly alike.*
-
-### 🕯️ Exploration
-Explore using a dynamic visibility system featuring:
-- 👁️ Shadowcasting Field of View (FoV)
-- 🕶️ Darkvision, Torches, and Wall-mounted light sources
-- 🌫️ Fog of war & Persistent explored areas
-
-*Darkness is an important gameplay mechanic rather than simply an aesthetic choice.*
-
-### 📈 Progression
-- **Level 1–20** advancement
-- **Gain experience** from combat
-- **Unlock** new class abilities & improve proficiency bonus
-- **Equip** increasingly powerful gear & discover magical equipment
-- **Face** progressively stronger enemies
-
-### 🛡️ Equipment System
-Collect and equip a wide variety of equipment including:
-- ⚔️ **Weapons & Armor:** Shields, Helmets, Boots
-- 💍 **Magical Accessories:** Spellcasting focuses, Scrolls
-- 🧪 **Consumables:** Potions, Food
-
-*Equipment directly affects combat statistics and character builds.*
-
-### 🧪 Status Effects
-Combat features numerous temporary effects including:
-- **Buffs:** Blessings, Divine Strike, Hidden, Prepared, Parry, Power Attack
-- **Debuffs:** Poison, Burning, Acid Burn, Blindness, Rot, Weakness
+</div>
 
 ---
 
-## ⚙️ Performance & Optimization
-Despite generating a large procedural world, Mithrim includes several optimization systems:
-- 🧩 Chunk-based world streaming
-- 🖼️ Surface caching & Dirty rectangle rendering
-- 🎥 Camera interpolation
-- 👁️ Efficient shadowcasting & Optimized A* pathfinding
-- ⏳ Procedural generation performed only when needed
+## About
+
+**Mithrim** is a procedurally generated, turn-based dungeon crawler where every expedition tells a story.
+
+Inspired by classic CRPGs such as **Daggerfall**, traditional roguelikes, and **Dungeons & Dragons 5th Edition**, Mithrim blends tactical combat, persistent world exploration, and dynamic narrative encounters into a single adventure.
+
+Unlike traditional roguelikes that focus solely on randomized levels, Mithrim places equal emphasis on **the journey between dungeons**. The overworld is not merely a transition—it is a living canvas where encounters, landmarks, and your choices gradually shape the world around you.
+
+Every expedition has the potential to become its own story.
 
 ---
 
-## 🛠️ Built With
-- **Language:** Python
-- **Framework:** Pygame
-- **Core Systems:** Procedural Generation, A* Pathfinding, Chunk Streaming, Shadowcasting Field of View, Finite State Machine AI, D&D 5e-inspired Ruleset
+# Features
+
+## Character Creation
+
+Create your own adventurer from a growing roster of races, lineages, and classes.
+
+- 15 playable races and subraces
+- Multiple character classes
+- D&D-inspired ability scores
+- Distinct racial traits
+- Equipment proficiencies
+- Class abilities
+- Darkvision and special senses
 
 ---
 
-## 📊 Project Status
+## Tactical Turn-Based Combat
 
-### **Current Features**
-- [x] Procedural overworld & Procedural dungeons
-- [x] Chunk streaming & Dynamic rivers
-- [x] NPC interactions & Merchant system
-- [x] Inventory & Equipment systems
-- [x] Turn-based combat & Initiative system
-- [x] Status effects & Monster AI
-- [x] Character progression (100+ entities)
-- [x] Procedural loot, Traps, and Altars
-- [x] Field of View & Zoomable camera
+Every battle rewards planning over speed.
 
-### **Planned Features**
-- [ ] Quest system
-- [ ] Additional towns and settlements
-- [ ] More biome variety
-- [ ] Additional classes & More bosses
-- [ ] Unique monster abilities
-- [ ] World events & Better NPC schedules
-- [ ] Save/load system
+- Initiative-based combat
+- Opportunity attacks
+- Status effects
+- Weapon proficiencies
+- Damage resistances
+- Ability cooldowns
+- Tactical positioning
+- Field of View combat
+- Environmental hazards
+- Death Saving Throws
+- Lasting injuries *(planned)*
 
 ---
 
-## 🎯 Project Goals
-Mithrim aims to combine traditional roguelikes, tabletop RPG mechanics, procedural world generation, and modern quality-of-life features into a replayable single-player adventure where exploration is just as important as combat.
+## Procedural Dungeon Generation
+
+Every dungeon is generated from scratch.
+
+Each expedition features unique layouts, encounters, and discoveries.
+
+Current generation includes:
+
+- Procedural room layouts
+- Intelligent corridor generation
+- Locked rooms
+- Prison cells
+- Secret areas
+- Environmental hazards
+- Treasure rooms
+- Dynamic monster placement
+
+No two delves are exactly alike.
 
 ---
 
-## ⚖️ Disclaimer
-Mithrim is an independent, non-commercial fan project inspired by tabletop role-playing games. It is not affiliated with or endorsed by Wizards of the Coast LLC. Dungeons & Dragons and all related trademarks remain the property of Wizards of the Coast LLC.
+## Procedural Overworld
+
+The overworld is more than a world map.
+
+It is a place where stories begin.
+
+Current systems include:
+
+- Procedurally generated terrain
+- Rivers
+- Lakes
+- Forests
+- Roads
+- Dungeon entrances
+- NPC travelers
+- Wandering monsters
+- Time of day
+- Dynamic ambient messages
+
+Future updates will continue expanding the overworld into a persistent living world filled with evolving events and narrative-driven discoveries.
+
+---
+
+## Dynamic Encounter System
+
+One of Mithrim's defining features.
+
+Rather than spawning generic random battles, the overworld generates handcrafted encounter chains that unfold naturally as you explore.
+
+Examples include:
+
+- Abandoned caravans
+- Missing merchants
+- Goblin camps
+- Strange ruins
+- Traveling pilgrims
+- Abandoned campsites
+- Ancient shrines
+
+Encounters can:
+
+- Branch
+- Be ignored
+- Change the world
+- Affect reputation
+- Create persistent landmarks
+- Lead into larger narrative arcs
+
+No quest markers.
+
+No hand-holding.
+
+Only curiosity.
+
+---
+
+## Living World
+
+The world remembers.
+
+Actions have lasting consequences.
+
+Examples include:
+
+- Reputation with settlements
+- Persistent landmarks
+- World scars left by encounters
+- Dynamic NPC interactions
+- Day and night cycle
+- Ambient storytelling
+- World events
+
+Exploration is driven by discovery rather than checklists.
+
+---
+
+## D&D Inspired Mechanics
+
+Mithrim takes heavy inspiration from **Dungeons & Dragons 5th Edition**, adapting many of its systems into a single-player roguelike experience.
+
+Including:
+
+- Ability Checks
+- Skill Checks
+- Saving Throws
+- Death Saving Throws
+- Racial Traits
+- Spellcasting
+- Monster Abilities
+- Equipment Proficiencies
+- Damage Types
+- Conditions
+
+These mechanics have been adapted for a roguelike experience rather than directly copied.
+
+---
+
+## Interaction Modes
+
+Inspired by **The Elder Scrolls II: Daggerfall**, every interaction begins with intent.
+
+| Key | Mode |
+|------|------|
+| F1 | Dialogue |
+| F2 | Steal |
+| F3 | Interact |
+| F4 | Inspect |
+
+Different interaction modes allow the same object or NPC to produce entirely different outcomes depending on the player's intentions.
+
+---
+
+## Current Content
+
+- 40+ monsters
+- Hundreds of items
+- Multiple weapon types
+- Armor system
+- Trading
+- NPCs
+- Resting
+- Hunger
+- Light sources
+- Inventory management
+- Equipment management
+- Procedural loot
+- Spellcasting
+- AI pathfinding
+- Intelligent monster behavior
+
+---
+
+# Philosophy
+
+Mithrim is built around one central idea:
+
+> **The player should remember the adventure—not the dungeon seed.**
+
+Every system exists to support memorable stories.
+
+Whether that story is surviving with a single hit point...
+
+Escaping a collapsing dungeon...
+
+Helping a ruined caravan...
+
+Or simply watching the sun rise after surviving a long night in the wilderness...
+
+The goal is always the same:
+
+Create adventures worth telling.
+
+---
+
+# Roadmap
+
+Some planned features include:
+
+- Persistent overworld stories
+- Dynamic settlements
+- Reputation system
+- Procedural quests
+- World events
+- Lasting injuries
+- Camping
+- Weather
+- Additional classes
+- Additional races
+- More dungeons
+- Boss encounters
+- Improved AI
+- Biomes
+- Procedural world history
+
+---
+
+# Gallery
+
+*(Screenshots coming soon.)*
+
+---
+
+# Controls
+
+| Key | Action |
+|------|---------|
+| Arrow Keys / Numpad | Movement |
+| F1 | Dialogue Mode |
+| F2 | Steal Mode |
+| F3 | Interact Mode |
+| F4 | Inspect Mode |
+| I | Inventory |
+| C | Character Sheet |
+| R | Rest |
+| ESC | Cancel / Back |
+
+---
+
+# Inspiration
+
+Mithrim draws inspiration from many incredible games and tabletop systems, including:
+
+- Dungeons & Dragons 5th Edition
+- The Elder Scrolls II: Daggerfall
+- Dungeon Crawl Stone Soup
+- Tales of Maj'Eyal
+- Caves of Qud
+- ADOM
+- Brogue
+- Baldur's Gate
+- Pathfinder
+
+Without these games, Mithrim would not exist.
+
+---
+
+# Legal
+
+Mithrim is a fan project inspired by **Dungeons & Dragons 5th Edition**.
+
+Certain names, creatures, spells, and terminology are the intellectual property of **Wizards of the Coast** and are used for compatibility and inspiration only.
+
+See **LICENSE.md** and **CREDITS.md** for more information.
+
+---
+
+<div align="center">
+
+### *Every road hides a story.*
+
+**Good luck, adventurer.**
+
+</div>
