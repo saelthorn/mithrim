@@ -4860,7 +4860,7 @@ class Game:
                     if not entity.alive and isinstance(entity, Monster):
                         xp_gained = entity.die(self, killer=self.player)
                         self.player.gain_xp(xp_gained, self)
-                        self.stories.fire_kill(entity, instigator=self.player, group_id=getattr(entity, "group_id", None))
+                        self._notify_monster_killed(entity, killer=self.player)
 
             # Advance the fire tile's duration counter
             expired = current_tile.tick()
@@ -4872,8 +4872,55 @@ class Game:
 
         self.active_fire_tiles = still_burning
 
+    def _notify_monster_killed(self, entity, killer=None):
+        """
+        Reports a monster's death to the story engine exactly once,
+        however it died. Both explicit combat-resolution kill sites in
+        this file (a direct player hit, a burning tile) call this
+        instead of self.stories.fire_kill() directly, and
+        cleanup_entities() below also calls it as a catch-all safety net
+        for every OTHER way a tagged monster can die that this file
+        doesn't resolve itself -- an ally like GuardVictim finishing one
+        off on its own turn, one monster killing another, a status
+        effect ticking hp to 0 -- wherever that logic actually lives
+        (monster.py's take_turn()/take_damage(), summons.py, abilities.py).
+
+        This matters because _start_world_encounter_combat()/
+        _advance_world_encounter_wave() count down a "remaining" flag
+        that only decrements on a KILL_NPC trigger; a group member that
+        dies without ever firing one is invisible to that count, so it
+        never reaches zero and the next wave (or the aftermath menu)
+        silently never comes -- indistinguishable from "waves just don't
+        trigger." Sweeping every dead, group-tagged entity here, right
+        before cleanup_entities() prunes it from self.entities, is a
+        strictly cheaper and more robust guarantee than hunting down and
+        patching every individual kill site by hand (see this file's
+        STORY_NPC_MONSTER_CLASSES/spawn_story_npc() comment -- the same
+        group_id tagging is shared by authored-story NPCs too, so this
+        net catches those the same way).
+
+        `_fire_kill_reported` is stamped directly on the entity rather
+        than tracked in a separate set, so it needs no separate pruning
+        as entities come and go, and stays correct independently across
+        as many concurrent group_id-tagged encounters as happen to be
+        live at once.
+        """
+        if getattr(entity, "_fire_kill_reported", False):
+            return
+        entity._fire_kill_reported = True
+        self.stories.fire_kill(entity, instigator=killer or self.player, group_id=getattr(entity, "group_id", None))
+
     def cleanup_entities(self):
         """Remove dead or expired entities/items from the game world."""
+
+        # Catch-all for any group_id-tagged monster that died without this
+        # file's own combat code ever reporting it (see
+        # _notify_monster_killed()) -- must run before the alive-filter
+        # just below prunes the entity away, since fire_kill still needs
+        # to see it (and its group_id) to attribute the kill correctly.
+        for entity in self.entities:
+            if not getattr(entity, "alive", True) and getattr(entity, "group_id", None):
+                self._notify_monster_killed(entity)
 
         # Remove dead monsters/NPCs
         self.entities = [e for e in self.entities if getattr(e, "alive", True)]
@@ -6891,7 +6938,7 @@ class Game:
                 xp_gained = target.die(game_instance, killer=self.player)
                 self.player.gain_xp(xp_gained, game_instance)  # Use 'self' (player) here
                 self.message_log.add_message(f"You gain {xp_gained} XP!", (100, 255, 100))  # Log the XP gained
-                self.stories.fire_kill(target, instigator=self.player, group_id=getattr(target, "group_id", None))
+                self._notify_monster_killed(target, killer=self.player)
                 if target.name == 'Arasta' and self.current_level == 20:
                     self.handle_victory()
                     return
