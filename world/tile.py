@@ -60,10 +60,14 @@ bar_counter_two = Tile(blocked=True, char='I', color=(160, 82, 45), block_sight=
 bar_counter_three = Tile(blocked=True, char='7', color=(160, 82, 45), block_sight=False, name="Bar Counter Three")
 bar_counter_four = Tile(blocked=True, char='|', color=(160, 82, 45), block_sight=False, name="Bar Counter Four")
 
+bar_counter_five = Tile(blocked=True, char='|2', color=(160, 82, 45), block_sight=False, name="Bar Counter Five")
+bar_counter_six = Tile(blocked=True, char='|3', color=(160, 82, 45), block_sight=False, name="Bar Counter Six")
+
 forge = Tile(blocked=True, char='fg', color=(128, 128, 128), name="Forge")
 anvil = Tile(blocked=True, char='av', color=(128, 128, 128), name="Anvil")
 shelf = Tile(blocked=True, char='5', color=(139, 69, 19), name="Shelf")
 shelf_two = Tile(blocked=True, char='52', color=(139, 69, 19), name="Shelf Two")
+shelf_three = Tile(blocked=True, char='53', color=(139, 69, 19), name="Shelf Three")
 bed = Tile(blocked=True, char='--', color=(139, 69, 19), name="Bed")
 hay = Tile(blocked=True, char='hy', color=(139, 69, 19), name="Hay")
 

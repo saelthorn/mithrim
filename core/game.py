@@ -1050,7 +1050,7 @@ class Game:
     # could otherwise drift a house back toward the player.
     WORLD_ENCOUNTER_STRUCTURE_MIN_DISTANCE = 6
     WORLD_ENCOUNTER_STRUCTURE_CLUSTER_MIN_DISTANCE = 8
-    WORLD_ENCOUNTER_STRUCTURE_SEARCH_RADIUS = 12
+    WORLD_ENCOUNTER_STRUCTURE_SEARCH_RADIUS = 6
 
     # An "advance" choice (see WORLD_ENCOUNTER_ACTIONS/_resolve_world_encounter_
     # advance()) doesn't reveal a staged scenario's next beat instantly -- the

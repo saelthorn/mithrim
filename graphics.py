@@ -236,7 +236,10 @@ def setup_tile_mapping():
         '--': (9 * CELL_DIM, 17 * CELL_DIM),  # Bed
         'fg': (10 * CELL_DIM, 17 * CELL_DIM),  # Forge
         'av': (11 * CELL_DIM, 17 * CELL_DIM),  # Anvil
-        'hy': (12 * CELL_DIM, 17 * CELL_DIM),  # Hay
+        '53': (12 * CELL_DIM, 17 * CELL_DIM),  # Shelf Three
+        '|2': (13 * CELL_DIM, 17 * CELL_DIM),  # Bar Counter Five
+        '|3': (14 * CELL_DIM, 17 * CELL_DIM),  # Bar Counter Six
+        'hy': (15 * CELL_DIM, 17 * CELL_DIM),  # Hay
 
 
         # Static Decorations (using distinct chars)
