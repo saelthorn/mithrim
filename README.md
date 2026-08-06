@@ -239,6 +239,7 @@ Create adventures worth telling.
 
 Some planned features include:
 
+- Companions
 - Persistent overworld stories
 - Dynamic settlements
 - Reputation system

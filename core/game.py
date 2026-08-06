@@ -362,6 +362,7 @@ from world.world_map import (
     OVERWORLD_CHUNK_WIDTH,
     OVERWORLD_CHUNK_HEIGHT,
     world_position_to_chunk_local,
+    chunk_local_to_world_position,
 )
 from world.world_time import TimeUnit
 from world.lighting import ambient_tint_for_time, combine_tints, period_for_hour
@@ -582,14 +583,31 @@ class Game:
         self.overworld_chunks = {}  # (chunk_x, chunk_y) -> {"map": GameMap, "dungeon_entrances": [...]}
         self.overworld_chunk_coord = (0, 0)
         # Dungeon levels: the same "generate once, cache forever" idea as
-        # overworld_chunks above, but keyed by level number instead of chunk
-        # coordinate. Populated by _snapshot_dungeon_level() right before the
-        # player leaves a level (stairs, or climbing back out to the
-        # overworld) and consulted by generate_level(), so descending/
-        # ascending stairs -- or leaving the dungeon and diving back in --
-        # restores the level exactly as it was left instead of rerolling a
-        # brand new layout, monster spawns, and loot every time.
-        self.dungeon_levels = {}  # level_number -> {"map", "stairs_positions", "torch_light_sources", "lit_wall_torches", "fov", "entities"}
+        # overworld_chunks above, but keyed by (dungeon_id, level_number)
+        # instead of chunk coordinate. Populated by _snapshot_dungeon_level()
+        # right before the player leaves a level (stairs, or climbing back
+        # out to the overworld) and consulted by generate_level(), so
+        # descending/ascending stairs -- or leaving the dungeon and diving
+        # back in -- restores the level exactly as it was left instead of
+        # rerolling a brand new layout, monster spawns, and loot every time.
+        #
+        # `dungeon_id` identifies *which* dungeon entrance the player used --
+        # see current_dungeon_id below -- so two different entrances that
+        # both happen to be on "level 1" are two entirely separate dungeons,
+        # each cached (and generated) independently, instead of sharing one
+        # global "level 1" that every entrance on the map funnels into.
+        self.dungeon_levels = {}  # (dungeon_id, level_number) -> {"map", "stairs_positions", "torch_light_sources", "lit_wall_torches", "fov", "entities"}
+        # Which dungeon the player is currently inside (or last entered),
+        # set the moment they step onto a dungeon_entrance tile -- see
+        # handle_player_action()'s dungeon_entrance_positions check -- and
+        # left unchanged while climbing stairs up/down within it. Combined
+        # with self.current_level to form a dungeon_levels key, and folded
+        # into the seed handed to generate_dungeon() so every entrance grows
+        # its own distinct layout instead of reusing another entrance's.
+        # Defaults to (0, 0) rather than None purely so _dungeon_seed()
+        # never has to guard against an unset id (e.g. via the legacy,
+        # currently-unreachable GameState.TAVERN doorway further down).
+        self.current_dungeon_id = (0, 0)
         self.overworld_player_pos = None
         self.chunk_biomes = {}
         self.dungeon_entrance_positions = []
@@ -3998,21 +4016,33 @@ class Game:
         # Fallback to room center if all attempts fail
         return room.center()
 
+    def _dungeon_level_key(self, level_number):
+        """
+        The self.dungeon_levels cache key for `level_number` of whichever
+        dungeon the player is currently in (self.current_dungeon_id). Every
+        entrance on the map gets its own dungeon_id (see
+        handle_player_action()'s dungeon_entrance_positions check), so two
+        different entrances' "level 1" are cached -- and generated -- as two
+        entirely separate dungeons instead of colliding on a bare int key.
+        """
+        return (self.current_dungeon_id, level_number)
+
     def _snapshot_dungeon_level(self, level_number):
         """
         Save the currently-loaded dungeon level's live state into
-        self.dungeon_levels, keyed by level number, so returning to it later
-        (via stairs, or leaving the dungeon and diving back in) restores it
-        exactly as the player left it -- monsters that died stay dead, items
-        that were picked up stay gone, remaining loot and lit torches stay
-        put -- instead of generating a brand new layout. Mirrors
-        generate_overworld_map()'s per-chunk caching of self.overworld_chunks.
+        self.dungeon_levels, keyed by (dungeon_id, level_number), so
+        returning to it later (via stairs, or leaving the dungeon and diving
+        back in) restores it exactly as the player left it -- monsters that
+        died stay dead, items that were picked up stay gone, remaining loot
+        and lit torches stay put -- instead of generating a brand new
+        layout. Mirrors generate_overworld_map()'s per-chunk caching of
+        self.overworld_chunks.
 
         Call this right before self.game_map/self.entities/etc. get
         reassigned to a different level, while they still describe the level
         being left.
         """
-        self.dungeon_levels[level_number] = {
+        self.dungeon_levels[self._dungeon_level_key(level_number)] = {
             "map": self.game_map,
             "stairs_positions": self.stairs_positions,
             "torch_light_sources": self.torch_light_sources,
@@ -4028,7 +4058,7 @@ class Game:
         Reload a previously-visited dungeon level from self.dungeon_levels
         instead of generating a new one -- see _snapshot_dungeon_level().
         """
-        cached = self.dungeon_levels[level_number]
+        cached = self.dungeon_levels[self._dungeon_level_key(level_number)]
         self.game_map = cached["map"]
         self.stairs_positions = cached["stairs_positions"]
         self.torch_light_sources = cached["torch_light_sources"]
@@ -4084,6 +4114,27 @@ class Game:
         self.message_log.add_message(f"=== RETURNED TO DUNGEON LEVEL {level_number} ===", (0, 255, 255))
         self.minimap_needs_redraw = True
 
+    def _dungeon_seed(self, level_number):
+        """
+        A deterministic seed for self.current_dungeon_id's `level_number`,
+        derived from world_seed plus the dungeon's own global position (see
+        current_dungeon_id -- it's set to the entrance tile's global world
+        position, unique per entrance across the whole persistent map) and
+        the level number itself. Different entrances -- or different levels
+        of the same entrance -- almost never land on the same seed, so
+        generate_dungeon() (see dungeon_generator.py's `seed` parameter)
+        never rerolls the same layout twice, while revisiting the exact
+        same entrance+level (e.g. after a save/reload with no cache) always
+        reproduces the exact same dungeon.
+        """
+        dungeon_x, dungeon_y = self.current_dungeon_id
+        return (
+            self.world_seed * 1_000_003
+            + dungeon_x * 92_821
+            + dungeon_y * 68_927
+            + level_number * 131
+        ) & 0xFFFFFFFF
+
     def generate_level(self, level_number, spawn_on_stairs_up=False):
         # Snapshot whichever dungeon level the player is currently standing
         # on -- if any -- before swapping away from it. Guarded on
@@ -4099,7 +4150,7 @@ class Game:
         self.current_level = level_number
         self.max_level_reached = max(self.max_level_reached, level_number)
 
-        if level_number in self.dungeon_levels:
+        if self._dungeon_level_key(level_number) in self.dungeon_levels:
             self._restore_dungeon_level(level_number, spawn_on_stairs_up=spawn_on_stairs_up)
             return
 
@@ -4108,8 +4159,17 @@ class Game:
 
         self.game_map = GameMap(120, 100)
         self.fov = FOV(self.game_map)
-        
-        rooms, self.stairs_positions, self.torch_light_sources, prison_prisoners = generate_dungeon(self.game_map, level_number)
+
+        # Deterministic per (dungeon entrance, level) seed -- see
+        # current_dungeon_id's docstring -- so this exact entrance's exact
+        # level always regenerates identically if it's ever rebuilt, while
+        # a different entrance (or a different level) reliably gets a
+        # different layout instead of every "level 1" on the map sharing
+        # the same rooms.
+        dungeon_seed = self._dungeon_seed(level_number)
+        rooms, self.stairs_positions, self.torch_light_sources, prison_prisoners = generate_dungeon(
+            self.game_map, level_number, seed=dungeon_seed
+        )
 
 
         # Defensive path only: in normal play a level is always cached (see
@@ -6586,6 +6646,13 @@ class Game:
                     # Remember where the player stood so climbing back out drops them here.
                     self.overworld_player_pos = (self.player.x, self.player.y)
                     self.entered_dungeon_from_overworld = True
+                    # Identify this dungeon by its entrance's global world
+                    # position (see current_dungeon_id's docstring), not
+                    # just "level 1" -- otherwise every entrance on the map
+                    # would funnel into the same shared level 1 dungeon.
+                    self.current_dungeon_id = chunk_local_to_world_position(
+                        self.overworld_chunk_coord, (new_x, new_y)
+                    )
                     self.message_log.add_message("You descend into the dungeon...", (100, 255, 100))
                     self.generate_level(1)
                     return True

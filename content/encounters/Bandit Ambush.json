@@ -223,6 +223,7 @@
           255
         ],
         "outcome": "You spend some time gathering scattered goods and repairing what you can. The merchants thank you before continuing their journey.",
+        "hours": 1,
         "consequences": []
       },
       {

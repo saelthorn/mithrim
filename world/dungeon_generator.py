@@ -637,7 +637,22 @@ def _dig_plus_shaped_room(game_map, plus_room):
 # Main generator
 # ---------------------------------------------------------------------------
 
-def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room_max_size=10):
+def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room_max_size=10, seed=None):
+    """
+    `seed`, when given, reseeds the global `random` module before anything
+    else in this function touches it, so the exact same `seed` always
+    produces the exact same layout (rooms, tunnels, doors, traps, loot,
+    prisoners, ...) -- every random.*()/randint()/choice() call below
+    draws from that same global stream. Callers that want two dungeons to
+    never be identical (see game.py's generate_level(), which derives a
+    distinct seed per dungeon entrance + level) should always pass a
+    seed; leaving it as None just falls back to whatever state the global
+    RNG already happens to be in, exactly like before this parameter
+    existed.
+    """
+    if seed is not None:
+        random.seed(seed)
+
     rooms = []
     stairs_positions = {}
     torch_light_sources = []
