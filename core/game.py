@@ -878,47 +878,54 @@ class Game:
 
         self.ignore_next_input = False  # Flag to ignore input after restart
 
-    # Boss schedule: every 5th floor, ordered list
-    BOSS_FLOORS = [
-        (1, 'Ooze'),
-        (2, 'MyconidAdult'),
-        (3, 'LizardfolkArcher'),
-        (5, 'Gauth'),
-        (7, 'AlphaGrick'),
-        (10, 'DeathSlaad'),
-        (12, 'MindFlayer'),
-        (13, 'TombTapper'),
-        (15, 'Beholder'),
-        (18, 'RedDragon'),
-        (19, 'Demogorgon'),
-        (20, 'Arasta'),
-    ]
+    # Every dungeon (one per entrance) is generated with its own total
+    # floor count, randomly but deterministically chosen in this range --
+    # see _dungeon_floor_count(). There is no longer a single "the dungeon
+    # goes to level 20" ladder; each dungeon is its own short, self-
+    # contained descent.
+    DUNGEON_MIN_FLOORS = 2
+    DUNGEON_MAX_FLOORS = 5
 
+    # Boss pool keyed by *depth within a dungeon* (1 .. DUNGEON_MAX_FLOORS),
+    # not by an absolute floor number -- every dungeon is only 2-5 floors
+    # deep, and whichever floor turns out to be the last one for a given
+    # dungeon (see generate_level()'s is_final_floor) always gets a boss
+    # room, with the boss rolled from that depth's pool. A dungeon that
+    # happens to only be 2 floors deep pulls its boss from depth 2's pool;
+    # a dungeon that goes the full 5 pulls from depth 5's, and so on.
+    BOSS_FLOORS = {
+        1: ['Ooze', 'MyconidAdult', 'LizardfolkArcher'],
+        2: ['LizardfolkArcher', 'Gauth', 'AlphaGrick'],
+        3: ['AlphaGrick', 'DeathSlaad', 'TombTapper'],
+        4: ['MindFlayer', 'Beholder', 'DeathSlaad'],
+        5: ['Beholder', 'RedDragon', 'Demogorgon', 'Arasta'],
+    }
+
+    # Regular (non-boss) monster pool, also keyed by depth within a
+    # dungeon rather than an absolute floor number, so the same tiers
+    # apply consistently no matter which entrance the player is in --
+    # depth 1 is always "dungeon fodder", depth 5 is always as dangerous
+    # as a dungeon gets, regardless of how many total floors that
+    # particular dungeon has.
     MONSTER_SPAWN_TIERS = {
         # 🌱 Early dungeon fodder (CR 1/8 – CR 1/4)
-        (1, 2): [Goblin, GoblinArcher, Wolf, Imp, GiantRat, MyconidSprout,],
-        (3, 4): [Goblin, GoblinArcher, GiantRat, GiantSpider, Wererat, Wolf, MyconidSprout, IntellectDevourer, Imp, Cultist],
-        (5, 5): [Goblin, GoblinArcher, Ooze, GiantRat, Wererat, GiantSpider, Wolf, MyconidAdult, IntellectDevourer, Cultist],
+        1: [Goblin, GoblinArcher, Wolf, Imp, GiantRat, MyconidSprout],
 
         # ⚔️ Early-mid dangers (CR 1/2 – CR 2)
-        (6, 7): [Skeleton, SkeletonArcher, Orc, Grick, Ooze, Cultist],
-        (8, 9): [Lizardfolk, LizardfolkArcher, GiantSpider, Wererat, MyconidAdult],
+        2: [Goblin, GoblinArcher, GiantRat, GiantSpider, Wererat, Wolf,
+            MyconidSprout, IntellectDevourer, Imp, Cultist, Ooze],
 
-        # 🛡️ Mid-game threats (CR 3 – CR 6)
-        (10, 11): [Centaur, CentaurArcher, Troll, Owlbear, Minotaur, RedSlaad, GibberingMouther],
-        (12, 13): [Troll, Orc, GiantSpider, LargeOoze, Minotaur, GibberingMouther],
+        # 🛡️ Mid-game threats (CR 2 – CR 4)
+        3: [Skeleton, SkeletonArcher, Orc, Grick, Ooze, Cultist,
+            Lizardfolk, LizardfolkArcher, GiantSpider, Wererat, MyconidAdult],
 
-        # 👁️ Late-mid bosses and horrors (CR 7 – CR 10)
-        (14, 15): [LargeOoze, GiantSpider, GibberingMouther, Gauth, Wraith, TombTapper],
-        (16, 16): [Drider, Mezzoloth, Wraith],
+        # 👁️ Late-mid bosses and horrors (CR 4 – CR 8)
+        4: [Centaur, CentaurArcher, Troll, Owlbear, Minotaur, RedSlaad,
+            GibberingMouther, LargeOoze, Gauth, Wraith],
 
-        # 🔥 High level threats (CR 11 – CR 15)
-        (17, 17): [Yochlol, RedSlaad, LargeOoze, AlphaGrick, Wraith],
-        (18, 18): [Beholder, MindFlayer, LargeOoze, DeathSlaad, Gauth],
-
-        # 🕷️ Endgame / campaign bosses (CR 20+)
-        (19, 19): [TombTapper],
-        (20, 99): [GiantSpider],
+        # 🔥 Endgame threats (CR 9+)
+        5: [Drider, Mezzoloth, Wraith, Yochlol, RedSlaad, LargeOoze,
+            AlphaGrick, GibberingMouther, TombTapper],
     }
 
     # Flavor-appropriate, low-tier monster pool for each overworld biome.
@@ -3838,12 +3845,12 @@ class Game:
             alert_x, alert_y: Position of the prison door that was opened
             search_radius: How far away to search for spawn locations
         """
-        # Get possible monsters for this level
-        possible_monsters = []
-        for level_range, monster_list in self.MONSTER_SPAWN_TIERS.items():
-            if level_range[0] <= self.current_level <= level_range[1]:
-                possible_monsters.extend(monster_list)
-        
+        # Get possible monsters for this level. self.current_level is this
+        # dungeon's depth (1 .. DUNGEON_MAX_FLOORS); clamp defensively the
+        # same way generate_level() does.
+        monster_depth = max(1, min(self.current_level, max(self.MONSTER_SPAWN_TIERS)))
+        possible_monsters = self.MONSTER_SPAWN_TIERS.get(monster_depth, [])
+
         if not possible_monsters:
             return
         
@@ -4135,6 +4142,29 @@ class Game:
             + level_number * 131
         ) & 0xFFFFFFFF
 
+    def _dungeon_floor_count(self):
+        """
+        How many floors self.current_dungeon_id's dungeon has in total,
+        in [DUNGEON_MIN_FLOORS, DUNGEON_MAX_FLOORS].
+
+        Derived the same way _dungeon_seed() derives a level's layout
+        seed -- from world_seed plus the dungeon entrance's own global
+        position -- but deliberately through its own Random instance
+        rather than reseeding the shared `random` module, since this can
+        be (and is) called from generate_level() before any per-level
+        random.seed(dungeon_seed) call happens. Deterministic per
+        entrance, so re-entering the same entrance always finds the same
+        total floor count, even after a save/reload with nothing cached.
+        """
+        dungeon_x, dungeon_y = self.current_dungeon_id
+        seed = (
+            self.world_seed * 486_187_739
+            + dungeon_x * 92_821
+            + dungeon_y * 68_927
+        ) & 0xFFFFFFFF
+        span = self.DUNGEON_MAX_FLOORS - self.DUNGEON_MIN_FLOORS + 1
+        return self.DUNGEON_MIN_FLOORS + random.Random(seed).randrange(span)
+
     def generate_level(self, level_number, spawn_on_stairs_up=False):
         # Snapshot whichever dungeon level the player is currently standing
         # on -- if any -- before swapping away from it. Guarded on
@@ -4166,9 +4196,17 @@ class Game:
         # a different entrance (or a different level) reliably gets a
         # different layout instead of every "level 1" on the map sharing
         # the same rooms.
+        # This dungeon's total floor count (2-5, deterministic per
+        # entrance -- see _dungeon_floor_count()) and whether this is the
+        # last one. The final floor never gets downstairs -- there's
+        # nowhere further down for this dungeon to go -- and always gets
+        # a boss room instead (see is_boss_floor below).
+        dungeon_floor_count = self._dungeon_floor_count()
+        is_final_floor = level_number >= dungeon_floor_count
+
         dungeon_seed = self._dungeon_seed(level_number)
         rooms, self.stairs_positions, self.torch_light_sources, prison_prisoners = generate_dungeon(
-            self.game_map, level_number, seed=dungeon_seed
+            self.game_map, level_number, seed=dungeon_seed, spawn_downstairs=not is_final_floor
         )
 
 
@@ -4211,8 +4249,10 @@ class Game:
         monsters_per_level = min(5 + level_number, len(rooms) - 2)
         monster_rooms = rooms[1:monsters_per_level + 2]
 
-        # Boss floors: every 5th floor via schedule
-        is_boss_floor = any(level_number == f for (f, _) in self.BOSS_FLOORS)
+        # The final floor of THIS dungeon always gets a boss room --
+        # see is_final_floor above -- regardless of whether this
+        # particular dungeon turned out to be 2 floors or the full 5.
+        is_boss_floor = is_final_floor
         boss_entity = None
         boss_room = None
         if rooms and is_boss_floor:
@@ -4275,8 +4315,13 @@ class Game:
                         break
 
                 if spawn_x is not None:
-                    # Pick boss by schedule
-                    boss_name = next((name for (f, name) in self.BOSS_FLOORS if f == level_number), None)
+                    # Pick a boss from this depth's pool. level_number is
+                    # this dungeon's depth (1 .. DUNGEON_MAX_FLOORS), so it
+                    # indexes BOSS_FLOORS directly; clamp defensively in
+                    # case DUNGEON_MAX_FLOORS is ever raised past the pool's
+                    # highest defined depth.
+                    boss_depth = max(1, min(level_number, max(self.BOSS_FLOORS)))
+                    boss_name = random.choice(self.BOSS_FLOORS[boss_depth])
                     # Map names to classes (fallback to Demogorgon if missing)
                     name_to_cls = {
                         'Ooze': Ooze,
@@ -4303,15 +4348,11 @@ class Game:
                     # Don't spawn regular monsters in the boss room
                     monster_rooms = [r for r in monster_rooms if r is not boss_room]
 
-        # Determine which monsters can spawn on this level based on MONSTER_SPAWN_TIERS
-        possible_monsters = []
-        for level_range, monster_list in self.MONSTER_SPAWN_TIERS.items():
-            if level_range[0] <= level_number <= level_range[1]:
-                possible_monsters.extend(monster_list)
-
-        # Fallback: If no specific monsters are defined for a level, use a default
-        if not possible_monsters:
-            possible_monsters = [GiantRat] # Default to GiantRat if no tier matches
+        # Determine which monsters can spawn on this level based on
+        # MONSTER_SPAWN_TIERS, keyed by depth (1 .. DUNGEON_MAX_FLOORS).
+        # Clamp defensively for the same reason boss_depth does above.
+        monster_depth = max(1, min(level_number, max(self.MONSTER_SPAWN_TIERS)))
+        possible_monsters = self.MONSTER_SPAWN_TIERS.get(monster_depth, [GiantRat])
 
         for i, room in enumerate(monster_rooms):
             # NEW: Use get_valid_spawn_point_in_room to handle L-shaped rooms

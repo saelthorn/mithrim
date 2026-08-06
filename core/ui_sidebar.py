@@ -399,9 +399,6 @@ def _overworld_location_label(game) -> str:
     if world_map is None or chunk_coord is None:
         return "Overworld"
 
-    region_name = world_map.region_name_at(chunk_coord)
-    if region_name:
-        return f"Overworld  {region_name}"
 
     get_chunk_biome = getattr(game, "get_chunk_biome", None)
     if callable(get_chunk_biome):
@@ -420,15 +417,15 @@ def _build_controls(game) -> list[str]:
             controls.append(f"F → {npc.name}")
         else:
             controls.append("F1 talk/ F2 steal/ F3 use/ F4 info")
-        controls += ["T  skip turn", "R  rest",
-                     "I  inventory", "C  character sheet", ]
+        controls += ["R  rest",
+                     "I  inventory",]
     elif gs == "dungeon":
         npc = game.check_dungeon_npc_interaction()
         if npc:
             controls.append(f"F → {npc.name}")
         else:
             controls.append("F1 talk/ F2 steal/ F3 use/ F4 info")
-        controls += ["T  skip turn", "R  rest",
+        controls += ["R  rest",
                      "I  inventory", "C  character sheet", ]
     elif gs == "inventory":
         controls += ["I  close", "↑↓  navigate", "Enter  select"]
