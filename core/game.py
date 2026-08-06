@@ -386,7 +386,7 @@ from entities.monster import (
     Owlbear, Demogorgon, Grick, GibberingMouther, MindFlayer, Minotaur,
     Wererat, Wolf, Yochlol, Drider, RedSlaad, DeathSlaad, MyconidSprout,
     MyconidAdult, Mezzoloth, Gauth, Arasta, AlphaGrick, IntellectDevourer, 
-    Imp, Wraith, TombTapper, Cultist
+    Imp, Wraith, TombTapper, Cultist, Disposition
 
 )
 
@@ -1088,6 +1088,22 @@ class Game:
         "MyconidAdult": MyconidAdult,
     }
 
+    # A stage's (or wave's) optional "disposition" string, resolved to
+    # entities/monster.py's Disposition enum -- see _normalize_world_
+    # encounter_stage() and Disposition's own docstring. Lets a scenario
+    # like Centaur_Crossing.json spawn its monster_pool PASSIVE/NEUTRAL
+    # (territorial, not hostile on sight) instead of every world-encounter
+    # monster defaulting to AGGRESSIVE. A PASSIVE/NEUTRAL monster still
+    # takes its Opportunity Attack if the player walks away from melee
+    # range once provoked -- see the "Opportunity Attack Check" in
+    # try_move_player(), which calls Monster.attack() directly and never
+    # consults disposition, exactly like an AGGRESSIVE monster would.
+    WORLD_ENCOUNTER_DISPOSITIONS = {
+        "aggressive": Disposition.AGGRESSIVE,
+        "passive": Disposition.PASSIVE,
+        "neutral": Disposition.NEUTRAL,
+    }
+
     # A world encounter's (or authored quest's) "give_item"/"remove_item"
     # Consequence (see consequence_system.py's GiveItemConsequence/
     # GameExecutionContext.give_item() in story_integration.py) names its
@@ -1254,8 +1270,8 @@ class Game:
     # staging existed keeps working completely unchanged.
     WORLD_ENCOUNTER_STAGE_FIELDS = (
         "discovery", "landmark_tile", "landmark_tile_amount", "landmark_structure",
-        "monster_pool", "monster_count", "choices", "sneak_dc", "sneak_success",
-        "sneak_fail", "ignore", "investigate_message",
+        "monster_pool", "monster_count", "disposition", "choices", "sneak_dc",
+        "sneak_success", "sneak_fail", "ignore", "investigate_message",
     )
 
     # Fallback menu for any world-encounter JSON that doesn't declare its
@@ -1417,6 +1433,27 @@ class Game:
             return list(value)
         return [value]
 
+    def _resolve_world_encounter_disposition(self, value, source):
+        """
+        Resolves a stage's (or wave's) optional "disposition" string
+        (see WORLD_ENCOUNTER_DISPOSITIONS) to a Disposition enum member.
+        Returns None for a stage that doesn't declare one at all, so the
+        spawned monster keeps whatever its class's __init__ already sets
+        (AGGRESSIVE for most, PASSIVE for Centaur/MyconidSprout/etc. --
+        see monster.py) rather than this method silently overriding it.
+        An unrecognized string logs a load error and falls back to that
+        same None/"leave it alone" behavior, rather than crashing the
+        whole file over one typo.
+        """
+        if value is None:
+            return None
+        disposition = self.WORLD_ENCOUNTER_DISPOSITIONS.get(value)
+        if disposition is None:
+            self.message_log.add_message(
+                f"Encounter load error ({source}): unknown disposition {value!r}", (255, 100, 100)
+            )
+        return disposition
+
     def _normalize_world_encounter_stage(self, stage_data, source_name, stage_index):
         """
         Normalizes one entry of a scenario's "stages" list (see
@@ -1463,6 +1500,12 @@ class Game:
             ),
             "monster_pool": monster_pool,
             "monster_count": tuple(stage_data.get("monster_count", (0, 0))),
+            # None (the default) leaves each spawned monster's own class
+            # default disposition alone -- see WORLD_ENCOUNTER_DISPOSITIONS
+            # and _spawn_world_encounter_monsters().
+            "disposition": self._resolve_world_encounter_disposition(
+                stage_data.get("disposition"), source
+            ),
             "combat": bool(monster_pool),
             "sneak_dc": stage_data.get("sneak_dc"),
             "sneak_success": stage_data.get("sneak_success", ""),
@@ -1573,6 +1616,13 @@ class Game:
                 "discovery": wave.get("discovery", ""),
                 "monster_pool": monster_pool,
                 "monster_count": monster_count,
+                # Same optional override as a stage's own "disposition" --
+                # see WORLD_ENCOUNTER_DISPOSITIONS and _resolve_world_
+                # encounter_disposition(). None leaves each wave monster's
+                # class default alone.
+                "disposition": self._resolve_world_encounter_disposition(
+                    wave.get("disposition"), f"{source_name} wave"
+                ),
             })
         return normalized
 
@@ -2547,6 +2597,8 @@ class Game:
             spawn_candidates.remove((spawn_x, spawn_y))
             monster = monster_class(spawn_x, spawn_y)
             monster.group_id = group_id
+            if wave["disposition"] is not None:
+                monster.disposition = wave["disposition"]
             monster.roll_initiative()
             self.entities.append(monster)
             self.turn_order.append(monster)
@@ -2578,6 +2630,12 @@ class Game:
         group_id (see _create_world_encounter_story()) so the KILL_NPC
         TriggerRule wired in _wire_world_encounter_combat() can tell which
         kills belong to this ambush versus any other monster on the map.
+
+        If `stage` declares a "disposition" (see WORLD_ENCOUNTER_
+        DISPOSITIONS), every monster spawned here gets it -- e.g.
+        Centaur_Crossing.json spawning its band PASSIVE so "Approach the
+        Band" doesn't start a fight on its own. Left as each class's own
+        default disposition otherwise.
         """
         spawn_candidates = self._world_encounter_stage_spawn_candidates
         if not spawn_candidates:
@@ -2596,6 +2654,8 @@ class Game:
             spawn_candidates.remove((spawn_x, spawn_y))
             monster = monster_class(spawn_x, spawn_y)
             monster.group_id = group_id
+            if stage["disposition"] is not None:
+                monster.disposition = stage["disposition"]
             monster.roll_initiative()
             if surprised:
                 # Spotted while sneaking - the monsters get the jump on the player.
@@ -6642,7 +6702,13 @@ class Game:
                     return True  # Menu now showing; resolve the encounter before anything else
 
                 # --- Opportunity Attack Check ---
-                # Iterate through monsters that were adjacent before the move
+                # Iterate through monsters that were adjacent before the move.
+                # Deliberately not filtered by Disposition: a PASSIVE/NEUTRAL
+                # monster (see entities/monster.py, and world-encounter stages
+                # spawned via WORLD_ENCOUNTER_DISPOSITIONS) won't chase or
+                # start a fight on its own, but it's still standing right next
+                # to the player and still gets its swing in if the player
+                # walks away from melee range -- same as an AGGRESSIVE one.
                 for monster in monsters_adjacent_before_move:
                     # Check if the monster is still adjacent to the player's *new* position
                     is_still_adjacent_to_monster = (abs(self.player.x - monster.x) <= 1 and abs(self.player.y - monster.y) <= 1)

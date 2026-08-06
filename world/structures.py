@@ -141,7 +141,7 @@ class Townsfolk(TownNPC):
 
 
 class Blacksmith(TownNPC):
-    def __init__(self, x, y, name):
+    def __init__(self, x, y, name=None):
         dialogue = [
             "I am still unpacking the shelves, but I know a good buyer when I see one.",
             "Bring back anything odd from the ruins. Odd things sell.",
@@ -424,7 +424,7 @@ def _spawn_villager(x, y):
     return Townsfolk(x, y)
 
 def _spawn_blacksmith(x, y):
-    return 
+    return Blacksmith(x, y)
 
 def _spawn_priest(x, y):
     return Priest(x, y)
@@ -560,9 +560,9 @@ STRUCTURE_BLUEPRINTS = {
         [
             "   ##     ",
             " #######  ",
-            " +.....#  ",
-            " #..F..#  ",
-            " #.N.B.#  ",
+            " +..F..#  ",
+            " #...N.#  ",
+            " #...B.#  ",
             " #s....#  ",
             " #######  ",
             "          ",

@@ -2017,7 +2017,7 @@ TOWN_CHUNK_FREQUENCY = 2
 TOWN_ANCHOR_MARGIN = 6
 
 
-def _anchor_offset(size_a, size_b, gap):
+def _anchor_offset(size_a, size_b, size_c=None, gap=None):
     """
     Distance to add to one building's anchor coordinate to get the anchor
     coordinate of a second building placed directly after it (to the right,
@@ -2027,8 +2027,19 @@ def _anchor_offset(size_a, size_b, gap):
     place_structure_at_anchor centers a building on its anchor using
     `origin = anchor - size // 2`, so this mirrors that math rather than
     guessing at spacing with hand-picked offsets.
+
+    If `size_c` and `gap` are both provided, `size_a` and `size_b` are
+    treated as two overlapping buildings anchored at the same coordinate
+    and the returned offset is from that shared anchor to the anchor of
+    the third building.
     """
-    return (size_a - size_a // 2) + gap + (size_b // 2)
+    if gap is None:
+        gap = size_c
+        return (size_a - size_a // 2) + gap + (size_b // 2)
+
+    preceding_size = max(size_a, size_b)
+    return (preceding_size - preceding_size // 2) + gap + (size_c // 2)
+
 
 
 def _town_rng(chunk_coord, world_seed):
@@ -2105,10 +2116,12 @@ def _place_town(game_map, chunk_coord, biome, world_seed):
     tavern_bp = get_structure_blueprint("tavern")
     shop_bp = get_structure_blueprint("shop")
     house_bp = get_structure_blueprint("house")
+    blacksmith_bp = get_structure_blueprint("blacksmith")
 
     tavern_w, tavern_h = len(tavern_bp.tile_map[0]), len(tavern_bp.tile_map)
     shop_w, shop_h = len(shop_bp.tile_map[0]), len(shop_bp.tile_map)
     house_w, house_h = len(house_bp.tile_map[0]), len(house_bp.tile_map)
+    blacksmith_w, blacksmith_h = len(blacksmith_bp.tile_map[0]), len(blacksmith_bp.tile_map)
 
     town_buildings = []
 
@@ -2116,6 +2129,10 @@ def _place_town(game_map, chunk_coord, biome, world_seed):
     if not tavern:
         return []
     town_buildings.append(("tavern", tavern))
+
+    blacksmith = place_structure_at_anchor(game_map, "blacksmith", anchor_x, anchor_y)
+    if blacksmith:
+        town_buildings.append(("blacksmith", blacksmith))
 
     # Shop is placed on a randomly chosen side of the tavern (instead of
     # always to the right), with a random amount of extra slack layered on
@@ -2128,17 +2145,17 @@ def _place_town(game_map, chunk_coord, biome, world_seed):
     shop_drift = rng.randint(-TOWN_LAYOUT_JITTER, TOWN_LAYOUT_JITTER)
     shop_side = rng.choice(("right", "left", "below", "above"))
     if shop_side == "right":
-        shop_anchor_x = anchor_x + _anchor_offset(tavern_w, shop_w, shop_gap)
+        shop_anchor_x = anchor_x + _anchor_offset(tavern_w, blacksmith_w, shop_w, shop_gap)
         shop_anchor_y = anchor_y + shop_drift
     elif shop_side == "left":
-        shop_anchor_x = anchor_x - _anchor_offset(tavern_w, shop_w, shop_gap)
+        shop_anchor_x = anchor_x - _anchor_offset(tavern_w, blacksmith_w, shop_w, shop_gap)
         shop_anchor_y = anchor_y + shop_drift
     elif shop_side == "below":
         shop_anchor_x = anchor_x + shop_drift
-        shop_anchor_y = anchor_y + _anchor_offset(tavern_h, shop_h, shop_gap)
+        shop_anchor_y = anchor_y + _anchor_offset(tavern_h, blacksmith_h, shop_h, shop_gap)
     else:  # "above"
         shop_anchor_x = anchor_x + shop_drift
-        shop_anchor_y = anchor_y - _anchor_offset(tavern_h, shop_h, shop_gap)
+        shop_anchor_y = anchor_y - _anchor_offset(tavern_h, blacksmith_h, shop_h, shop_gap)
 
     shop = place_structure_at_anchor(game_map, "shop", shop_anchor_x, shop_anchor_y)
     if shop:

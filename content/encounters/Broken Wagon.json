@@ -44,6 +44,11 @@
                         {
                             "type": "reward_xp",
                             "amount": 10
+                        },
+                        {
+                            "type": "remove_item",
+                            "item_id": "meat",
+                            "count": 1
                         }
                     ]
                 },
