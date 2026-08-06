@@ -17,7 +17,7 @@
       "choices": [
         {
           "key": 1,
-          "action": "resolve",
+          "action": "investigate",
           "label": "Offer a Toll",
           "description": "Pay 15 gold for safe passage",
           "color": [
@@ -39,7 +39,7 @@
         },
         {
           "key": 2,
-          "action": "resolve",
+          "action": "investigate",
           "label": "Ask for Passage",
           "description": "Speak plainly and hope for goodwill",
           "color": [

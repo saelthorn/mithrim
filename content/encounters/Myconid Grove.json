@@ -17,7 +17,7 @@
       "choices": [
         {
           "key": 1,
-          "action": "resolve",
+          "action": "investigate",
           "label": "Offer a Gift",
           "description": "Leave a bit of food among the ring",
           "color": [
@@ -29,7 +29,7 @@
           "consequences": [
             {
               "type": "reward_xp",
-              "amount": 15
+              "amount": 100
             }
           ]
         },

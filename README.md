@@ -2,7 +2,7 @@
 
 # Mithrim
 
-*A dark fantasy, turn-based roguelike inspired by Dungeons & Dragons 5th Edition.*
+*Mithrim is a dark fantasy, turn-based roguelike where the world isn't just procedurally generated—it evolves through the adventures you create. Explore dangerous dungeons, wander a living overworld, and uncover narrative encounters that leave lasting marks on the land.*
 
 <img width="1621" height="985" alt="mithrim_bg" src="https://github.com/user-attachments/assets/aa4b1c03-84a8-4b92-9981-03bcaeea1d2e" />
 
@@ -275,6 +275,7 @@ Some planned features include:
 | I | Inventory |
 | C | Character Sheet |
 | R | Rest |
+| T | Skip Turn |
 | ESC | Cancel / Back |
 
 ---

@@ -4,6 +4,7 @@ import config
 import math 
 import json
 import uuid
+import copy
 import tracemalloc      # Lifesaver
 from pathlib import Path
 from enum import Enum
@@ -1087,6 +1088,64 @@ class Game:
         "MyconidAdult": MyconidAdult,
     }
 
+    # A world encounter's (or authored quest's) "give_item"/"remove_item"
+    # Consequence (see consequence_system.py's GiveItemConsequence/
+    # GameExecutionContext.give_item() in story_integration.py) names its
+    # item as a short string key rather than importing items.py itself --
+    # this is the lookup give_item_to_player()/remove_item_from_player()
+    # resolve those keys through, the same division of labor
+    # WORLD_ENCOUNTER_MONSTER_CLASSES above already uses for monster_pool
+    # names. Add an entry here whenever a new item is referenced from
+    # content. Values are items.py's own shared module-level instances --
+    # give_item_to_player() copy.copy()s one per unit granted rather than
+    # handing out that literal shared object, so two different rewards
+    # (or two grants of the same reward) never alias the same instance.
+    WORLD_ENCOUNTER_ITEM_TEMPLATES = {
+        "torch": torch,
+        "wood_plank": wood_plank,
+        "meat": meat,
+        "green_apple": green_apple,
+        "fromage": fromage,
+        "bread": bread,
+        "mushroom": mushroom,
+        "lesser_healing_potion": lesser_healing_potion,
+        "greater_healing_potion": greater_healing_potion,
+        "iron_dagger": iron_dagger,
+        "silver_dagger": silver_dagger,
+        "bronze_short_sword": bronze_short_sword,
+        "iron_short_sword": iron_short_sword,
+        "iron_long_sword": iron_long_sword,
+        "steel_long_sword": steel_long_sword,
+        "oak_staff": oak_staff,
+        "apprentices_staff": apprentices_staff,
+        "pole_arm": pole_arm,
+        "steel_battle_axe": steel_battle_axe,
+        "steel_rapier": steel_rapier,
+        "iron_hammer": iron_hammer,
+        "steel_maul": steel_maul,
+        "steel_mace": steel_mace,
+        "dwarven_flail": dwarven_flail,
+        "round_shield": round_shield,
+        "kite_shield": kite_shield,
+        "tower_shield": tower_shield,
+        "padded_armor": padded_armor,
+        "studded_leather_armor": studded_leather_armor,
+        "chainmail_armor": chainmail_armor,
+        "half_plate_armor": half_plate_armor,
+        "robes": robes,
+        "leather_cap": leather_cap,
+        "iron_helmet": iron_helmet,
+        "steel_helmet": steel_helmet,
+        "great_helm": great_helm,
+        "mages_circlet": mages_circlet,
+        "hood_of_shadows": hood_of_shadows,
+        "leather_boots": leather_boots,
+        "iron_greaves": iron_greaves,
+        "boots_of_speed": boots_of_speed,
+        "boots_of_stealth": boots_of_stealth,
+        "dwarven_stompers": dwarven_stompers,
+    }
+
     # A world encounter's JSON may declare a "landmark_tile" (e.g.
     # Bandit_Ambush.json's ransacked "caravan") -- a static map tile
     # dropped near the player alongside the monsters/victims, giving the
@@ -1824,6 +1883,79 @@ class Game:
         self.entities.append(entity)
         self.npc_registry[entity.id] = entity
         return entity.id
+
+    def give_item_to_player(self, item_id, count=1):
+        """
+        ExecutionContext.give_item hook (story_integration.py's
+        GameExecutionContext.give_item()): what a "give_item" Consequence
+        actually does to self.player.inventory -- e.g. a rescued victim
+        handing over a keepsake, or a non-combat encounter's "resolve"
+        choice rewarding a specific item instead of (or alongside) raw
+        gold/xp. `item_id` is looked up in WORLD_ENCOUNTER_ITEM_TEMPLATES
+        the same way monster_pool names are resolved through
+        WORLD_ENCOUNTER_MONSTER_CLASSES -- content references items by a
+        short string key rather than importing items.py itself.
+
+        Grants a fresh copy.copy() of the template per unit of `count`
+        rather than handing out the same shared module-level item object
+        more than once: items.py's instances (torch, iron_dagger, ...)
+        are reused as read-only templates throughout this file (e.g.
+        chest loot tables), and self.player.inventory.add_item() expects
+        each stacked/equipped item to be its own object, not the literal
+        same instance appearing twice over.
+
+        An unknown item_id is a content mistake, not a player-facing
+        failure -- logged once and otherwise a no-op, rather than raising
+        out of whatever ConsequenceExecutor.execute() call this ran
+        inside of (Consequence.execute() already swallows exceptions from
+        _apply(), but a swallowed KeyError here would look identical to a
+        silently-empty reward with no indication why).
+        """
+        template = self.WORLD_ENCOUNTER_ITEM_TEMPLATES.get(item_id)
+        if template is None:
+            self.message_log.add_message(f"(unknown reward item {item_id!r} -- nothing given)", (255, 100, 100))
+            return
+
+        for _ in range(max(1, count)):
+            new_item = copy.copy(template)
+            if not self.player.inventory.add_item(new_item):
+                self.message_log.add_message(
+                    f"Your inventory is full! You couldn't take the {new_item.name}.", (255, 0, 0)
+                )
+                break
+
+    def remove_item_from_player(self, item_id, count=1):
+        """
+        ExecutionContext.remove_item hook: the other half of
+        give_item_to_player() above -- what a "remove_item" Consequence
+        (e.g. a non-combat encounter's choice where the player hands over
+        supplies to someone in need) actually does. items.py items carry
+        no string id of their own to match against directly, so this
+        matches inventory items back to `item_id`'s template by name,
+        removing up to `count` of them -- fewer than `count`, silently,
+        if the player is carrying less than that, rather than raising.
+
+        Unlike give_item_to_player(), an unknown item_id logs nothing:
+        GameExecutionContext.remove_item() has no generic message of its
+        own either, and a scenario giving away an item the player was
+        never guaranteed to be carrying (e.g. an optional "if you still
+        have one" supply donation) shouldn't read as an error.
+        """
+        template = self.WORLD_ENCOUNTER_ITEM_TEMPLATES.get(item_id)
+        if template is None:
+            return
+
+        removed = 0
+        for item in list(self.player.inventory.items):
+            if removed >= count:
+                break
+            if item.name == template.name:
+                self.player.inventory.remove_item(item)
+                removed += 1
+
+        if removed:
+            label = template.name if removed == 1 else f"{template.name} x{removed}"
+            self.message_log.add_message(f"You hand over {label}.", (200, 200, 255))
 
     def _entity_within_range(self, radius):
         """

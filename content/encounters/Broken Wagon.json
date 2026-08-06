@@ -11,13 +11,13 @@
                     "action": "resolve",
                     "label": "Help Repair the Wagon",
                     "description": "Lend a hand to the family",
-                    "hours": 6,
                     "color": [
                         160,
                         200,
                         255
                     ],
                     "outcome": "You help the family repair the wagon, earning their gratitude and a small reward.",
+                    "hours": 6,
                     "consequences": [
                         {
                             "type": "reward_gold",
