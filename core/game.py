@@ -1093,11 +1093,12 @@ class Game:
     # encounter_stage() and Disposition's own docstring. Lets a scenario
     # like Centaur_Crossing.json spawn its monster_pool PASSIVE/NEUTRAL
     # (territorial, not hostile on sight) instead of every world-encounter
-    # monster defaulting to AGGRESSIVE. A PASSIVE/NEUTRAL monster still
-    # takes its Opportunity Attack if the player walks away from melee
-    # range once provoked -- see the "Opportunity Attack Check" in
-    # try_move_player(), which calls Monster.attack() directly and never
-    # consults disposition, exactly like an AGGRESSIVE monster would.
+    # monster defaulting to AGGRESSIVE. A PASSIVE/NEUTRAL monster does
+    # nothing at all -- no chasing, no Opportunity Attack -- until the
+    # player actually attacks one, at which point Monster.provoke() makes
+    # that monster (and, via _alert_group(), every other living monster
+    # sharing its group_id) AGGRESSIVE, and the "Opportunity Attack Check"
+    # in try_move_player() starts applying to them from then on.
     WORLD_ENCOUNTER_DISPOSITIONS = {
         "aggressive": Disposition.AGGRESSIVE,
         "passive": Disposition.PASSIVE,
@@ -6703,13 +6704,20 @@ class Game:
 
                 # --- Opportunity Attack Check ---
                 # Iterate through monsters that were adjacent before the move.
-                # Deliberately not filtered by Disposition: a PASSIVE/NEUTRAL
-                # monster (see entities/monster.py, and world-encounter stages
-                # spawned via WORLD_ENCOUNTER_DISPOSITIONS) won't chase or
-                # start a fight on its own, but it's still standing right next
-                # to the player and still gets its swing in if the player
-                # walks away from melee range -- same as an AGGRESSIVE one.
+                # Skip anything not currently AGGRESSIVE (see Disposition in
+                # entities/monster.py): a PASSIVE/NEUTRAL monster -- e.g. a
+                # Centaur_Crossing.json band spawned via WORLD_ENCOUNTER_
+                # DISPOSITIONS -- does nothing at all until the player
+                # actually attacks one of its members. Monster.provoke()
+                # flips the attacker's disposition to AGGRESSIVE (and, via
+                # _alert_group(), every other living monster sharing its
+                # group_id) the instant that happens, so the very next time
+                # the player steps away from any of them, this check sees
+                # AGGRESSIVE and the opportunity attack fires as normal.
                 for monster in monsters_adjacent_before_move:
+                    if monster.disposition != Disposition.AGGRESSIVE:
+                        continue
+
                     # Check if the monster is still adjacent to the player's *new* position
                     is_still_adjacent_to_monster = (abs(self.player.x - monster.x) <= 1 and abs(self.player.y - monster.y) <= 1)
                     
