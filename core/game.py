@@ -4595,6 +4595,24 @@ class Game:
                         return entity
         return None
 
+    def check_adjacent_monster_interaction(self):
+        """
+        Cardinal-adjacency check for a live Monster to "talk" to via F,
+        mirroring check_overworld_npc_interaction()/check_dungeon_npc_
+        interaction() above. Surfaces the monster's actual spoken
+        dialogue (see monster.py's get_dialogue()/dialogue_lines) --
+        distinct from speak_ambient(), which only fires on its own (first
+        spotted, idle patrolling) and never in response to the player
+        deliberately talking to it.
+        """
+        for entity in self.entities:
+            if isinstance(entity, Monster) and entity.alive and entity is not self.player:
+                if (abs(self.player.x - entity.x) <= 1 and
+                    abs(self.player.y - entity.y) <= 1 and
+                    (abs(self.player.x - entity.x) + abs(self.player.y - entity.y)) == 1):
+                    return entity
+        return None
+
     def check_overworld_landmark_interaction(self):
         """
         Adjacency check for non-NPC StoryObjects (shrine altars, journals,
@@ -5036,7 +5054,12 @@ class Game:
                     if not entity.is_active:
                         entity.is_active = True
                         entity.sleep_cooldown = 0
-                        self.message_log.add_message(f"You spot a {entity.name}!", entity.color)
+                        # A flavorful ambient line (see monster.py's
+                        # speak_ambient()/ambient_messages) instead of a
+                        # flat "You spot a {name}!" -- force=True so the
+                        # very first sighting always says something,
+                        # bypassing the usual per-turn bark chance.
+                        entity.speak_ambient(self, force=True)
                 elif distance_to_player <= WAKE_RADIUS:
                     entity.is_active = True
                     entity.sleep_cooldown = 0
@@ -5745,6 +5768,13 @@ class Game:
                                 self.interact_with_landmark(landmark)
                                 return True
 
+                            monster = self.check_adjacent_monster_interaction()
+                            if monster:
+                                self.message_log.add_message(
+                                    f'{monster.name}: "{monster.get_dialogue()}"', (200, 200, 255)
+                                )
+                                return True
+
                         merchant = self.check_dungeon_npc_interaction()  # Check for adjacent NPC
                         if self.interaction_mode == InteractionMode.STEAL:
                             if merchant:
@@ -5769,6 +5799,18 @@ class Game:
                             )
                             self.stories.fire_talk(merchant, instigator=self.player)
                             return True
+
+                        if self.game_state == GameState.DUNGEON:
+                            # Reached only for GameState.DUNGEON, same reasoning as the
+                            # INTERACT branch's comment above -- OVERWORLD already
+                            # checked/returned via check_adjacent_monster_interaction()
+                            # earlier in this handler.
+                            monster = self.check_adjacent_monster_interaction()
+                            if monster:
+                                self.message_log.add_message(
+                                    f'{monster.name}: "{monster.get_dialogue()}"', (200, 200, 255)
+                                )
+                                return True
 
                 if self.game_state in GameState.TAVERN:
                     if event.key == pygame.K_f:  # Check if 'F' is pressed

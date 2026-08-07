@@ -123,6 +123,51 @@ MONSTER_GROUPS = {
     'TombTapper': ['TombTapper']
 }
 
+
+# --- AMBIENT / IDLE DIALOGUE ---
+# Generic flavor-line pools every monster falls back to (see
+# Monster.speak_ambient() below) when it hasn't been given its own
+# `self.ambient_messages`. Split along the same is_intelligent flag
+# every monster already carries, so a mindless Ooze never "mutters" and
+# a scheming MindFlayer never just "snarls" -- without requiring every
+# one of the ~80 subclasses below to declare its own pool. A handful of
+# especially characterful monsters (dragons, trolls, aberrations, ...)
+# still set their own `self.ambient_messages` in their __init__ for a
+# more distinct voice; everything else uses these defaults automatically.
+AMBIENT_MESSAGES_BESTIAL = [
+    "{name} snarls quietly to itself...",
+    "{name} sniffs at the air...",
+    "{name} shifts its weight, claws scraping stone...",
+    "{name} lets out a low, restless growl...",
+    "{name} flicks its tail, watching the shadows...",
+]
+
+AMBIENT_MESSAGES_INTELLIGENT = [
+    "{name} mutters something under its breath...",
+    "{name} glances around warily...",
+    "{name} taps its weapon impatiently...",
+    "{name} eyes its surroundings, alert...",
+    "{name} grumbles about the cold, damp air...",
+]
+
+# Generic fallback lines for get_dialogue() (see Monster.get_dialogue()
+# below) -- actual spoken lines, distinct from the third-person ambient
+# narration above. Used only by monsters that haven't been given their
+# own `self.dialogue_lines` yet (see Goblin for a worked example), so
+# every monster still says *something* back when talked to via F.
+DIALOGUE_FALLBACK_INTELLIGENT = [
+    "It says nothing, just watches you closely.",
+    "It has nothing to say to you.",
+    "It grunts, unwilling to talk.",
+]
+
+DIALOGUE_FALLBACK_BESTIAL = [
+    "Grrrr...",
+    "Hsssss...",
+    "It only stares back, uncomprehending.",
+]
+
+
 class Monster:
     def __init__(self, x, y, char, name, color):
         self.x = x
@@ -240,6 +285,27 @@ class Monster:
         
         self.consecutive_failed_flee_turns = 0
 
+        # Ambient/idle dialogue -- see AMBIENT_MESSAGES_BESTIAL/
+        # AMBIENT_MESSAGES_INTELLIGENT above and speak_ambient() below.
+        # None means "use the generic pool for is_intelligent"; a
+        # subclass may instead set this to its own list of "{name}"-
+        # templated lines for a more distinct voice (see e.g. RedDragon,
+        # Troll, MindFlayer below).
+        self.ambient_messages = None
+        # Per-turn chance to actually say something while idling/patrolling
+        # (checked from patrol() below) -- kept low so it stays flavor,
+        # not noise, even with many monsters patrolling on the same turn.
+        self.ambient_bark_chance = 0.08
+
+        # Actual "spoken" dialogue for the player's F/talk interaction
+        # (see get_dialogue() below and game.py's check_adjacent_monster_
+        # interaction()) -- distinct from ambient_messages above, which
+        # is only ever narration (first-spotted / idle patrol lines).
+        # Empty by default; subclasses fill this in with their own lines
+        # (see Goblin below for an example). Monsters left empty still
+        # get a generic fallback line from get_dialogue().
+        self.dialogue_lines = []
+
             
 
     def hp_percentage(self):
@@ -314,7 +380,58 @@ class Monster:
                         break
 
 
+    def ambient_message_pool(self):
+        """The pool of flavor lines speak_ambient() picks from: this
+        monster's own `ambient_messages` if it set one, otherwise the
+        shared generic pool matching its is_intelligent flag."""
+        if self.ambient_messages:
+            return self.ambient_messages
+        return AMBIENT_MESSAGES_INTELLIGENT if self.is_intelligent else AMBIENT_MESSAGES_BESTIAL
+
+    def speak_ambient(self, game, chance=None, force=False):
+        """
+        Roll to log a short, purely-flavor idle line for this monster --
+        never affects gameplay, just atmosphere. `chance` overrides this
+        monster's own `ambient_bark_chance` for one call (e.g. a boss
+        wanting a guaranteed line the moment it wakes); `force=True`
+        skips the roll entirely. Every monster gets this for free
+        through the base class, so "every monster has ambient dialogue"
+        holds even for subclasses that never touch this method.
+        """
+        if not self.alive:
+            return
+        roll_chance = self.ambient_bark_chance if chance is None else chance
+        if not force and random.random() > roll_chance:
+            return
+
+        line = random.choice(self.ambient_message_pool()).format(name=f"The {self.name}")
+        game.message_log.add_message(line, self.color)
+
+    def get_dialogue(self):
+        """
+        Return one line of actual "spoken" dialogue for the player's F/
+        talk interaction (see game.py's check_adjacent_monster_
+        interaction()) -- same shape as NPC.get_dialogue() elsewhere, and
+        deliberately separate from speak_ambient() above: ambient lines
+        are third-person narration that fire on their own (first spotted,
+        idle patrolling); get_dialogue() is a line the monster actually
+        "says" back only when the player deliberately talks to it.
+        Subclasses populate `self.dialogue_lines` with their own lines
+        (see Goblin below); anything left empty still says something via
+        the generic fallback pools above.
+        """
+        if self.dialogue_lines:
+            return random.choice(self.dialogue_lines)
+        fallback = DIALOGUE_FALLBACK_INTELLIGENT if self.is_intelligent else DIALOGUE_FALLBACK_BESTIAL
+        return random.choice(fallback)
+
     def patrol(self, game_map, game):
+        # Idle monsters occasionally bark/mutter/growl to themselves --
+        # see speak_ambient() and the AMBIENT_MESSAGES_* pools above.
+        # Only while actually patrolling (never mid-chase/combat), so
+        # this stays background flavor rather than combat noise.
+        self.speak_ambient(game)
+
         possible_moves = []
         for dx in [-1, 0, 1]:
             for dy in [-1, 0, 1]:
@@ -1822,6 +1939,17 @@ class Ooze(Monster):
 class Goblin(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'GB', 'Goblin', (0, 255, 0))
+        self.ambient_messages = [
+            "{name} cackles and pokes at its spear...",
+            "{name} squabbles with an unseen rival...",
+            "{name} chews on something unidentifiable...",
+        ]
+        self.dialogue_lines = [
+            "Go away, or we stab!",
+            "You smell like shiny things. Give!",
+            "Boss not gonna like this...",
+            "Big one! Too big! Run!",
+        ]
         self.hp = 7
         self.max_hp = 7
         self.attack_bonus = 2
@@ -1888,6 +2016,11 @@ class GoblinArcher(Monster):
 class Skeleton(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'SK', 'Skeleton', (200, 200, 200))
+        self.ambient_messages = [
+            "{name}'s bones rattle and clack...",
+            "{name} stares ahead with hollow, unblinking sockets...",
+            "{name} creaks as it shifts its stance...",
+        ]
         self.hp = 13
         self.max_hp = 13
         self.attack_bonus = 2
@@ -2048,6 +2181,11 @@ class CentaurArcher(Monster):
 class Troll(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'TL', 'Troll', (0, 100, 0))
+        self.ambient_messages = [
+            "{name} scratches at a wound that's already closing...",
+            "{name} grunts, sniffing hungrily...",
+            "{name} lets out a bone-shaking belch...",
+        ]
         self.hp = 84
         self.max_hp = 84
         self.attack_bonus = 4
@@ -2176,6 +2314,11 @@ class GiantSpider(Monster):
 class Beholder(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'BH', 'Beholder', (150, 0, 150))
+        self.ambient_messages = [
+            "{name}'s many eyestalks swivel independently, watching everything...",
+            "{name} hovers in place, muttering to itself in an alien tongue...",
+            "{name}'s central eye narrows, unblinking...",
+        ]
         self.hp = 180
         self.max_hp = 180
         self.attack_bonus = 7
@@ -2243,6 +2386,11 @@ class LargeOoze(Monster):
 class RedDragon(Monster):  
     def __init__(self, x, y):
         super().__init__(x, y, 'RDR', 'Red Dragon', (255, 0, 0))
+        self.ambient_messages = [
+            "{name} exhales a thin curl of smoke...",
+            "{name}'s hoard shifts as it settles its enormous bulk...",
+            "{name} rumbles low in its throat, a sound like distant thunder...",
+        ]
         self.can_swim = True
         self.hp = 256
         self.max_hp = 256
@@ -2277,6 +2425,11 @@ class RedDragon(Monster):
 class Owlbear(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'OB', 'Owlbear', (139, 69, 19))
+        self.ambient_messages = [
+            "{name} clicks its beak sharply...",
+            "{name} ruffles its feathers and huffs...",
+            "{name} paces restlessly on heavy paws...",
+        ]
         self.hp = 59
         self.max_hp = 59
         self.attack_bonus = 5
@@ -2300,6 +2453,11 @@ class Owlbear(Monster):
 class Demogorgon(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'DG', 'Demogorgon', (72, 61, 139))
+        self.ambient_messages = [
+            "{name}'s two heads hiss at each other in some fell language...",
+            "{name}'s tentacles writhe restlessly against the ground...",
+            "{name} regards you with four baleful eyes...",
+        ]
         self.hp = 496
         self.max_hp = 496
         self.attack_bonus = 12
@@ -2399,6 +2557,11 @@ class GibberingMouther(Monster):
 class MindFlayer(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'MF', 'Mind Flayer', (75, 0, 130))
+        self.ambient_messages = [
+            "{name}'s facial tentacles curl and flex...",
+            "You feel a faint, alien pressure at the edge of your thoughts...",
+            "{name} regards you with cold, clinical interest...",
+        ]
         self.hp = 71
         self.max_hp = 71
         self.attack_bonus = 7
@@ -2436,6 +2599,11 @@ class MindFlayer(Monster):
 class Minotaur(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'MN', 'Minotaur', (139, 0, 0))
+        self.ambient_messages = [
+            "{name} snorts and paws at the ground...",
+            "{name}'s labyrinthine breathing echoes off the walls...",
+            "{name} lowers its horns, testing the air...",
+        ]
         self.hp = 76
         self.max_hp = 76
         self.attack_bonus = 4
@@ -2631,6 +2799,11 @@ class MyconidSprout(Monster):
 class MyconidAdult(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'MA', 'Myconid Adult', (80, 150, 80))
+        self.ambient_messages = [
+            "{name} releases a faint puff of luminescent spores...",
+            "{name} sways gently, rooted in place...",
+            "A soft, rhythmic pulse of light passes across {name}'s cap...",
+        ]
 
         self.hp = 22
         self.max_hp = 22
@@ -2755,6 +2928,11 @@ class Drider(Monster):
 class Arasta(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'AR', 'Arasta', (40, 0, 40))
+        self.ambient_messages = [
+            "{name}'s many legs click softly against stone...",
+            "Thick strands of web tremble as {name} shifts its weight...",
+            "{name}'s fangs glisten with venom...",
+        ]
 
         self.hp = 300
         self.max_hp = 300
@@ -2840,6 +3018,11 @@ class Imp(Monster):
 class Wraith(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'WRT', 'Wraith', (0, 0, 0))
+        self.ambient_messages = [
+            "{name} lets out a hollow, keening moan...",
+            "The air grows cold as {name} drifts silently...",
+            "{name}'s form flickers like guttering candlelight...",
+        ]
 
         self.hp = 67
         self.max_hp = 67
@@ -2866,6 +3049,11 @@ class Wraith(Monster):
 class TombTapper(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'TTP', 'Tomb Tapper', (128, 0, 128))
+        self.ambient_messages = [
+            "{name} taps rhythmically against the stone...",
+            "A faint echolocating click comes from {name}...",
+            "{name}'s crystalline hide catches what little light there is...",
+        ]
 
         self.hp = 180
         self.max_hp = 180
@@ -2895,6 +3083,11 @@ class TombTapper(Monster):
 class Cultist(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'CUL', 'Cultist', (128, 0, 128))
+        self.ambient_messages = [
+            "{name} murmurs a low, droning chant...",
+            "{name} traces a dark sigil in the air...",
+            "{name} clutches an amulet, whispering to it...",
+        ]
 
         self.hp = 9
         self.max_hp = 9
