@@ -4,7 +4,8 @@ import random
 from entities.base_entity import NPC
 from world.tile import (
     ground, grass, road, tall_grass, wall, tavern_floor, floor, bar_counter_two, bar_counter_three, bar_counter_four, 
-    table, crate, tavern_barrel_two, altar, door, forge, anvil, shelf, bed, hay, bar_counter, bar_counter_five, bar_counter_six
+    table, crate, tavern_barrel_two, altar, door, forge, anvil, shelf, bed, hay, bar_counter, bar_counter_five, bar_counter_six,
+    shelf_three, bar_counter, shelf_two
 )
 
 from core.game import GameState
@@ -506,14 +507,14 @@ STRUCTURE_BLUEPRINTS = {
         [
             "        ",
             " #+#### ",
-            " #....# ",
-            " #....# ",
-            " #.S..# ",
+            " #.sts# ",
+            " #..S.# ",
+            " #.===# ",
             " #....# ",
             " ##+### ",
             "        ",
         ],
-        {"#": wall, ".": tavern_floor, "S": tavern_floor, "+": door},
+        {"#": wall, ".": tavern_floor, "S": tavern_floor, "+": door, "s": shelf, "t": shelf_two, "=": bar_counter},
         walkable_chars={".", "S", "+"},
         description="A traveling merchant's storefront.",
         npc_map={"S": _spawn_shopkeeper},
@@ -568,7 +569,7 @@ STRUCTURE_BLUEPRINTS = {
             " #######  ",
             "          ",
         ],
-        {"#": wall, ".": floor, "B": floor, "F": forge, "N": anvil, "s": shelf, "+": door, "|": bar_counter_five, "7": bar_counter_six},
+        {"#": wall, ".": floor, "B": floor, "F": forge, "N": anvil, "s": shelf_three, "+": door, "|": bar_counter_five, "7": bar_counter_six},
         walkable_chars={".", "B", "+"},
         description="A soot-stained smithy, its chimney visible over the rooftops.",
         npc_map={"B": _spawn_blacksmith},

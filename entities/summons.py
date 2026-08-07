@@ -1,5 +1,6 @@
 import random
 from entities.base_entity import NPC # Reusing NPC as a base for simplicity
+from entities.monster import Monster
 from entities.dungeon_npcs import DungeonHealer, DungeonMerchant
 from core.status_effects import Poisoned, AcidBurned, Burning
 from core.pathfinding import astar
@@ -471,7 +472,10 @@ class Imp(SummonedEntity):
         for entity in game_instance.entities:
             if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
                 continue
-            if isinstance(entity, (DungeonHealer, DungeonMerchant)):
+            # Combat summons only ever fight Monster instances -- never
+            # NPCs (shopkeepers, questgivers, escort companions, DungeonHealer/
+            # DungeonMerchant, ...), even if one happens to block movement.
+            if not isinstance(entity, Monster):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
@@ -492,7 +496,10 @@ class Imp(SummonedEntity):
         for entity in game_instance.entities:
             if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
                 continue
-            if isinstance(entity, (DungeonHealer, DungeonMerchant)):
+            # Combat summons only ever fight Monster instances -- never
+            # NPCs (shopkeepers, questgivers, escort companions, DungeonHealer/
+            # DungeonMerchant, ...), even if one happens to block movement.
+            if not isinstance(entity, Monster):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
@@ -673,7 +680,10 @@ class Celestial(SummonedEntity):
         for entity in game_instance.entities:
             if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
                 continue
-            if isinstance(entity, (DungeonHealer, DungeonMerchant)):
+            # Combat summons only ever fight Monster instances -- never
+            # NPCs (shopkeepers, questgivers, escort companions, DungeonHealer/
+            # DungeonMerchant, ...), even if one happens to block movement.
+            if not isinstance(entity, Monster):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
@@ -692,7 +702,10 @@ class Celestial(SummonedEntity):
         for entity in game_instance.entities:
             if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
                 continue
-            if isinstance(entity, (DungeonHealer, DungeonMerchant)):
+            # Combat summons only ever fight Monster instances -- never
+            # NPCs (shopkeepers, questgivers, escort companions, DungeonHealer/
+            # DungeonMerchant, ...), even if one happens to block movement.
+            if not isinstance(entity, Monster):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
@@ -870,7 +883,10 @@ class SpiritualWeaponEntity(SummonedEntity):
         for entity in game_instance.entities:
             if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
                 continue
-            if isinstance(entity, (DungeonHealer, DungeonMerchant)):
+            # Combat summons only ever fight Monster instances -- never
+            # NPCs (shopkeepers, questgivers, escort companions, DungeonHealer/
+            # DungeonMerchant, ...), even if one happens to block movement.
+            if not isinstance(entity, Monster):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
@@ -886,7 +902,10 @@ class SpiritualWeaponEntity(SummonedEntity):
         for entity in game_instance.entities:
             if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
                 continue
-            if isinstance(entity, (DungeonHealer, DungeonMerchant)):
+            # Combat summons only ever fight Monster instances -- never
+            # NPCs (shopkeepers, questgivers, escort companions, DungeonHealer/
+            # DungeonMerchant, ...), even if one happens to block movement.
+            if not isinstance(entity, Monster):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
                 distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)

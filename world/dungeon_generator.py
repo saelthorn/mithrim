@@ -881,8 +881,12 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
         game_map.tiles[cy][cx] = stair_tile
         return (cx, cy)
 
+    # Still chosen (and still excluded from prop/trap/chest placement below
+    # via stairs_down_room references) even when spawn_downstairs is False
+    # -- that room stays "the far room" structurally, it just never gets an
+    # actual downstairs tile placed in it on a dungeon's final floor.
+    stairs_down_room = max(rooms[1:], key=lambda r: _room_distance(rooms[0], r)) if len(rooms) > 1 else rooms[0]
     if spawn_downstairs:
-        stairs_down_room = max(rooms[1:], key=lambda r: _room_distance(rooms[0], r)) if len(rooms) > 1 else rooms[0]
         stairs_positions['down'] = _place_stair(game_map, stairs_down_room, stairs_down)
     stairs_positions['up'] = _place_stair(game_map, stairs_up_room, stairs_up, avoid=stairs_positions.get('down'))
 
