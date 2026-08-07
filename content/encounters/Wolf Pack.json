@@ -1,0 +1,197 @@
+{
+  "id": "world_encounter_wolves",
+  "min_level": 2,
+  "max_level": 7,
+  "stages": [
+    {
+      "discovery": "Paw prints crisscross the muddy trail ahead, too many to belong to one animal. Somewhere in the trees, branches snap under heavy weight, and a low growl rolls through the undergrowth.",
+      "landmark_tile": "ambush_tree",
+      "landmark_tile_amount": [
+        1,
+        2
+      ],
+      "choices": [
+        {
+          "key": 1,
+          "action": "advance",
+          "label": "Follow the Growling",
+          "description": "Head toward whatever's making that noise",
+          "color": [
+            255,
+            160,
+            100
+          ]
+        },
+        {
+          "key": 2,
+          "action": "advance",
+          "label": "Track Carefully",
+          "description": "Read the signs before getting closer",
+          "color": [
+            160,
+            200,
+            255
+          ],
+          "outcome": "The prints tighten into a ring further up the trail \u2014 a pack, circling something. Whatever they've found hasn't gotten away yet."
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Ignore",
+          "description": "ESC also cancels - just keep walking",
+          "color": [
+            150,
+            150,
+            150
+          ],
+          "is_cancel": true
+        }
+      ],
+      "ignore": "You steer wide of the growling and keep to open ground, the sound fading slowly behind you."
+    },
+    {
+      "discovery": "A pack of wolves has a terrified child backed against a tree.",
+      "monster_pool": [
+        "Wolf",
+        "Wolf",
+        "Wolf"
+      ],
+      "monster_count": [
+        2,
+        4
+      ],
+      "sneak_dc": 14,
+      "sneak_success": "You circle wide through the undergrowth and startle the wolves from behind, scattering most of the pack before it notices the child.",
+      "sneak_fail": "The wolves catch your scent on the wind and abandon the child to hunt easier prey - you.",
+      "ignore": "You turn away. Somewhere behind you, the child's screams cut off into silence.",
+      "choices": [
+        {
+          "key": 1,
+          "action": "investigate",
+          "label": "Investigate",
+          "description": "Walk in and see what's happening",
+          "color": [
+            255,
+            160,
+            100
+          ]
+        },
+        {
+          "key": 2,
+          "action": "sneak",
+          "label": "Sneak Around",
+          "description": "Stealth check to glimpse it unseen",
+          "color": [
+            160,
+            200,
+            255
+          ]
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Ignore",
+          "description": "ESC also cancels - just keep walking",
+          "color": [
+            150,
+            150,
+            150
+          ],
+          "is_cancel": true
+        }
+      ]
+    }
+  ],
+  "victim": "child",
+  "victim_count": [
+    1,
+    1
+  ],
+  "victim_data": {
+    "char": "ch",
+    "color": [
+      230,
+      210,
+      180
+    ],
+    "names": [
+      "Frightened Child"
+    ],
+    "dialogue": "P-please... don't let them get me...",
+    "thanks": [
+      "Y-you saved me... thank you, thank you!"
+    ],
+    "after": [
+      "The child clings close to you, still shaking."
+    ]
+  },
+  "scar_tag": "world_encounter_wolves",
+  "reward_xp": 35,
+  "reward_gold": 0,
+  "reputation_faction": "northfield",
+  "reputation_delta": 4,
+  "ignored_reputation_delta": -4,
+  "aftermath": {
+    "discovery": "The wolves lie dead. The girl is still shaking, alone this far from anywhere safe.",
+    "choices": [
+      {
+        "key": 1,
+        "action": "escort",
+        "label": "Escort Her to Town",
+        "description": "Walk her back to Northfield and the innkeeper's care",
+        "color": [
+          255,
+          200,
+          140
+        ],
+        "outcome": "You walk her the long way back to Northfield. The innkeeper takes her in without a word of complaint, and presses a few coins into your hand for the trouble.",
+        "hours": 0,
+        "escort": true,
+        "consequences": [
+          {
+            "type": "modify_reputation",
+            "faction": "northfield",
+            "delta": 2
+          },
+          {
+            "type": "reward_gold",
+            "amount": 5
+          }
+        ]
+      },
+      {
+        "key": 2,
+        "action": "point_home",
+        "label": "Point Her Toward Home",
+        "description": "She says she knows the way from here",
+        "color": [
+          160,
+          200,
+          255
+        ],
+        "outcome": "She wipes her eyes, nods, and takes off running down the trail on her own. You watch until she's out of sight.",
+        "consequences": []
+      },
+      {
+        "key": 3,
+        "action": "leave",
+        "label": "Leave Her Be",
+        "description": "ESC also cancels - she's not your problem",
+        "color": [
+          150,
+          150,
+          150
+        ],
+        "is_cancel": true,
+        "outcome": "You leave her sitting among the dead wolves and walk on. She doesn't call after you.",
+        "consequences": [
+          {
+            "type": "modify_reputation",
+            "faction": "northfield",
+            "delta": -1
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -6,6 +6,36 @@ from core.pathfinding import astar
 from core import game
 from core.floating_text import FloatingText
 
+# Cap on astar()'s per-call node-expansion budget for every summon's
+# pathfinding below (EscortCompanion's fallback search, and Imp/
+# Celestial/SpiritualWeaponEntity chasing the nearest enemy), matching
+# the cap applied to monster AI in entities/monster.py for the same
+# reason: every one of these calls targets something already within a
+# handful of tiles (an owner to follow, an enemy within an 8-tile
+# detection radius), so a map-spanning search is never actually needed.
+# Every summon sits in turn_order and takes a turn on every single
+# player action -- movement included, not just combat -- in the same
+# synchronous batch pass before a frame renders (see game.py's turn-
+# processing loop). Several summons/companions each left free to search
+# toward astar()'s uncapped default of 4000 is exactly what turns "the
+# player has an Imp, a Celestial, and two escort companions active at
+# once" into a visible stutter/freeze.
+SUMMON_PATHFINDING_MAX_EXPANSIONS = 400
+
+
+def _chebyshev_distance(ax, ay, bx, by):
+    """
+    King-move distance between two tiles: how many steps it takes a piece
+    that can move diagonally to close the gap. Every summon's "is this
+    close enough" / "is this adjacent" check below uses this instead of
+    Manhattan distance (abs(dx) + abs(dy)), which treats a diagonal
+    neighbor as two tiles away and used to make a diagonally-adjacent
+    summon think it wasn't close enough yet, or a diagonally-adjacent
+    enemy think it wasn't in melee range yet.
+    """
+    return max(abs(ax - bx), abs(ay - by))
+
+
 class SummonedEntity(NPC):
     """
     Base class for any entity summoned by a player ability.
@@ -62,6 +92,244 @@ class SummonedEntity(NPC):
             self.attack_enemy(target, game_instance)
             return True
         return False
+
+
+class EscortCompanion(SummonedEntity):
+    """
+    A rescued/recruited NPC who follows the player during an escort
+    quest -- e.g. a world encounter's aftermath choice to walk a
+    victim home, or an authored story handing off an NPC to be led
+    somewhere. Not summoned by a player ability, but it reuses
+    SummonedEntity's owner/turn-order plumbing anyway (die()'s
+    entities/turn_order cleanup, tick_duration()'s no-op when
+    duration=0) since a companion sits on the turn order exactly the
+    same way a combat summon does -- it just never fights, never
+    expires on its own, and only leaves the party when it's delivered
+    (see complete_escort()) or killed (see die()).
+
+    Created via Game.recruit_companion() (game.py), which is also
+    where escort_id/reward_consequences/escort_hours get their values --
+    this class only carries them, it doesn't decide what an escort is
+    worth or how it's paid out.
+    """
+
+    #: How close a companion tries to stay to the player before it
+    #: bothers pathfinding closer -- 1 keeps them adjacent without the
+    #: two of them fighting over the exact same tile.
+    FOLLOW_DISTANCE = 1
+
+    def __init__(
+        self, x, y, char, name, color, owner,
+        hp=8, armor_class=10, escort_id=None,
+        reward_consequences=None, escort_hours=0, dialogue=None,
+    ):
+        super().__init__(x, y, char, name, color, owner, duration=0)  # duration=0 -> permanent until delivered/killed
+        self.hp = hp
+        self.max_hp = hp
+        self.armor_class = armor_class
+        self.blocks_movement = False  # Never blocks the player's own path
+        self.attack_power = 0         # Companions never fight
+        self.initiative = 0
+        self.active_status_effects = []
+
+        # An escort can span an entire cross-chunk journey (see
+        # game.py's recruit_companion()/generate_overworld_map()), and
+        # _is_free() below already lets a companion step onto anything
+        # game_map.is_walkable() allows -- including water, same as the
+        # player. Without this, a companion wading into a river would
+        # render as a normal (non-submerged) sprite instead of the
+        # composited swimming sprite game.py's draw loop uses for the
+        # player and other can_swim entities (see the is_submerged
+        # check there).
+        self.can_swim = True
+
+        # Which escort quest this companion belongs to, and what
+        # delivering them safely pays out -- read by game.py's
+        # Game.try_deliver_companions()/_grant_escort_reward().
+        #
+        # reward_consequences is a list of consequence_system.py
+        # Consequence objects (RewardXPConsequence, RewardGoldConsequence,
+        # ModifyReputationConsequence, ...) rather than a couple of
+        # hardcoded numeric fields, so a scenario's aftermath
+        # "consequences" -- already parsed into real Consequence
+        # instances by game.py's _normalize_world_encounter_aftermath()
+        # -- can be handed straight through here and replayed on
+        # delivery through the same shared ConsequenceExecutor every
+        # other reward path in the game uses. This class deliberately
+        # never executes them itself (that needs an ExecutionContext,
+        # which lives on game.py's StorySystems, not here) -- it only
+        # carries the list until _grant_escort_reward() runs it. That
+        # keeps this module ignorant of consequence_system.py entirely,
+        # the same way it's ignorant of the story engine as a whole.
+        self.escort_id = escort_id
+        self.reward_consequences = list(reward_consequences) if reward_consequences else []
+        # Hours the journey is deemed to take once delivered -- applied
+        # to the world clock by _grant_escort_reward(), not here (this
+        # class has no reference to WorldTimeManager).
+        self.escort_hours = escort_hours
+        self._dialogue = dialogue or "Please, just get me somewhere safe."
+
+    def get_dialogue(self):
+        """Matches every other NPC's get_dialogue() interface (see
+        game.py's 'F to talk' handler) so a companion can be talked to
+        like any other NPC while it's following."""
+        return self._dialogue
+
+    def take_turn(self, player, game_map, game_instance):
+        """
+        Escort companions never fight -- every turn they simply try to
+        close the distance to the player.
+
+        Performance note: this used to call astar() -- a full pathfinding
+        search over the map -- on every single turn the companion wasn't
+        already adjacent to the player, which is nearly every turn
+        whenever the player is actively walking (the companion is
+        perpetually catching up by one tile). That's cheap for a summon
+        that only sticks around briefly, but an EscortCompanion now
+        persists for an entire cross-chunk journey to an inn (see
+        game.py's recruit_companion()/generate_overworld_map()), so it
+        was paying a full search's cost on nearly every player action for
+        the whole trip -- the actual cause of the slowdown reported after
+        that persistence fix landed.
+
+        The fix is the same "steer first, path-find only if that fails"
+        split SpiritualWeapon already uses in this file for its own
+        return-to-owner case: try a plain O(1) step directly toward the
+        player first (covers the overwhelming majority of turns, since
+        overworld terrain is mostly open), and only fall back to a full
+        astar() search -- still available, so a companion never gets
+        stuck behind an obstacle the way a pure greedy walker would --
+        on the turns where that direct step is actually blocked.
+        """
+        if not self.alive:
+            return
+
+        distance_to_player = _chebyshev_distance(self.x, self.y, self.owner.x, self.owner.y)
+        if distance_to_player <= self.FOLLOW_DISTANCE:
+            return  # Close enough -- let the player lead
+
+        if self._step_toward(game_map, game_instance, self.owner.x, self.owner.y):
+            return
+
+        self._pathfind_toward(game_map, game_instance, self.owner.x, self.owner.y)
+
+    def _is_free(self, x, y, game_map, game_instance):
+        """
+        Whether (x, y) is walkable and not currently occupied -- by an
+        ordinary blocking entity (a monster, a shopkeeper, ...), by the
+        player, or by another escort companion. The single "can I step
+        here" check both movement strategies below use before
+        committing to a move.
+
+        Companions themselves have blocks_movement=False (so they never
+        block the *player's* own path -- see __init__), which means a
+        plain blocks_movement check alone would happily let one
+        companion step onto a tile the player or another companion is
+        already standing on. Checking for the player and for
+        EscortCompanion explicitly closes that gap without touching
+        blocks_movement itself, which other code relies on staying
+        False for companions.
+        """
+        if not game_map.is_walkable(x, y):
+            return False
+        for entity in game_instance.entities:
+            if entity is self or entity.x != x or entity.y != y:
+                continue
+            if entity is self.owner or isinstance(entity, EscortCompanion):
+                return False
+            if getattr(entity, "blocks_movement", False):
+                return False
+        return True
+
+    def _step_toward(self, game_map, game_instance, target_x, target_y):
+        """
+        Cheap, search-free steering step: move one tile toward
+        (target_x, target_y), preferring a diagonal step (closes both
+        axes' gap at once) and falling back to whichever single axis has
+        the larger gap, then the other axis, if that tile isn't free. No
+        grid search at all, so this is effectively free to call every
+        turn -- it's what handles the common case of open terrain between
+        the companion and the player. Returns True if it moved, False if
+        none of the candidate tiles were free (an obstacle is in the way
+        and the caller should fall back to _pathfind_toward()).
+        """
+        dx = target_x - self.x
+        dy = target_y - self.y
+        step_x = (dx > 0) - (dx < 0)  # -1, 0, or 1
+        step_y = (dy > 0) - (dy < 0)
+
+        cardinal_candidates = []
+        if step_x != 0:
+            cardinal_candidates.append((self.x + step_x, self.y))
+        if step_y != 0:
+            cardinal_candidates.append((self.x, self.y + step_y))
+        if abs(dx) < abs(dy):
+            cardinal_candidates.reverse()  # Lead with whichever axis has more ground to cover.
+
+        candidates = []
+        if step_x != 0 and step_y != 0:
+            # A diagonal step closes both axes in one move, so it's
+            # always the best option when the target isn't purely
+            # horizontal/vertical from here -- try it before either
+            # single-axis fallback above.
+            candidates.append((self.x + step_x, self.y + step_y))
+        candidates.extend(cardinal_candidates)
+
+        for next_x, next_y in candidates:
+            if self._is_free(next_x, next_y, game_map, game_instance):
+                self.x, self.y = next_x, next_y
+                return True
+        return False
+
+    def _pathfind_toward(self, game_map, game_instance, target_x, target_y):
+        """
+        Fallback for when the direct step is blocked -- the same A*
+        helper other summons use for navigating around terrain (see
+        Imp.take_turn()'s Priority 2), only actually invoked on the
+        turns _step_toward() couldn't resolve on its own.
+        """
+        path = astar(game_map, (self.x, self.y), (target_x, target_y),
+                     max_expansions=SUMMON_PATHFINDING_MAX_EXPANSIONS)
+        if not path or len(path) < 2:
+            return  # No route to the player right now (e.g. a closed door between them)
+
+        next_x, next_y = path[1]
+        if self._is_free(next_x, next_y, game_map, game_instance):
+            self.x, self.y = next_x, next_y
+
+    def complete_escort(self, game_instance):
+        """
+        Called once this companion has been safely delivered (see
+        Game.try_deliver_companions()). Leaves the party with escort-
+        appropriate flavor text instead of SummonedEntity.die()'s
+        combat-summon "vanishes" message -- reward granting is the
+        caller's job, not this method's.
+        """
+        self.alive = False
+        game_instance.message_log.add_message(
+            f"{self.name} thanks you and settles in at the inn.", self.color
+        )
+        self._leave_party(game_instance)
+
+    def die(self, game_instance):
+        """A companion killed mid-escort fails the quest instead of
+        just 'vanishing' like a spent combat summon."""
+        self.alive = False
+        game_instance.message_log.add_message(
+            f"{self.name} has fallen! The escort has failed.", (255, 80, 80)
+        )
+        self._leave_party(game_instance)
+
+    def _leave_party(self, game_instance):
+        """Shared entities/turn_order/companions cleanup for both ways
+        an escort can end -- delivered or killed."""
+        if self in game_instance.entities:
+            game_instance.entities.remove(self)
+        if self in game_instance.turn_order:
+            game_instance.turn_order.remove(self)
+        if self in game_instance.companions:
+            game_instance.companions.remove(self)
+        game_instance.update_fov()
 
 
 class MageHandEntity(SummonedEntity):
@@ -206,7 +474,7 @@ class Imp(SummonedEntity):
             if isinstance(entity, (DungeonHealer, DungeonMerchant)):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
-                distance = abs(self.x - entity.x) + abs(self.y - entity.y)
+                distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
                 if distance == 1:  # Adjacent (melee range)
                     adjacent_enemies.append(entity)
                     print(f"[DEBUG] Found adjacent enemy: {entity.name} at distance {distance}")
@@ -227,7 +495,7 @@ class Imp(SummonedEntity):
             if isinstance(entity, (DungeonHealer, DungeonMerchant)):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
-                distance = abs(self.x - entity.x) + abs(self.y - entity.y)
+                distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
                 if distance <= 8:  # Within 8 tiles
                     enemies_in_range.append(entity)
 
@@ -236,7 +504,8 @@ class Imp(SummonedEntity):
             nearest_enemy = min(enemies_in_range, key=lambda e: abs(self.x - e.x) + abs(self.y - e.y))
 
             # Use A* pathfinding to find a path to the enemy
-            path = astar(game_map, (self.x, self.y), (nearest_enemy.x, nearest_enemy.y))
+            path = astar(game_map, (self.x, self.y), (nearest_enemy.x, nearest_enemy.y),
+                         max_expansions=SUMMON_PATHFINDING_MAX_EXPANSIONS)
             if path and len(path) > 1:  # path[0] is current position, path[1] is next step
                 next_x, next_y = path[1]
 
@@ -254,7 +523,7 @@ class Imp(SummonedEntity):
                         return
 
         # Priority 3: If not adjacent to player, move towards the player
-        distance_to_player = abs(self.x - self.owner.x) + abs(self.y - self.owner.y)
+        distance_to_player = _chebyshev_distance(self.x, self.y, self.owner.x, self.owner.y)
         
         if distance_to_player > 1:
             dx = 0
@@ -407,7 +676,7 @@ class Celestial(SummonedEntity):
             if isinstance(entity, (DungeonHealer, DungeonMerchant)):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
-                distance = abs(self.x - entity.x) + abs(self.y - entity.y)
+                distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
                 if distance == 1:  # Adjacent (melee range)
                     adjacent_enemies.append(entity)
 
@@ -426,7 +695,7 @@ class Celestial(SummonedEntity):
             if isinstance(entity, (DungeonHealer, DungeonMerchant)):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
-                distance = abs(self.x - entity.x) + abs(self.y - entity.y)
+                distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
                 if distance <= 8:  # Within 8 tiles
                     enemies_in_range.append(entity)
 
@@ -435,7 +704,8 @@ class Celestial(SummonedEntity):
             nearest_enemy = min(enemies_in_range, key=lambda e: abs(self.x - e.x) + abs(self.y - e.y))
 
             # Use A* pathfinding to find a path to the enemy
-            path = astar(game_map, (self.x, self.y), (nearest_enemy.x, nearest_enemy.y))
+            path = astar(game_map, (self.x, self.y), (nearest_enemy.x, nearest_enemy.y),
+                         max_expansions=SUMMON_PATHFINDING_MAX_EXPANSIONS)
             if path and len(path) > 1:  # path[0] is current position, path[1] is next step
                 next_x, next_y = path[1]
 
@@ -452,7 +722,7 @@ class Celestial(SummonedEntity):
                         return
                     
         # Priority 3: If not adjacent to player, move towards the player
-        distance_to_player = abs(self.x - self.owner.x) + abs(self.y - self.owner.y)
+        distance_to_player = _chebyshev_distance(self.x, self.y, self.owner.x, self.owner.y)
 
         if distance_to_player > 1:
             dx = 0
@@ -603,7 +873,7 @@ class SpiritualWeaponEntity(SummonedEntity):
             if isinstance(entity, (DungeonHealer, DungeonMerchant)):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
-                distance = abs(self.x - entity.x) + abs(self.y - entity.y)
+                distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
                 if distance == 1:  # Adjacent (melee range)
                     adjacent_enemies.append(entity)
 
@@ -619,14 +889,15 @@ class SpiritualWeaponEntity(SummonedEntity):
             if isinstance(entity, (DungeonHealer, DungeonMerchant)):
                 continue
             if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
-                distance = abs(self.x - entity.x) + abs(self.y - entity.y)
+                distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
                 if distance <= 8:  # Within 8 tiles
                     enemies_in_range.append(entity)
 
         if enemies_in_range:
             nearest_enemy = min(enemies_in_range, key=lambda e: abs(self.x - e.x) + abs(self.y - e.y))
             
-            path = astar(game_map, (self.x, self.y), (nearest_enemy.x, nearest_enemy.y))
+            path = astar(game_map, (self.x, self.y), (nearest_enemy.x, nearest_enemy.y),
+                         max_expansions=SUMMON_PATHFINDING_MAX_EXPANSIONS)
             if path and len(path) > 1:
                 next_x, next_y = path[1]
                 if game_map.is_walkable(next_x, next_y):
@@ -640,7 +911,7 @@ class SpiritualWeaponEntity(SummonedEntity):
                         self.y = next_y       
                         return
 
-        distance_to_player = abs(self.x - self.owner.x) + abs(self.y - self.owner.y)
+        distance_to_player = _chebyshev_distance(self.x, self.y, self.owner.x, self.owner.y)
 
         if distance_to_player > 1:
             dx = 0

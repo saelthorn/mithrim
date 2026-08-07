@@ -17,12 +17,63 @@ from core.floating_text import FloatingText
 
 from enum import Enum
 
+# Cap on astar()'s per-call node-expansion budget for every monster
+# pathfinding call below (chasing, desperate-fight charges, kiting
+# pursuit, and investigate/patrol via move_towards), much smaller than
+# astar()'s own default of 4000. None of these ever legitimately need a
+# map-spanning search -- a monster is always either engaged with a
+# nearby target or investigating a position it saw the player at within
+# its own detection_range. And since every active monster's turn runs
+# synchronously, in the same batch pass, on every single player action
+# -- including plain movement, not just combat -- before a single frame
+# renders (see game.py's turn-processing loop), an uncapped budget is
+# what turns "several monsters searching at once" (a crowded fight, or
+# just a handful investigating after losing the player) into a visible
+# stutter/freeze that gets worse as monster count grows.
+MONSTER_PATHFINDING_MAX_EXPANSIONS = 400
+
 class AI_State(Enum):
     CHASING = 1
     FLEEING = 2
     DESPERATE_FIGHT = 3
     INVESTIGATE = 4
     KITING = 5
+
+
+class Disposition(Enum):
+    """
+    How a monster is inclined to treat the player before anything has
+    happened between them yet -- distinct from AI_State, which governs
+    *how* an already-hostile monster behaves turn to turn (chasing,
+    fleeing, kiting, ...) once it's decided to fight. Disposition governs
+    whether Monster.take_turn() ever runs that combat AI at all:
+
+      - AGGRESSIVE: attacks/chases on sight, exactly like every monster
+        behaved before this existed. The default for every Monster, so
+        nothing changes for existing content unless it opts in below.
+      - PASSIVE: ignores the player entirely -- no detection, no
+        chasing, not even at melee range -- until the player actually
+        lands a hit (see Monster.provoke(), called from take_damage()).
+        A myconid grove or centaur band the player can walk straight
+        past, or straight up to, without a fight starting on its own.
+      - NEUTRAL: behaves identically to PASSIVE for now (ignores the
+        player until struck). Kept as its own value, rather than
+        reusing PASSIVE, so content can label "wary but not fleeing"
+        wildlife distinctly from "doesn't even notice you" wildlife --
+        and so a future refinement (e.g. neutral creatures backing away
+        if the player lingers adjacent) has somewhere to hang that
+        behavior without another new attribute.
+
+    Set directly on an already-constructed monster (e.g.
+    Game._spawn_world_encounter_passive_creatures() sets this right
+    after spawning) rather than threaded through every subclass's
+    __init__ -- a monster's *type* doesn't imply its disposition, since
+    the same Centaur could be spawned hostile in one encounter and
+    passive in another.
+    """
+    AGGRESSIVE = "aggressive"
+    PASSIVE = "passive"
+    NEUTRAL = "neutral"
 
 
 # --- MONSTER GROUP DEFINITIONS ---
@@ -95,6 +146,30 @@ class Monster:
 
         self.is_active = False
         self.sleep_cooldown = 0        
+
+        # How this monster is inclined to treat the player before anything
+        # has happened between them yet -- see the Disposition docstring
+        # near the top of this file. Defaults to AGGRESSIVE (every monster's
+        # behavior before this existed); a spawn site (e.g. Game.spawn_
+        # overworld_monster_groups()'s OVERWORLD_PASSIVE_MONSTER_TYPES) sets
+        # this to PASSIVE/NEUTRAL directly on the instance afterward, since
+        # a monster's *type* doesn't imply its disposition. See provoke().
+        self.disposition = Disposition.AGGRESSIVE
+
+        # Set by world encounters when the player successfully sneaks up on a
+        # group (see Game._spawn_world_encounter_monsters): every monster in
+        # the group shares this same list, so waking one (see take_damage
+        # below) wakes the rest of the group at the same time.
+        self.encounter_group = None
+
+        # Shared id tagging every monster spawned together as one pack --
+        # a world-encounter ambush (Game._spawn_world_encounter_monsters),
+        # an overworld wildlife cluster (Game.spawn_overworld_monster_groups),
+        # or a dungeon room's pack (Game.spawn_monster_group). None means
+        # "not part of a tagged group" (a lone spawn). See provoke(): landing
+        # a hit on one PASSIVE/NEUTRAL member of a group turns the whole
+        # group AGGRESSIVE at once, not just the monster actually struck.
+        self.group_id = None
 
         self.patrol_radius = 12
         self.investigate_turns_left = 4  # Turns left to investigate
@@ -253,15 +328,85 @@ class Monster:
             target_x, target_y = random.choice(possible_moves)
             self.move_towards(target_x, target_y, game_map, game)
 
+    def _approach_tile_near(self, target_entity, game_map, game):
+        """
+        Return an open tile adjacent to target_entity for astar to path
+        toward, instead of target_entity's own tile.
+
+        astar() itself is fine with an occupied goal (see pathfinding.py
+        -- it explicitly excludes the destination from its blocked-tile
+        check), but this monster could never actually finish that move
+        anyway: can_move_to() refuses to step onto a tile occupied by
+        another blocking entity, target included. Pathing straight at
+        the target's own tile therefore wastes the search on a step
+        that would just get rejected at the end -- this redirects to
+        wherever the monster should actually end up standing, next to
+        the target and in attack range.
+
+        Prefers whichever open, adjacent tile is closest to self, so the
+        monster still approaches from a sensible direction. Returns None
+        if every adjacent tile is currently occupied (the target is
+        fully surrounded) -- callers should fall back to waiting/greedy
+        movement in that case rather than pathing at the occupied tile.
+        """
+        candidates = []
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                tx, ty = target_entity.x + dx, target_entity.y + dy
+                if self.can_occupy_position(tx, ty, game_map, game.entities, exclusions=[self, target_entity]):
+                    candidates.append((tx, ty))
+
+        if not candidates:
+            return None
+        return min(candidates, key=lambda pos: self.distance_to(*pos))
+
     def move_towards(self, target_x, target_y, game_map, game):
         """
         Moves the monster one step towards the target using A* pathfinding.
         Handles footprint and destructible tiles.
         """
+        other_entities = [e for e in game.entities if e != self]
+
+        # If the destination is a live, blocking entity's own tile (e.g.
+        # kite()'s pursuit branch chasing the target directly), retarget
+        # to the nearest open tile next to it instead -- see
+        # _approach_tile_near()'s docstring for why pathing straight at
+        # an occupied tile is expensive, not just pointless.
+        blocker = next(
+            (
+                e for e in other_entities
+                if getattr(e, "alive", False) and getattr(e, "blocks_movement", False)
+                and (e.x, e.y) == (target_x, target_y)
+            ),
+            None,
+        )
+        if blocker is not None:
+            approach = self._approach_tile_near(blocker, game_map, game)
+            if approach is None:
+                return False  # blocker is fully surrounded -- nowhere useful to path to
+            target_x, target_y = approach
+
+        # Every caller of move_towards() -- patrol (always one adjacent
+        # tile away), kiting pursuit, and AI_State.INVESTIGATE chasing a
+        # last_known_player_position -- only ever needs a local search,
+        # never astar()'s full default budget of 4000. That default was
+        # still reachable here whenever the destination wasn't a live
+        # blocking entity (the INVESTIGATE case in particular, since it's
+        # chasing a remembered position, not an entity move_towards can
+        # detect as a "blocker"). Every player action -- including plain
+        # movement, not just combat -- advances a full turn for every
+        # monster in turn_order in one synchronous pass before a frame
+        # renders (see game.py's turn-processing loop), so several
+        # investigating monsters each paying close to the full budget on
+        # every single player step is exactly what shows up as the game
+        # freezing during ordinary movement, not just combat.
         path = astar(game_map, (self.x, self.y), (target_x, target_y), 
-                     entities=[e for e in game.entities if e != self], 
+                     entities=other_entities, 
                      moving_entity=self, 
-                     ignore_destructible=True)
+                     ignore_destructible=True,
+                     max_expansions=MONSTER_PATHFINDING_MAX_EXPANSIONS)
         if path and len(path) > 1:
             next_x, next_y = path[1]
             dx = next_x - self.x
@@ -269,7 +414,7 @@ class Monster:
             if self.can_move_to(next_x, next_y, game_map, game):
                 self.x = next_x
                 self.y = next_y
-                game.update_fov()
+                game.refresh_monster_wake_state()
                 return True
             else:
                 return False
@@ -315,7 +460,7 @@ class Monster:
 
             if self.can_occupy_position(new_x, new_y, game_map, game.entities, exclusions=[self]):
                 self.x, self.y = new_x, new_y
-                game.update_fov()
+                game.refresh_monster_wake_state()
 
                 # Opportunity attacks from summons that lost adjacency
                 for summon in adjacent_summons:
@@ -411,7 +556,7 @@ class Monster:
         
         if best_move:
             self.x, self.y = best_move
-            game.update_fov()
+            game.refresh_monster_wake_state()
             self.kiting_turns_since_strafe = 0
             return True
         
@@ -426,7 +571,7 @@ class Monster:
                         check_y = self.y + move_dy
                         if self.can_occupy_position(check_x, check_y, game_map, game.entities, exclusions=[self]):
                             self.x, self.y = check_x, check_y
-                            game.update_fov()
+                            game.refresh_monster_wake_state()
                             self.kiting_turns_since_strafe = 0
                             return True
         
@@ -672,8 +817,80 @@ class Monster:
             game.floating_texts.append(miss_text)
 
 
+    def provoke(self, game_instance=None):
+        """
+        Force this monster into AGGRESSIVE disposition, permanently, and
+        wake it if it wasn't already active. Called from take_damage() so
+        a PASSIVE/NEUTRAL creature (see the Disposition docstring near the
+        top of this file) that was ignoring the player starts fighting
+        back the instant it takes a hit -- from the player or from
+        anything else that can call take_damage() (a stray fire tile, a
+        summoned ally), not just a deliberate melee attack -- exactly like
+        Myconid_Grove.json/Centaur_Crossing.json's world-encounter
+        versions of the same creatures never offer a way to fight after
+        choosing to walk away peacefully. A no-op disposition-wise (aside
+        from the wake-up) if the monster was already AGGRESSIVE.
+
+        The first time this actually flips the disposition, it also
+        alerts the rest of this monster's group (see `group_id`) -- a
+        centaur band or myconid grove fights as one the instant any single
+        member is struck, not just the one that got hit.
+        """
+        was_provoked = self.disposition != Disposition.AGGRESSIVE
+        self.disposition = Disposition.AGGRESSIVE
+        self.is_active = True
+        if was_provoked and game_instance:
+            game_instance.message_log.add_message(f"The {self.name} turns on you!", (255, 100, 100))
+            self._alert_group(game_instance)
+
+    def _alert_group(self, game_instance):
+        """
+        Turn every other living monster sharing this one's `group_id`
+        AGGRESSIVE too, so attacking one member of a spawned pack (see
+        `group_id`'s docstring in __init__) brings the whole group into
+        the fight at once instead of picking its members off one at a
+        time while the rest look on. Only reached from provoke() the
+        instant *this* monster is the one flipping from non-aggressive,
+        so a group alert only ever fires once per fight, not once per hit.
+        """
+        if not self.group_id:
+            return
+
+        alerted_any = False
+        for entity in getattr(game_instance, "entities", ()):
+            if entity is self or not isinstance(entity, Monster):
+                continue
+            if not entity.alive or entity.group_id != self.group_id:
+                continue
+            if entity.disposition == Disposition.AGGRESSIVE:
+                continue
+
+            entity.disposition = Disposition.AGGRESSIVE
+            entity.is_active = True
+            entity.last_known_player_position = self.last_known_player_position
+            entity.ai_state = AI_State.CHASING
+            alerted_any = True
+
+        if alerted_any:
+            game_instance.message_log.add_message(
+                "The rest of the group turns hostile!", (255, 100, 100)
+            )
+
     def take_damage(self, amount, game_instance=None, damage_type=None):
         """Handle taking damage and return actual damage taken"""
+        # A sleeping monster that gets hit rouses its whole ambush group at
+        # once - see Game._spawn_world_encounter_monsters() for how the group
+        # is assembled and put to sleep in the first place.
+        if not self.is_active and self.encounter_group:
+            for member in self.encounter_group:
+                if member.alive:
+                    member.is_active = True
+            if game_instance:
+                game_instance.message_log.add_message(
+                    "The rest spring awake at the commotion!", (255, 150, 100)
+                )
+        self.provoke(game_instance)
+
         damage_taken = amount 
         self.hp -= damage_taken
         
@@ -944,22 +1161,54 @@ class Monster:
         if not self.alive:
             return
 
-        # Check for player's summoned entities and prioritize attacking them
+        # PASSIVE/NEUTRAL monsters (see the Disposition docstring near the
+        # top of this file) never detect, target, or chase anything on
+        # their own -- they just stand/wander undisturbed until provoke()
+        # (called from take_damage() the instant they're hit) permanently
+        # flips them to AGGRESSIVE, at which point this check stops
+        # short-circuiting and every turn from then on runs the normal AI
+        # below exactly like any other monster. Status effects above still
+        # process regardless (a passive creature that wandered onto a fire
+        # tile still burns), since disposition only governs whether *this*
+        # monster initiates anything against the player.
+        if self.disposition != Disposition.AGGRESSIVE:
+            return
+
+        # Check for player's summoned entities and prioritize attacking them.
+        # Candidates come from game._owned_blocking_entities, refreshed once
+        # per player action (see Game._refresh_owned_blocking_entities_cache())
+        # instead of every monster re-scanning the full entity list here --
+        # this used to run unconditionally on every active monster's turn,
+        # attack turns included, which made it the dominant per-turn cost in
+        # a crowded fight even after movement-triggered FOV recomputes were
+        # fixed. .alive is still re-checked per candidate below, so a summon
+        # that died earlier in this same batch (to another monster's attack)
+        # is simply skipped rather than trusted from the snapshot.
         target_entity = None
         target_distance = float('inf')
 
-        for entity in game.entities:
-            if (hasattr(entity, 'owner') and entity.owner == player and
-                hasattr(entity, 'alive') and entity.alive and
-                hasattr(entity, 'blocks_movement') and entity.blocks_movement):
+        for entity in getattr(game, '_owned_blocking_entities', None) or []:
+            if entity.alive:
                 dist = self.distance_to(entity.x, entity.y)
                 if dist < target_distance:
                     target_distance = dist
                     target_entity = entity
 
+
         if target_entity is None:
             target_entity = player
             target_distance = self.distance_to(player.x, player.y)
+
+        # No summons around - fighting-back guards (see GuardVictim in
+        # entities/dungeon_npcs.py) are the next priority, ahead of the player.
+        if target_entity is None:
+            from entities.dungeon_npcs import GuardVictim
+            for entity in game.entities:
+                if isinstance(entity, GuardVictim) and entity.alive:
+                    dist = self.distance_to(entity.x, entity.y)
+                    if dist < target_distance:
+                        target_distance = dist
+                        target_entity = entity
 
         # Decrement timers
         if self.attack_cooldown > 0:
@@ -1089,13 +1338,29 @@ class Monster:
                     self.attack(target_entity, game)
                     return
                 else:
-                    # Charge toward target aggressively
+                    # Charge toward target aggressively. A capped
+                    # max_expansions here (rather than astar()'s default
+                    # 4000) matters specifically in crowded fights: this
+                    # runs once per non-adjacent monster's turn, all
+                    # within the same synchronous batch pass before a
+                    # frame renders (see game.py's turn-processing loop),
+                    # so several monsters each climbing toward the full
+                    # budget while routing around each other in the same
+                    # frame is what shows up as a stutter/freeze as
+                    # monster count grows. The target is always nearby by
+                    # definition here, so a small local search radius is
+                    # all this ever legitimately needs.
+                    approach_pos = self._approach_tile_near(target_entity, game_map, game)
+                    if approach_pos is None:
+                        game.message_log.add_message(f"The {self.name} is blocked and cannot reach {target_entity.name}!", (100, 100, 100))
+                        return
                     path = astar(
                         game_map,
                         (self.x, self.y),
-                        (target_entity.x, target_entity.y),
+                        approach_pos,
                         entities=[e for e in game.entities if e != self and e.alive and e.blocks_movement],
-                        moving_entity=self
+                        moving_entity=self,
+                        max_expansions=MONSTER_PATHFINDING_MAX_EXPANSIONS
                     )
                     if path and len(path) > 1:
                         next_step = path[1]
@@ -1104,7 +1369,7 @@ class Monster:
                         if self.can_move_to(new_x, new_y, game_map, game):
                             self.x = new_x
                             self.y = new_y
-                            game.update_fov()
+                            game.refresh_monster_wake_state()
                         else:
                             game.message_log.add_message(f"The {self.name} is blocked and cannot reach {target_entity.name}!", (100, 100, 100))
                     else:
@@ -1129,13 +1394,45 @@ class Monster:
                 target_pos = (target_entity.x, target_entity.y) if game.check_line_of_sight(self.x, self.y, target_entity.x, target_entity.y) else self.last_known_player_position
 
                 if target_pos:
-                    path = astar(
-                        game_map,
-                        (self.x, self.y),
-                        target_pos,
-                        entities=[e for e in game.entities if e != self and e.alive and e.blocks_movement],
-                        moving_entity=self
-                    )
+                    # Retarget from the target's own tile to an open tile
+                    # next to it -- not because astar can't path there
+                    # (it explicitly allows an occupied goal, see
+                    # pathfinding.py), but because can_move_to() would
+                    # refuse to actually step onto it anyway, so pathing
+                    # there directly would just waste the search. A
+                    # remembered last-known position isn't necessarily
+                    # occupied by anyone right now, so only retarget when
+                    # target_pos is the target's live tile. If the target
+                    # is fully surrounded (no approach tile available at
+                    # all), skip astar entirely and go straight to the
+                    # greedy-movement fallback below, same as "no path
+                    # found".
+                    path = None
+                    astar_goal = target_pos
+                    if target_pos == (target_entity.x, target_entity.y):
+                        astar_goal = self._approach_tile_near(target_entity, game_map, game)
+
+                    if astar_goal is not None:
+                        path = astar(
+                            game_map,
+                            (self.x, self.y),
+                            astar_goal,
+                            entities=[e for e in game.entities if e != self and e.alive and e.blocks_movement],
+                            moving_entity=self,
+                            # Capped rather than astar()'s default 4000 --
+                            # this runs once per non-adjacent monster's
+                            # turn, all within the same synchronous batch
+                            # pass before a frame renders (see game.py's
+                            # turn-processing loop). A crowded fight is
+                            # exactly the case where several monsters each
+                            # climb toward the full budget routing around
+                            # each other in the same frame, which is what
+                            # shows up as a stutter/freeze as monster
+                            # count grows -- and the target is always
+                            # nearby here, so a small local search is all
+                            # this legitimately needs.
+                            max_expansions=MONSTER_PATHFINDING_MAX_EXPANSIONS
+                        )
                     if path and len(path) > 1:
                         next_step = path[1]
                         new_x, new_y = next_step
@@ -1143,7 +1440,7 @@ class Monster:
                         if self.can_move_to(new_x, new_y, game_map, game):
                             self.x = new_x
                             self.y = new_y
-                            game.update_fov()
+                            game.refresh_monster_wake_state()
                         else:
                             game.message_log.add_message(f"The {self.name} is blocked and waits.", (100, 100, 100))
                     else:
@@ -1175,7 +1472,7 @@ class Monster:
                             if self.can_move_to(nx, ny, game_map, game):
                                 self.x = nx
                                 self.y = ny
-                                game.update_fov()
+                                game.refresh_monster_wake_state()
                                 moved = True
                                 break
 
@@ -1699,6 +1996,14 @@ class Centaur(Monster):
             "CHA": False,
         }        
 
+        # Territorial, not hostile on sight -- see the Disposition docstring
+        # near the top of this file and Monster.provoke(). The player can
+        # walk right up to a centaur band without a fight starting; landing
+        # a hit on one (from the player or anything else) permanently flips
+        # it, and every centaur it shares an encounter_group/pack with, to
+        # AGGRESSIVE from then on.
+        self.disposition = Disposition.PASSIVE
+
 class CentaurArcher(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'CA', 'Centaur Archer', (160, 82, 45))
@@ -1737,6 +2042,9 @@ class CentaurArcher(Monster):
             "CHA": False,
         }        
 
+        # See Centaur.__init__ above -- same territorial-not-hostile default.
+        self.disposition = Disposition.PASSIVE
+
 class Troll(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'TL', 'Troll', (0, 100, 0))
@@ -1750,6 +2058,8 @@ class Troll(Monster):
         self.detection_range = 8
         self.num_damage_dice = 2
         self.is_intelligent = False
+        
+        self.footprint_size = 2
 
         self.loot_table = [
             (steel_maul, 0.85),
@@ -1796,6 +2106,8 @@ class Lizardfolk(Monster):
             "CHA": False,
         }        
 
+        self.disposition = Disposition.PASSIVE
+
 class LizardfolkArcher(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'LA', 'Lizardfolk Archer', (60, 179, 113))
@@ -1829,6 +2141,9 @@ class LizardfolkArcher(Monster):
             "WIS": False,
             "CHA": False,
         }
+
+        self.disposition = Disposition.PASSIVE
+                
 
 class GiantSpider(Monster):
     def __init__(self, x, y):
@@ -2305,6 +2620,13 @@ class MyconidSprout(Monster):
             "CHA": False,
         }
 
+        # A grove of myconid sprouts sways and watches, but doesn't attack
+        # on sight -- see the Disposition docstring near the top of this
+        # file and Monster.provoke(). Landing a hit on one (from the player
+        # or anything else) permanently flips it, and the rest of its
+        # encounter_group/pack, to AGGRESSIVE from then on.
+        self.disposition = Disposition.PASSIVE
+
 
 class MyconidAdult(Monster):
     def __init__(self, x, y):
@@ -2333,6 +2655,11 @@ class MyconidAdult(Monster):
             "WIS": True,
             "CHA": False,
         }
+
+        # See MyconidSprout.__init__ above -- same not-hostile-on-sight
+        # default, so a grove mixing sprouts and adults is uniformly
+        # peaceful until something provokes it.
+        self.disposition = Disposition.PASSIVE
 
 class Mezzoloth(Monster):
     def __init__(self, x, y):
@@ -2560,6 +2887,31 @@ class TombTapper(Monster):
             "DEX": False,
             "CON": True,
             "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+
+
+class Cultist(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'CUL', 'Cultist', (128, 0, 128))
+
+        self.hp = 9
+        self.max_hp = 9
+        self.attack_bonus = 2
+        self.armor_class = 12
+        self.base_xp = 50
+        self.monster_die_type = 4
+        self.num_damage_dice = 1
+        self.damage_modifier = 1
+        self.detection_range = 4
+        self.is_intelligent = True
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": False,
+            "CON": False,
+            "INT": True,
             "WIS": False,
             "CHA": False,
         }

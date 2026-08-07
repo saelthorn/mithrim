@@ -15,7 +15,8 @@ class Node:
         return self.f < other.f
 
 
-def astar(game_map, start, end, entities=None, moving_entity=None, ignore_destructible=False):
+def astar(game_map, start, end, entities=None, moving_entity=None, ignore_destructible=False,
+          max_expansions=4000):
     footprint_size = getattr(moving_entity, 'footprint_size', 1) if moving_entity else 1
     can_swim = getattr(moving_entity, 'can_swim', False)
 
@@ -55,6 +56,14 @@ def astar(game_map, start, end, entities=None, moving_entity=None, ignore_destru
                     return False
         return True
 
+    # If the destination itself can never be entered (e.g. it's water and
+    # this mover can't swim), no path can possibly reach it -- searching
+    # would only discover that after expanding every tile reachable from
+    # `start`. Fail fast instead; this is the common case whenever a
+    # non-swimming monster is chasing a target standing on/in water.
+    if not has_footprint_clearance(*end):
+        return None
+
     open_heap = []
     open_dict = {}  # position -> Node for fast lookup
     closed_set = set()
@@ -67,6 +76,14 @@ def astar(game_map, start, end, entities=None, moving_entity=None, ignore_destru
                       (-1, -1), (-1, 1), (1, -1), (1, 1)]
 
     while open_heap:
+        if len(closed_set) >= max_expansions:
+            # Goal is unreachable for some reason other than "the
+            # destination itself is blocked" (an island across water, a
+            # sealed room, ...). Give up rather than flooding the rest of
+            # the map -- callers already treat a None return as "no path
+            # found" and fall back to greedy movement or waiting.
+            return None
+
         current_node = heapq.heappop(open_heap)
         current_pos = current_node.position
         closed_set.add(current_pos)

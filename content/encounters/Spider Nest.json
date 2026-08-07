@@ -1,0 +1,270 @@
+{
+  "id": "world_encounter_spiders",
+  "min_level": 7,
+  "max_level": 9,
+  "stages": [
+    {
+      "id": "clearing",
+      "discovery": "Strands of silk cling to the branches overhead, growing thicker with every step down the trail. The air smells faintly of rot, and somewhere above, something shifts against the webbing.",
+      "landmark_tile": "overworld_cobweb",
+      "landmark_tile_amount": [
+        2,
+        4
+      ],
+      "choices": [
+        {
+          "key": 1,
+          "action": "advance",
+          "label": "Push Through the Webbing",
+          "description": "Follow the strands straight to their source",
+          "color": [
+            255,
+            160,
+            100
+          ],
+          "next_stage": "nest_direct"
+        },
+        {
+          "key": 2,
+          "action": "advance",
+          "label": "Look for a Way Around",
+          "description": "Scan the canopy and circle in from cover",
+          "color": [
+            160,
+            200,
+            255
+          ],
+          "outcome": "High above, cocooned between two branches, something thrashes briefly and goes still again. Whatever spun this web is still close by. You keep to the treeline and start working your way around.",
+          "next_stage": "nest_flank"
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Ignore",
+          "description": "ESC also cancels - just keep walking",
+          "color": [
+            150,
+            150,
+            150
+          ],
+          "is_cancel": true
+        }
+      ],
+      "ignore": "You give the outer webbing a wide berth, keeping your distance from whatever built it, and continue on your way."
+    },
+    {
+      "id": "nest_direct",
+      "discovery": "The trail opens straight into a hollow strung floor to canopy in silk. Your approach set the whole web trembling, and every spider in the hollow is already turning toward you. High overhead the cocooned shape is still thrashing.",
+      "landmark_tile": [
+        "ambush_tree",
+        "overworld_cobweb"
+      ],
+      "landmark_tile_amount": [
+        3,
+        5
+      ],
+      "monster_pool": [
+        "GiantSpider",
+        "GiantSpider"
+      ],
+      "monster_count": [
+        3,
+        4
+      ],
+      "sneak_dc": 17,
+      "sneak_success": "Even shaken loose from the webbing, you manage to freeze against a trunk until the nearest spiders lose interest and turn back to their strands.",
+      "sneak_fail": "There's no controlling the vibration you already put through the web. Every spider on it turns toward you at once.",
+      "ignore": "You back away from the trembling web and put the hollow behind you. Whatever's cocooned up there stops thrashing before long.",
+      "investigate_message": "Already committed, you push in with weapon drawn!",
+      "choices": [
+        {
+          "key": 1,
+          "action": "investigate",
+          "label": "Investigate",
+          "description": "Walk in and see what's happening",
+          "color": [
+            255,
+            160,
+            100
+          ]
+        },
+        {
+          "key": 2,
+          "action": "sneak",
+          "label": "Sneak Around",
+          "description": "Stealth check to glimpse it unseen",
+          "color": [
+            160,
+            200,
+            255
+          ]
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Ignore",
+          "description": "ESC also cancels - just keep walking",
+          "color": [
+            150,
+            150,
+            150
+          ],
+          "is_cancel": true
+        }
+      ]
+    },
+    {
+      "id": "nest_flank",
+      "discovery": "Circling wide, you come up on the hollow from an elevated root shelf overlooking the web. From here you can pick out only a pair of spiders working the near strands; the rest of the nest is hidden behind the silk. High overhead the cocooned shape is still thrashing.",
+      "landmark_tile": [
+        "ambush_tree",
+        "overworld_cobweb"
+      ],
+      "landmark_tile_amount": [
+        2,
+        3
+      ],
+      "monster_pool": [
+        "GiantSpider",
+        "GiantSpider"
+      ],
+      "monster_count": [
+        2,
+        3
+      ],
+      "sneak_dc": 12,
+      "sneak_success": "You pick your way around the webbing from your vantage point without disturbing a single strand, the spiders none the wiser.",
+      "sneak_fail": "A strand snaps under your foot. Both spiders below turn toward the vibration - toward you.",
+      "ignore": "You ease back from the ledge and leave the nest to itself. Whatever's cocooned up there stops thrashing before long.",
+      "investigate_message": "You drop down from the shelf and step in, weapon drawn!",
+      "choices": [
+        {
+          "key": 1,
+          "action": "investigate",
+          "label": "Investigate",
+          "description": "Drop down and see what's happening",
+          "color": [
+            255,
+            160,
+            100
+          ]
+        },
+        {
+          "key": 2,
+          "action": "sneak",
+          "label": "Sneak Around",
+          "description": "Stealth check to glimpse it unseen",
+          "color": [
+            160,
+            200,
+            255
+          ]
+        },
+        {
+          "key": 3,
+          "action": "ignore",
+          "label": "Ignore",
+          "description": "ESC also cancels - just keep walking",
+          "color": [
+            150,
+            150,
+            150
+          ],
+          "is_cancel": true
+        }
+      ]
+    }
+  ],
+  "victim": "traveler",
+  "victim_count": [
+    1,
+    1
+  ],
+  "victim_data": {
+    "char": "tv",
+    "color": [
+      210,
+      190,
+      160
+    ],
+    "names": [
+      "Cocooned Traveler"
+    ],
+    "dialogue": "Careful - don't cut me loose right under the nest...",
+    "thanks": [
+      "I couldn't move a muscle in that webbing. I owe you my life."
+    ],
+    "after": [
+      "I'll be picking silk out of my hair for a week. Thank you, truly."
+    ]
+  },
+  "scar_tag": "world_encounter_spiders",
+  "reward_xp": 55,
+  "reward_gold": 5,
+  "reputation_faction": "northfield",
+  "reputation_delta": 3,
+  "ignored_reputation_delta": -3,
+  "aftermath": {
+    "discovery": "The spiders are dead. The traveler is free of the webbing but still shaking silk from their sleeves.",
+    "choices": [
+      {
+        "key": 1,
+        "action": "escort",
+        "label": "Escort Them to Town",
+        "description": "Walk them back to Northfield to recover",
+        "color": [
+          255,
+          200,
+          140
+        ],
+        "outcome": "You walk them clear of the webs and back to Northfield. The innkeeper sits them by the fire and presses a little coin into your hand for the trouble.",
+        "hours": 0,
+        "escort": true,
+        "consequences": [
+          {
+            "type": "modify_reputation",
+            "faction": "northfield",
+            "delta": 2
+          },
+          {
+            "type": "reward_gold",
+            "amount": 5
+          }
+        ]
+      },
+      {
+        "key": 2,
+        "action": "point_home",
+        "label": "Point Them Toward Home",
+        "description": "They say they can manage from here",
+        "color": [
+          160,
+          200,
+          255
+        ],
+        "outcome": "Still a little unsteady, they thank you again and set off down the trail alone.",
+        "consequences": []
+      },
+      {
+        "key": 3,
+        "action": "leave",
+        "label": "Leave Them Be",
+        "description": "ESC also cancels - they're free, that's enough",
+        "color": [
+          150,
+          150,
+          150
+        ],
+        "is_cancel": true,
+        "outcome": "You leave them picking silk from their clothes and continue on your way.",
+        "consequences": [
+          {
+            "type": "modify_reputation",
+            "faction": "northfield",
+            "delta": -1
+          }
+        ]
+      }
+    ]
+  }
+}

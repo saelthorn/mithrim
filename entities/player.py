@@ -46,7 +46,7 @@ from items.items import (
     half_plate_armor, iron_dagger, silver_dagger, dragonsbane_warhammer, glass_orb, robes, lesser_healing_potion, 
     greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, spell_book, staff_of_magi, 
     scale_mail_armor, sturdy_quarterstaff, leather_cap, iron_helmet, steel_helmet, hood_of_shadows, great_helm, 
-    mages_circlet, leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,
+    mages_circlet, leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers, meat,
     Item, CampfireKit, Weapon, Armor, OffHand, Accessory,
     Helmet, Boots, FocusItem, WEAPON_CATEGORIES, ARMOR_CATEGORIES, 
 )
@@ -79,8 +79,8 @@ class Player: # This is our base class for playable characters
         self.gold = 50
 
         # Player-specific attributes
-        self.level = 3
-        self.current_xp = 900  # Cumulative XP (player starts at level 1)
+        self.level = 6
+        self.current_xp = 14000  # Cumulative XP (player starts at level 1)
         self.xp_to_next_level = XP_PROGRESSION.get(self.level + 1, float('inf'))  # XP needed for next level
 
         # --- D&D 5e Ability Scores (Base values, will be overridden by subclasses) ---
@@ -140,6 +140,22 @@ class Player: # This is our base class for playable characters
         # Recalculate max HP and AC based on base stats and equipped gear
         self.max_hp = 0 
         self.hp = 0     
+
+        # --- Death saving throws (5e-style) ---
+        # Dropping to 0 hp knocks the player unconscious instead of killing
+        # them outright; see take_damage()/roll_death_save() below and
+        # Game._update_death_saving_throw() in game.py, which drives the
+        # DEATH_SAVE_MENU state whenever is_dying is True.
+        self.is_dying = False              # unconscious at 0 hp, actively rolling death saves
+        self.is_stable = False             # unconscious at 0 hp, stabilized (3 successes) -- no longer rolling
+        self.death_save_successes = 0
+        self.death_save_failures = 0
+
+        # Ambient combat context ("who hit you last, and how hard") shown
+        # on the death-save menu -- purely flavor, no mechanical effect.
+        self.last_attacker_name = None
+        self.last_damage_taken = 0
+        self.last_damage_type = None
 
         self.hunger = 100  # Max hunger value
         self.hunger_decrease_rate = 1  # Hunger decreases by 1 per turn
@@ -228,9 +244,15 @@ class Player: # This is our base class for playable characters
         Sanity ≤ 50%      → player takes 50% extra damage from enemies (checked in take_damage).
         Eating food also restores sanity (handled in eat_food).
         """
+        # The open air of the overworld is far easier on the mind than a dungeon,
+        # so sanity changes tick on a slower cadence out there.
+        sanity_tick_interval = 4
+        if getattr(game_instance, 'game_state', None) == GameState.OVERWORLD:
+            sanity_tick_interval = 12
+
         self.turns_since_last_sanity_change += 1
-        if self.turns_since_last_sanity_change < 4:
-            return  # Only tick every 4 turns (same cadence as hunger)
+        if self.turns_since_last_sanity_change < sanity_tick_interval:
+            return  # Only tick every N turns (slower cadence in the overworld)
 
         self.turns_since_last_sanity_change = 0
 
@@ -569,7 +591,7 @@ class Player: # This is our base class for playable characters
         while self.level < 20 and self.current_xp >= self.get_next_level_xp_threshold():
             self.level_up(game_instance)
 
-    def take_damage(self, amount, game_instance, damage_type=None): 
+    def take_damage(self, amount, game_instance, damage_type=None, attacker=None, critical=False): 
         damage_taken = amount
         
         # NEW: Apply damage resistance
@@ -602,12 +624,35 @@ class Player: # This is our base class for playable characters
             # Add a message for half damage
             if damage_taken < original_damage: # Only if damage was actually reduced
                 game_instance.message_log.add_message(f"{self.name} evades, taking only {damage_taken} damage!", (100, 255, 100))
-                
+
+        # Remember who/what hit us and how hard, purely for the death-save
+        # menu's ambient "who attacked you last" flavor text -- callers that
+        # don't know their attacker (traps, fire tiles, ...) can simply omit
+        # it and the previous value (or None) is left alone.
+        if attacker is not None:
+            self.last_attacker_name = getattr(attacker, 'name', str(attacker))
+        self.last_damage_taken = damage_taken
+        self.last_damage_type = damage_type
+
         self.hp -= damage_taken
 
         if self.hp <= 0:
-            self.alive = False
-            self.die()
+            self.hp = 0
+            if self.is_dying:
+                # Already unconscious and rolling death saves -- getting hit
+                # again while down is an automatic failure (two on a crit),
+                # per the 5e "damage while dying" rule.
+                self._fail_death_saves(game_instance, count=2 if critical else 1, from_damage=True)
+            else:
+                # Damage while stable knocks the player back into danger --
+                # they resume dying with a clean slate of death saves.
+                self._start_dying(game_instance)
+        elif self.is_dying or self.is_stable:
+            # Healed/pulled back above 0 some other way without going
+            # through heal() (rare) -- make sure we don't leave them stuck
+            # "dying" at positive hp.
+            self._wake_up()
+
         return damage_taken
 
     def heal(self, amount):
@@ -615,7 +660,10 @@ class Player: # This is our base class for playable characters
         self.hp += amount
         if self.hp > self.max_hp:
             self.hp = self.max_hp
-        return self.hp - old_hp
+        healed = self.hp - old_hp
+        if healed > 0 and self.hp > 0:
+            self._wake_up()
+        return healed
 
     def level_up(self, game_instance=None):
         if self.level >= 20:
@@ -726,9 +774,17 @@ class Player: # This is our base class for playable characters
         return False
 
 
-    def rest(self, game_instance):
-        """Handle resting mechanics and reset ability cooldowns."""
+    def rest(self, game_instance, hours=1):
+        """Handle resting mechanics and reset ability cooldowns.
+
+        `hours` is the amount of world time to advance when the player
+        chooses a short or long rest from the new rest menu. Existing
+        callers that do not pass a value continue to use the default 1-hour
+        short rest behavior.
+        """
         print("Rest method called")  # Debugging statement
+
+        hours = max(1, int(hours))
 
         # Check for enemies within 10 tiles
         for entity in game_instance.entities:
@@ -746,6 +802,10 @@ class Player: # This is our base class for playable characters
                     game_instance.message_log.add_message(random.choice(rest_block_msgs), (255, 0, 0))
                     return False
 
+        # Advance world time via the canonical story path so scheduled
+        # world events see the rest exactly like any other time passage.
+        if hasattr(game_instance, "stories") and hasattr(game_instance.stories, "fire_rest"):
+            game_instance.stories.fire_rest(hours, instigator=self)
 
         # Check if the Campfire Kit is on the ground
         campfire_kit = next((item for item in game_instance.game_map.items_on_ground if isinstance(item, CampfireKit)), None)
@@ -808,6 +868,8 @@ class Player: # This is our base class for playable characters
                 self.trigger_ambush(game_instance)
                 return True  # Resting was interrupted by ambush
 
+        return True
+
 
     def trigger_ambush(self, game_instance):
         """Spawn enemies for an ambush."""
@@ -854,9 +916,115 @@ class Player: # This is our base class for playable characters
         Sets alive to False and logs a death message.
         """
         self.alive = False
+        self.is_dying = False
+        self.is_stable = False
         if game_instance:
             game_instance.message_log.add_message(f"{self.name} has fallen!", (255, 0, 0))
         print(f"{self.name} has died.") # For console debugging 
+
+    # --- Death saving throws -------------------------------------------------
+    # 5e-style: hitting 0 hp knocks the player unconscious rather than
+    # killing them instantly. Each subsequent turn they roll a death save
+    # (see roll_death_save(), driven from the DEATH_SAVE_MENU game state in
+    # game.py) until they either stabilize (3 successes) or die (3 failures).
+
+    def _start_dying(self, game_instance=None):
+        """Hp just dropped to (or past) 0: fall unconscious and begin
+        rolling death saves from a clean slate."""
+        self.hp = 0
+        self.is_dying = True
+        self.is_stable = False
+        self.death_save_successes = 0
+        self.death_save_failures = 0
+        if game_instance:
+            game_instance.message_log.add_message(
+                f"{self.name} collapses, hovering on the edge of death...", (255, 60, 60)
+            )
+
+    def _wake_up(self):
+        """Clear dying/stable state -- called whenever the player ends up
+        with positive hp again, however that happened (heal, potion, ...)."""
+        self.is_dying = False
+        self.is_stable = False
+        self.death_save_successes = 0
+        self.death_save_failures = 0
+
+    def _fail_death_saves(self, game_instance=None, count=1, from_damage=False):
+        """Apply `count` death-save failures directly (used for the
+        "damage while dying" auto-fail rule), killing the player once three
+        failures have accumulated."""
+        self.death_save_failures += count
+        if from_damage and game_instance:
+            game_instance.message_log.add_message(
+                f"The blow lands while {self.name} lies helpless!", (255, 60, 60)
+            )
+        if self.death_save_failures >= 3:
+            if game_instance:
+                game_instance.message_log.add_message(
+                    f"{self.name}'s heart falls still.", (255, 0, 0)
+                )
+            self.die(game_instance)
+
+    def roll_death_save(self, game_instance=None):
+        """
+        Roll one death saving throw: a d20 result of 10+ is a success, a
+        natural 20 immediately stabilizes the player AND wakes them with
+        1 hp, a result below 10 is a failure, and a natural 1 counts as
+        two failures. Three successes stabilizes them (still unconscious
+        at 0 hp, but no longer in danger); three failures kills them.
+
+        Returns the die roll, or None if the player isn't currently dying
+        (nothing to roll).
+        """
+        if not self.is_dying:
+            return None
+
+        roll = random.randint(1, 20)
+
+        if roll == 20:
+            self.hp = 1
+            self._wake_up()
+            if game_instance:
+                game_instance.message_log.add_message(
+                    f"{self.name} gasps and wrenches themself back from the brink! (Natural 20)",
+                    (0, 255, 100)
+                )
+            return roll
+
+        if roll == 1:
+            self.death_save_failures += 2
+            if game_instance:
+                game_instance.message_log.add_message(
+                    f"{self.name}'s body convulses -- a critical failure! (Natural 1)", (255, 0, 0)
+                )
+        elif roll >= 10:
+            self.death_save_successes += 1
+            if game_instance:
+                game_instance.message_log.add_message(
+                    f"{self.name} clings to life. (Death save: {roll}, success)", (150, 220, 255)
+                )
+        else:
+            self.death_save_failures += 1
+            if game_instance:
+                game_instance.message_log.add_message(
+                    f"{self.name} slips further away. (Death save: {roll}, failure)", (255, 120, 80)
+                )
+
+        if self.death_save_successes >= 3:
+            self.is_dying = False
+            self.is_stable = True
+            if game_instance:
+                game_instance.message_log.add_message(
+                    f"{self.name} stabilizes -- unconscious, but breathing.", (150, 255, 150)
+                )
+        elif self.death_save_failures >= 3:
+            if game_instance:
+                game_instance.message_log.add_message(
+                    f"{self.name}'s heart falls still.", (255, 0, 0)
+                )
+            self.die(game_instance)
+
+        return roll
 
 
     def is_adjacent_to(self, other):
@@ -974,7 +1142,6 @@ class Player: # This is our base class for playable characters
             self.abilities.pop("Guard", None)
 
     def has_holy_symbol_equipped(self):
-        print(f"Debug: Focus Item Check")
         return (
             self.equipped_focus is not None and 
             (getattr(self.equipped_focus, 'category', None) or '').lower() == 'holy symbol'
@@ -1004,6 +1171,8 @@ class Player: # This is our base class for playable characters
                     # Recalculate attack bonus after equipping the off-hand weapon
                     self.update_attack_power()  # Call the method to update the attack bonus                    
                     self.update_spellbook_abilities()
+                    self.update_guard_ability()
+                    self.update_throw_knife_ability()
 
             # If the player is equipping a weapon, check for existing equipped weapon
             if self.equipped_weapon:
@@ -1635,7 +1804,19 @@ class Fighter(Player):
         # Set starting equipment
         self.inventory.add_item(CampfireKit())  
         self.inventory.add_item(throwing_knife)
-        self.inventory.add_item(bread)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
+        self.inventory.add_item(meat)
         self.inventory.add_item(lesser_healing_potion)
         self.inventory.add_item(torch)
 
@@ -1770,6 +1951,7 @@ class Wizard(Player):
         self.equipped_helmet = mages_circlet
         self.equipped_armor = robes
         self.equipped_boots = leather_boots
+        self.equipped_focus = spell_book
         
         # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
         # These calculations MUST happen AFTER race traits are applied.

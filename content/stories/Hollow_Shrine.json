@@ -1,0 +1,194 @@
+{
+  "id": "hollow_shrine",
+  "version": 1,
+  "seed": null,
+
+  "metadata": {
+    "title": "The Hollow Shrine",
+    "summary": "A forgotten roadside shrine has begun whispering at night. Villagers blame a wandering cult; the shrine itself may disagree.",
+    "tags": ["cult", "shrine", "mystery", "moral_choice"],
+    "biome": "forest",
+    "min_level": 4
+  },
+
+  "requirements": {
+    "min_player_level": 4,
+    "location": [340.0, 210.0],
+    "max_distance": 80.0,
+    "required_story_ids": [],
+    "cooldown_hours": 0,
+    "condition": null
+  },
+
+  "stages": [
+    { "id": 0, "name": "rumor",      "objective": "Find the old shrine said to whisper at night.",  "dialogue_id": "rumor_intro" },
+    { "id": 1, "name": "discovered", "objective": "Inspect the shrine and the cultist camp nearby.", "dialogue_id": "shrine_found" },
+    { "id": 2, "name": "choice",     "objective": "Decide the shrine's fate.", "dialogue_id": "shrine_choice",
+      "on_enter": [ { "type": "modify_reputation", "faction": "wardens", "delta": 1 } ] },
+    { "id": 3, "name": "resolved",   "objective": "Return to Northfield and report what you found.", "dialogue_id": "shrine_resolved" }
+  ],
+
+  "search_area": { "center": [340.0, 210.0], "size": [40, 40] },
+
+  "npcs": [
+    { "id": "cultist_watcher_1", "type": "cultist", "role": "guard",
+      "position": [342.0, 208.0], "hostile": true, "group_id": "shrine_cult",
+      "dialogue_id": null },
+    { "id": "cultist_watcher_2", "type": "cultist", "role": "guard",
+      "position": [338.0, 212.0], "hostile": true, "group_id": "shrine_cult" },
+    { "id": "cult_speaker", "type": "cultist", "role": "speaker",
+      "position": [340.0, 205.0], "hostile": false, "group_id": "shrine_cult",
+      "dialogue_id": "speaker_pleads",
+      "note": "Non-hostile unless attacked; offers the 'spare the shrine' path." }
+  ],
+
+  "objects": [
+    { "object_type": "shrine", "id": "hollow_shrine_altar", "position": [340.0, 205.0], "repeatable": true,
+      "data": { "aura": "faint_whisper" } },
+    { "object_type": "journal", "id": "cult_journal", "position": [343.0, 206.0], "repeatable": false,
+      "data": { "dialogue_id": "cult_journal_read" } },
+    { "object_type": "tracks", "id": "shrine_tracks", "position": [335.0, 215.0], "repeatable": false }
+  ],
+
+  "triggers": [
+    {
+      "rule_id": "shrine_first_seen",
+      "trigger_type": "inspect_object",
+      "target_id": "hollow_shrine_altar",
+      "max_stage": 0,
+      "consequences": [ { "type": "reward_xp", "amount": 20 } ]
+    },
+    {
+      "rule_id": "journal_read",
+      "trigger_type": "read_journal",
+      "target_id": "cult_journal",
+      "min_stage": 1,
+      "max_stage": 1,
+      "consequences": [ { "type": "give_item", "item_id": "cult_cipher", "count": 1 } ]
+    },
+    {
+      "rule_id": "cultists_slain",
+      "trigger_type": "kill_npc",
+      "data_filters": { "group_id": "shrine_cult" },
+      "min_stage": 1,
+      "max_stage": 1,
+      "condition": "guards_dead",
+      "effect": null,
+      "consequences": [
+        { "type": "modify_reputation", "faction": "shrine_cult", "delta": -10 },
+        { "type": "modify_reputation", "faction": "wardens", "delta": 3 }
+      ]
+    },
+    {
+      "rule_id": "shrine_destroyed",
+      "trigger_type": "inspect_object",
+      "target_id": "hollow_shrine_altar",
+      "min_stage": 2,
+      "max_stage": 2,
+      "required_flags": { "chose_destroy": true },
+      "consequences": [
+        { "type": "destroy_landmark", "landmark_id": "hollow_shrine_altar" },
+        { "type": "modify_reputation", "faction": "wardens", "delta": 5 },
+        { "type": "modify_reputation", "faction": "shrine_cult", "delta": -15 }
+      ]
+    },
+    {
+      "rule_id": "shrine_spared",
+      "trigger_type": "talk_npc",
+      "target_id": "cult_speaker",
+      "min_stage": 2,
+      "max_stage": 2,
+      "required_flags": { "chose_spare": true },
+      "consequences": [
+        { "type": "modify_reputation", "faction": "shrine_cult", "delta": 10 },
+        { "type": "unlock_region", "region_id": "hollow_shrine_sanctum" }
+      ]
+    }
+  ],
+
+  "conditions": {
+    "guards_dead": {
+      "type": "and",
+      "conditions": [
+        { "type": "not", "condition": { "type": "npc_alive", "npc_id": "cultist_watcher_1" } },
+        { "type": "not", "condition": { "type": "npc_alive", "npc_id": "cultist_watcher_2" } }
+      ]
+    }
+  },
+
+  "dialogue": {
+    "rumor_intro": {
+      "speaker": "narrator",
+      "text": "Travelers speak of a shrine in the woods off the old road, half-swallowed by roots, that hums after dark.",
+      "choices": [ { "text": "Go take a look.", "next": null } ]
+    },
+    "shrine_found": {
+      "speaker": "narrator",
+      "text": "The shrine is old -- older than the road. Cultists in gray cloaks keep watch nearby, and someone has been camping here a while.",
+      "choices": [ { "text": "Search the camp.", "next": null } ]
+    },
+    "cult_journal_read": {
+      "speaker": "narrator",
+      "text": "The journal describes the shrine as a 'seal', not an altar -- the cultists believe they are keeping something in, not worshipping it.",
+      "choices": [ { "text": "Keep reading.", "next": null } ]
+    },
+    "speaker_pleads": {
+      "speaker": "cult_speaker",
+      "text": "Please -- we're not raiders. This shrine holds something back. Break it and you won't like what wakes.",
+      "choices": [
+        { "text": "Destroy the shrine anyway.", "next": "shrine_choice",
+          "consequences": [ { "type": "set_flag", "story_id": "hollow_shrine", "key": "chose_destroy", "value": true } ] },
+        { "text": "Leave the shrine intact.", "next": "shrine_choice",
+          "consequences": [ { "type": "set_flag", "story_id": "hollow_shrine", "key": "chose_spare", "value": true } ] }
+      ]
+    },
+    "shrine_choice": {
+      "speaker": "narrator",
+      "text": "The shrine hums quietly, waiting on your decision.",
+      "choices": [
+        { "text": "Smash the seal.", "next": "shrine_resolved" },
+        { "text": "Walk away and let the cultists keep their vigil.", "next": "shrine_resolved" }
+      ]
+    },
+    "shrine_resolved": {
+      "speaker": "narrator",
+      "text": "Whatever you chose, word of the shrine will reach Northfield before you do.",
+      "choices": []
+    }
+  },
+
+  "rewards": {
+    "on_stage": {
+      "1": [ { "type": "reward_xp", "amount": 30 } ]
+    },
+    "on_complete": [
+      { "type": "reward_xp", "amount": 120 },
+      { "type": "reward_gold", "amount": 50 }
+    ]
+  },
+
+  "failure": {
+    "scar_tag": "hollow_shrine:{mode}",
+    "applies_to": ["ignored", "expired", "failed"],
+    "consequences": {
+      "ignored": [ { "type": "modify_reputation", "faction": "wardens", "delta": -1 } ],
+      "expired": [ { "type": "modify_reputation", "faction": "shrine_cult", "delta": 5 } ],
+      "failed":  [ { "type": "modify_reputation", "faction": "wardens", "delta": -3 } ]
+    },
+    "follow_up_story_id": { "expired": "cult_expansion" }
+  },
+
+  "chain": {
+    "chain_id": "northfield_saga",
+    "node_id": "hollow_shrine",
+    "ending_id": null,
+    "exclusive": false,
+    "edges": [
+      { "outcome": "completed", "next_node_id": "cult_reprisal",
+        "condition": { "type": "quest_flag", "story_id": "hollow_shrine", "flag_name": "chose_destroy", "expected": true } },
+      { "outcome": "completed", "next_node_id": "sanctum_secrets",
+        "condition": { "type": "quest_flag", "story_id": "hollow_shrine", "flag_name": "chose_spare", "expected": true } },
+      { "outcome": "failed", "next_node_id": "cult_expansion" }
+    ]
+  }
+}

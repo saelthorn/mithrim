@@ -1,6 +1,29 @@
 import pygame
 import config # Import config for TILE_SIZE and font scaling
 
+# pygame.font.SysFont() asks the OS to match/load a font -- one of the
+# slower calls in pygame, not a cheap lookup. FloatingText.font_size only
+# ever takes a handful of distinct values (derived from config.TILE_SIZE,
+# which only changes on zoom), so building a fresh SysFont for every
+# single HIT!/MISS!/damage-number instance -- several of which get
+# created per monster attack, for every monster, all within the same
+# synchronous combat turn (see game.py's batch turn-processing loop) --
+# turns a handful of monsters attacking at once into a dozen-plus
+# from-scratch font loads before a single frame renders. Caching by
+# (font_size, bold) means that cost is paid once per size, not once per
+# floating text.
+_FONT_CACHE = {}
+
+
+def _get_cached_font(font_size, bold=True):
+    cache_key = (font_size, bold)
+    font = _FONT_CACHE.get(cache_key)
+    if font is None:
+        font = pygame.font.SysFont('consolas', font_size, bold=bold)
+        _FONT_CACHE[cache_key] = font
+    return font
+
+
 class FloatingText:
     def __init__(self, x, y, text, color, duration=60, y_speed=-0.5, font_size=None):
         """
@@ -32,7 +55,7 @@ class FloatingText:
         else:
             self.font_size = font_size
             
-        self.font = pygame.font.SysFont('consolas', self.font_size, bold=True)
+        self.font = _get_cached_font(self.font_size, bold=True)
         self.surface = self.font.render(self.text, True, self.color)
         self.rect = self.surface.get_rect()
 

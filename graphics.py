@@ -5,6 +5,9 @@ import math  # For wave patterns in fallbacks
 # Global variable to hold the loaded tileset image
 TILESET_IMAGE = None
 TILE_MAPPING = {}
+_SURFACE_CACHE = {}
+_DRAW_CACHE = {}
+_SUBMERGED_CACHE = {}
 
 ORIGINAL_TILE_DIM = 24 # Confirmed 24x24 in Figma
 TILE_SPACING = 1     # 1 pixel space after each tile
@@ -20,6 +23,9 @@ TILE_Y_OFFSET = 0
 
 def load_tileset(filepath):
     global TILESET_IMAGE
+    _SURFACE_CACHE.clear()
+    _DRAW_CACHE.clear()
+    _SUBMERGED_CACHE.clear()
     try:
         TILESET_IMAGE = pygame.image.load(filepath).convert_alpha()
         print(f"Tileset loaded: {filepath}, size: {TILESET_IMAGE.get_size()}")
@@ -31,7 +37,10 @@ def load_tileset(filepath):
 
 def setup_tile_mapping():
     global TILE_MAPPING
-        
+    _SURFACE_CACHE.clear()
+    _DRAW_CACHE.clear()
+    _SUBMERGED_CACHE.clear()
+    
     # FIXED: Distinct positions for '~' (river) and '≈' (lake)
     # Adjust these coordinates based on your tileset PNG (e.g., column 11, row 4 for river; try column 12 for lake if needed)
     # Use an image editor to verify the grid positions.
@@ -55,8 +64,8 @@ def setup_tile_mapping():
         'MDW': (6 * CELL_DIM,  1 * CELL_DIM),  # Mountain Dwarf Wizard
         'MDC': (7 * CELL_DIM,  1 * CELL_DIM),  # Mountain Dwarf Cleric
         # Duergar — shares the Hill Dwarf row until a dedicated row exists
-        'DGF': (8 * CELL_DIM,  1 * CELL_DIM),  # Duergar Fighter
-        'DGR': (9 * CELL_DIM,  1 * CELL_DIM),  # Duergar Rogue
+        'DGF': (8 * CELL_DIM,  1 * CELL_DIM),   # Duergar Fighter
+        'DGR': (9 * CELL_DIM,  1 * CELL_DIM),   # Duergar Rogue
         'DGW': (10 * CELL_DIM,  1 * CELL_DIM),  # Duergar Wizard
         'DGC': (11 * CELL_DIM,  1 * CELL_DIM),  # Duergar Cleric
 
@@ -71,8 +80,8 @@ def setup_tile_mapping():
         'HEW': (6 * CELL_DIM,  2 * CELL_DIM),  # High Elf Wizard
         'HEC': (7 * CELL_DIM,  2 * CELL_DIM),  # High Elf Cleric
         # Wood Elf — shares the Drow elf row until a dedicated row exists
-        'WEF': (8 * CELL_DIM,  2 * CELL_DIM),  # Wood Elf Fighter
-        'WER': (9 * CELL_DIM,  2 * CELL_DIM),  # Wood Elf Rogue
+        'WEF': (8 * CELL_DIM,  2 * CELL_DIM),   # Wood Elf Fighter
+        'WER': (9 * CELL_DIM,  2 * CELL_DIM),   # Wood Elf Rogue
         'WEW': (10 * CELL_DIM,  2 * CELL_DIM),  # Wood Elf Wizard
         'WEC': (11 * CELL_DIM,  2 * CELL_DIM),  # Wood Elf Cleric
 
@@ -118,8 +127,8 @@ def setup_tile_mapping():
         'GDW': (6 * CELL_DIM, 11 * CELL_DIM),  # Gold Dragonborn Wizard
         'GDC': (7 * CELL_DIM, 11 * CELL_DIM),  # Gold Dragonborn Cleric
         # Green
-        'GNF': (8 * CELL_DIM, 11 * CELL_DIM),  # Green Dragonborn Fighter
-        'GNR': (9 * CELL_DIM, 11 * CELL_DIM),  # Green Dragonborn Rogue
+        'GNF': (8 * CELL_DIM, 11 * CELL_DIM),   # Green Dragonborn Fighter
+        'GNR': (9 * CELL_DIM, 11 * CELL_DIM),   # Green Dragonborn Rogue
         'GNW': (10 * CELL_DIM, 11 * CELL_DIM),  # Green Dragonborn Wizard
         'GNC': (11 * CELL_DIM, 11 * CELL_DIM),  # Green Dragonborn Cleric
         # Blue
@@ -131,26 +140,26 @@ def setup_tile_mapping():
 
 
         # Map Tiles
-        'bl': (16 * CELL_DIM, 6 * CELL_DIM),# Bloodstain
-        '{': (0 * CELL_DIM, 6 * CELL_DIM),  # Tavern Crate
-        '}': (2 * CELL_DIM, 6 * CELL_DIM),  # Tavern Barrel
-        ',': (2 * CELL_DIM, 17 * CELL_DIM), # Tavern Floor
-        '?': (1 * CELL_DIM, 17 * CELL_DIM), # Kitchen Tavern Floor
-        '.': (0 * CELL_DIM, 3 * CELL_DIM),  # Floor
-        '#': (1 * CELL_DIM, 3 * CELL_DIM),  # Wall
-        '>': (8 * CELL_DIM, 3 * CELL_DIM),  # Stairs Down
-        '<': (9 * CELL_DIM, 3 * CELL_DIM),  # Stairs Up
-        'alt': (10 * CELL_DIM, 3 * CELL_DIM), # Altar
-        '+': (2 * CELL_DIM, 3 * CELL_DIM),  # Tavern Door
-        ';': (1 * CELL_DIM, 4 * CELL_DIM),  # Bones
-        '%': (2 * CELL_DIM, 4 * CELL_DIM),  # Rubble
-        'x': (3 * CELL_DIM, 4 * CELL_DIM),  # Cobweb
-        '*': (4 * CELL_DIM, 4 * CELL_DIM),  # Mushroom
-        'fb': (5 * CELL_DIM, 4 * CELL_DIM), # Fresh Bones
-        '`': (6 * CELL_DIM, 4 * CELL_DIM),  # Dungeon Grass
-        'dp': (7 * CELL_DIM, 4 * CELL_DIM), # Dungeon Pillar
-        '.2': (8 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Two
-        '.3': (9 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Three
+        'bl': (16 * CELL_DIM, 6 * CELL_DIM), # Bloodstain
+        '{': (0 * CELL_DIM, 6 * CELL_DIM),   # Tavern Crate
+        '}': (2 * CELL_DIM, 6 * CELL_DIM),   # Tavern Barrel
+        ',': (2 * CELL_DIM, 17 * CELL_DIM),  # Tavern Floor
+        '?': (1 * CELL_DIM, 17 * CELL_DIM),  # Kitchen Tavern Floor
+        '.': (0 * CELL_DIM, 3 * CELL_DIM),   # Floor
+        '#': (1 * CELL_DIM, 3 * CELL_DIM),   # Wall
+        '>': (8 * CELL_DIM, 3 * CELL_DIM),   # Stairs Down
+        '<': (9 * CELL_DIM, 3 * CELL_DIM),   # Stairs Up
+        '&': (10 * CELL_DIM, 3 * CELL_DIM),  # Altar
+        '+': (2 * CELL_DIM, 3 * CELL_DIM),   # Tavern Door
+        ';': (1 * CELL_DIM, 4 * CELL_DIM),   # Bones
+        '%': (2 * CELL_DIM, 4 * CELL_DIM),   # Rubble
+        'x': (3 * CELL_DIM, 4 * CELL_DIM),   # Cobweb
+        '*': (4 * CELL_DIM, 4 * CELL_DIM),   # Mushroom
+        'fb': (5 * CELL_DIM, 4 * CELL_DIM),  # Fresh Bones
+        '`': (6 * CELL_DIM, 4 * CELL_DIM),   # Dungeon Grass
+        'dp': (7 * CELL_DIM, 4 * CELL_DIM),  # Dungeon Pillar
+        '.2': (8 * CELL_DIM, 4 * CELL_DIM),  # Dungeon Floor Two
+        '.3': (9 * CELL_DIM, 4 * CELL_DIM),  # Dungeon Floor Three
         '.5': (12 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Five 
         '.6': (13 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Six 
         '.4': (14 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Four
@@ -165,21 +174,73 @@ def setup_tile_mapping():
         '~': (11 * CELL_DIM, 4 * CELL_DIM),  # River (Water) - FIXED: Keep this
         '≈': (11 * CELL_DIM, 4 * CELL_DIM),  # Lake (Water) - FIXED: Distinct position (adjust if your tileset has it elsewhere)
 
+
+        # Overworld Tiles
+        'rd': (0 * CELL_DIM, 3 * CELL_DIM),    # Road
+        'tre': (0 * CELL_DIM, 18 * CELL_DIM),  # Tree
+        'grd': (1 * CELL_DIM, 18 * CELL_DIM),  # Ground
+        '`3': (2 * CELL_DIM, 18 * CELL_DIM),   # Tall Grass
+        'mnt': (3 * CELL_DIM, 18 * CELL_DIM),  # Mountain
+
+        'cl': (4 * CELL_DIM, 18 * CELL_DIM),   # Clearing
+        'GT': (5 * CELL_DIM, 18 * CELL_DIM),   # Giant Tree
+        'pnd': (6 * CELL_DIM, 18 * CELL_DIM),  # Pond
+        'ff': (7 * CELL_DIM, 18 * CELL_DIM),   # Flower Field
+        'clf': (1 * CELL_DIM, 18 * CELL_DIM),  # Cliff
+        'vy': (1 * CELL_DIM, 18 * CELL_DIM),   # Valley 
+        'wtf': (1 * CELL_DIM, 18 * CELL_DIM),  # Waterfall
+        'sc': (8 * CELL_DIM, 18 * CELL_DIM),   # Scree
+        'rg': (1 * CELL_DIM, 18 * CELL_DIM),   # Ridge
+        'md': (9 * CELL_DIM, 18 * CELL_DIM),   # Meadow
+        'rk': (10 * CELL_DIM, 18 * CELL_DIM),  # Rock Formation
+        'mp': (11 * CELL_DIM, 18 * CELL_DIM),  # Marsh Pool
+        'rds': (12 * CELL_DIM, 18 * CELL_DIM), # Reeds
+        'ddf': (13 * CELL_DIM, 18 * CELL_DIM), # Dead Forest
+
+
+        'amt': (13 * CELL_DIM, 18 * CELL_DIM),  # Ambush Tree (Landmark)
+        'ocw': (14 * CELL_DIM, 18 * CELL_DIM),  # Overworld Cobweb (Landmark)
+        'gvs1':(0 * CELL_DIM,  19 * CELL_DIM),  # Gravestone One (Landmark)
+        'gvs2':(1 * CELL_DIM,  19 * CELL_DIM),  # Gravestone Two (Landmark)
+        'gvs3':(2 * CELL_DIM,  19 * CELL_DIM),  # Gravestone Three (Landmark)
+        'crv': (3 * CELL_DIM,  19 * CELL_DIM),  # Caravan (Landmark)
+        'ten': (4 * CELL_DIM,  19 * CELL_DIM),  # Tent (Landmark)
+        'rtc': (6 * CELL_DIM,  19 * CELL_DIM),  # Ritual Circle (Landmark)
+        'brc': (7 * CELL_DIM,  19 * CELL_DIM),  # Barricade (Landmark)
+
+
         # Elemental Tiles
         'fire': (12 * CELL_DIM, 5 * CELL_DIM),  # Fire
         
+
         # IMPORTANT: Ensure 'C' is your *closed* chest graphic
-        'C':  (4 * CELL_DIM, 5 * CELL_DIM),  # Chest (Closed)
-        'O':  (5 * CELL_DIM, 5 * CELL_DIM),  # Open Chest
+        'C':  (4 * CELL_DIM, 5 * CELL_DIM),   # Chest (Closed)
+        'O':  (5 * CELL_DIM, 5 * CELL_DIM),   # Open Chest
         # Locked chest variants — adjust all three coords to match your tileset
         'LC':  (4 * CELL_DIM, 5 * CELL_DIM),  # Locked Chest (closed)
         'olc': (5 * CELL_DIM, 5 * CELL_DIM),  # Locked Chest (opened)
         'LM':  (5 * CELL_DIM, 6 * CELL_DIM),  # Locked Chest Mimic (revealed)
-        'c': (3 * CELL_DIM, 3 * CELL_DIM),  # Chair (Tavern)
-        't': (4 * CELL_DIM, 3 * CELL_DIM),  # Table (Tavern)
-        '=': (5 * CELL_DIM, 3 * CELL_DIM),  # Bar Counter
-        'F': (6 * CELL_DIM, 3 * CELL_DIM),  # Fireplace
-        'i': (7 * CELL_DIM, 3 * CELL_DIM),  # Torch Wall
+        
+        
+        'c': (3 * CELL_DIM, 3 * CELL_DIM),    # Chair (Tavern)
+        't': (4 * CELL_DIM, 3 * CELL_DIM),    # Table (Tavern)
+        '=': (5 * CELL_DIM, 3 * CELL_DIM),    # Bar Counter
+        'I': (3 * CELL_DIM, 17 * CELL_DIM),   # Bar Counter Two
+        '7': (4 * CELL_DIM, 17 * CELL_DIM),   # Bar Counter Three
+        '|': (5 * CELL_DIM, 17 * CELL_DIM),   # Bar Counter Four
+        'F': (6 * CELL_DIM, 3 * CELL_DIM),    # Fireplace
+        'i': (7 * CELL_DIM, 3 * CELL_DIM),    # Torch Wall
+        '}2': (6 * CELL_DIM, 17 * CELL_DIM),  # Tavern Barrel Two
+        '5':  (7 * CELL_DIM, 17 * CELL_DIM),  # Shelf
+        '52': (8 * CELL_DIM, 17 * CELL_DIM),  # Shelf Two
+        '--': (9 * CELL_DIM, 17 * CELL_DIM),  # Bed
+        'fg': (10 * CELL_DIM, 17 * CELL_DIM),  # Forge
+        'av': (11 * CELL_DIM, 17 * CELL_DIM),  # Anvil
+        '53': (12 * CELL_DIM, 17 * CELL_DIM),  # Shelf Three
+        '|2': (13 * CELL_DIM, 17 * CELL_DIM),  # Bar Counter Five
+        '|3': (14 * CELL_DIM, 17 * CELL_DIM),  # Bar Counter Six
+        'hy': (15 * CELL_DIM, 17 * CELL_DIM),  # Hay
+
 
         # Static Decorations (using distinct chars)
         'b': (2 * CELL_DIM, 5 * CELL_DIM), # Static Barrel (original graphic)
@@ -225,49 +286,56 @@ def setup_tile_mapping():
         'WR': (7 * CELL_DIM, 9 * CELL_DIM),  # Wererat
         'WF': (7 * CELL_DIM, 8 * CELL_DIM),  # Wolf        
 
-        'YL': (8 * CELL_DIM, 7 * CELL_DIM),  # Yochlol
-        'DD': (8 * CELL_DIM, 8 * CELL_DIM),  # Drider
-        'DS': (8 * CELL_DIM, 9 * CELL_DIM),  # Death Slaad
-        'MS': (9 * CELL_DIM, 7 * CELL_DIM),  # Myconid Sprout
-        'MA': (9 * CELL_DIM, 8 * CELL_DIM),  # Myconid Adult 
-        'RS': (9 * CELL_DIM, 9 * CELL_DIM),  # Red Slaad
-        'MZ': (10 * CELL_DIM, 7 * CELL_DIM),  # Mezzoloth 
-        'GU': (10 * CELL_DIM, 8 * CELL_DIM),  # Gauth 
-        'AR': (10 * CELL_DIM, 9 * CELL_DIM),  # Arasta 
-        'ID': (11 * CELL_DIM, 7 * CELL_DIM), # Intellect Devourer
-        'IM': (11 * CELL_DIM, 8 * CELL_DIM),  # Imp
-        'AG': (11 * CELL_DIM, 9 * CELL_DIM),  # Alpha Grick 
-        'WRT': (12 * CELL_DIM, 7 * CELL_DIM), # Wraith
-        'TTP': (12 * CELL_DIM, 9 * CELL_DIM), # Tomb Tapper
-
+        'YL': (8 * CELL_DIM, 7 * CELL_DIM),    # Yochlol
+        'DD': (8 * CELL_DIM, 8 * CELL_DIM),    # Drider
+        'DS': (8 * CELL_DIM, 9 * CELL_DIM),    # Death Slaad
+        'MS': (9 * CELL_DIM, 7 * CELL_DIM),    # Myconid Sprout
+        'MA': (9 * CELL_DIM, 8 * CELL_DIM),    # Myconid Adult 
+        'RS': (9 * CELL_DIM, 9 * CELL_DIM),    # Red Slaad
+        'MZ': (10 * CELL_DIM, 7 * CELL_DIM),   # Mezzoloth 
+        'GU': (10 * CELL_DIM, 8 * CELL_DIM),   # Gauth 
+        'AR': (10 * CELL_DIM, 9 * CELL_DIM),   # Arasta 
+        'ID': (11 * CELL_DIM, 7 * CELL_DIM),   # Intellect Devourer
+        'IM': (11 * CELL_DIM, 8 * CELL_DIM),   # Imp
+        'AG': (11 * CELL_DIM, 9 * CELL_DIM),   # Alpha Grick 
+        'WRT': (12 * CELL_DIM, 7 * CELL_DIM),  # Wraith
+        'TTP': (12 * CELL_DIM, 9 * CELL_DIM),  # Tomb Tapper
+        'g':   (13 * CELL_DIM,  7 * CELL_DIM), # Guard (NPC)
+        'CUL': (13 * CELL_DIM, 8 * CELL_DIM),  # Cultist
+        'pnp': (13 * CELL_DIM, 9 * CELL_DIM),  # Prisoner (NPC) 
+        'tv':  (14 * CELL_DIM, 7 * CELL_DIM),  # Cocooned Traveler (NPC)
+        'pg':  (14 * CELL_DIM, 8 * CELL_DIM),  # Pilgrim (NPC)
+        'fm':  (14 * CELL_DIM, 9 * CELL_DIM),  # Fisherman (NPC)
 
 
         # Tavern Entities and Misc.
-        'A': (9 * CELL_DIM,   0 * CELL_DIM),  # Bartender (NPC)
+        'H': (6 * CELL_DIM,   0 * CELL_DIM),  # Healer (NPC)        
+        'rc': (7 * CELL_DIM,  0 * CELL_DIM),  # Merchant (NPC)
         'p': (8 * CELL_DIM,   0 * CELL_DIM),  # Patron (NPC)
-        'pnp': (8 * CELL_DIM, 0 * CELL_DIM),   # Prisoner NPC – reuse Patron sprite
-        'H': (6 * CELL_DIM,   0 * CELL_DIM),  # Healer (NPC)
-        'rc': (7 * CELL_DIM,  0 * CELL_DIM), # Merchant (NPC)
-        'mh': (11 * CELL_DIM, 6 * CELL_DIM), # Mage Hand (Skill)
-        'sw': (19 * CELL_DIM, 6 * CELL_DIM), # Spiritual Weapon (Skill)
-        'CS': (12 * CELL_DIM, 8 * CELL_DIM), # Celestial Spirit (Skill)
+        'A': (9 * CELL_DIM,   0 * CELL_DIM),  # Bartender (NPC)
+        'td': (10 * CELL_DIM,  0 * CELL_DIM), # Trader (NPC)
+        'ch': (11 * CELL_DIM,  0 * CELL_DIM), # Child (NPC)
+        'cr': (12 * CELL_DIM,  0 * CELL_DIM), # Courier (NPC)
+        'mh': (11 * CELL_DIM,  6 * CELL_DIM), # Mage Hand (Skill)
+        'sw': (19 * CELL_DIM,  6 * CELL_DIM), # Spiritual Weapon (Skill)
+        'CS': (12 * CELL_DIM,  8 * CELL_DIM), # Celestial Spirit (Skill)
 
         # Item Characters
         'tt': (12 * CELL_DIM,   6 * CELL_DIM), # Thieves' Tools
         'cf': (13 * CELL_DIM,   6 * CELL_DIM), # Campfire 
         'pn': (14 * CELL_DIM,   6 * CELL_DIM), # Wood Plank (Junk)
-        'th': (15 * CELL_DIM,  6 * CELL_DIM), # Torch (Item)
-        'hsy': (17 * CELL_DIM, 6 * CELL_DIM), # Holy Symbol (Accessory)
-        'spb': (18 * CELL_DIM, 6 * CELL_DIM), # Spellbook (Off-hand Item)
+        'th': (15 * CELL_DIM,  6 * CELL_DIM),  # Torch (Item)
+        'hsy': (17 * CELL_DIM, 6 * CELL_DIM),  # Holy Symbol (Accessory)
+        'spb': (18 * CELL_DIM, 6 * CELL_DIM),  # Spellbook (Off-hand Item)
         '!': (0 * CELL_DIM,    13 * CELL_DIM), # Potions
 
         # Food Characters
-        'met': (14 * CELL_DIM, 0 * CELL_DIM), # Meat
-        'gra': (15 * CELL_DIM, 0 * CELL_DIM), # Green Apple
-        'frg': (16 * CELL_DIM, 0 * CELL_DIM), # Fromage
-        'brd': (17 * CELL_DIM, 0 * CELL_DIM), # Bread
-        'msm': (18 * CELL_DIM, 0 * CELL_DIM), # Mushroom
-        'crt': (19 * CELL_DIM, 0 * CELL_DIM), # Carrot
+        'met': (20 * CELL_DIM, 0 * CELL_DIM), # Meat
+        'gra': (21 * CELL_DIM, 0 * CELL_DIM), # Green Apple
+        'frg': (22 * CELL_DIM, 0 * CELL_DIM), # Fromage
+        'brd': (23 * CELL_DIM, 0 * CELL_DIM), # Bread
+        'msm': (24 * CELL_DIM, 0 * CELL_DIM), # Mushroom
+        'crt': (25 * CELL_DIM, 0 * CELL_DIM), # Carrot
 
         # Armors and Robes
         'pda': (1 * CELL_DIM, 13 * CELL_DIM),  # Leather Armor
@@ -340,57 +408,123 @@ def setup_tile_mapping():
     }
     print("Tile mapping setup complete.")
 
-def get_tile_surface(char):
+def get_tile_surface(char, tile_size=None):
     """
     Returns a pygame.Surface object representing the tile for the given character,
-    scaled to the current config.TILE_SIZE.
+    scaled to the requested size and cached for reuse.
     """
     if TILESET_IMAGE is None:
         raise RuntimeError("Tileset not loaded. Call load_tileset() first.")
 
+    effective_tile_size = config.TILE_SIZE if tile_size is None else int(tile_size)
+    cache_key = (char, effective_tile_size)
+    cached_surface = _SURFACE_CACHE.get(cache_key)
+    if cached_surface is not None:
+        return cached_surface
+
     tile_coords = TILE_MAPPING.get(char)
     if tile_coords is None:
         print(f"Warning: No tile mapping for character '{char}'. Using default blank tile.")
-        return pygame.Surface((config.TILE_SIZE, config.TILE_SIZE), pygame.SRCALPHA)
+        blank_surface = pygame.Surface((effective_tile_size, effective_tile_size), pygame.SRCALPHA)
+        _SURFACE_CACHE[cache_key] = blank_surface
+        return blank_surface
 
     x, y = tile_coords
-    
-    # The tile_rect now extracts the ORIGINAL_TILE_DIM (12x12) from the calculated position
+
     tile_rect = pygame.Rect(x + TILE_X_OFFSET, y + TILE_Y_OFFSET, ORIGINAL_TILE_DIM, ORIGINAL_TILE_DIM)
-    
-    # Add a check to ensure the rect is within the tileset image bounds
+
     if not TILESET_IMAGE.get_rect().contains(tile_rect):
         print(f"Error: Extracted tile rect {tile_rect} for char '{char}' is out of bounds of tileset image {TILESET_IMAGE.get_size()}.")
-        return pygame.Surface((config.TILE_SIZE, config.TILE_SIZE), pygame.SRCALPHA) # Return blank tile
+        blank_surface = pygame.Surface((effective_tile_size, effective_tile_size), pygame.SRCALPHA)
+        _SURFACE_CACHE[cache_key] = blank_surface
+        return blank_surface
 
     subsurface = TILESET_IMAGE.subsurface(tile_rect)
-    
-    # The scaling here should now be crisp if the source subsurface is correct.
-    if config.TILE_SIZE != ORIGINAL_TILE_DIM:
-        scaled_surface = pygame.transform.scale(subsurface, (config.TILE_SIZE, config.TILE_SIZE))
+
+    if effective_tile_size != ORIGINAL_TILE_DIM:
+        scaled_surface = pygame.transform.scale(subsurface, (effective_tile_size, effective_tile_size))
+        _SURFACE_CACHE[cache_key] = scaled_surface
         return scaled_surface
-    else:
-        return subsurface
+
+    _SURFACE_CACHE[cache_key] = subsurface
+    return subsurface
 
 
 def draw_tile(screen_surface, draw_x, draw_y, char, color_tint=None, tile_size=None, flip_x=False):
-    # Support optional override size for special entities (e.g., bosses)
-    if tile_size is None or tile_size == config.TILE_SIZE:
-        tile_surface = get_tile_surface(char)
-    else:
-        # Extract base tile then rescale to requested size (int or tuple)
-        base_surface = get_tile_surface(char)
-        tile_surface = pygame.transform.scale(base_surface, (tile_size, tile_size))
+    effective_tile_size = config.TILE_SIZE if tile_size is None else int(tile_size)
 
-    if flip_x:
-        tile_surface = pygame.transform.flip(tile_surface, True, False)
-    
     if color_tint:
-        tinted_surface = tile_surface.copy()
-        tinted_surface.fill(color_tint, special_flags=pygame.BLEND_RGBA_MULT)
-        tile_surface = tinted_surface
-    
-    # Blit directly using draw_x, draw_y (int if floats)
+        cache_key = (char, effective_tile_size, tuple(color_tint), flip_x)
+        cached_surface = _DRAW_CACHE.get(cache_key)
+        if cached_surface is not None:
+            tile_surface = cached_surface
+        else:
+            tile_surface = get_tile_surface(char, tile_size=effective_tile_size)
+            if flip_x:
+                tile_surface = pygame.transform.flip(tile_surface, True, False)
+            tinted_surface = tile_surface.copy()
+            tinted_surface.fill(color_tint, special_flags=pygame.BLEND_RGBA_MULT)
+            _DRAW_CACHE[cache_key] = tinted_surface
+            tile_surface = tinted_surface
+    elif flip_x:
+        # No tint, but still flipped: cache the flipped surface so it isn't
+        # regenerated with pygame.transform.flip() on every call.
+        cache_key = (char, effective_tile_size, None, flip_x)
+        cached_surface = _DRAW_CACHE.get(cache_key)
+        if cached_surface is not None:
+            tile_surface = cached_surface
+        else:
+            tile_surface = pygame.transform.flip(get_tile_surface(char, tile_size=effective_tile_size), True, False)
+            _DRAW_CACHE[cache_key] = tile_surface
+    else:
+        tile_surface = get_tile_surface(char, tile_size=effective_tile_size)
+
     blit_x = int(draw_x) if hasattr(draw_x, '__float__') else draw_x
     blit_y = int(draw_y) if hasattr(draw_y, '__float__') else draw_y
     screen_surface.blit(tile_surface, (blit_x, blit_y))
+
+
+def draw_submerged_tile(screen_surface, draw_x, draw_y, char, color_tint=None, tile_size=None, flip_x=False):
+    """
+    Draws an entity that is half-submerged in water: the top half shows the
+    entity's own sprite and the bottom half shows a ripple sprite ('~').
+
+    The composited (flip + tint + top/bottom merge) result is cached per
+    (char, tile_size, color_tint, flip_x), so the surface is only built once
+    per combination instead of being reassembled with copy()/transform.flip()/
+    transform.scale()/fill() calls on every frame an entity is in water.
+    """
+    effective_tile_size = config.TILE_SIZE if tile_size is None else int(tile_size)
+    cache_key = (char, effective_tile_size, tuple(color_tint) if color_tint else None, flip_x)
+
+    composed_surface = _SUBMERGED_CACHE.get(cache_key)
+    if composed_surface is None:
+        half_height = effective_tile_size // 2
+
+        # Top half: the entity's own sprite, flipped/tinted as needed.
+        top_sprite = get_tile_surface(char, tile_size=effective_tile_size)
+        if flip_x:
+            top_sprite = pygame.transform.flip(top_sprite, True, False)
+        if color_tint:
+            tinted_top = top_sprite.copy()
+            tinted_top.fill(color_tint, special_flags=pygame.BLEND_RGBA_MULT)
+            top_sprite = tinted_top
+
+        # Bottom half: the ripple sprite, stretched to fill the lower half.
+        ripple_sprite = get_tile_surface('~', tile_size=effective_tile_size)
+        ripple_sprite = pygame.transform.scale(ripple_sprite, (effective_tile_size, half_height))
+        if color_tint:
+            tinted_ripple = ripple_sprite.copy()
+            tinted_ripple.fill(color_tint, special_flags=pygame.BLEND_RGBA_MULT)
+            ripple_sprite = tinted_ripple
+
+        composed_surface = pygame.Surface((effective_tile_size, effective_tile_size), pygame.SRCALPHA)
+        top_clip_rect = pygame.Rect(0, 0, effective_tile_size, half_height)
+        composed_surface.blit(top_sprite, (0, 0), top_clip_rect)
+        composed_surface.blit(ripple_sprite, (0, half_height))
+
+        _SUBMERGED_CACHE[cache_key] = composed_surface
+
+    blit_x = int(draw_x) if hasattr(draw_x, '__float__') else draw_x
+    blit_y = int(draw_y) if hasattr(draw_y, '__float__') else draw_y
+    screen_surface.blit(composed_surface, (blit_x, blit_y))

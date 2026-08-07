@@ -23,7 +23,7 @@ _GRN_HI      = ( 72, 132,  78)   # swamp/alchemy green
 _PUR_LO      = (58,  34,  72)    # muted abyssal violet
 _PUR_HI      = (112,  78, 138)   # cursed amethyst
 
-_HUNGER_FULL = (156, 118, 52)   # Warm bronze
+_HUNGER_FULL = (156, 118, 52)    # Warm bronze
 _HUNGER_OK = (132, 102, 46)      # Faded ochre
 _HUNGER_LOW = (170, 116, 42)     # Burnt amber
 
@@ -318,7 +318,7 @@ def draw_sidebar(game) -> None:
         y += row_h + 10
 
     # ════════════════════════════════════════════════════════════════════
-    # 6.  STATUS  (location / turn)
+    # 6.  STATUS  (location / turn / interaction mode)
     # ════════════════════════════════════════════════════════════════════
     y = _section_header(screen, fH, "STATUS", x0, y, W)
 
@@ -326,14 +326,27 @@ def draw_sidebar(game) -> None:
         _txt(screen, fSm, "The Prancing Pony", _CYAN, x0, y)
         y += fSm.get_linesize() + 3
     else:
-        _txt(screen, fSm, f"Depth  B{game.current_level}F", _CYAN, x0, y)
+        if game.game_state == "overworld":
+            location_label = _overworld_location_label(game)
+        else:
+            location_label = f"Depth  B{game.current_level}F"
+        _txt(screen, fSm, location_label, _CYAN, x0, y)
         y += fSm.get_linesize() + 3
-        current_ent = game.get_current_entity()
-        if current_ent:
-            turn_color = _GRN_HI if current_ent == player else _RED_LO
-            turn_label = "Your turn" if current_ent == player else f"{current_ent.name}'s turn"
-            _txt(screen, fSm, turn_label, turn_color, x0, y)
-            y += fSm.get_linesize() + 3
+        # current_ent = game.get_current_entity()
+        # if current_ent:
+        #     turn_color = _GRN_HI if current_ent == player else _RED_LO
+        #     turn_label = "Your turn" if current_ent == player else f"{current_ent.name}'s turn"
+        #     _txt(screen, fSm, turn_label, turn_color, x0, y)
+        #     y += fSm.get_linesize() + 3
+
+    # Interaction mode (F1-F4, see game.py's InteractionMode) -- shown in
+    # every state that has one, tavern included, since F2/F3/F4 all work there too.
+    mode_label, mode_color = _INTERACTION_MODE_STYLE.get(
+        getattr(game, "interaction_mode", "dialogue"), _INTERACTION_MODE_STYLE["dialogue"]
+    )
+    _txt(screen, fSm, f"Interact  {mode_label}", mode_color, x0, y)
+    y += fSm.get_linesize() + 3
+
     y += 10
 
     # ════════════════════════════════════════════════════════════════════
@@ -356,24 +369,63 @@ def config_panel_w(game) -> int:
     return config.UI_PANEL_WIDTH
 
 
+# Display label + accent color for each Game.interaction_mode value (see
+# game.py's InteractionMode). Duplicated here rather than importing
+# InteractionMode from game.py, matching how this module already keeps its
+# own local copies of state strings ("tavern", "dungeon", ...) instead of
+# importing GameState -- ui_sidebar.py stays a leaf module game.py can
+# import from without a circular import back the other way.
+_INTERACTION_MODE_STYLE = {
+    "dialogue": ("Dialogue", _ORANGE),
+    "steal":  ("Steal",  _RED_LO),
+    "interact":   ("Use",   _GOLD),
+    "info":   ("Info",   _TEXT_BRIGHT),
+}
+
+
+def _overworld_location_label(game) -> str:
+    """
+    What the STATUS section shows in place of a dungeon depth readout
+    while the player is out in the world, where "Depth B1F" doesn't mean
+    anything (there's no floor to be on). Reads the same coarse region
+    label world_map.py assigns every chunk up front at world-gen time
+    (WorldMap.region_name_at(), e.g. "Forest"/"Highlands"/"Wilds"),
+    falling back to the chunk's raw biome name, and finally to a bare
+    "Overworld" if neither is available yet (shouldn't happen once a
+    game is actually running, but keeps this from erroring during setup).
+    """
+    world_map = getattr(game, "world_map", None)
+    chunk_coord = getattr(game, "overworld_chunk_coord", None)
+    if world_map is None or chunk_coord is None:
+        return "Overworld"
+
+
+    get_chunk_biome = getattr(game, "get_chunk_biome", None)
+    if callable(get_chunk_biome):
+        return f"Overworld  {get_chunk_biome(chunk_coord).value.title()}"
+
+    return "Overworld"
+
+
 def _build_controls(game) -> list[str]:
     
     gs = game.game_state
     controls = []
-    if gs == "tavern":
-        if game.check_tavern_door_interaction():
-            controls.append("+ → enter dungeon")
-        npc = game.check_npc_interaction()
+    if gs == "overworld":
+        npc = game.check_overworld_npc_interaction()
         if npc:
-            controls.append(f"F → talk to {npc.name}")
-        controls += ["arrows/WASD  move", "I  inventory", "C  character"]
+            controls.append(f"F → {npc.name}")
+        else:
+            controls.append("F1 talk/ F2 steal/ F3 use/ F4 info")
+        controls += ["R  rest",
+                     "I  inventory",]
     elif gs == "dungeon":
         npc = game.check_dungeon_npc_interaction()
         if npc:
             controls.append(f"F → {npc.name}")
         else:
-            controls.append("SPACE  attack / pick up / interact")
-        controls += ["T  skip turn", "R  rest",
+            controls.append("F1 talk/ F2 steal/ F3 use/ F4 info")
+        controls += ["R  rest",
                      "I  inventory", "C  character sheet", ]
     elif gs == "inventory":
         controls += ["I  close", "↑↓  navigate", "Enter  select"]

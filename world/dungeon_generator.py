@@ -637,7 +637,30 @@ def _dig_plus_shaped_room(game_map, plus_room):
 # Main generator
 # ---------------------------------------------------------------------------
 
-def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room_max_size=10):
+def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room_max_size=10,
+                      seed=None, spawn_downstairs=True):
+    """
+    `seed`, when given, reseeds the global `random` module before anything
+    else in this function touches it, so the exact same `seed` always
+    produces the exact same layout (rooms, tunnels, doors, traps, loot,
+    prisoners, ...) -- every random.*()/randint()/choice() call below
+    draws from that same global stream. Callers that want two dungeons to
+    never be identical (see game.py's generate_level(), which derives a
+    distinct seed per dungeon entrance + level) should always pass a
+    seed; leaving it as None just falls back to whatever state the global
+    RNG already happens to be in, exactly like before this parameter
+    existed.
+
+    `spawn_downstairs` controls whether this level gets a 'down' entry in
+    the returned stairs_positions at all. Dungeons are now capped at a
+    handful of floors per entrance (see game.py's DUNGEON_MAX_FLOORS /
+    _dungeon_floor_count()), and the last floor of a given dungeon has
+    nowhere further down to go -- game.py passes spawn_downstairs=False
+    for that floor so no downstairs tile is ever placed there.
+    """
+    if seed is not None:
+        random.seed(seed)
+
     rooms = []
     stairs_positions = {}
     torch_light_sources = []
@@ -837,8 +860,7 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
         c1, c2 = r1.center(), r2.center()
         return ((c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2) ** 0.5
 
-    stairs_up_room   = rooms[0]
-    stairs_down_room = max(rooms[1:], key=lambda r: _room_distance(rooms[0], r)) if len(rooms) > 1 else rooms[0]
+    stairs_up_room = rooms[0]
 
     def _place_stair(game_map, room, stair_tile, avoid=None):
         cx, cy = room.center()
@@ -859,8 +881,10 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
         game_map.tiles[cy][cx] = stair_tile
         return (cx, cy)
 
-    stairs_positions['down'] = _place_stair(game_map, stairs_down_room, stairs_down)
-    stairs_positions['up']   = _place_stair(game_map, stairs_up_room,   stairs_up,   avoid=stairs_positions['down'])
+    if spawn_downstairs:
+        stairs_down_room = max(rooms[1:], key=lambda r: _room_distance(rooms[0], r)) if len(rooms) > 1 else rooms[0]
+        stairs_positions['down'] = _place_stair(game_map, stairs_down_room, stairs_down)
+    stairs_positions['up'] = _place_stair(game_map, stairs_up_room, stairs_up, avoid=stairs_positions.get('down'))
 
     # ------------------------------------------------------------------
     # 4. Water features

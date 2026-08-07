@@ -18,7 +18,7 @@ stairs_down = Tile(blocked=False, char='>', color=(230, 192, 0), name="Stairs Do
 stairs_up = Tile(blocked=False, char='<', color=(230, 192, 0), name="Stairs Up")
 dungeon_door = Tile(blocked=False, char='dd', color=(139, 69, 19), name="Dungeon Door")
 dungeon_pillar = Tile(blocked=True, char='dp', color=(230, 230, 230), block_sight=True, name="Dungeon Pillar")
-altar = Tile(blocked=True, char='alt', color=(255, 215, 0), block_sight=True, name="Altar")  
+altar = Tile(blocked=True, char='&', color=(255, 215, 0), block_sight=True, name="Altar")  
 
 pressure_plate = Tile(blocked=False, char='_', color=(200, 180, 50), name="Pressure Plate")
 
@@ -54,8 +54,60 @@ door = Tile(blocked=False, char='+', color=(205, 133, 63), name="Door")
 fireplace = Tile(blocked=True, char='F', color=(255, 69, 0), name="Fireplace")
 tavern_crate = Tile(blocked=False, char='{', color=(139, 69, 19), name="Tavern Crate")
 tavern_barrel = Tile(blocked=False, char='}', color=(139, 69, 19), name="Tavern Barrel")
+tavern_barrel_two = Tile(blocked=True, char='}2', color=(139, 69, 19), block_sight="False", name="Tavern Barrel Two")
 
-from world.water_features import river, lake
+bar_counter_two = Tile(blocked=True, char='I', color=(160, 82, 45), block_sight=False, name="Bar Counter Two")
+bar_counter_three = Tile(blocked=True, char='7', color=(160, 82, 45), block_sight=False, name="Bar Counter Three")
+bar_counter_four = Tile(blocked=True, char='|', color=(160, 82, 45), block_sight=False, name="Bar Counter Four")
+
+bar_counter_five = Tile(blocked=True, char='|2', color=(160, 82, 45), block_sight=False, name="Bar Counter Five")
+bar_counter_six = Tile(blocked=True, char='|3', color=(160, 82, 45), block_sight=False, name="Bar Counter Six")
+
+forge = Tile(blocked=True, char='fg', color=(128, 128, 128), name="Forge")
+anvil = Tile(blocked=True, char='av', color=(128, 128, 128), name="Anvil")
+shelf = Tile(blocked=True, char='5', color=(139, 69, 19), name="Shelf")
+shelf_two = Tile(blocked=True, char='52', color=(139, 69, 19), name="Shelf Two")
+shelf_three = Tile(blocked=True, char='53', color=(139, 69, 19), name="Shelf Three")
+bed = Tile(blocked=True, char='--', color=(139, 69, 19), name="Bed")
+hay = Tile(blocked=True, char='hy', color=(139, 69, 19), name="Hay")
+
+# Overworld tile templates (used by world_generator.py)
+road = Tile(blocked=False, char='rd', color=(128, 128, 128), name="Road")
+ground = Tile(blocked=False, char='grd', color=(20, 100, 20), name="Ground")
+grass = Tile(blocked=False, char='`2', color=(60, 140, 40), name="Grass")
+tall_grass = Tile(blocked=False, char='`3', color=(20, 100, 20), name="Tall Grass")
+tree = Tile(blocked=False, char='tre', color=(25, 80, 35), block_sight=True, destructible=False, name="Tree")
+dungeon_entrance = Tile(blocked=False, char='>', color=(230, 192, 0), name="Dungeon Entrance")
+mountain = Tile(blocked=True, char='mnt', color=(100, 100, 100), block_sight=True, destructible=False, name="Mountain")
+
+# World-encounter landmark props (see game.py's WORLD_ENCOUNTER_TILE_TYPES) --
+# placed directly on the overworld map near the player when a scenario
+# declares a "landmark_tile" (e.g. Bandit_Ambush.json's ransacked cart).
+caravan = Tile(blocked=True, char='crv', color=(139, 90, 43), block_sight=False, destructible=False, name="Caravan")
+ritual_circle = Tile(blocked=True, char='rtc', color=(130, 30, 150), block_sight=False, destructible=False, name="Ritual Circle")
+barricade = Tile(blocked=True, char='brc', color=(101, 67, 33), block_sight=True, destructible=True, name="Barricade")
+ambush_tree = Tile(blocked=False, char='amt', color=(35, 90, 40), block_sight=True, destructible=False, name="Lone Tree")
+overworld_cobweb = Tile(blocked=True, char='ocw', color=(200, 200, 200), block_sight=False, destructible=True, name="Cobweb")
+tent = Tile(blocked=True, char='ten', color=(180, 40, 40), block_sight=True, destructible=True, name="Tent")
+gravestone = Tile(blocked=True, char='gvs1', color=(120, 120, 120), block_sight=False, destructible=True, name="Gravestone One")
+gravestone_two = Tile(blocked=True, char='gvs2', color=(120, 120, 120), block_sight=False, destructible=True, name="Gravestone Two")
+gravestone_three = Tile(blocked=True, char='gvs3', color=(120, 120, 120), block_sight=False, destructible=True, name="Gravestone Three")
+
+# Overworld terrain decoration (non-POI nature features)
+clearing = Tile(blocked=False, char='cl', color=(20, 100, 20), name="Clearing")
+giant_tree = Tile(blocked=False, char='GT', color=(15, 50, 20), block_sight=True, name="Giant Tree")
+pond = Tile(blocked=False, char='pnd', color=(80, 140, 180), name="Pond")
+flower_field = Tile(blocked=False, char='ff', color=(180, 90, 170), name="Flower Field")
+cliff = Tile(blocked=False, char='clf', color=(150, 140, 140), name="Cliff")
+valley = Tile(blocked=False, char='vy', color=(120, 150, 100), name="Valley")
+waterfall = Tile(blocked=False, char='wtf', color=(90, 140, 220), name="Waterfall")
+scree = Tile(blocked=False, char='sc', color=(140, 130, 115), name="Scree")
+ridge = Tile(blocked=False, char='rg', color=(140, 110, 90), name="Ridge")
+meadow = Tile(blocked=False, char='md', color=(120, 180, 80), name="Meadow")
+rock_formation = Tile(blocked=False, char='rk', color=(160, 160, 160), name="Rock Formation")
+marsh_pool = Tile(blocked=False, char='mp', color=(80, 150, 110), name="Marsh Pool")
+reeds = Tile(blocked=False, char='rds', color=(70, 140, 80), name="Reeds")
+dead_forest = Tile(blocked=False, char='ddf', color=(90, 100, 70), name="Dead Forest")
 
 
 class MimicTile(Tile):

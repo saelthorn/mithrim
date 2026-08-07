@@ -392,3 +392,483 @@ class PrisonerNPC(NPC):
                 f"Inventory full! The {self.reward_item.name} drops to the floor.",
                 self.reward_item.color,
             )
+
+
+
+
+class EncounterVictim(NPC):
+    """
+    A bystander tied to a WORLD_ENCOUNTER_MENU scenario - the merchants being
+    robbed, the guards making their last stand, the figure bound to the altar,
+    etc. Before the fight is over the player can only talk to it (see
+    combat_resolved(), driven by the `linked_monsters` list set on spawn).
+    Once every monster tied to the encounter is dead, talking to it (F key)
+    counts as rescuing it: it says its thanks and, if the scenario gives it
+    one, hands over a reward - an item for the "sacrifice" victim, mirroring
+    how PrisonerNPC.free()/give_reward() works in a dungeon, or gold for a
+    rescued merchant.
+    """
+    def __init__(self, x, y, char, name, color, dialogue_line,
+                 thanks_lines=None, after_lines=None, reward_item=None, reward_gold=0):
+        super().__init__(x, y, char, name, color, [dialogue_line])
+        self._danger_dialogue = dialogue_line
+        self._thanks_lines = thanks_lines or [f"{name} nods gratefully."]
+        self._after_lines  = after_lines or [f"{name} gives you a quiet nod."]
+
+        self.linked_monsters = []   # Set by _spawn_world_encounter_victims once the monster group exists
+        self.rescued          = False
+        self.reward_item      = reward_item
+        self.reward_gold      = reward_gold
+        self.reward_given     = False
+
+    def combat_resolved(self):
+        """True once every monster tied to this encounter is dead (or none were ever linked)."""
+        return not any(getattr(monster, 'alive', False) for monster in self.linked_monsters)
+
+    def get_dialogue(self):
+        if not self.combat_resolved():
+            return self._danger_dialogue
+        return random.choice(self._after_lines if self.rescued else self._thanks_lines)
+
+    def interact(self, player, game):
+        """
+        Called when the player presses F next to this victim in the
+        overworld. Talk-only until combat_resolved(); the first interaction
+        afterward rescues it (thanks + reward), later ones just repeat a
+        generic line - same shape as PrisonerNPC.free() + give_reward().
+        """
+        first_rescue = self.combat_resolved() and not self.rescued
+        line = self.get_dialogue()
+        game.message_log.add_message(f'{self.name}: "{line}"', (200, 200, 255))
+
+        if first_rescue:
+            self.rescued = True
+            game.floating_texts.append(FloatingText(self.x, self.y, "SAVED!", (100, 255, 150), y_speed=0.5))
+            self._give_reward(player, game)
+
+    def _give_reward(self, player, game):
+        if self.reward_given:
+            return
+        self.reward_given = True
+
+        if self.reward_gold:
+            player.gold += self.reward_gold
+            game.message_log.add_message(f"You receive {self.reward_gold} gold!", (255, 215, 0))
+
+        if self.reward_item is not None:
+            if player.inventory.add_item(self.reward_item):
+                game.message_log.add_message(
+                    f"You receive the {self.reward_item.name}!", self.reward_item.color
+                )
+                player.update_throw_knife_ability()
+                player.update_spellbook_abilities()
+                player.update_thieves_tools_ability()
+                player.update_guard_ability()
+                player.update_holy_symbol_abilities()
+            else:
+                self.reward_item.x = player.x
+                self.reward_item.y = player.y
+                game.game_map.items_on_ground.append(self.reward_item)
+                game.message_log.add_message(
+                    f"Inventory full! The {self.reward_item.name} drops to the floor.",
+                    self.reward_item.color,
+                )
+
+
+class Trader(EncounterVictim):
+    def __init__(self, x, y, char, name, color, dialogue_line):
+        super().__init__(x, y, char, name, color, dialogue_line) 
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+        # Default items always sold
+        default_items = [
+            CampfireKit(),
+            lesser_healing_potion,
+            greater_healing_potion,
+            meat,
+            bread,
+            carrot,
+            fromage,
+            torch,
+            throwing_knife,
+        ]
+        # Chance-based items with their spawn probabilities (fewer and simpler than dungeon merchant)
+        chance_items_with_chance = [
+            (duelists_rapier, 0.3),
+            (staff_of_magi, 0.3),
+            (full_plate_armor, 0.35),
+            (scale_mail_armor, 0.4),
+            (sturdy_quarterstaff, 0.6),
+            (iron_helmet, 0.7),
+            (leather_cap, 0.8),
+            (steel_helmet, 0.6),
+            (hood_of_shadows, 0.4),
+            (great_helm, 0.3),
+            (mages_circlet, 0.4),
+            (leather_boots, 0.8),
+            (iron_greaves, 0.8),
+            (boots_of_speed, 0.4),
+            (boots_of_stealth, 0.4),
+            (dwarven_stompers, 0.3),
+            (adamantine_long_sword, 0.5),
+            (flameheart_flail, 0.5),
+            (flameheart_short_sword, 0.4),
+            (robes_of_protection, 0.35),
+            (dwarven_battle_axe, 0.45),
+            (dragonsbane_warhammer, 0.3),
+            (spell_book, 0.25),
+            (holy_symbol, 0.25),
+            (carrot, 0.3),
+            (mushroom, 0.3),
+            (green_apple, 0.3),
+            (bread, 0.3),
+            (meat, 0.3),
+        ]
+
+        self.items_for_sale = []
+       
+        # Add default items
+        for item in default_items:
+            if isinstance(item, CampfireKit):
+                self.items_for_sale.append(CampfireKit()) # Create a new instance directly
+            else:
+                # Create a new instance for other items
+                new_item = item.__class__(
+                    name=item.name,
+                    char=item.char,
+                    color=item.color,
+                    description=item.description,
+                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                )
+                self.items_for_sale.append(new_item)
+    
+        # Add chance-based items
+        for item, chance in chance_items_with_chance:
+            if random.random() < chance:
+                new_item = item.__class__(
+                    name=item.name,
+                    char=item.char,
+                    color=item.color,
+                    description=item.description,
+                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                )
+                self.items_for_sale.append(new_item)
+
+    def offer_trade(self, player, game):
+        """Open the shop menu overlay instead of the legacy text-input trade flow."""
+        game._previous_game_state  = game.game_state
+        game._shop_menu_merchant   = self
+        game._shop_selected_index  = 0
+        game._shop_mode            = "buy"
+        game.game_state            = GameState.SHOP_MENU
+
+
+
+    def buy_item(self, player, item_name):
+        if item_name == "all food":
+            food_items = [item for item in self.items_for_sale if isinstance(item, Food)]
+            if not food_items:
+                return "No food items are available for sale."
+
+            purchased_items = []
+            total_cost = 0
+            for item in list(food_items):
+                if player.gold < item.price:
+                    continue
+
+                new_item = item.__class__(
+                    name=item.name,
+                    char=item.char,
+                    color=item.color,
+                    description=item.description,
+                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                )
+
+                if player.inventory.add_item(new_item):
+                    player.gold -= item.price
+                    total_cost += item.price
+                    purchased_items.append(item.name)
+                    self.items_for_sale.remove(item)
+                else:
+                    break
+
+            if not purchased_items:
+                return "You couldn't buy any food. Check your gold or inventory space."
+            item_list = ", ".join(purchased_items)
+            player.update_throw_knife_ability()
+            player.update_spellbook_abilities()
+            player.update_guard_ability()
+            return f"You bought {len(purchased_items)} food items for {total_cost} gold: {item_list}."
+
+        for item in self.items_for_sale:
+            if item.name.lower() == item_name.lower():
+                if player.gold >= item.price:
+                    player.gold -= item.price
+    
+                    # Give the actual item instance to the player
+                    if player.inventory.add_item(item):
+                        self.items_for_sale.remove(item)  # Remove the item from merchant
+                        player.update_throw_knife_ability()
+                        player.update_spellbook_abilities()
+                        player.update_guard_ability()
+                        return f"You bought {item.name}!"
+                    else:
+                        # If adding failed, refund the player
+                        player.gold += item.price
+                        return "Your inventory is full!"
+                else:
+                    return "Scram! you don't have enough gold!"
+        return "We don't sell that kind of item here!"
+    
+
+
+    def sell_item(self, player, item_name):
+        """Logic to sell an item or multiple items."""
+        # Handle bulk selling
+        if item_name == "all equipments":
+            equipments = [item for item in player.inventory.items if isinstance(item, (Weapon, OffHand, Armor, Helmet, Boots, FocusItem))]
+            if not equipments:
+                return "You don't have any equipments to sell."
+            total_gold = 0
+            for item in equipments:
+                player.inventory.remove_item(item)
+                total_gold += item.price // 2
+                self.items_for_sale.append(item)
+            player.gold += total_gold
+            player.update_throw_knife_ability()
+            player.update_spellbook_abilities()
+            player.update_holy_symbol_abilities()
+            player.update_guard_ability()
+            return f"You sold {len(equipments)} equipment(s) for {total_gold} gold!"
+
+        if item_name == "all weapons":
+            weapons = [item for item in player.inventory.items if isinstance(item, (Weapon, OffHand))]
+            if not weapons:
+                return "You don't have any weapons to sell."
+            total_gold = 0
+            for item in weapons:
+                player.inventory.remove_item(item)
+                total_gold += item.price // 2
+                self.items_for_sale.append(item)
+            player.gold += total_gold
+            player.update_throw_knife_ability()
+            player.update_spellbook_abilities()
+            player.update_guard_ability()
+            return f"You sold {len(weapons)} weapon(s) for {total_gold} gold!"
+
+        if item_name == "all armors":
+            armor_items = [item for item in player.inventory.items if isinstance(item, (Helmet, Armor, Boots))]
+            if not armor_items:
+                return "You don't have any armor to sell."
+            total_gold = 0
+            for item in armor_items:
+                player.inventory.remove_item(item)
+                total_gold += item.price // 2
+                self.items_for_sale.append(item)
+            player.gold += total_gold
+            player.update_throw_knife_ability()
+            player.update_spellbook_abilities()
+            player.update_holy_symbol_abilities()
+            player.update_guard_ability()
+            return f"You sold {len(armor_items)} armor item(s) for {total_gold} gold!"
+        
+        # Handle single item selling
+        for item in player.inventory.items:  # Access the player's inventory items
+            if item.name.lower() == item_name.lower():  # Case insensitive comparison
+                player.inventory.remove_item(item)  # Remove the item from the player's inventory
+                player.gold += item.price // 2  # Assuming the merchant pays half the price
+                self.items_for_sale.append(item)  # Add the item back to the merchant's inventory
+                player.update_throw_knife_ability()
+                player.update_spellbook_abilities()
+                player.update_holy_symbol_abilities()
+                player.update_guard_ability()
+                return f"You sold {item.name}!"
+        return "Item not found in your inventory."
+
+
+class GuardVictim(EncounterVictim):
+    """
+    The town guards from the "undead last stand" world encounter. Unlike a
+    plain EncounterVictim, guards actually fight: each turn they close in on
+    the nearest living monster and attack it with a simple d20 roll, mirroring
+    the 1d20 + attack_bonus vs armor_class pattern used by Monster.attack()
+    in entities/monster.py, just simplified down to a single flat damage die.
+    """
+    DETECTION_RANGE = 8  # Chebyshev tiles - how far a guard will notice a monster worth fighting
+
+    def __init__(self, x, y, char, name, color, dialogue_line,
+                 thanks_lines=None, after_lines=None, reward_item=None, reward_gold=0):
+        super().__init__(x, y, char, name, color, dialogue_line,
+                          thanks_lines=thanks_lines, after_lines=after_lines,
+                          reward_item=reward_item, reward_gold=reward_gold)
+        self.armor_class     = 14
+        self.attack_bonus    = 4
+        self.damage_dice     = (1, 8)   # 1d8, roughly a longsword
+        self.damage_modifier = 2
+        self.hp = self.max_hp = 16
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,  # Proficient in Dexterity saves
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }  
+
+    def _nearest_monster(self, game):
+        from entities.monster import Monster
+        nearest, nearest_dist = None, float('inf')
+        for entity in game.entities:
+            if not isinstance(entity, Monster) or not entity.alive:
+                continue
+            dist = max(abs(self.x - entity.x), abs(self.y - entity.y))
+            if dist < nearest_dist:
+                nearest, nearest_dist = entity, dist
+        return nearest, nearest_dist
+
+    def _attack(self, target, game):
+        roll = random.randint(1, 20)
+        attack_total = roll + self.attack_bonus
+        game.message_log.add_message(
+            f"{self.name} attacks the {target.name}! "
+            f"(d20: {roll} + {self.attack_bonus} = {attack_total} vs AC {target.armor_class})",
+            self.color
+        )
+        if attack_total >= target.armor_class:
+            num_dice, die_type = self.damage_dice
+            damage = sum(random.randint(1, die_type) for _ in range(num_dice)) + self.damage_modifier
+            target.take_damage(damage, game)
+            game.floating_texts.append(FloatingText(target.x, target.y, f"{damage}", (255, 80, 80)))
+            game.floating_texts.append(FloatingText(target.x, target.y - 0.5, "HIT!", (255, 80, 80)))
+        else:
+            game.message_log.add_message(f"{self.name}'s attack misses.", (150, 150, 150))
+
+            game.floating_texts.append(FloatingText(target.x, target.y, "MISS!", (200, 200, 200), y_speed=0.5))            
+            
+
+    def _move_towards(self, target, game, game_map):
+        from core.pathfinding import astar
+        path = astar(game_map, (self.x, self.y), (target.x, target.y),
+                     entities=[e for e in game.entities if e is not self],
+                     moving_entity=self, ignore_destructible=True)
+        if not path or len(path) < 2:
+            return
+
+        next_x, next_y = path[1]
+        occupied = any(e is not self and getattr(e, 'alive', False) and e.x == next_x and e.y == next_y
+                       for e in game.entities)
+        if game_map.is_walkable(next_x, next_y) and not occupied:
+            self.x, self.y = next_x, next_y
+
+    def take_turn(self, player, game_map, game):
+        if not self.alive:
+            return
+
+        target, distance = self._nearest_monster(game)
+        if target is None or distance > self.DETECTION_RANGE:
+            return  # Nothing worth fighting nearby - stand fast, same as a plain victim
+
+        if distance <= 1:
+            self._attack(target, game)
+        else:
+            self._move_towards(target, game, game_map)
+
+
+# Victim presets used to live here as a hardcoded ENCOUNTER_VICTIM_PRESETS
+# dict, keyed by the same "victim" string scenarios use in game.py's
+# WORLD_ENCOUNTER_SCENARIOS. They now live in each scenario's own JSON file
+# instead (see story_content_loader.py's "victim_data" block on
+# Bandit_Ambush.json/Cultist_Ritual.json/Undead_Siege.json/Wolf_Pack.json),
+# so a new victim type is authored purely in data, not by editing this
+# module. make_encounter_victims() below takes that preset dict directly
+# rather than looking one up by key.
+#
+# JSON can't carry a class reference or a shared item-pool list directly,
+# so "cls"/"reward_pool" ride along as string names in the JSON and get
+# resolved back to the real objects here, the one place that already knows
+# what GuardVictim and _PRISONER_LOOT are.
+_VICTIM_CLASS_REGISTRY = {
+    "EncounterVictim": EncounterVictim,
+    "GuardVictim": GuardVictim,
+}
+
+_VICTIM_REWARD_POOL_REGISTRY = {
+    "_PRISONER_LOOT": _PRISONER_LOOT,
+}
+
+
+def _resolve_victim_class(cls_ref):
+    """Preset's "cls" field may be a string name (from JSON) or, for
+    callers still constructing a preset dict in Python, the class itself.
+    Falls back to the plain EncounterVictim for anything unrecognized."""
+    if cls_ref is None:
+        return EncounterVictim
+    if isinstance(cls_ref, str):
+        return _VICTIM_CLASS_REGISTRY.get(cls_ref, EncounterVictim)
+    return cls_ref
+
+
+def _resolve_reward_pool(pool_ref):
+    """Preset's "reward_pool" field may be a string name (from JSON) or,
+    for callers still constructing a preset dict in Python, the item list
+    itself."""
+    if isinstance(pool_ref, str):
+        return _VICTIM_REWARD_POOL_REGISTRY.get(pool_ref)
+    return pool_ref
+
+
+def _make_reward_item(template, x, y):
+    """
+    Clones an item template into a standalone instance for handing to the
+    player - same approach as PrisonerNPC._make_reward() above.
+    """
+    try:
+        init_vars = {k: v for k, v in vars(template).items() if k not in ('owner', 'x', 'y')}
+        item = template.__class__(**init_vars)
+    except Exception:
+        item = template.__class__(
+            name=template.name,
+            char=template.char,
+            color=template.color,
+            description=getattr(template, 'description', ''),
+        )
+    item.x = x
+    item.y = y
+    return item
+
+
+def make_encounter_victims(preset, count, positions):
+    """
+    Builds `count` EncounterVictim (or GuardVictim, per preset) NPCs of the
+    given preset at the given (x, y) positions. `preset` is the scenario's
+    own "victim_data" dict (see story_content_loader.py) - the caller is
+    responsible for loading it, this function just knows how to build NPCs
+    from it. Extra positions beyond `count` are ignored; fewer positions
+    than `count` just yields fewer victims.
+    """
+    if not preset:
+        return []
+
+    victim_cls = _resolve_victim_class(preset.get("cls"))
+    reward_pool = _resolve_reward_pool(preset.get("reward_pool"))
+    gold_min, gold_max = preset.get("reward_gold_range", (0, 0))
+
+    victims = []
+    for (x, y) in positions[:count]:
+        name = random.choice(preset["names"])
+        reward_item = _make_reward_item(random.choice(reward_pool), x, y) if reward_pool else None
+        reward_gold = random.randint(gold_min, gold_max) if gold_max else 0
+        victims.append(victim_cls(
+            x, y, preset["char"], name, preset["color"], preset["dialogue"],
+            thanks_lines=preset.get("thanks"), after_lines=preset.get("after"),
+            reward_item=reward_item, reward_gold=reward_gold,
+        ))
+    return victims

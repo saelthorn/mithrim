@@ -494,6 +494,7 @@ class ThrowKnife(Ability):
             if not target_monster.alive:
                 xp_gained = target_monster.die(game_instance, killer=user)
                 user.gain_xp(xp_gained, game_instance)
+                game_instance.stories.fire_kill(target_monster, instigator=user, group_id=getattr(target_monster, "group_id", None))
         else:
             miss_messages = [
                 f"Your knife sails past the {target_monster.name}!",
@@ -665,6 +666,7 @@ class FireBolt(Ability):
             if not target_monster.alive:
                 xp_gained = target_monster.die(game_instance, killer=user)
                 user.gain_xp(xp_gained, game_instance)  # Use 'user' (player) here
+                game_instance.stories.fire_kill(target_monster, instigator=user, group_id=getattr(target_monster, "group_id", None))
             return True  # Successfully used ability
         elif target_monster and isinstance(target_monster, Monster) and attack_roll_total < getattr(target_monster, "armor_class", 10):
             game_instance.message_log.add_message(f"You roll [{d20_roll}] + [{attack_modifier}] Attack Modifier = {attack_roll_total} vs AC {getattr(target_monster, 'armor_class', 10)}", (255, 100, 0))
@@ -919,6 +921,7 @@ class Fireball(Ability):
                             xp_gained = entity.die(game_instance, killer=user)  # Pass game_instance to the die method
                             user.gain_xp(xp_gained, game_instance)  # Award XP to the player
                             game_instance.message_log.add_message(f"You gain {xp_gained} XP!", (100, 255, 100))  # Log the XP gained
+                            game_instance.stories.fire_kill(entity, instigator=user, group_id=getattr(entity, "group_id", None))
 
         # Destroy destructible tiles in the area of effect
         for x in range(target_x - self.radius, target_x + self.radius + 1):
@@ -1437,6 +1440,7 @@ class RayOfFrost(Ability):
             if not target_monster.alive:
                 xp_gained = target_monster.die(game_instance, killer=user)
                 user.gain_xp(xp_gained, game_instance)  # Use 'user' (player) here
+                game_instance.stories.fire_kill(target_monster, instigator=user, group_id=getattr(target_monster, "group_id", None))
             return True  # Successfully used ability
         elif target_monster and isinstance(target_monster, Monster) and attack_roll_total < getattr(target_monster, "armor_class", 10):
             game_instance.message_log.add_message(f"You roll [{d20_roll}] + [{attack_modifier}] Attack Modifier = {attack_roll_total} vs AC {getattr(target_monster, 'armor_class', 10)}", (255, 100, 0))
@@ -1721,11 +1725,7 @@ class SummonImp(Ability):
         self.imp_attack_power = 2 + max(0, (player_level - 1) // 4)
         self.imp_proficiency_bonus = 2 + max(0, (player_level - 1) // 5)
 
-        print(
-            f"[DEBUG] {self.name} scaled: imp_max_hp={self.imp_max_hp}, "
-            f"attack_power={self.imp_attack_power}, proficiency_bonus={self.imp_proficiency_bonus} "
-            f"at player level {player_level}"
-        )
+
 
 
 class CureWounds(Ability):
@@ -1956,6 +1956,7 @@ class SacredFlame(Ability):
         if not target.alive:
             xp_gained = target.die(game_instance, killer=user)
             user.gain_xp(xp_gained, game_instance)
+            game_instance.stories.fire_kill(target, instigator=user, group_id=getattr(target, "group_id", None))
         return True
     
     def scale_with_level(self, player_level):
@@ -2031,11 +2032,7 @@ class SummonCelestial(Ability):
         self.celestial_attack_power = 5 + max(0, (player_level - 1) // 4)
         self.celestial_proficiency_bonus = 3 + max(0, (player_level - 1) // 5)
 
-        print(
-            f"[DEBUG] {self.name} scaled: celestial_max_hp={self.celestial_max_hp}, "
-            f"attack_power={self.celestial_attack_power}, proficiency_bonus={self.celestial_proficiency_bonus} "
-            f"at player level {player_level}"
-        )
+
 
 
 class DivineStrike(Ability):
@@ -2262,6 +2259,7 @@ class MagicMissile(Ability):
         if not target_monster.alive:
             xp_gained = target_monster.die(game_instance, killer=user)
             user.gain_xp(xp_gained, game_instance)
+            game_instance.stories.fire_kill(target_monster, instigator=user, group_id=getattr(target_monster, "group_id", None))
 
         # --- Decrement the dart counter and decide what to do next ---
         game_instance.missile_darts_remaining = darts_remaining - 1
