@@ -357,7 +357,7 @@ from world.world_map import (
     chunk_local_to_world_position,
 )
 from world.world_time import TimeUnit
-from world.lighting import ambient_tint_for_time, combine_tints, period_for_hour
+from world.lighting import ambient_tint_for_time, brightness_for_time, combine_tints, period_for_hour
 from world.encounters.prison_cell import (
     handle_prison_door_interaction, PrisonDoorTile, is_prison_cell_position
 )
@@ -937,6 +937,10 @@ class Game:
     OVERWORLD_MONSTER_GROUP_COUNT = (2, 4)   # (min, max) groups per chunk
     OVERWORLD_GROUP_SEARCH_RADIUS = 6        # tiles around each anchor to consider
     OVERWORLD_VISION_RADIUS = 12             # open-sky sight range, vs. cramped dungeon corridors
+    OVERWORLD_NIGHT_VISION_RADIUS = 6        # floor for the fully-lit "player" band at the darkest
+                                              # point of night -- everyone can still see this far
+                                              # unaided; darkvision is what closes the gap back up
+                                              # to OVERWORLD_VISION_RADIUS (see update_fov()).
 
     def spawn_overworld_monster_groups(self, game_map, biome, dungeon_entrances):
         """
@@ -4826,12 +4830,61 @@ class Game:
                 self.generate_overworld_map()
 
 
+    # Brightness floor/ceiling from lighting.py's own _PERIODS table (midnight's
+    # 0.95 .. noon's 1.55) -- kept here, not re-derived from lighting.py, since
+    # scaling the *sight radius* off that curve is a game.py-only use of the
+    # brightness value; lighting.py itself only knows about tint/brightness.
+    _OVERWORLD_BRIGHTNESS_FLOOR = 0.95
+    _OVERWORLD_BRIGHTNESS_CEILING = 1.55
+
+    def _overworld_lit_radius(self):
+        """
+        How far the "fully lit" (full-color, 'player'-visibility) band
+        extends outdoors right now, smoothly scaled between
+        OVERWORLD_NIGHT_VISION_RADIUS at the darkest point of night and
+        OVERWORLD_VISION_RADIUS at brightest noon -- off the same
+        brightness curve lighting.py already blends the ambient tint
+        from, so the sight radius shrinks/grows in lockstep with how
+        dark the world actually looks rather than snapping on a hard
+        day/night cutoff.
+
+        Only meaningful in the OVERWORLD state; callers gate on that
+        themselves (see update_fov()) since this makes no sense
+        underground, where there is no sky to dim.
+        """
+        clock = self.stories.world_time.clock
+        brightness = brightness_for_time(clock.hour_of_day, clock.minute_of_hour)
+
+        floor, ceiling = self._OVERWORLD_BRIGHTNESS_FLOOR, self._OVERWORLD_BRIGHTNESS_CEILING
+        sight_fraction = (brightness - floor) / (ceiling - floor)
+        sight_fraction = max(0.0, min(1.0, sight_fraction))
+
+        night_radius, day_radius = self.OVERWORLD_NIGHT_VISION_RADIUS, self.OVERWORLD_VISION_RADIUS
+        return round(night_radius + (day_radius - night_radius) * sight_fraction)
+
     def update_fov(self):
         base_radius = getattr(self.player, 'vision_radius', 4)  # base vision radius
 
-        # Open skies let the player see much farther than cramped dungeon corridors.
+        # Open skies let the player see much farther than cramped dungeon
+        # corridors -- but only as far as the current ambient brightness
+        # allows; see _overworld_lit_radius(). This is the radius rendered
+        # in full color ('player' visibility, see fov.py) -- anything a
+        # race's darkvision reaches beyond it renders as the desaturated
+        # 'darkvision' band instead, exactly like the dungeon case below.
         if self.game_state == GameState.OVERWORLD:
-            base_radius = max(base_radius, self.OVERWORLD_VISION_RADIUS)
+            base_radius = max(base_radius, self._overworld_lit_radius())
+
+        # Darkvision extends sight past the fully-lit radius above, capped
+        # at OVERWORLD_VISION_RADIUS outdoors so darkvision reads as "sees
+        # as well in the dark as anyone sees by day", not as supernaturally
+        # farther-sighted than broad daylight would allow. Indoors there's
+        # no such cap -- base_radius there is the small dungeon default, and
+        # a race's full darkvision_radius (5-12, see races.py) always applies.
+        player_darkvision_radius = getattr(self.player, 'darkvision_radius', 0)
+        if self.game_state == GameState.OVERWORLD:
+            player_darkvision_radius = min(max(player_darkvision_radius, base_radius), self.OVERWORLD_VISION_RADIUS)
+        else:
+            player_darkvision_radius = max(player_darkvision_radius, base_radius)
 
         torch_bonus = 0
         has_torchlight = any(effect.name == "Torchlight" for effect in self.player.active_status_effects)    
@@ -4858,7 +4911,7 @@ class Game:
             self.player.y,
             radius=base_radius,
             light_source_type='player',
-            player_darkvision_radius=max(getattr(self.player, 'darkvision_radius', 0), base_radius)
+            player_darkvision_radius=player_darkvision_radius
         )
 
         # If torchlight active, compute extended FOV with 'torch' light source

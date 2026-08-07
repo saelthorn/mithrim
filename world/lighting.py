@@ -16,21 +16,20 @@ RGBA = Tuple[int, int, int, int]
 # and blend between them.
 #
 # Every tint is deliberately desaturated: nothing here is meant to read as
-# "daylight", only as "less oppressive than midnight". Brightness now
-# ranges well above 1.0 at its peak (noon actually brightens the sprite's
-# own colors, not just leaves them unscaled) down to 0.75 at its dimmest,
-# so the day/night cycle reads clearly at a glance while the tint curve
-# above still keeps the palette itself muted and desaturated.
+# "daylight", only as "less oppressive than midnight". Brightness ranges
+# from 0.95 at its dimmest (still legible, never pitch black) up to 1.55
+# at its peak, so the day/night cycle reads clearly at a glance while the
+# tint curve above still keeps the palette itself muted and desaturated.
 _PERIODS: Tuple[Tuple[int, str, RGBA, float], ...] = (
-    (0,  "midnight", (42, 48, 72, 255), 0.75),     # Deep moonlit blue
-    (5,  "late_night", (52, 58, 82, 255), 0.82),   # Before dawn
-    (6,  "dawn", (118, 108, 128, 255), 0.95),      # Cold violet-gray
-    (8,  "morning", (168, 170, 182, 255), 1.10),   # Cool overcast morning
-    (12, "noon", (208, 202, 188, 255), 1.30),      # Muted parchment sunlight
-    (16, "afternoon", (186, 168, 145, 255), 1.20), # Dusty warm light
-    (18, "evening", (142, 118, 102, 255), 1.00),   # Amber fading light
-    (19, "dusk", (96, 84, 118, 255), 0.88),        # Purple-blue twilight
-    (21, "night", (58, 66, 94, 255), 0.80),        # Cold blue darkness
+    (0,  "midnight", (68, 74, 102, 255), 0.95),    # Deep moonlit blue
+    (5,  "late_night", (78, 86, 112, 255), 1.00),  # Before dawn
+    (6,  "dawn", (140, 132, 150, 255), 1.10),      # Cold violet-gray
+    (8,  "morning", (190, 192, 202, 255), 1.25),   # Cool overcast morning
+    (12, "noon", (228, 224, 212, 255), 1.55),      # Muted parchment sunlight
+    (16, "afternoon", (206, 190, 168, 255), 1.45), # Dusty warm light
+    (18, "evening", (168, 146, 128, 255), 1.20),   # Amber fading light
+    (19, "dusk", (122, 110, 142, 255), 1.05),      # Purple-blue twilight
+    (21, "night", (84, 92, 118, 255), 1.00),       # Cold blue darkness
 )
 #: Same anchors keyed by name, for anything that wants a fixed period's
 #: tint directly (e.g. a cutscene forcing "it is dusk") without going
@@ -67,19 +66,20 @@ def period_for_hour(hour_of_day: int) -> str:
     return closest_name
 
 
-def ambient_tint_for_time(hour_of_day: int, minute_of_hour: int = 0) -> RGBA:
+def _interpolate_period(hour_of_day: int, minute_of_hour: int = 0) -> Tuple[RGBA, float]:
     """
-    Smoothly-interpolated ambient light tint for the given time of day,
-    with the period's brightness (see TIME_OF_DAY_BRIGHTNESS) already
-    folded in via apply_brightness() -- callers get back one RGBA that
-    captures both "what color is the light" and "how much of it is
-    there", and can stack it into combine_tints() exactly as before.
+    Shared blend step behind ambient_tint_for_time() and
+    brightness_for_time(): find whichever two period anchors bracket the
+    current moment and linearly interpolate both their tint and their
+    brightness in one pass, so the two callers can never drift out of
+    sync with each other (e.g. one reading "dusk" while the other has
+    already blended into "night").
 
     Rather than snapping straight from one named period's tint/brightness
-    to the next, this linearly blends between whichever two anchors
-    bracket the current moment, so the world doesn't visibly "jump" the
-    instant the clock crosses from, say, dusk into night. `minute_of_hour`
-    only refines *where within the hour* that blend sits -- the day/night
+    to the next, this blends between whichever two anchors bracket the
+    current moment, so the world doesn't visibly "jump" the instant the
+    clock crosses from, say, dusk into night. `minute_of_hour` only
+    refines *where within the hour* that blend sits -- the day/night
     cycle itself is granular to the hour, matching world_time.py's
     WorldClock.hour_of_day.
     """
@@ -95,13 +95,39 @@ def ambient_tint_for_time(hour_of_day: int, minute_of_hour: int = 0) -> RGBA:
         fraction = position / span
         blended_tint = _lerp_tint(tint_a, tint_b, fraction)
         blended_brightness = brightness_a + (brightness_b - brightness_a) * fraction
-        return apply_brightness(blended_tint, blended_brightness)
+        return blended_tint, blended_brightness
 
     # Unreachable in practice (the spans above always cover the full
     # 24-hour cycle), but fall back to the nearest named anchor rather
     # than raising if a future edit to _PERIODS ever leaves a gap.
     name = period_for_hour(int(hour))
-    return apply_brightness(TIME_OF_DAY_TINTS[name], TIME_OF_DAY_BRIGHTNESS[name])
+    return TIME_OF_DAY_TINTS[name], TIME_OF_DAY_BRIGHTNESS[name]
+
+
+def ambient_tint_for_time(hour_of_day: int, minute_of_hour: int = 0) -> RGBA:
+    """
+    Smoothly-interpolated ambient light tint for the given time of day,
+    with the period's brightness (see TIME_OF_DAY_BRIGHTNESS) already
+    folded in via apply_brightness() -- callers get back one RGBA that
+    captures both "what color is the light" and "how much of it is
+    there", and can stack it into combine_tints() exactly as before.
+    """
+    tint, brightness = _interpolate_period(hour_of_day, minute_of_hour)
+    return apply_brightness(tint, brightness)
+
+
+def brightness_for_time(hour_of_day: int, minute_of_hour: int = 0) -> float:
+    """
+    The blended ambient brightness alone (see ambient_tint_for_time's
+    tint+brightness pair above), without a tint attached -- for anything
+    that wants to scale a *non-color* quantity off the same day/night
+    curve. Currently used by game.py's update_fov() to shrink the
+    overworld's fully-lit "player" sight radius at night (so races with
+    darkvision meaningfully out-see others in the dark, the same way
+    they already do underground) without a hard day/night cutoff.
+    """
+    _tint, brightness = _interpolate_period(hour_of_day, minute_of_hour)
+    return brightness
 
 
 def _lerp_tint(tint_a: RGBA, tint_b: RGBA, fraction: float) -> RGBA:
