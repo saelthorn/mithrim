@@ -293,15 +293,7 @@ def _ambient_time_period(hour_of_day):
 
 
 
-class ChunkBiome(Enum):
-    PLAINS = "plains"
-    FOREST = "forest"
-    SWAMP = "swamp"
-    HILLS = "hills"
-    MOUNTAINS = "mountains"
-    DESERT = "desert"
-    TUNDRA = "tundra"
-
+from world.world_generator import ChunkBiome
 
 BIOME_CONNECTIONS = {
 

@@ -111,6 +111,7 @@
         2,
         4
       ],
+      "disposition": "aggressive",
       "sneak_dc": 13,
       "sneak_success": "You creep along the reeds and count the raiders unseen before deciding how to move in.",
       "sneak_fail": "A twig snaps underfoot. The nearest lizardfolk's head snaps around, tongue flicking toward your scent.",

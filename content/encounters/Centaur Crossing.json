@@ -13,6 +13,7 @@
         3,
         5
       ],
+      "disposition": "passive",
       "investigate_message": "You step past the leveled spears and walk right up to them, empty-handed.",
       "choices": [
         {
