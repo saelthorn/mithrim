@@ -31,6 +31,7 @@ class GameState:
     WORLD_ENCOUNTER_AFTERMATH_MENU = "world_encounter_aftermath_menu"  # Post-combat branching choice, see scenario "aftermath"
     WORLD_ENCOUNTER_DISCOVERY = "world_encounter_discovery"  # A stage's/aftermath's "discovery" text, shown alone with a "Continue" prompt before its choice menu opens
     DEATH_SAVE_MENU = "death_save_menu"  # Player unconscious at 0 hp, rolling death saving throws (see Player.roll_death_save())
+    MONSTER_AMBIENT_MENU = "monster_ambient_menu"  # A monster's ambient flavor line, shown as a "[1] Continue" popup -- see Game.show_monster_ambient_popup()
 
 
 class InteractionMode:
@@ -631,6 +632,10 @@ class Game:
         self._world_encounter_discovery_text = ""      # "discovery" text currently on screen, see _show_world_encounter_discovery()
         self._world_encounter_discovery_next_state = None  # GameState to enter once the player continues past the discovery prompt
         self._world_encounter_advance_steps = 0  # Steps walked since that "advance" choice was picked, see _maybe_advance_world_encounter_stage()
+        self._monster_ambient_text = ""       # Ambient line currently on screen, see show_monster_ambient_popup()
+        self._monster_ambient_color = (200, 200, 200)  # Speaking monster's own color, used for the popup text
+        self._monster_ambient_return_state = GameState.OVERWORLD  # GameState to restore once the popup is dismissed
+        self._monster_ambient_cooldowns = {}  # monster type name -> player turns left before that type's next ambient popup can show, see show_monster_ambient_popup()
         self._shop_menu_merchant = None   # Active merchant for shop overlay
         self._shop_selected_index = 0     # Highlighted item index in shop
         self._shop_mode = "buy"           # "buy" or "sell"
@@ -1023,6 +1028,20 @@ class Game:
     WORLD_ENCOUNTER_COOLDOWN_STEPS = 60     # Minimum steps before another can trigger
     WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
     WORLD_ENCOUNTER_MIN_ENTITY_DISTANCE = 8  # Skip the roll if another live entity is already this close
+
+    # --- Monster Ambient Popup ---------------------------------------------
+    # Monster.speak_ambient() (monster.py) fires from every patrolling
+    # monster's own turn *and* forced once when first spotted (see game.py's
+    # refresh_monster_wake_state()) -- with several monsters in view at once,
+    # both paths could otherwise chain multiple popups back to back in the
+    # same batch of turns. This cooldown (in player turns, see next_turn())
+    # throttles it to at most one popup every N of the player's own turns,
+    # per monster *type* (see _monster_ambient_cooldowns and
+    # show_monster_ambient_popup()) -- so a den of Goblins waking together
+    # shares one interval instead of spamming a line per goblin, while a
+    # Wolf spotted in that same batch of turns still gets its own line
+    # right away instead of being silently swallowed by the goblins' cooldown.
+    MONSTER_AMBIENT_COOLDOWN_TURNS = 8
 
     # Default player-level band for a scenario that declares neither
     # "min_level" nor "max_level" -- wide open, so every encounter authored
@@ -2488,6 +2507,49 @@ class Game:
         self._world_encounter_discovery_text = ""
         self._world_encounter_discovery_next_state = None
         self.game_state = next_state
+
+    def show_monster_ambient_popup(self, text, color, monster_type=None):
+        """
+        Pop up a single monster's ambient line (see monster.py's
+        speak_ambient(), called both from a patrolling monster's own turn
+        and forced once when first spotted) as a small "[1] Continue"
+        menu, e.g.:
+
+            The Goblin cackles and pokes at its spear...
+
+            1. Continue
+
+        Gated by MONSTER_AMBIENT_COOLDOWN_TURNS, but per `monster_type`
+        (see _monster_ambient_cooldowns) rather than one shared cooldown
+        for every monster in the game -- several Goblins rolling/forcing
+        an ambient line within the same batch of turns share a single
+        "Goblin" interval, same as before, but a Wolf spotted in that same
+        batch isn't silently swallowed by the goblins' cooldown; it gets
+        its own "Wolf" interval and still shows its line. `monster_type`
+        defaults to None, which behaves as its own shared bucket -- any
+        caller that doesn't pass a type falls back to the old
+        one-cooldown-for-everyone behavior rather than erroring. Also
+        skipped while any other menu is already open, since ambient
+        flavor is never important enough to interrupt something the
+        player is actually doing.
+        """
+        if self._monster_ambient_cooldowns.get(monster_type, 0) > 0:
+            return
+        if self.game_state not in (GameState.OVERWORLD, GameState.DUNGEON):
+            return
+
+        self._monster_ambient_text = text
+        self._monster_ambient_color = color
+        self._monster_ambient_return_state = self.game_state
+        self.game_state = GameState.MONSTER_AMBIENT_MENU
+        self._monster_ambient_cooldowns[monster_type] = self.MONSTER_AMBIENT_COOLDOWN_TURNS
+
+    def _continue_past_monster_ambient(self):
+        """Dismiss the ambient popup and return to whichever state (OVERWORLD
+        or DUNGEON) it interrupted. Doesn't cost the player a turn, same as
+        _continue_past_world_encounter_discovery()."""
+        self.game_state = self._monster_ambient_return_state
+        self._monster_ambient_text = ""
 
     def _current_world_encounter_stage(self):
         """The stage dict currently on screen -- see
@@ -5139,6 +5201,16 @@ class Game:
                 self.player.update_hunger(self)  # Decrease hunger each turn
                 self.player.update_sanity(self)  # Update sanity (torch/darkness effect)
                 self.stories.advance_turn()  # World time moves with player actions, not real time
+                # Tick every monster type's ambient cooldown down independently
+                # (see show_monster_ambient_popup()), dropping a type entirely
+                # once its interval clears rather than leaving stale zeroed
+                # entries sitting in the dict.
+                for monster_type in list(self._monster_ambient_cooldowns):
+                    remaining = self._monster_ambient_cooldowns[monster_type] - 1
+                    if remaining <= 0:
+                        del self._monster_ambient_cooldowns[monster_type]
+                    else:
+                        self._monster_ambient_cooldowns[monster_type] = remaining
                 if self.player.hunger < self.player.hunger_threshold:
                     hunger_msgs = [
                         f"{self.player.name}'s stomach growls hungrily...",
@@ -5542,6 +5614,12 @@ class Game:
                     if event.key in (pygame.K_1, pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE):
                         self._continue_past_world_encounter_discovery()
                     return True  # Consume all input while the prompt is open
+
+                # --- Monster Ambient Popup ---
+                elif self.game_state == GameState.MONSTER_AMBIENT_MENU:
+                    if event.key in (pygame.K_1, pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE):
+                        self._continue_past_monster_ambient()
+                    return True  # Consume all input while the popup is open
 
                 # --- World Encounter Menu ---
                 elif self.game_state == GameState.WORLD_ENCOUNTER_MENU:
@@ -7955,6 +8033,11 @@ class Game:
         if self.game_state == GameState.WORLD_ENCOUNTER_DISCOVERY and self._world_encounter_discovery_text:
             self.render_world_encounter_discovery_menu()
 
+        # Monster ambient popup — a single spoken/flavor line with a
+        # "Continue" option, drawn over whichever state it interrupted
+        if self.game_state == GameState.MONSTER_AMBIENT_MENU and self._monster_ambient_text:
+            self.render_monster_ambient_menu()
+
         # World encounter menu — drawn over the overworld, under nothing else
         if self.game_state == GameState.WORLD_ENCOUNTER_MENU and self._world_encounter_target:
             self.render_world_encounter_menu()
@@ -8338,6 +8421,58 @@ class Game:
         y += DIVIDER_GAP
 
         # Continue prompt
+        prompt_surf = font_title.render("[1] Continue", True, (200, 190, 230))
+        self.screen.blit(prompt_surf, (sx + PAD, y))
+
+    def render_monster_ambient_menu(self):
+        """
+        Draws a monster's ambient line by itself, word-wrapped, with a
+        single numbered "Continue" prompt underneath -- e.g.:
+
+            The Goblin cackles and pokes at its spear...
+
+            1. Continue
+
+        Same box/border styling as render_world_encounter_discovery_menu(),
+        just tinted with the speaking monster's own color instead of the
+        fixed narration purple, so a Goblin's line reads differently on
+        screen than a Skeleton's.
+        """
+        try:
+            font_title = pygame.font.SysFont("consolas", 16, bold=True)
+            font_body  = pygame.font.SysFont("consolas", 14)
+        except Exception:
+            font_title = pygame.font.Font(None, 18)
+            font_body  = pygame.font.Font(None, 16)
+
+        PAD         = 14
+        W           = 440
+        text_w      = W - PAD * 2
+        lines       = self._wrap_text(self._monster_ambient_text, font_body, text_w)
+        LINE_H      = font_body.get_linesize()
+        PROMPT_H    = font_title.get_linesize()
+        DIVIDER_GAP = PAD // 2
+
+        H  = PAD + LINE_H * len(lines) + DIVIDER_GAP * 2 + PROMPT_H + PAD
+        sx = (config.GAME_AREA_WIDTH - W) // 2
+        sy = (config.SCREEN_HEIGHT   - H) // 2
+
+        bg = pygame.Surface((W, H), pygame.SRCALPHA)
+        bg.fill((10, 8, 14, 220))
+        self.screen.blit(bg, (sx, sy))
+
+        pygame.draw.rect(self.screen, self._monster_ambient_color, (sx, sy, W, H), 2, border_radius=4)
+
+        y = sy + PAD
+        for line in lines:
+            line_surf = font_body.render(line, True, self._monster_ambient_color)
+            self.screen.blit(line_surf, (sx + PAD, y))
+            y += LINE_H
+
+        y += DIVIDER_GAP
+        pygame.draw.line(self.screen, (60, 60, 75), (sx + PAD, y), (sx + W - PAD, y))
+        y += DIVIDER_GAP
+
         prompt_surf = font_title.render("[1] Continue", True, (200, 190, 230))
         self.screen.blit(prompt_surf, (sx + PAD, y))
 

@@ -390,22 +390,44 @@ class Monster:
 
     def speak_ambient(self, game, chance=None, force=False):
         """
-        Roll to log a short, purely-flavor idle line for this monster --
+        Roll to show a short, purely-flavor idle line for this monster as
+        a "[1] Continue" popup (see Game.show_monster_ambient_popup()) --
         never affects gameplay, just atmosphere. `chance` overrides this
         monster's own `ambient_bark_chance` for one call (e.g. a boss
-        wanting a guaranteed line the moment it wakes); `force=True`
-        skips the roll entirely. Every monster gets this for free
-        through the base class, so "every monster has ambient dialogue"
-        holds even for subclasses that never touch this method.
+        wanting a guaranteed line the moment it wakes); `force=True` skips
+        the roll entirely. Every monster gets this for free through the
+        base class, so "every monster has ambient dialogue" holds even for
+        subclasses that never touch this method.
+
+        Gated on this monster's own `detection_range` -- a line only
+        makes sense as "the player is close enough for this creature to
+        notice", and detection_range is already the framework's existing
+        measure of that per monster (a GiantRat's 4 tiles vs. a Wolf's 8),
+        rather than reusing the wider WAKE_RADIUS that only decides
+        whether a monster is active at all (see game.py's
+        refresh_monster_wake_state()).
+
+        The popup itself is cooldown-gated on the Game side, not here --
+        with several monsters patrolling/spotted in the same batch of
+        turns, each could otherwise pass its own roll and try to open a
+        popup; show_monster_ambient_popup() silently no-ops any of those
+        beyond the first *of the same monster type* until that type's own
+        cooldown clears, so e.g. a den of Goblins only ever shows one line
+        at a time for itself, while a Wolf noticed in the same batch of
+        turns still gets to speak too.
         """
         if not self.alive:
             return
+        player = getattr(game, "player", None)
+        if player is not None and self.distance_to(player.x, player.y) > self.detection_range:
+            return
+
         roll_chance = self.ambient_bark_chance if chance is None else chance
         if not force and random.random() > roll_chance:
             return
 
         line = random.choice(self.ambient_message_pool()).format(name=f"The {self.name}")
-        game.message_log.add_message(line, self.color)
+        game.show_monster_ambient_popup(line, self.color, monster_type=type(self).__name__)
 
     def get_dialogue(self):
         """
