@@ -490,9 +490,9 @@ class SwampGenerator(TerrainGenerator):
 
                 if (x, y) in river_tiles:
                     game_map.tiles[y][x] = river
-                elif m > 0.82 and h < 0.50:
+                elif m > 0.72 and h < 0.50:
                     game_map.tiles[y][x] = lake
-                elif h > 0.40 and _chance(x, y, 5, 0.55):
+                elif m > 0.55 and _chance(x, y, 5, 0.35):
                     # Was an unconditional `tree`, which made every hilltop a
                     # solid, gap-free block of forest. Thinning it here lets
                     # roughly half of it fall through to the tall_grass band
@@ -523,11 +523,13 @@ class SwampGenerator(TerrainGenerator):
                 if tile not in {ground, grass, tree, lake}:
                     continue
 
-                if m > 0.64 and h < 0.45 and _chance(x, y, 1, 1 / 11):
+                if m > 0.64 and h < 0.45 and _chance(x, y, 1, 1 / 10):
                     game_map.tiles[y][x] = river
-                elif tile is tree and _chance(x, y, 2, 1 / 13):
+                elif tile is tree and _chance(x, y, 2, 1 / 12):
                     game_map.tiles[y][x] = dead_forest
-                elif m > 0.72 and _chance(x, y, 3, 1 / 19):
+                elif m > 0.34 and _chance(x, y, 3, 1 / 18):
+                    game_map.tiles[y][x] = marsh_pool
+                elif m > 0.42 and _chance(x, y, 3, 1 / 14):
                     game_map.tiles[y][x] = pond
 
     def place_landmarks(self, game_map, heightmap, moisture, river_positions):
@@ -599,16 +601,16 @@ class MountainGenerator(TerrainGenerator):
                 if tile not in {ground, grass, tree, mountain}:
                     continue
 
-                if h > 0.60 and _chance(x, y, 1, 1 / 13):
+                if h > 0.60 and _chance(x, y, 1, 1 / 18):
                     game_map.tiles[y][x] = mountain
                 elif h > 0.30 and _chance(x, y, 2, 1 / 17):
-                    game_map.tiles[y][x] = scree
+                    game_map.tiles[y][x] = tree
                 elif h < 0.45 and _chance(x, y, 3, 1 / 19):
-                    game_map.tiles[y][x] = valley
+                    game_map.tiles[y][x] = rock_formation
                 elif h > 0.52 and m > 0.40 and _chance(x, y, 4, 1 / 23):
                     game_map.tiles[y][x] = waterfall
                 elif tile is tree and _chance(x, y, 5, 1 / 29):
-                    game_map.tiles[y][x] = ridge
+                    game_map.tiles[y][x] = tree
 
     def place_landmarks(self, game_map, heightmap, moisture, river_positions):
         candidates = []
