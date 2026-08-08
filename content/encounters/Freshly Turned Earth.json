@@ -1,0 +1,74 @@
+{
+  "id": "world_encounter_freshly_turned_earth",
+  "min_level": 1,
+  "max_level": 14,
+
+  "stages": [
+    {
+      "discovery": "One grave among a small roadside plot has been dug open from the inside out, dirt thrown wide in a ring rather than piled neat the way a robber would leave it. The coffin lid is on the grass, not shattered but set aside, almost gently. Whatever left this grave didn't need to be dug up.",
+      "landmark_tile": "gravestone_three",
+      "landmark_tile_amount": [2, 4],
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Fill the Grave Back In",
+          "description": "Whoever they were deserve better than an open hole",
+          "color": [160, 200, 255],
+          "outcome": "You shovel the earth back over the empty coffin with your hands and boot heel, and set the lid over the grave as best you can. It won't bring anyone back, but it closes the wound in the ground, at least.",
+          "consequences": [
+            {
+                "type": "modify_reputation",
+                "faction": "church",
+                "delta": 2
+            },
+            { 
+                "type": "reward_xp", 
+                "amount": 14 
+            }
+          ]
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Search the Coffin",
+          "description": "Grave goods left behind might still be worth something - Perception check",
+          "color": [255, 200, 140],
+          "check": {
+            "skill": "perception",
+            "dc": 14,
+            "success_outcome": "Whatever climbed out left its burial jewelry behind, tangled in the lining. You take it, trying not to think too hard about why it didn't need it anymore.",
+            "success_consequences": [
+              { 
+                  "type": "reward_gold", 
+                  "amount": 18 
+              },
+              {
+                  "type": "modify_reputation",
+                  "faction": "church",
+                  "delta": -1
+              }
+            ],
+            "failure_outcome": "You search the lining by feel more than sight, but whatever was buried with them, it either left with them or was never here to find.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 4 
+              }
+            ]
+          }
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Back Away Slowly",
+          "description": "ESC also cancels - whatever did this might still be close",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You leave the open grave behind and don't look back until the plot is well out of sight.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}

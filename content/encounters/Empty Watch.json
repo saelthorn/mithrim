@@ -1,0 +1,68 @@
+{
+  "id": "world_encounter_empty_watch",
+  "min_level": 1,
+  "max_level": 12,
+
+  "stages": [
+    {
+      "discovery": "A stretch of splintered barricade blocks half the road, the Kingdom's crest still legible on a warped shield nailed to the crossbeam. Nothing guards it now. A tally of hash marks is scratched into the wood beside a rota board - names, dates, and a gap where the last several days should be.",
+      "landmark_tile": "barricade",
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Read the Rota Board",
+          "description": "See who was posted here, and when it stopped - Investigation check",
+          "color": [160, 200, 255],
+          "check": {
+            "skill": "investigation",
+            "dc": 12,
+            "success_outcome": "The last entry is dated over a week ago, the handwriting rushed instead of dismissed - not a shift that ended, but one that never got relieved. Whatever pulled the Kingdom's watch off this road did it in a hurry.",
+            "success_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 14 
+              }
+            ],
+            "failure_outcome": "The board's been rained on too many times to make out more than a few scattered names and dates, nothing that adds up to a clear story.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 5 
+              }
+            ]
+          }
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Search the Guard Post",
+          "description": "They left in a hurry - they might have left supplies",
+          "color": [255, 200, 140],
+          "outcome": "Whoever manned this post left behind a half-eaten ration and a few coins dropped and never missed. You take what's still good and leave the rest to the weather.",
+          "consequences": [
+            { 
+                "type": "reward_gold", 
+                "amount": 10 
+            },
+            { 
+                "type": "give_item", 
+                "item_id": "bread", 
+                "count": 1 
+            }
+          ]
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Keep Moving",
+          "description": "ESC also cancels - not your patrol to worry about",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You climb over the broken barricade and put the empty watch post behind you.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}

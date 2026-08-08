@@ -1,58 +1,69 @@
 {
-  "id": "world_encounter_cold_forge",
+  "id": "world_encounter_quiet_hamlet",
   "min_level": 1,
-  "max_level": 12,
+  "max_level": 14,
 
   "stages": [
     {
-      "discovery": "A blacksmith's shop stands with its chimney cold and its forge unlit, tools still hung neat along the wall the way a careful smith leaves them at the end of a working day - not the way anyone leaves them for good. An unfinished blade sits clamped in the vice, half-shaped and never finished.",
-      "landmark_structure": "blacksmith",
+      "discovery": "A handful of buildings cluster together off the road - a general store flanked by two modest houses, the closest thing to a hamlet this stretch of country has. Doors stand open. Nothing is burned, nothing is broken. It's simply empty, the way a room feels when everyone in it left mid-conversation.",
+      "landmark_structure": ["general_store", "house", "house"],
       "choices": [
         {
           "key": 1,
           "action": "resolve",
-          "label": "Finish the Blade Yourself",
-          "description": "The forge is cold, but the tools still work",
+          "label": "Search the Houses",
+          "description": "See what the residents left behind - Perception check",
           "color": [255, 200, 140],
-          "outcome": "You're no smith, but you know enough to knock the rough edges smooth and give the blade a working edge. It isn't fine work, but it isn't nothing either.",
-          "consequences": [
-            { 
-                "type": "give_item", 
-                "item_id": "iron_dagger", 
-                "count": 1 
-            },
-            { 
-                "type": "reward_xp", 
-                "amount": 12 
-            }
-          ]
+          "check": {
+            "skill": "perception",
+            "dc": 12,
+            "success_outcome": "Meals sit half-eaten on tables, beds unmade, nothing packed for a journey. Whatever made these people leave, they didn't plan for it. You take what won't be missed and try not to think too hard about the rest.",
+            "success_consequences": [
+              { 
+                  "type": "reward_gold", 
+                  "amount": 14 
+              },
+              { 
+                  "type": "give_item", 
+                  "item_id": "fromage", 
+                  "count": 1 
+              },
+              { 
+                  "type": "reward_xp", 
+                  "amount": 10 
+              }
+            ],
+            "failure_outcome": "You go house to house but nothing worth taking has been left in plain sight, and you don't have the stomach to dig deeper into a stranger's abandoned home.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 4 
+              }
+            ]
+          }
         },
         {
           "key": 2,
           "action": "resolve",
-          "label": "Search the Workshop",
-          "description": "A smithy this well-kept might have coin stashed somewhere",
+          "label": "Check the General Store's Ledger",
+          "description": "A shopkeeper hears everything eventually",
           "color": [160, 200, 255],
-          "outcome": "Behind a loose brick near the forge you find a tin of savings, the kind of quiet stash a working smith keeps against a bad season. You take it with a twinge of guilt you can't quite place.",
+          "outcome": "The last few pages mention rising prices, a bad harvest, and - in a hurried hand near the end - unfamiliar riders spotted on the north road. The entries just stop after that, no explanation, no goodbye.",
           "consequences": [
             { 
-                "type": "reward_gold", 
-                "amount": 16 
-            },
-            { 
                 "type": "reward_xp", 
-                "amount": 6 
+                "amount": 14 
             }
           ]
         },
         {
           "key": 3,
           "action": "resolve",
-          "label": "Leave the Forge Cold",
-          "description": "ESC also cancels - it isn't your workshop to touch",
+          "label": "Leave the Hamlet Undisturbed",
+          "description": "ESC also cancels - whatever happened here, it isn't yours to pick apart",
           "color": [150, 150, 150],
           "is_cancel": true,
-          "outcome": "You leave the unfinished blade exactly as you found it and step back out into the gray daylight.",
+          "outcome": "You walk the empty lane between the houses without stepping inside a single one, and let the hamlet keep whatever answers it has left.",
           "consequences": []
         }
       ]

@@ -12,33 +12,55 @@
           "key": 1,
           "action": "resolve",
           "label": "Search the Wreckage",
-          "description": "Whoever did this left in a hurry too",
+          "description": "Whoever did this left in a hurry too - Perception check",
           "color": [255, 200, 140],
-          "outcome": "You pick through what's left, careful of the parts you'd rather not look at directly. Not everything of value was taken - some of it was overlooked in the rush, some of it wasn't worth the trouble to whoever won.",
-          "consequences": [
-            { 
-                "type": "reward_gold", 
-                "amount": 12 
-            },
-            { 
-                "type": "reward_xp", 
-                "amount": 10 
-            }
-          ]
+          "check": {
+            "skill": "perception",
+            "dc": 12,
+            "success_outcome": "You pick through what's left, careful of the parts you'd rather not look at directly. Not everything of value was taken - some of it was overlooked in the rush, some of it wasn't worth the trouble to whoever won.",
+            "success_consequences": [
+              { 
+                  "type": "reward_gold", 
+                  "amount": 12 
+              },
+              { 
+                  "type": "reward_xp", 
+                  "amount": 10 
+              }
+            ],
+            "failure_outcome": "You search what's left but whoever did this, or whoever came after, already took everything worth finding.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 4 
+              }
+            ]
+          }
         },
         {
           "key": 2,
           "action": "resolve",
           "label": "Read the Scene",
-          "description": "Figure out what actually happened here",
+          "description": "Figure out what actually happened here - Investigation check",
           "color": [160, 200, 255],
-          "outcome": "The marks in the dirt tell a clearer story than you wanted: an ambush, planned rather than opportunistic, sprung by someone who knew exactly when this road would be traveled. That kind of knowledge doesn't come cheap, or by accident.",
-          "consequences": [
-            { 
-                "type": "reward_xp", 
-                "amount": 14 
-            }
-          ]
+          "check": {
+            "skill": "investigation",
+            "dc": 13,
+            "success_outcome": "The marks in the dirt tell a clearer story than you wanted: an ambush, planned rather than opportunistic, sprung by someone who knew exactly when this road would be traveled. That kind of knowledge doesn't come cheap, or by accident.",
+            "success_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 14 
+              }
+            ],
+            "failure_outcome": "Too many feet and hooves have churned the ground since - whatever story it told originally, it's been trampled past reading now.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 5 
+              }
+            ]
+          }
         },
         {
           "key": 3,

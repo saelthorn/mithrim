@@ -1,0 +1,68 @@
+{
+  "id": "world_encounter_forgotten_graveyard",
+  "min_level": 1,
+  "max_level": 14,
+
+  "stages": [
+    {
+      "discovery": "A cluster of leaning headstones breaks up the tall grass, most of them worn smooth by rain and time. One newer grave sits apart from the others, its marker still sharp-edged, a wilted wreath tied to it with twine that hasn't yet rotted through.",
+      "landmark_tile": "gravestone",
+      "landmark_tile_amount": [3, 5],
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Tend the Newest Grave",
+          "description": "Straighten the wreath, clear the weeds",
+          "color": [160, 200, 255],
+          "outcome": "You pull the weeds back from the marker and set the wreath straight. Whoever they were, someone still remembers - if only for a little while longer.",
+          "consequences": [
+            { 
+                "type": "reward_xp", 
+                "amount": 10 
+            }
+          ]
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Search the Older Graves",
+          "description": "Some of these look old enough to have been robbed before - Perception check",
+          "color": [255, 200, 140],
+          "check": {
+            "skill": "perception",
+            "dc": 13,
+            "success_outcome": "You spot a tarnished ring half-buried by a collapsed headstone - whoever picked this place clean before you missed it. You pocket it and try not to think too hard about where it's been.",
+            "success_consequences": [
+              { 
+                  "type": "reward_gold", 
+                  "amount": 15 
+              },
+              { 
+                  "type": "reward_xp", 
+                  "amount": 8 
+              }
+            ],
+            "failure_outcome": "You turn over what's left of the older markers but whatever this ground still holds, it isn't giving it up to you today.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 4 
+              }
+            ]
+          }
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Leave the Dead Undisturbed",
+          "description": "ESC also cancels - some ground shouldn't be walked on",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You skirt the edge of the graveyard and keep the stones between you and the road behind you.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}

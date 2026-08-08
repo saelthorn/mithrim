@@ -35,15 +35,26 @@
           "key": 2,
           "action": "resolve",
           "label": "Ask About the Roads Ahead",
-          "description": "A hermit this far out would know the land",
+          "description": "A hermit this far out would know the land - Persuasion check",
           "color": [255, 200, 140],
-          "outcome": "He's cagey at first, but a little patience gets you a warning about a stretch of trail up ahead best avoided after dark - the kind of local knowledge that never makes it onto any map.",
-          "consequences": [
-            { 
-                "type": "reward_xp", 
-                "amount": 12 
-            }
-          ]
+          "check": {
+            "skill": "persuasion",
+            "dc": 12,
+            "success_outcome": "He's cagey at first, but a little patience gets you a warning about a stretch of trail up ahead best avoided after dark - the kind of local knowledge that never makes it onto any map.",
+            "success_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 12 
+              }
+            ],
+            "failure_outcome": "He shrugs off your questions with the practiced vagueness of someone who's decided strangers don't need to know more than the road already tells them.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 5 
+              }
+            ]
+          }
         },
         {
           "key": 3,

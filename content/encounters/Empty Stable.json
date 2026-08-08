@@ -30,15 +30,26 @@
           "key": 2,
           "action": "resolve",
           "label": "Check the Stalls for Tack",
-          "description": "See what was left on the hooks",
+          "description": "See what was left on the hooks - Investigation check",
           "color": [160, 200, 255],
-          "outcome": "Every saddle and bridle is gone - taken deliberately, not abandoned. Whoever left here rode out on every horse they had, which tells you this wasn't a raid. It was a choice.",
-          "consequences": [
-            { 
-                "type": "reward_xp", 
-                "amount": 10 
-            }
-          ]
+          "check": {
+            "skill": "investigation",
+            "dc": 10,
+            "success_outcome": "Every saddle and bridle is gone - taken deliberately, not abandoned. Whoever left here rode out on every horse they had, which tells you this wasn't a raid. It was a choice.",
+            "success_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 10 
+              }
+            ],
+            "failure_outcome": "You check the hooks and stalls but can't tell from what's missing whether this was a hurried evacuation or something else entirely.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 4 
+              }
+            ]
+          }
         },
         {
           "key": 3,

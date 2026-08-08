@@ -1,0 +1,68 @@
+{
+  "id": "world_encounter_abandoned_campsite",
+  "min_level": 1,
+  "max_level": 10,
+
+  "stages": [
+    {
+      "discovery": "A single tent stands sagging off the trail, its guy-lines gone slack. The fire pit beside it is cold, ash gone gray and scattered by wind that's had days to work at it. Whoever pitched camp here didn't come back to break it down.",
+      "landmark_tile": "tent",
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Search the Tent",
+          "description": "Whoever left it might not be coming back - Perception check",
+          "color": [255, 200, 140],
+          "check": {
+            "skill": "perception",
+            "dc": 11,
+            "success_outcome": "Most of what's left has rotted or rusted through, but tucked into a corner you find a half-eaten ration and a coil of decent rope, forgotten rather than abandoned.",
+            "success_consequences": [
+              { 
+                  "type": "give_item", 
+                  "item_id": "meat", 
+                  "count": 1 
+              },
+              { 
+                  "type": "reward_xp", 
+                  "amount": 8 
+              }
+            ],
+            "failure_outcome": "You dig through the sagging canvas but whatever's left in here has rotted past anything worth carrying.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 3 
+              }
+            ]
+          }
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Check the Fire Pit for Tracks",
+          "description": "See which direction they went",
+          "color": [160, 200, 255],
+          "outcome": "The ash is too old and wind-scattered to tell you anything, but the exercise of looking sharpens your eye for reading a campsite - useful, even empty-handed.",
+          "consequences": [
+            { 
+                "type": "reward_xp", 
+                "amount": 12 
+            }
+          ]
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Leave It Standing",
+          "description": "ESC also cancels - not every camp needs picking over",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You leave the tent as you found it, in case whoever pitched it still means to come back.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}

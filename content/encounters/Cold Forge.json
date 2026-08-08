@@ -31,19 +31,30 @@
           "key": 2,
           "action": "resolve",
           "label": "Search the Workshop",
-          "description": "A smithy this well-kept might have coin stashed somewhere",
+          "description": "A smithy this well-kept might have coin stashed somewhere - Perception check",
           "color": [160, 200, 255],
-          "outcome": "Behind a loose brick near the forge you find a tin of savings, the kind of quiet stash a working smith keeps against a bad season. You take it with a twinge of guilt you can't quite place.",
-          "consequences": [
-            { 
-                "type": "reward_gold", 
-                "amount": 16 
-            },
-            { 
-                "type": "reward_xp", 
-                "amount": 6 
-            }
-          ]
+          "check": {
+            "skill": "perception",
+            "dc": 13,
+            "success_outcome": "You spot a loose brick near the forge and find a tin of savings behind it, the kind of quiet stash a working smith keeps against a bad season. You take it with a twinge of guilt you can't quite place.",
+            "success_consequences": [
+              { 
+                  "type": "reward_gold", 
+                  "amount": 16 
+              },
+              { 
+                  "type": "reward_xp", 
+                  "amount": 6 
+              }
+            ],
+            "failure_outcome": "You go over the workshop but nothing stands out as anything other than what it looks like - a smith's ordinary tools, nothing hidden.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 4 
+              }
+            ]
+          }
         },
         {
           "key": 3,

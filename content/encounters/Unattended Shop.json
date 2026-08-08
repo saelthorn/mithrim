@@ -40,15 +40,26 @@
           "key": 2,
           "action": "resolve",
           "label": "Read the Ledger",
-          "description": "Maybe it says where the merchant went",
+          "description": "Maybe it says where the merchant went - Investigation check",
           "color": [255, 200, 140],
-          "outcome": "The last entries are ordinary - stock counts, a customer's name, a note to restring the shop's bell. Whatever pulled the merchant away, it wasn't written down beforehand.",
-          "consequences": [
-            { 
-                "type": "reward_xp", 
-                "amount": 8 
-            }
-          ]
+          "check": {
+            "skill": "investigation",
+            "dc": 10,
+            "success_outcome": "The last entries are ordinary - stock counts, a customer's name, a note to restring the shop's bell. Whatever pulled the merchant away, it wasn't written down beforehand.",
+            "success_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 8 
+              }
+            ],
+            "failure_outcome": "The handwriting is cramped and hurried, and you can't make sense of more than a few scattered stock numbers.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 3 
+              }
+            ]
+          }
         },
         {
           "key": 3,

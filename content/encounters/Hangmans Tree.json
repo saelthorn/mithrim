@@ -1,0 +1,73 @@
+{
+  "id": "world_encounter_hangmans_tree",
+  "min_level": 1,
+  "max_level": 12,
+
+  "stages": [
+    {
+      "discovery": "A body hangs from a low branch at the edge of the road, turning slow in whatever wind finds its way through the canopy. A crude sign is lashed around the neck below the rope: a warning, not a name. Whoever did this wanted it seen, not hidden.",
+      "landmark_tile": "ambush_tree",
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Cut Them Down",
+          "description": "No one deserves to be left as a message",
+          "color": [160, 200, 255],
+          "outcome": "You cut the rope and lay the body in the roadside brush, out of sight of the path at least. It's not a burial, but it's not a warning sign anymore either.",
+          "consequences": [
+            {
+                "type": "modify_reputation",
+                "faction": "church",
+                "delta": 1
+            },
+            {
+                "type": "modify_reputation",
+                "faction": "bandits",
+                "delta": -1
+            },
+            { 
+                "type": "reward_xp", 
+                "amount": 12 
+            }
+          ]
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Read the Sign",
+          "description": "See what it says, and who left it - Investigation check",
+          "color": [255, 200, 140],
+          "check": {
+            "skill": "investigation",
+            "dc": 11,
+            "success_outcome": "The words are rough-carved but plain enough: a toll unpaid, a debt made an example of. Whoever controls this stretch of road wants travelers to know the price of refusing them.",
+            "success_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 10 
+              }
+            ],
+            "failure_outcome": "The carving's too crude and weather-worn to make out more than a few threatening words, nothing you can piece into a full warning.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 4 
+              }
+            ]
+          }
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Hurry Past",
+          "description": "ESC also cancels - the message wasn't meant for you, and you'd rather keep it that way",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You quicken your pace and don't slow down again until the tree is well behind you.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}

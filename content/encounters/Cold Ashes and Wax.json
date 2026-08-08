@@ -1,0 +1,77 @@
+{
+  "id": "world_encounter_cold_ashes_and_wax",
+  "min_level": 1,
+  "max_level": 14,
+
+  "stages": [
+    {
+      "discovery": "A ring of candle stubs has burned down to puddles of black wax around a circle scorched into the bare earth. The symbols cut into the ground are shallow but deliberate, and the grass at the circle's edge has died in a way frost alone doesn't explain. Whoever gathered here didn't leave long ago.",
+      "landmark_tile": "ritual_circle",
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Scatter the Circle",
+          "description": "Kick the wax apart, break the symbols",
+          "color": [160, 200, 255],
+          "outcome": "You grind the candle stubs into the dirt and scuff out the carved lines until nothing readable remains. It won't undo whatever this place was used for, but it won't be used again either.",
+          "consequences": [
+            {
+                "type": "modify_reputation",
+                "faction": "church",
+                "delta": 2
+            },
+            {
+                "type": "modify_reputation",
+                "faction": "cultists",
+                "delta": -3
+            },
+            { 
+                "type": "reward_xp", 
+                "amount": 12 
+            }
+          ]
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Take a Candle Stub",
+          "description": "Might be worth something to the right buyer - Arcana check",
+          "color": [255, 200, 140],
+          "check": {
+            "skill": "arcana",
+            "dc": 13,
+            "success_outcome": "You know enough to pick the stub that isn't still tied to whatever this circle was for, and pocket it clean. It's cold to the touch in a way that has nothing to do with the weather, and stays that way the whole time you carry it.",
+            "success_consequences": [
+              { 
+                  "type": "reward_gold", 
+                  "amount": 8 
+              },
+              { 
+                  "type": "reward_xp", 
+                  "amount": 6 
+              }
+            ],
+            "failure_outcome": "You reach for a stub and think better of it halfway there - something about the wax still feels claimed. You leave it where it lies.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 4 
+              }
+            ]
+          }
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Leave It Exactly as You Found It",
+          "description": "ESC also cancels - some circles aren't yours to break",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You back away and leave the circle undisturbed, the way you'd step around a sleeping animal you weren't sure could wake.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}

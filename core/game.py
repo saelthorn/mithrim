@@ -1289,6 +1289,36 @@ class Game:
     # anything at all. See _resolve_world_encounter_advance().
     WORLD_ENCOUNTER_ACTIONS = ("investigate", "sneak", "ignore", "resolve", "advance")
 
+    # Skill -> ability-score attribute a "resolve"/"advance" choice's
+    # optional "check" block rolls against (see _normalize_world_encounter_
+    # choices() and _roll_world_encounter_check()). Standard 5e skill/
+    # ability pairings, matching the ones already hardcoded piecemeal
+    # elsewhere in this file (sneak's own Stealth/DEX check, the pickpocket
+    # Sleight of Hand/DEX check, the passive Perception/WIS trap check, the
+    # crate-smashing Athletics/STR check) -- this table is what lets a
+    # scenario's JSON name a skill ("perception", "investigation", ...)
+    # without also having to spell out which ability score backs it.
+    WORLD_ENCOUNTER_SKILL_ABILITIES = {
+        "athletics": "strength",
+        "acrobatics": "dexterity",
+        "sleight_of_hand": "dexterity",
+        "stealth": "dexterity",
+        "arcana": "intelligence",
+        "history": "intelligence",
+        "investigation": "intelligence",
+        "nature": "intelligence",
+        "religion": "intelligence",
+        "animal_handling": "wisdom",
+        "insight": "wisdom",
+        "medicine": "wisdom",
+        "perception": "wisdom",
+        "survival": "wisdom",
+        "deception": "charisma",
+        "intimidation": "charisma",
+        "performance": "charisma",
+        "persuasion": "charisma",
+    }
+
     # A world encounter's JSON can either describe a single beat with its
     # flat "discovery"/"landmark_tile"/"monster_pool"/"choices" fields
     # (unchanged since before staging existed -- see Wolf_Pack.json and
@@ -1387,6 +1417,31 @@ class Game:
         a scenario that never sets it keeps working exactly as before.
         Only meaningful on "advance" -- every other action already ends
         or fully resolves the encounter without revealing another stage.
+
+        A "resolve" or "advance" choice may also declare a "check" block
+        instead of (or alongside) its own flat "outcome"/"consequences",
+        gating which of two branches happens on a d20 ability check rolled
+        at resolution time (see _roll_world_encounter_check()):
+
+            "check": {
+                "skill": "investigation",
+                "dc": 13,
+                "success_outcome": "...", "success_consequences": [...],
+                "failure_outcome": "...", "failure_consequences": [...]
+            }
+
+        "skill" must be one of WORLD_ENCOUNTER_SKILL_ABILITIES; the ability
+        score and any skill-proficiency bonus it rolls with follow from
+        that table the same way every other check in this file works.
+        "success_consequences"/"failure_consequences" are each optional
+        (defaulting to no extra consequences on that branch) and parsed
+        into Consequence objects exactly like the choice's own top-level
+        "consequences". A choice with a "check" doesn't need its own
+        "outcome" -- the rolled branch's outcome stands in for it -- so
+        the "'resolve' choice needs an 'outcome'" validation below is
+        skipped whenever "check" is present; a "check" missing either
+        outcome line, or naming an unrecognized skill, is dropped instead,
+        the same way any other malformed choice is.
         """
         if not choices:
             return [dict(default) for default in self.DEFAULT_WORLD_ENCOUNTER_CHOICES]
@@ -1399,12 +1454,21 @@ class Game:
                     f"Encounter load error ({source_name}): invalid choice {choice!r}", (255, 100, 100)
                 )
                 continue
-            if action == "resolve" and "outcome" not in choice:
+
+            check_data = choice.get("check")
+            check = None
+            if check_data is not None:
+                check = self._normalize_world_encounter_check(check_data, source_name)
+                if check is None:
+                    continue
+
+            if action == "resolve" and "outcome" not in choice and check is None:
                 self.message_log.add_message(
-                    f"Encounter load error ({source_name}): 'resolve' choice needs an 'outcome' {choice!r}",
+                    f"Encounter load error ({source_name}): 'resolve' choice needs an 'outcome' or a 'check' {choice!r}",
                     (255, 100, 100),
                 )
                 continue
+
             normalized.append({
                 "key": choice["key"],
                 "action": action,
@@ -1417,9 +1481,48 @@ class Game:
                 "consequences": [consequence_from_dict(c) for c in choice.get("consequences", [])],
                 "escort": choice.get("escort", False),
                 "next_stage": choice.get("next_stage"),
+                "check": check,
             })
 
         return normalized or [dict(default) for default in self.DEFAULT_WORLD_ENCOUNTER_CHOICES]
+
+    def _normalize_world_encounter_check(self, check_data, source_name):
+        """
+        Validates and normalizes one choice's "check" block (see
+        _normalize_world_encounter_choices()). Returns None -- logging a
+        load error the same way an invalid choice/action does -- if
+        "skill" isn't a recognized WORLD_ENCOUNTER_SKILL_ABILITIES key, or
+        either outcome line is missing; a check with no real branches to
+        pick between isn't useful, so it's dropped rather than silently
+        defaulting to something misleading.
+        """
+        skill = check_data.get("skill")
+        if skill not in self.WORLD_ENCOUNTER_SKILL_ABILITIES:
+            self.message_log.add_message(
+                f"Encounter load error ({source_name}): unknown check skill {skill!r}", (255, 100, 100)
+            )
+            return None
+
+        if "success_outcome" not in check_data or "failure_outcome" not in check_data:
+            self.message_log.add_message(
+                f"Encounter load error ({source_name}): 'check' needs both "
+                f"'success_outcome' and 'failure_outcome' {check_data!r}",
+                (255, 100, 100),
+            )
+            return None
+
+        return {
+            "skill": skill,
+            "dc": check_data.get("dc", 12),
+            "success_outcome": check_data["success_outcome"],
+            "success_consequences": [
+                consequence_from_dict(c) for c in check_data.get("success_consequences", [])
+            ],
+            "failure_outcome": check_data["failure_outcome"],
+            "failure_consequences": [
+                consequence_from_dict(c) for c in check_data.get("failure_consequences", [])
+            ],
+        }
 
     def _normalize_world_encounter_range(self, value):
         """
@@ -3088,6 +3191,7 @@ class Game:
         case the prompt is skipped and the handoff is immediate.
         """
         scenario = self._world_encounter_target
+        choice = self._effective_world_encounter_choice(choice)
         self._apply_world_encounter_outcome_choice(choice)
 
         next_stage_id = choice.get("next_stage")
@@ -3136,11 +3240,80 @@ class Game:
         director.start()
         director.complete()
 
+        choice = self._effective_world_encounter_choice(choice)
         self._apply_world_encounter_outcome_choice(choice)
 
         self._world_encounter_target = None
         self._world_encounter_story_id = None
         self._show_world_encounter_discovery(choice["outcome"], GameState.OVERWORLD)
+
+    def _effective_world_encounter_choice(self, choice):
+        """
+        Resolves a "resolve"/"advance" choice's optional "check" block
+        (see _normalize_world_encounter_choices()) into a concrete
+        outcome, so _apply_world_encounter_outcome_choice() -- which only
+        knows how to read a flat "outcome"/"consequences" pair -- can stay
+        exactly as it is instead of needing to know anything about ability
+        checks itself.
+
+        A choice with no "check" is returned completely unchanged (no
+        copy made, no roll performed) -- the vast majority of choices,
+        which just describe one fixed result. A choice with a "check"
+        rolls it via _roll_world_encounter_check(), logs the roll the same
+        way every other ability check in this file logs itself, and
+        returns a shallow copy of `choice` with "outcome"/"consequences"
+        swapped for whichever branch (success/failure) the roll landed
+        on -- everything else about the choice (its "hours", "escort",
+        "next_stage", ...) passes through untouched.
+        """
+        check = choice.get("check")
+        if check is None:
+            return choice
+
+        passed = self._roll_world_encounter_check(check)
+        effective = dict(choice)
+        if passed:
+            effective["outcome"] = check["success_outcome"]
+            effective["consequences"] = check["success_consequences"]
+        else:
+            effective["outcome"] = check["failure_outcome"]
+            effective["consequences"] = check["failure_consequences"]
+        return effective
+
+    def _roll_world_encounter_check(self, check):
+        """
+        Rolls one d20 ability check for a "resolve"/"advance" choice's
+        "check" block (see _normalize_world_encounter_choices()) and logs
+        it, in the same "d20 + modifier = total vs DC" style as every
+        other ability check already in this file (see
+        _resolve_world_encounter_sneak()'s Stealth check, the pickpocket
+        Sleight of Hand check, and the crate-smashing Athletics check).
+
+        The ability score rolled comes from WORLD_ENCOUNTER_SKILL_ABILITIES
+        -- check["skill"] is guaranteed to be a valid key into that table
+        by _normalize_world_encounter_check() -- with the player's usual
+        proficiency bonus added on top whenever they're actually
+        proficient in that skill. Returns True on success (total >= DC),
+        False otherwise; the caller (_effective_world_encounter_choice())
+        decides what that means for the encounter.
+        """
+        ability_name = self.WORLD_ENCOUNTER_SKILL_ABILITIES[check["skill"]]
+        ability_score = getattr(self.player, ability_name)
+        modifier = self.player.get_ability_modifier(ability_score)
+        if check["skill"] in self.player.skill_proficiencies:
+            modifier += self.player.proficiency_bonus
+
+        roll = random.randint(1, 20)
+        total = roll + modifier
+        dc = check["dc"]
+        passed = total >= dc
+
+        skill_label = check["skill"].replace("_", " ").title()
+        self.message_log.add_message(
+            f"{skill_label} Check: {roll}{modifier:+d} = {total} vs DC {dc}",
+            (150, 200, 220),
+        )
+        return passed
 
     def _apply_world_encounter_outcome_choice(self, choice):
         """

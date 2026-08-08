@@ -1,0 +1,68 @@
+{
+  "id": "world_encounter_dead_peddlers_cart",
+  "min_level": 1,
+  "max_level": 10,
+
+  "stages": [
+    {
+      "discovery": "A peddler's handcart lies overturned in a ditch beside the road, one wheel still spinning slow and crooked. The peddler himself is a few feet off, on his back, staring at nothing. Nothing about him looks fought over - just stopped, mid-step, mid-breath.",
+      "landmark_tile": "caravan",
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Search the Cart",
+          "description": "See what he was carrying - Investigation check",
+          "color": [255, 200, 140],
+          "check": {
+            "skill": "investigation",
+            "dc": 12,
+            "success_outcome": "Most of the cart's stock spilled into the mud and isn't worth carrying, but you spot a wrapped bundle wedged under the seat that survived the fall - a decent blade, still oiled.",
+            "success_consequences": [
+              { 
+                  "type": "give_item", 
+                  "item_id": "iron_short_sword", 
+                  "count": 1 
+              },
+              { 
+                  "type": "reward_xp", 
+                  "amount": 10 
+              }
+            ],
+            "failure_outcome": "You paw through the spilled stock but everything worth taking is either ruined or too well-hidden to find in the mud and failing light.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 4 
+              }
+            ]
+          }
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Close His Eyes and Move On",
+          "description": "Leave the cart untouched",
+          "color": [160, 200, 255],
+          "outcome": "You kneel, close his eyes, and leave his goods where they fell. Whatever took him, it isn't your place to profit from it.",
+          "consequences": [
+            { 
+                "type": "reward_xp", 
+                "amount": 12 
+            }
+          ]
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Keep Walking",
+          "description": "ESC also cancels - it's none of your business",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You give the cart a wide berth and let the road carry you past him.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}

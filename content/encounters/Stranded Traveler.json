@@ -1,0 +1,76 @@
+{
+  "id": "world_encounter_stranded_traveler",
+  "min_level": 1,
+  "max_level": 10,
+
+  "stages": [
+    {
+      "discovery": "A traveler crouches beside his horse at the edge of the road, running a hand down its foreleg while the animal shifts its weight uneasily off one hoof. He looks up at you with the particular tiredness of someone who has already tried everything he knows.",
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Help Him Check the Hoof",
+          "description": "Lend a hand, no charge - Animal Handling check",
+          "color": [160, 200, 255],
+          "check": {
+            "skill": "animal_handling",
+            "dc": 12,
+            "success_outcome": "You work a wedged stone free from the horse's shoe, and it takes weight on the leg again within a few minutes. The traveler's relief is plain enough that he presses coin on you before you can wave it off.",
+            "success_consequences": [
+              { 
+                  "type": "reward_gold", 
+                  "amount": 12 
+              },
+              { 
+                  "type": "reward_xp", 
+                  "amount": 12 
+              },
+              {
+                  "type": "modify_reputation",
+                  "faction": "merchants",
+                  "delta": 1
+              }
+            ],
+            "failure_outcome": "The horse won't settle for you, and it takes weight on the leg again about as sore as before. The traveler thanks you for trying anyway.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 5 
+              }
+            ]
+          }
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Offer Your Own Rations",
+          "description": "He looks like he hasn't eaten well in days",
+          "color": [255, 200, 140],
+          "outcome": "You hand over what food you can spare. He thanks you like it's the first kindness he's had all week, and tells you which stretch of road ahead to avoid after dark.",
+          "consequences": [
+            {
+                "type": "remove_item",
+                "item_id": "bread",
+                "count": 1
+            },
+            { 
+                "type": "reward_xp", 
+                "amount": 10 
+            }
+          ]
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Wish Him Luck and Continue On",
+          "description": "ESC also cancels - you have your own road to walk",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You offer a nod and a word of luck, and leave him to his horse.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}
