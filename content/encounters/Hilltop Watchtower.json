@@ -1,0 +1,56 @@
+{
+  "id": "world_encounter_hilltop_watchtower",
+  "min_level": 1,
+  "max_level": 14,
+
+  "stages": [
+    {
+      "discovery": "A stone watchtower crowns the rise ahead, built to see three roads at once and standing empty on all three counts. A signal brazier on the roof has gone cold, and a length of rope still hangs from the flag mount - no banner on it, not even a scrap of one.",
+      "landmark_structure": "watch_tower",
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Climb to the Signal Roof",
+          "description": "See how far the view carries",
+          "color": [160, 200, 255],
+          "outcome": "From the top you can trace all three roads to where they vanish into treeline, exactly what this tower was built for. Whoever manned it could have seen trouble coming from any direction - which makes its emptiness harder to explain, not easier.",
+          "consequences": [
+            { 
+                "type": "reward_xp", 
+                "amount": 14 
+            }
+          ]
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Search the Watch Room",
+          "description": "Supplies might still be stored below",
+          "color": [255, 200, 140],
+          "outcome": "The lower room has been picked over once already, but a locked chest under the stair held out against whoever came through before you. Inside: coin, and a coil of good rope.",
+          "consequences": [
+            { 
+                "type": "reward_gold", 
+                "amount": 20 
+            },
+            { 
+                "type": "reward_xp", 
+                "amount": 10 
+            }
+          ]
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Keep to the Road",
+          "description": "ESC also cancels - the tower isn't going anywhere",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You leave the tower unclimbed and its cold brazier behind you.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}

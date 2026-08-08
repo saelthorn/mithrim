@@ -1,0 +1,56 @@
+{
+  "id": "world_encounter_empty_stable",
+  "min_level": 1,
+  "max_level": 10,
+
+  "stages": [
+    {
+      "discovery": "A long stable sits open to the road, every stall empty and every gate left swinging. Fresh hay is still stacked along the back wall, unused, and the water troughs haven't gone stagnant yet - whoever kept horses here did it recently, and left in a hurry recently too.",
+      "landmark_structure": "stable",
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Take the Hay",
+          "description": "Good feed doesn't keep long left out like this",
+          "color": [255, 200, 140],
+          "outcome": "You bundle what hay you can carry. It won't fetch much, but a stable this size wasn't cheap to run - whoever owned it isn't hurting for the loss, wherever they are now.",
+          "consequences": [
+            { 
+                "type": "reward_gold", 
+                "amount": 6 
+            },
+            { 
+                "type": "reward_xp", 
+                "amount": 6 
+            }
+          ]
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Check the Stalls for Tack",
+          "description": "See what was left on the hooks",
+          "color": [160, 200, 255],
+          "outcome": "Every saddle and bridle is gone - taken deliberately, not abandoned. Whoever left here rode out on every horse they had, which tells you this wasn't a raid. It was a choice.",
+          "consequences": [
+            { 
+                "type": "reward_xp", 
+                "amount": 10 
+            }
+          ]
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Walk On",
+          "description": "ESC also cancels - an empty stable isn't worth the detour",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You leave the swinging gates behind and keep to the road.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}

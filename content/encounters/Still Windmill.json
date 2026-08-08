@@ -1,0 +1,57 @@
+{
+  "id": "world_encounter_still_windmill",
+  "min_level": 1,
+  "max_level": 10,
+
+  "stages": [
+    {
+      "discovery": "A windmill stands alone against the skyline, its sails locked in place despite a wind steady enough to turn them. Whoever owned it either can't be bothered to free the brake or never got the chance to. Grain dust still hangs faint in the air around the base, old but not ancient.",
+      "landmark_structure": "windmill",
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Free the Brake",
+          "description": "Let the sails turn again",
+          "color": [160, 200, 255],
+          "outcome": "You work the seized lever loose and the sails groan into motion for the first time in what looks like months. It won't grind anything without a miller, but it feels wrong to leave a windmill standing still.",
+          "consequences": [
+            { 
+                "type": "reward_xp", 
+                "amount": 10 
+            }
+          ]
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Search the Grinding Floor",
+          "description": "See what was left behind",
+          "color": [255, 200, 140],
+          "outcome": "Most of the stored grain has gone to mold, but a sealed tin survives in the loft above, dry goods still good enough to eat.",
+          "consequences": [
+            { 
+                "type": "give_item", 
+                "item_id": "bread", 
+                "count": 2 
+            },
+            { 
+                "type": "reward_xp", 
+                "amount": 8 
+            }
+          ]
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Leave It Standing",
+          "description": "ESC also cancels - it's not causing anyone harm",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You leave the windmill to its locked sails and continue on your way.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}

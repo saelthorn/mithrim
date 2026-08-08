@@ -1,0 +1,61 @@
+{
+  "id": "world_encounter_hermits_cabin",
+  "min_level": 1,
+  "max_level": 10,
+
+  "stages": [
+    {
+      "discovery": "A small cabin sits back from the road, its chimney trailing a thin line of smoke into the gray sky. Traps hang drying along the porch rail, and neat rows of herbs have been staked out beside the door - someone lives here on purpose, not by accident.",
+      "landmark_structure": "small_cabin",
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Knock and Trade",
+          "description": "See if the hermit will part with any supplies",
+          "color": [160, 200, 255],
+          "outcome": "The door opens on a wary old trapper who softens once you show you mean no trouble. He trades a bundle of dried herbs for a few coins, mutters something about the woods getting stranger lately, and closes the door before you can ask what he means.",
+          "consequences": [
+            { 
+                "type": "reward_gold", 
+                "amount": -6 
+            },
+            { 
+                "type": "give_item", 
+                "item_id": "lesser_healing_potion", 
+                "count": 1 
+            },
+            { 
+                "type": "reward_xp", 
+                "amount": 8 
+            }
+          ]
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Ask About the Roads Ahead",
+          "description": "A hermit this far out would know the land",
+          "color": [255, 200, 140],
+          "outcome": "He's cagey at first, but a little patience gets you a warning about a stretch of trail up ahead best avoided after dark - the kind of local knowledge that never makes it onto any map.",
+          "consequences": [
+            { 
+                "type": "reward_xp", 
+                "amount": 12 
+            }
+          ]
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Leave Him to His Traps",
+          "description": "ESC also cancels - he clearly prefers the quiet",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You give the cabin a respectful distance and let the hermit keep to himself.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "id": "world_encounter_unattended_shop",
+  "min_level": 1,
+  "max_level": 10,
+
+  "stages": [
+    {
+      "discovery": "A traveling merchant's storefront has been set up just off the road, shutters open and stock arranged on the shelves - but no one's minding it. A ledger sits open on the counter, pen still resting in the crease, as if the shopkeeper stepped away mid-sentence and simply never came back.",
+      "landmark_structure": "shop",
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Leave Coin and Take What You Need",
+          "description": "Pay honestly even with no one watching",
+          "color": [160, 200, 255],
+          "outcome": "You count out fair coin and leave it in the strongbox before taking a few useful supplies off the shelf. If the merchant ever comes back, at least the books will square.",
+          "consequences": [
+            { 
+                "type": "reward_gold", 
+                "amount": -10 
+            },
+            { 
+                "type": "give_item", 
+                "item_id": "torch", 
+                "count": 2 
+            },
+            {
+                "type": "modify_reputation",
+                "faction": "merchants",
+                "delta": 2
+            },
+            { 
+                "type": "reward_xp", 
+                "amount": 10 
+            }
+          ]
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Read the Ledger",
+          "description": "Maybe it says where the merchant went",
+          "color": [255, 200, 140],
+          "outcome": "The last entries are ordinary - stock counts, a customer's name, a note to restring the shop's bell. Whatever pulled the merchant away, it wasn't written down beforehand.",
+          "consequences": [
+            { 
+                "type": "reward_xp", 
+                "amount": 8 
+            }
+          ]
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Leave the Shop as You Found It",
+          "description": "ESC also cancels - it isn't yours to pick through",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You leave the shelves untouched and the ledger open to the same page, in case the merchant still means to return to it.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}

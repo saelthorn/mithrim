@@ -448,9 +448,8 @@ STRUCTURE_BLUEPRINTS = {
         "windmill",
         "Windmill",
         [
-            "  #  ",
-            "  #  ",
             "#####",
+            "#...#",
             "#...#",
             "#...#",
             "##+##",

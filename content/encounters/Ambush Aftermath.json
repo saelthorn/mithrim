@@ -1,0 +1,56 @@
+{
+  "id": "world_encounter_ambush_aftermath",
+  "min_level": 1,
+  "max_level": 12,
+
+  "stages": [
+    {
+      "discovery": "Signs of a struggle litter this stretch of road - whatever happened here happened fast and wasn't survived by everyone involved. What's left standing changes with the telling, but the story underneath it never does: someone didn't make it past this point.",
+      "landmark_tile": ["caravan", "barricade", "ambush_tree"],
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Search the Wreckage",
+          "description": "Whoever did this left in a hurry too",
+          "color": [255, 200, 140],
+          "outcome": "You pick through what's left, careful of the parts you'd rather not look at directly. Not everything of value was taken - some of it was overlooked in the rush, some of it wasn't worth the trouble to whoever won.",
+          "consequences": [
+            { 
+                "type": "reward_gold", 
+                "amount": 12 
+            },
+            { 
+                "type": "reward_xp", 
+                "amount": 10 
+            }
+          ]
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Read the Scene",
+          "description": "Figure out what actually happened here",
+          "color": [160, 200, 255],
+          "outcome": "The marks in the dirt tell a clearer story than you wanted: an ambush, planned rather than opportunistic, sprung by someone who knew exactly when this road would be traveled. That kind of knowledge doesn't come cheap, or by accident.",
+          "consequences": [
+            { 
+                "type": "reward_xp", 
+                "amount": 14 
+            }
+          ]
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Move Along Quickly",
+          "description": "ESC also cancels - whoever did this might not be far",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You don't linger long enough to learn more than you already have, and put the scene behind you at a brisk pace.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}

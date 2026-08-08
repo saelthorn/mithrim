@@ -1,0 +1,61 @@
+{
+  "id": "world_encounter_cold_forge",
+  "min_level": 1,
+  "max_level": 12,
+
+  "stages": [
+    {
+      "discovery": "A blacksmith's shop stands with its chimney cold and its forge unlit, tools still hung neat along the wall the way a careful smith leaves them at the end of a working day - not the way anyone leaves them for good. An unfinished blade sits clamped in the vice, half-shaped and never finished.",
+      "landmark_structure": "blacksmith",
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Finish the Blade Yourself",
+          "description": "The forge is cold, but the tools still work",
+          "color": [255, 200, 140],
+          "outcome": "You're no smith, but you know enough to knock the rough edges smooth and give the blade a working edge. It isn't fine work, but it isn't nothing either.",
+          "consequences": [
+            { 
+                "type": "give_item", 
+                "item_id": "iron_dagger", 
+                "count": 1 
+            },
+            { 
+                "type": "reward_xp", 
+                "amount": 12 
+            }
+          ]
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Search the Workshop",
+          "description": "A smithy this well-kept might have coin stashed somewhere",
+          "color": [160, 200, 255],
+          "outcome": "Behind a loose brick near the forge you find a tin of savings, the kind of quiet stash a working smith keeps against a bad season. You take it with a twinge of guilt you can't quite place.",
+          "consequences": [
+            { 
+                "type": "reward_gold", 
+                "amount": 16 
+            },
+            { 
+                "type": "reward_xp", 
+                "amount": 6 
+            }
+          ]
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Leave the Forge Cold",
+          "description": "ESC also cancels - it isn't your workshop to touch",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You leave the unfinished blade exactly as you found it and step back out into the gray daylight.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}
