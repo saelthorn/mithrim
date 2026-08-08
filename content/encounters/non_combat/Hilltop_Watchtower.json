@@ -26,19 +26,30 @@
           "key": 2,
           "action": "resolve",
           "label": "Search the Watch Room",
-          "description": "Supplies might still be stored below",
+          "description": "Supplies might still be stored below - Investigation check",
           "color": [255, 200, 140],
-          "outcome": "The lower room has been picked over once already, but a locked chest under the stair held out against whoever came through before you. Inside: coin, and a coil of good rope.",
-          "consequences": [
-            { 
-                "type": "reward_gold", 
-                "amount": 20 
-            },
-            { 
-                "type": "reward_xp", 
-                "amount": 10 
-            }
-          ]
+          "check": {
+            "skill": "investigation",
+            "dc": 13,
+            "success_outcome": "The lower room has been picked over once already, but you find a locked chest tucked under the stair that held out against whoever came through before you. Inside: coin, and a coil of good rope.",
+            "success_consequences": [
+              { 
+                  "type": "reward_gold", 
+                  "amount": 20 
+              },
+              { 
+                  "type": "reward_xp", 
+                  "amount": 10 
+              }
+            ],
+            "failure_outcome": "You go through the watch room but whoever came through before you was thorough - there's nothing left worth carrying.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 4 
+              }
+            ]
+          }
         },
         {
           "key": 3,

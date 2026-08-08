@@ -1,0 +1,73 @@
+{
+  "id": "world_encounter_desecrated_shrine",
+  "min_level": 1,
+  "max_level": 12,
+
+  "stages": [
+    {
+      "discovery": "This roadside shrine has been broken open rather than worn down - the offering bowl smashed, the carved face of whatever was honored here scored out with something sharp. Dark, dripped stains have gone black across the stone. This wasn't neglect. Someone came here on purpose to ruin it.",
+      "landmark_structure": "shrine",
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Clean the Stain and Reset the Bowl",
+          "description": "Undo what you can of it",
+          "color": [160, 200, 255],
+          "outcome": "You scrub what you can from the stone and set the shattered bowl's largest piece back in its cradle. It's a poor repair, but it's better than leaving the ruin as someone's finished work.",
+          "consequences": [
+            {
+                "type": "modify_reputation",
+                "faction": "church",
+                "delta": 2
+            },
+            { 
+                "type": "reward_xp", 
+                "amount": 12 
+            }
+          ]
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Look for Who Did This",
+          "description": "The scoring marks might tell you something - Investigation check",
+          "color": [255, 200, 140],
+          "check": {
+            "skill": "investigation",
+            "dc": 13,
+            "success_outcome": "The gouges aren't random - they trace a shape you've seen before, scratched into stone left by people who don't worship at shrines like this one. Whoever did this wanted the desecration recognized, not hidden.",
+            "success_consequences": [
+              {
+                  "type": "modify_reputation",
+                  "faction": "cultists",
+                  "delta": -1
+              },
+              { 
+                  "type": "reward_xp", 
+                  "amount": 14 
+              }
+            ],
+            "failure_outcome": "The gouges are too shallow and weathered to trace back to anything - deliberate damage, but nothing in it points anywhere in particular.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 5 
+              }
+            ]
+          }
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Keep Walking",
+          "description": "ESC also cancels - not every ruin needs your attention",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You leave the broken shrine standing as you found it, and let the road carry you on.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}

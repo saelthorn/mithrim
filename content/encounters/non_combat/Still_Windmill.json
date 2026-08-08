@@ -26,20 +26,31 @@
           "key": 2,
           "action": "resolve",
           "label": "Search the Grinding Floor",
-          "description": "See what was left behind",
+          "description": "See what was left behind - Perception check",
           "color": [255, 200, 140],
-          "outcome": "Most of the stored grain has gone to mold, but a sealed tin survives in the loft above, dry goods still good enough to eat.",
-          "consequences": [
-            { 
-                "type": "give_item", 
-                "item_id": "bread", 
-                "count": 2 
-            },
-            { 
-                "type": "reward_xp", 
-                "amount": 8 
-            }
-          ]
+          "check": {
+            "skill": "perception",
+            "dc": 11,
+            "success_outcome": "Most of the stored grain has gone to mold, but you spot a sealed tin tucked in the loft above, dry goods still good enough to eat.",
+            "success_consequences": [
+              { 
+                  "type": "give_item", 
+                  "item_id": "bread", 
+                  "count": 2 
+              },
+              { 
+                  "type": "reward_xp", 
+                  "amount": 8 
+              }
+            ],
+            "failure_outcome": "You dig through what's left of the grain stores, but mold's gotten to everything worth eating before you did.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 3 
+              }
+            ]
+          }
         },
         {
           "key": 3,

@@ -25,13 +25,20 @@
           "key": 2,
           "action": "advance",
           "label": "Watch From a Distance",
-          "description": "See what's guarding it before getting close",
+          "description": "See what's guarding it before getting close - Perception check",
           "color": [
             160,
             200,
             255
           ],
-          "outcome": "A hulking, green-skinned shape hauls itself up onto the barricade, sniffing the air for the scent of anyone foolish enough to cross without paying its toll."
+          "check": {
+            "skill": "perception",
+            "dc": 12,
+            "success_outcome": "A hulking, green-skinned shape hauls itself up onto the barricade, sniffing the air for the scent of anyone foolish enough to cross without paying its toll.",
+            "success_consequences": [],
+            "failure_outcome": "Something enormous keeps shifting behind the barricade, but the light and distance don't give you a clear look at what you're about to face.",
+            "failure_consequences": []
+          }
         },
         {
           "key": 3,

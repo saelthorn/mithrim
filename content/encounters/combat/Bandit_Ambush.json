@@ -23,19 +23,25 @@
           "key": 2,
           "action": "advance",
           "label": "Search the Wreckage First",
-          "description": "A quick look before moving on",
+          "description": "A quick look before moving on - Investigation check",
           "color": [
             160,
             200,
             255
           ],
-          "outcome": "You find a handful of coins spilled in the grass, but nothing else worth carrying. The trail of ruts leads on.",
-          "consequences": [
-            {
-              "type": "reward_gold",
-              "amount": 3
-            }
-          ]
+          "check": {
+            "skill": "investigation",
+            "dc": 11,
+            "success_outcome": "You find a handful of coins spilled in the grass, but nothing else worth carrying. The trail of ruts leads on.",
+            "success_consequences": [
+              {
+                "type": "reward_gold",
+                "amount": 3
+              }
+            ],
+            "failure_outcome": "You paw through the scattered goods but the light's too poor and the wreckage too picked-over to find anything worth carrying.",
+            "failure_consequences": []
+          }
         },
         {
           "key": 3,
@@ -78,13 +84,20 @@
           "key": 2,
           "action": "advance",
           "label": "Circle the Camp First",
-          "description": "Get a look at what you're walking into",
+          "description": "Get a look at what you're walking into - Perception check",
           "color": [
             160,
             200,
             255
           ],
-          "outcome": "Keeping to the tree line, you count several armed shapes moving between the tents \u2014 and, kneeling near the fire, bound figures who don't look like they belong to this camp at all."
+          "check": {
+            "skill": "perception",
+            "dc": 13,
+            "success_outcome": "Keeping to the tree line, you count several armed shapes moving between the tents \u2014 and, kneeling near the fire, bound figures who don't look like they belong to this camp at all.",
+            "success_consequences": [],
+            "failure_outcome": "You keep to the tree line but the tents and firelight make it hard to count anything clearly - you'll be finding out what's in there the hard way.",
+            "failure_consequences": []
+          }
         },
         {
           "key": 3,

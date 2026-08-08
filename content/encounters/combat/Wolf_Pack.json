@@ -26,13 +26,20 @@
           "key": 2,
           "action": "advance",
           "label": "Track Carefully",
-          "description": "Read the signs before getting closer",
+          "description": "Read the signs before getting closer - Survival check",
           "color": [
             160,
             200,
             255
           ],
-          "outcome": "The prints tighten into a ring further up the trail \u2014 a pack, circling something. Whatever they've found hasn't gotten away yet."
+          "check": {
+            "skill": "survival",
+            "dc": 11,
+            "success_outcome": "The prints tighten into a ring further up the trail \u2014 a pack, circling something. Whatever they've found hasn't gotten away yet.",
+            "success_consequences": [],
+            "failure_outcome": "The prints are too tangled to read clearly - there's a pack up ahead, but you can't tell how many, or what's got their attention.",
+            "failure_consequences": []
+          }
         },
         {
           "key": 3,

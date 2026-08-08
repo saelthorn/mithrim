@@ -1827,11 +1827,27 @@ class Game:
         StoryContentLoader itself: a world encounter has no fixed
         location/search_area and needs its monster_pool resolved to
         Python classes, neither of which that quest-oriented schema covers.
-        Non-recursive, like StoryContentLoader.load_directory().
+        Recurses into subdirectories (unlike StoryContentLoader.load_
+        directory(), which stays flat) so content can be organized into
+        folders -- e.g. content/encounters/combat/ and content/encounters/
+        non_combat/ -- without any change here or to an individual
+        scenario's JSON; a scenario's own "stages" (specifically, whether
+        any stage's "monster_pool" is non-empty -- see the "combat" flag
+        set below and _resolve_world_encounter_resolve()'s docstring) is
+        still what actually determines combat vs. non-combat behavior at
+        runtime. Folder placement is purely an authoring convenience for
+        keeping content/encounters/ browsable; the loader doesn't care
+        which folder (if any) a file sits in, and a flat directory with
+        no subfolders continues to load exactly as before.
         """
         scenarios = []
         root = Path(self.WORLD_ENCOUNTER_CONTENT_ROOT)
-        for path in sorted(root.glob("*.json")):
+        for path in sorted(root.rglob("*.json")):
+            # Relative to WORLD_ENCOUNTER_CONTENT_ROOT rather than just
+            # path.name, so a load error's source label distinguishes
+            # e.g. "combat/Wolf_Pack.json" from a same-named file sitting
+            # in a different subfolder, now that this loader recurses.
+            source_name = str(path.relative_to(root))
             try:
                 data = json.loads(path.read_text())
 
@@ -1846,12 +1862,12 @@ class Game:
                 # shape the source file used.
                 if "stages" in data:
                     stages = [
-                        self._normalize_world_encounter_stage(stage, path.name, index)
+                        self._normalize_world_encounter_stage(stage, source_name, index)
                         for index, stage in enumerate(data["stages"])
                     ]
                 else:
                     legacy_stage = {field: data[field] for field in self.WORLD_ENCOUNTER_STAGE_FIELDS if field in data}
-                    stages = [self._normalize_world_encounter_stage(legacy_stage, path.name, 0)]
+                    stages = [self._normalize_world_encounter_stage(legacy_stage, source_name, 0)]
 
                 if not stages:
                     raise ValueError("scenario declares no stages")
@@ -1874,7 +1890,7 @@ class Game:
                         next_stage_id = choice.get("next_stage")
                         if next_stage_id is not None and next_stage_id not in stage_index_by_id:
                             self.message_log.add_message(
-                                f"Encounter load error ({path.name}): 'advance' choice "
+                                f"Encounter load error ({source_name}): 'advance' choice "
                                 f"{choice['label']!r} targets unknown next_stage {next_stage_id!r}",
                                 (255, 100, 100),
                             )
@@ -1882,11 +1898,11 @@ class Game:
                 data["stage_index_by_id"] = stage_index_by_id
 
                 data["victim_count"] = tuple(data.get("victim_count", (1, 1)))
-                data["aftermath"] = self._normalize_world_encounter_aftermath(data.get("aftermath"), path.name)
-                data["waves"] = self._normalize_world_encounter_waves(data.get("waves"), path.name)
-                data["min_level"], data["max_level"] = self._normalize_world_encounter_level_range(data, path.name)
+                data["aftermath"] = self._normalize_world_encounter_aftermath(data.get("aftermath"), source_name)
+                data["waves"] = self._normalize_world_encounter_waves(data.get("waves"), source_name)
+                data["min_level"], data["max_level"] = self._normalize_world_encounter_level_range(data, source_name)
             except (OSError, json.JSONDecodeError, KeyError, ValueError) as exc:
-                self.message_log.add_message(f"Encounter load error ({path.name}): {exc}", (255, 100, 100))
+                self.message_log.add_message(f"Encounter load error ({source_name}): {exc}", (255, 100, 100))
                 continue
             scenarios.append(data)
         return scenarios

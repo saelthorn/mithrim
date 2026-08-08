@@ -28,14 +28,20 @@
           "key": 2,
           "action": "advance",
           "label": "Examine the Tracks First",
-          "description": "A closer look before moving on",
+          "description": "A closer look before moving on - Survival check",
           "color": [
             160,
             200,
             255
           ],
-          "outcome": "The prints are too large for any rat you know - more paw than foot, walking upright. Whatever made them isn't finished.",
-          "consequences": []
+          "check": {
+            "skill": "survival",
+            "dc": 12,
+            "success_outcome": "The prints are too large for any rat you know - more paw than foot, walking upright. Whatever made them isn't finished.",
+            "success_consequences": [],
+            "failure_outcome": "The tracks are too smeared with blood and mud to read clearly - only that something came through here recently, and in a hurry.",
+            "failure_consequences": []
+          }
         },
         {
           "key": 3,
@@ -77,13 +83,20 @@
           "key": 2,
           "action": "advance",
           "label": "Circle First",
-          "description": "Get a look at what you're walking into",
+          "description": "Get a look at what you're walking into - Perception check",
           "color": [
             160,
             200,
             255
           ],
-          "outcome": "Through the brush you count several hunched, rat-like shapes pacing around a fallen courier and a shattered strongbox, their fur bristling in the moonlight."
+          "check": {
+            "skill": "perception",
+            "dc": 13,
+            "success_outcome": "Through the brush you count several hunched, rat-like shapes pacing around a fallen courier and a shattered strongbox, their fur bristling in the moonlight.",
+            "success_consequences": [],
+            "failure_outcome": "The moonlight and brush make it hard to count shapes moving out there - only that something's circling, and something else has already stopped fighting back.",
+            "failure_consequences": []
+          }
         },
         {
           "key": 3,

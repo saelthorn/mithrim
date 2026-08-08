@@ -1,0 +1,64 @@
+{
+  "id": "world_encounter_widows_web",
+  "min_level": 1,
+  "max_level": 10,
+
+  "stages": [
+    {
+      "discovery": "Thick webbing chokes the space between two trees, strung so dense it looks almost like cloth gone gray with dust. Locals call this stretch of road the Widow's Loom and swear by not walking it after dark - though whether that's superstition or the sort of caution that keeps people alive, you can't tell from here.",
+      "landmark_tile": "overworld_cobweb",
+      "landmark_tile_amount": [5, 8],
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Cut a Path Through",
+          "description": "It's just spiders - probably - Survival check",
+          "color": [255, 200, 140],
+          "check": {
+            "skill": "survival",
+            "dc": 12,
+            "success_outcome": "You read the webbing before you touch it - the strands are dry, the anchor points long abandoned - and cut through clean. Nothing comes pouring out. Whatever spun it moved on or died out long ago.",
+            "success_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 10 
+              }
+            ],
+            "failure_outcome": "You hack through without reading the signs first, and get a faceful of old silk and dust for the trouble. Nothing's lurking in it, but you didn't know that going in.",
+            "failure_consequences": [
+              { 
+                  "type": "reward_xp", 
+                  "amount": 4 
+              }
+            ]
+          }
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Go Around",
+          "description": "The locals didn't name it for nothing",
+          "color": [160, 200, 255],
+          "outcome": "You take the longer way through the underbrush rather than test whether the old stories about this stretch of road have any teeth left in them.",
+          "consequences": [
+            { 
+                "type": "reward_xp", 
+                "amount": 6 
+            }
+          ]
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Leave It Be",
+          "description": "ESC also cancels - some warnings are worth heeding without testing",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You give the Widow's Loom a wide berth and let the road carry you past it, story unconfirmed either way.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}

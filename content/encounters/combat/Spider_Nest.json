@@ -28,13 +28,20 @@
           "key": 2,
           "action": "advance",
           "label": "Look for a Way Around",
-          "description": "Scan the canopy and circle in from cover",
+          "description": "Scan the canopy and circle in from cover - Survival check",
           "color": [
             160,
             200,
             255
           ],
-          "outcome": "High above, cocooned between two branches, something thrashes briefly and goes still again. Whatever spun this web is still close by. You keep to the treeline and start working your way around.",
+          "check": {
+            "skill": "survival",
+            "dc": 13,
+            "success_outcome": "High above, cocooned between two branches, something thrashes briefly and goes still again. Whatever spun this web is still close by. You keep to the treeline and start working your way around.",
+            "success_consequences": [],
+            "failure_outcome": "You try to read a path around the webbing, but the canopy's too thick with silk to tell safe ground from strung line. You pick your way around anyway, slower and less sure of it than you'd like.",
+            "failure_consequences": []
+          },
           "next_stage": "nest_flank"
         },
         {

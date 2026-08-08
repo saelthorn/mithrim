@@ -28,13 +28,20 @@
           "key": 2,
           "action": "advance",
           "label": "Scout the Clearing First",
-          "description": "Get a look before moving in",
+          "description": "Get a look before moving in - Perception check",
           "color": [
             160,
             200,
             255
           ],
-          "outcome": "Robed figures kneel in a ring around a crude stone altar, torches guttering despite the still air."
+          "check": {
+            "skill": "perception",
+            "dc": 12,
+            "success_outcome": "Robed figures kneel in a ring around a crude stone altar, torches guttering despite the still air.",
+            "success_consequences": [],
+            "failure_outcome": "Smoke and shifting torchlight make it hard to see much past the treeline - whatever's happening in that clearing, you'll have to get closer to know for sure.",
+            "failure_consequences": []
+          }
         },
         {
           "key": 3,
@@ -77,13 +84,20 @@
           "key": 2,
           "action": "advance",
           "label": "Count Their Numbers First",
-          "description": "Get a sense of what you're facing",
+          "description": "Get a sense of what you're facing - Investigation check",
           "color": [
             160,
             200,
             255
           ],
-          "outcome": "You count robed cultists ringing the altar, along with darker shapes stirring restlessly at the circle's edge - summoned, not sworn."
+          "check": {
+            "skill": "investigation",
+            "dc": 13,
+            "success_outcome": "You count robed cultists ringing the altar, along with darker shapes stirring restlessly at the circle's edge - summoned, not sworn.",
+            "success_consequences": [],
+            "failure_outcome": "Between the chanting and the guttering torchlight, you can't get a clean count of what's down there - only that there's more than one kind of thing waiting at that altar.",
+            "failure_consequences": []
+          }
         },
         {
           "key": 3,

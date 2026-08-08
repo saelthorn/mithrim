@@ -22,13 +22,20 @@
           "key": 2,
           "action": "advance",
           "label": "Peer Through the Window",
-          "description": "Take a look before committing",
+          "description": "Take a look before committing - Perception check",
           "color": [
             160,
             200,
             255
           ],
-          "outcome": "Through the grimy glass you count several oversized rats tearing through what's left of the pantry."
+          "check": {
+            "skill": "perception",
+            "dc": 9,
+            "success_outcome": "Through the grimy glass you count several oversized rats tearing through what's left of the pantry.",
+            "success_consequences": [],
+            "failure_outcome": "The glass is too grimed over to see much of anything inside - just shifting shadows and the sound of gnawing.",
+            "failure_consequences": []
+          }
         },
         {
           "key": 3,

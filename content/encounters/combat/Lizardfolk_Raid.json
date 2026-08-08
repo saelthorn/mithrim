@@ -28,13 +28,20 @@
           "key": 2,
           "action": "advance",
           "label": "Check the Boat First",
-          "description": "A quick look before moving on",
+          "description": "A quick look before moving on - Investigation check",
           "color": [
             160,
             200,
             255
           ],
-          "outcome": "Webbed footprints press deep into the mud around the wreck, still fresh, leading upstream along the reeds."
+          "check": {
+            "skill": "investigation",
+            "dc": 11,
+            "success_outcome": "Webbed footprints press deep into the mud around the wreck, still fresh, leading upstream along the reeds.",
+            "success_consequences": [],
+            "failure_outcome": "The mud around the wreck is too churned to read clearly - something came through here, but you can't tell which way it went.",
+            "failure_consequences": []
+          }
         },
         {
           "key": 3,
@@ -77,13 +84,20 @@
           "key": 2,
           "action": "advance",
           "label": "Watch from the Bank First",
-          "description": "Get a look before wading in",
+          "description": "Get a look before wading in - Perception check",
           "color": [
             160,
             200,
             255
           ],
-          "outcome": "Through the reeds you make out scaled shapes hauling a struggling fisherman toward the water's edge."
+          "check": {
+            "skill": "perception",
+            "dc": 13,
+            "success_outcome": "Through the reeds you make out scaled shapes hauling a struggling fisherman toward the water's edge.",
+            "success_consequences": [],
+            "failure_outcome": "The reeds thrash and hiss, but you can't make out more than shapes moving through the green - whatever's happening, it's already close.",
+            "failure_consequences": []
+          }
         },
         {
           "key": 3,
