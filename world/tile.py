@@ -93,6 +93,8 @@ gravestone = Tile(blocked=True, char='gvs1', color=(120, 120, 120), block_sight=
 gravestone_two = Tile(blocked=True, char='gvs2', color=(120, 120, 120), block_sight=False, destructible=True, name="Gravestone Two")
 gravestone_three = Tile(blocked=True, char='gvs3', color=(120, 120, 120), block_sight=False, destructible=True, name="Gravestone Three")
 
+campfire = Tile(blocked=False, char='cf', color=(255, 140, 0), block_sight=False, destructible=False, name="Campfire")
+
 # Overworld terrain decoration (non-POI nature features)
 clearing = Tile(blocked=False, char='cl', color=(20, 100, 20), name="Clearing")
 giant_tree = Tile(blocked=False, char='GT', color=(15, 50, 20), block_sight=True, name="Giant Tree")

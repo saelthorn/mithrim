@@ -1,6 +1,7 @@
 {
   "id": "world_encounter_witch_hut",
   "min_level": 1,
+  "max_level": 12,
 
   "stages": [
     {

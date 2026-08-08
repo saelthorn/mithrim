@@ -1,6 +1,7 @@
 {
   "id": "world_encounter_undead",
   "min_level": 9,
+  "max_level": 16,
   "stages": [
     {
       "discovery": "Distant screaming and clashing steel echo from beyond the ridge, underscored by something worse - a low, rattling moan that isn't human.",
