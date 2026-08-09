@@ -637,6 +637,7 @@ class Game:
         self._world_encounter_aftermath = None # Scenario's "aftermath" block awaiting a post-combat choice
         self._world_encounter_target_victims = []  # Victims spawned for the current encounter, see recruit_companion()
         self._world_encounter_last_id = None   # scenario["id"] last rolled, see _maybe_trigger_world_encounter()
+        self._world_encounter_completed_one_time_ids = set()  # scenario["id"]s of "one_time" encounters already offered, see _roll_world_encounter_scenario()
         self._world_encounter_non_combat_streak = 0  # Non-combat scenarios rolled since the last combat one, see _roll_world_encounter_scenario()
         self._world_encounter_non_combat_target = random.randint(*self.WORLD_ENCOUNTER_NON_COMBAT_STREAK_RANGE)  # How many non-combat scenarios play before a combat one is forced, re-rolled after each combat scenario
         self._world_encounter_stage_index = 0  # Index into scenario["stages"] currently on screen, see _enter_world_encounter_stage()
@@ -1072,6 +1073,17 @@ class Game:
     # _normalize_world_encounter_level_range()/_roll_world_encounter_scenario().
     WORLD_ENCOUNTER_DEFAULT_MIN_LEVEL = 1
     WORLD_ENCOUNTER_DEFAULT_MAX_LEVEL = None
+
+    # A scenario's optional top-level "one_time" flag (bool, default False --
+    # see _load_world_encounter_scenarios()) marks it as a unique event: once
+    # it has been rolled a single time, its id is recorded in self._world_
+    # encounter_completed_one_time_ids and _roll_world_encounter_scenario()
+    # never offers it again for the rest of the session, regardless of how
+    # the player responded to it (fought, fled, or ignored). This is for
+    # encounters that shouldn't feel like part of the ambient rotation -- a
+    # single strange find, not a recurring wolf pack or bandit ambush. There
+    # is no persistence across game sessions yet (see the project's "no
+    # save/load system" state); the exclusion only lasts for the current run.
 
     # Minimum empty tiles kept between two structures' footprints when a
     # stage's "landmark_structure" names more than one (see
@@ -1924,6 +1936,12 @@ class Game:
                 data["aftermath"] = self._normalize_world_encounter_aftermath(data.get("aftermath"), source_name)
                 data["waves"] = self._normalize_world_encounter_waves(data.get("waves"), source_name)
                 data["min_level"], data["max_level"] = self._normalize_world_encounter_level_range(data, source_name)
+                # A scenario's optional "one_time" flag -- see WORLD_ENCOUNTER_ACTIONS'
+                # neighboring comment block and _roll_world_encounter_scenario() for
+                # what it actually does at roll time. Defaults False (repeatable),
+                # so every encounter authored before this flag existed keeps rolling
+                # exactly as it always has.
+                data["one_time"] = bool(data.get("one_time", False))
                 # Whole-scenario combat/non-combat classification, for
                 # _roll_world_encounter_scenario()'s non-combat-streak
                 # sequencing -- a scenario counts as combat if *any* of
@@ -2345,12 +2363,23 @@ class Game:
         goes more than WORLD_ENCOUNTER_NON_COMBAT_STREAK_RANGE[1] non-
         combat encounters away.
 
+        Before any of that, permanently excludes any scenario flagged
+        "one_time" (see _load_world_encounter_scenarios()) that has
+        already been rolled once this session (self._world_encounter_
+        completed_one_time_ids) -- unlike every other narrowing step
+        below, this exclusion does NOT fall back if it would empty the
+        pool, since falling back would let a "unique" encounter repeat,
+        defeating the point of the flag. The only fallback here is the
+        full scenario list itself, for the (pathological, authoring-error)
+        case where literally every scenario is one_time and all of them
+        have already fired.
+
         Finally excludes whichever scenario was last rolled (self.
         _world_encounter_last_id) so two ambushes in a row never repeat
         the exact same flavor.
 
-        Every narrowing step falls back gracefully rather than ever
-        raising: if nothing in the full scenario list matches the
+        Every remaining narrowing step falls back gracefully rather than
+        ever raising: if nothing in the full scenario list matches the
         player's level, the level filter is dropped; if the level-
         appropriate pool has no scenario of the combat/non-combat type
         the streak currently calls for (e.g. a level band with only
@@ -2358,11 +2387,17 @@ class Game:
         than leaving an empty pool; if what's left is exactly the
         scenario just rolled, the last-id exclusion is dropped instead.
         """
-        level_appropriate = [
+        not_yet_used_once = [
             scenario for scenario in self.world_encounter_scenarios
+            if not (scenario["one_time"] and scenario["id"] in self._world_encounter_completed_one_time_ids)
+        ]
+        available = not_yet_used_once or self.world_encounter_scenarios
+
+        level_appropriate = [
+            scenario for scenario in available
             if self._world_encounter_matches_player_level(scenario)
         ]
-        pool = level_appropriate or self.world_encounter_scenarios
+        pool = level_appropriate or available
 
         want_combat = self._world_encounter_non_combat_streak >= self._world_encounter_non_combat_target
         typed_pool = [scenario for scenario in pool if scenario["is_combat"] == want_combat]
@@ -2372,6 +2407,8 @@ class Game:
 
         scenario = random.choice(pool)
         self._world_encounter_last_id = scenario["id"]
+        if scenario["one_time"]:
+            self._world_encounter_completed_one_time_ids.add(scenario["id"])
 
         if scenario["is_combat"]:
             self._world_encounter_non_combat_streak = 0

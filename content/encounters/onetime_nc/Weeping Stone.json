@@ -1,0 +1,36 @@
+{
+  "id": "weeping_stone",
+  "one_time": true,
+  "discovery": "A standing stone leans out of the roadside bracken, older than the road itself. Its carved face has worn to little more than a suggestion of grief, and the hollow beneath its base is slick with something dark that isn't rain.",
+  "landmark_tile": "gravestone_two",
+  "choices": [
+    {
+      "key": 1,
+      "action": "resolve",
+      "label": "Search the Hollow",
+      "description": "Investigation check to search beneath the stone without disturbing it wrong",
+      "color": [200, 160, 255],
+      "check": {
+        "skill": "investigation",
+        "dc": 14,
+        "success_outcome": "Your fingers close on a dagger of blackened silver, wedged into the stone by a hand centuries gone. It slides free without resistance, as though it had been waiting.",
+        "success_consequences": [
+          {"type": "give_item", "item_id": "silver_dagger", "count": 1},
+          {"type": "reward_xp", "amount": 15}
+        ],
+        "failure_outcome": "You wrench something free, but it crumbles to wet ash between your fingers before you can see what it was. The stone seems to lean a little closer, disappointed.",
+        "failure_consequences": [
+          {"type": "reward_xp", "amount": 5}
+        ]
+      }
+    },
+    {
+      "key": 2,
+      "action": "ignore",
+      "label": "Walk On",
+      "description": "ESC also cancels - some graves are better left unread",
+      "color": [150, 150, 150],
+      "is_cancel": true
+    }
+  ]
+}
