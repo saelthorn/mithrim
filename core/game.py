@@ -626,6 +626,8 @@ class Game:
         self._world_encounter_aftermath = None # Scenario's "aftermath" block awaiting a post-combat choice
         self._world_encounter_target_victims = []  # Victims spawned for the current encounter, see recruit_companion()
         self._world_encounter_last_id = None   # scenario["id"] last rolled, see _maybe_trigger_world_encounter()
+        self._world_encounter_non_combat_streak = 0  # Non-combat scenarios rolled since the last combat one, see _roll_world_encounter_scenario()
+        self._world_encounter_non_combat_target = random.randint(*self.WORLD_ENCOUNTER_NON_COMBAT_STREAK_RANGE)  # How many non-combat scenarios play before a combat one is forced, re-rolled after each combat scenario
         self._world_encounter_stage_index = 0  # Index into scenario["stages"] currently on screen, see _enter_world_encounter_stage()
         self._world_encounter_stage_spawn_candidates = []  # Open tiles left after the current stage's landmark, see _spawn_world_encounter_monsters()
         self._world_encounter_pending_stage_index = None  # Next stage index queued by an "advance" choice, awaiting enough walking -- see _maybe_advance_world_encounter_stage()
@@ -1026,6 +1028,14 @@ class Game:
     # choices()) before finding out what's actually going on.
     WORLD_ENCOUNTER_CHANCE = 0.02           # Rolled once per step taken in the overworld
     WORLD_ENCOUNTER_COOLDOWN_STEPS = 60     # Minimum steps before another can trigger
+    # How many non-combat scenarios (scenario["is_combat"] False -- see
+    # _load_world_encounter_scenarios()) play in a row before the next
+    # roll is forced to be combat instead. A fresh random value in this
+    # range is drawn each time a combat scenario actually plays (see
+    # _roll_world_encounter_scenario()), so the run length varies --
+    # 1 to 5 quiet encounters, then a fight, then a new 1-to-5 stretch --
+    # rather than settling into a fixed, predictable rhythm.
+    WORLD_ENCOUNTER_NON_COMBAT_STREAK_RANGE = (1, 5)
     WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
     WORLD_ENCOUNTER_MIN_ENTITY_DISTANCE = 8  # Skip the roll if another live entity is already this close
 
@@ -1827,18 +1837,20 @@ class Game:
         StoryContentLoader itself: a world encounter has no fixed
         location/search_area and needs its monster_pool resolved to
         Python classes, neither of which that quest-oriented schema covers.
+
         Recurses into subdirectories (unlike StoryContentLoader.load_
         directory(), which stays flat) so content can be organized into
         folders -- e.g. content/encounters/combat/ and content/encounters/
         non_combat/ -- without any change here or to an individual
         scenario's JSON; a scenario's own "stages" (specifically, whether
-        any stage's "monster_pool" is non-empty -- see the "combat" flag
-        set below and _resolve_world_encounter_resolve()'s docstring) is
-        still what actually determines combat vs. non-combat behavior at
-        runtime. Folder placement is purely an authoring convenience for
-        keeping content/encounters/ browsable; the loader doesn't care
-        which folder (if any) a file sits in, and a flat directory with
-        no subfolders continues to load exactly as before.
+        any stage's "monster_pool" is non-empty -- see the per-stage
+        "combat" flag and the scenario-level "is_combat" flag set below)
+        is what actually determines combat vs. non-combat behavior at
+        runtime, including for _roll_world_encounter_scenario()'s non-
+        combat-streak sequencing. Folder placement is purely an authoring
+        convenience for keeping content/encounters/ browsable; the loader
+        doesn't care which folder (if any) a file sits in, and a flat
+        directory with no subfolders continues to load exactly as before.
         """
         scenarios = []
         root = Path(self.WORLD_ENCOUNTER_CONTENT_ROOT)
@@ -1901,6 +1913,15 @@ class Game:
                 data["aftermath"] = self._normalize_world_encounter_aftermath(data.get("aftermath"), source_name)
                 data["waves"] = self._normalize_world_encounter_waves(data.get("waves"), source_name)
                 data["min_level"], data["max_level"] = self._normalize_world_encounter_level_range(data, source_name)
+                # Whole-scenario combat/non-combat classification, for
+                # _roll_world_encounter_scenario()'s non-combat-streak
+                # sequencing -- a scenario counts as combat if *any* of
+                # its stages does (matches how content/encounters/ is
+                # itself organized into combat/ and non_combat/
+                # subfolders, but computed from the data itself rather
+                # than trusting folder placement, so a misfiled JSON
+                # still sequences correctly).
+                data["is_combat"] = any(stage["combat"] for stage in stages)
             except (OSError, json.JSONDecodeError, KeyError, ValueError) as exc:
                 self.message_log.add_message(f"Encounter load error ({source_name}): {exc}", (255, 100, 100))
                 continue
@@ -2298,17 +2319,33 @@ class Game:
         right now (_world_encounter_matches_player_level()), so a fresh
         level 1 character doesn't stumble into Troll_Toll.json and a
         high-level veteran doesn't keep tripping Rat_Infested_Cabin.json.
-        Within that level-appropriate pool, excludes whichever scenario
-        was last rolled (self._world_encounter_last_id) so two ambushes
-        in a row never repeat the exact same flavor.
 
-        Both narrowing steps fall back gracefully rather than ever
+        Within that level-appropriate pool, further narrows to combat-
+        only or non-combat-only scenarios (scenario["is_combat"], set by
+        _load_world_encounter_scenarios()) depending on where the player
+        currently sits in the non-combat streak: _world_encounter_non_
+        combat_streak counts how many non-combat scenarios have played
+        since the last combat one, and once it reaches _world_encounter_
+        non_combat_target (a fresh WORLD_ENCOUNTER_NON_COMBAT_STREAK_RANGE
+        roll drawn every time a combat scenario actually plays), the next
+        roll is forced to be combat instead. This is what makes the
+        rhythm feel varied rather than fixed -- "2 quiet, then a fight",
+        "4 quiet, then a fight" -- while still guaranteeing a fight never
+        goes more than WORLD_ENCOUNTER_NON_COMBAT_STREAK_RANGE[1] non-
+        combat encounters away.
+
+        Finally excludes whichever scenario was last rolled (self.
+        _world_encounter_last_id) so two ambushes in a row never repeat
+        the exact same flavor.
+
+        Every narrowing step falls back gracefully rather than ever
         raising: if nothing in the full scenario list matches the
-        player's level (a sparse content set, or a level outside
-        anything authored), the level filter is dropped and every
-        scenario is back in the running; if the level-appropriate pool
-        turns out to be exactly the one just rolled, the last-id
-        exclusion is dropped instead of leaving an empty pool.
+        player's level, the level filter is dropped; if the level-
+        appropriate pool has no scenario of the combat/non-combat type
+        the streak currently calls for (e.g. a level band with only
+        non-combat content authored), that filter is dropped too rather
+        than leaving an empty pool; if what's left is exactly the
+        scenario just rolled, the last-id exclusion is dropped instead.
         """
         level_appropriate = [
             scenario for scenario in self.world_encounter_scenarios
@@ -2316,10 +2353,21 @@ class Game:
         ]
         pool = level_appropriate or self.world_encounter_scenarios
 
+        want_combat = self._world_encounter_non_combat_streak >= self._world_encounter_non_combat_target
+        typed_pool = [scenario for scenario in pool if scenario["is_combat"] == want_combat]
+        pool = typed_pool or pool
+
         pool = [scenario for scenario in pool if scenario["id"] != self._world_encounter_last_id] or pool
 
         scenario = random.choice(pool)
         self._world_encounter_last_id = scenario["id"]
+
+        if scenario["is_combat"]:
+            self._world_encounter_non_combat_streak = 0
+            self._world_encounter_non_combat_target = random.randint(*self.WORLD_ENCOUNTER_NON_COMBAT_STREAK_RANGE)
+        else:
+            self._world_encounter_non_combat_streak += 1
+
         return scenario
 
     def _create_world_encounter_story(self, scenario):
