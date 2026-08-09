@@ -607,6 +607,17 @@ class Game:
         self.entered_dungeon_from_overworld = False
         self.player_has_acted = False
         self.player_bonus_action_used = False
+        # The (dx, dy) of the player's most recent movement input -- e.g.
+        # (-1, 0) after pressing Left/A -- kept around purely so world
+        # encounter structures can be anchored in whichever direction the
+        # player was already walking (see _world_encounter_structure_anchor())
+        # instead of a fully random direction. Updated in the movement key
+        # handling below whenever a directional key produces a nonzero
+        # (dx, dy), regardless of whether the resulting move actually
+        # succeeds -- it reflects player *intent*, not confirmed motion.
+        # Starts at (0, 0) (no bias) until the player's first move.
+        self.last_move_dx = 0
+        self.last_move_dy = 0
         self.message_log = MessageBox(
             0,
             config.SCREEN_HEIGHT - int(config.SCREEN_HEIGHT * 0.26),
@@ -1035,9 +1046,9 @@ class Game:
     # _roll_world_encounter_scenario()), so the run length varies --
     # 1 to 5 quiet encounters, then a fight, then a new 1-to-5 stretch --
     # rather than settling into a fixed, predictable rhythm.
-    WORLD_ENCOUNTER_NON_COMBAT_STREAK_RANGE = (1, 5)
+    WORLD_ENCOUNTER_NON_COMBAT_STREAK_RANGE = (1, 3)
     WORLD_ENCOUNTER_STRUCTURE_TILES = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
-    WORLD_ENCOUNTER_MIN_ENTITY_DISTANCE = 8  # Skip the roll if another live entity is already this close
+    WORLD_ENCOUNTER_MIN_ENTITY_DISTANCE = 12  # Skip the roll if another live entity is already this close
 
     # --- Monster Ambient Popup ---------------------------------------------
     # Monster.speak_ambient() (monster.py) fires from every patrolling
@@ -2748,16 +2759,67 @@ class Game:
         Falls back to the player's own position if nothing that far out
         is walkable/clear (e.g. hemmed in by water/impassable terrain)
         rather than failing to anchor the structure at all.
+
+        Prefers anchoring straight out along the player's last movement
+        input (self.last_move_dx/dy, see __init__) when one has been
+        registered and lands on clear ground -- see
+        _world_encounter_structure_directional_anchor() -- so a
+        structure discovered mid-walk reads as "just ahead" rather than
+        appearing in a random direction, including behind the player.
+        Falls back to the undirected ring search below whenever no
+        directional anchor is available.
         """
         min_distance = (
             self.WORLD_ENCOUNTER_STRUCTURE_CLUSTER_MIN_DISTANCE
             if cluster_size > 1
             else self.WORLD_ENCOUNTER_STRUCTURE_MIN_DISTANCE
         )
+
+        directional_anchor = self._world_encounter_structure_directional_anchor(min_distance)
+        if directional_anchor is not None:
+            return directional_anchor
+
         candidates = self._world_encounter_structure_anchor_candidates(min_distance)
         if not candidates:
             return self.player.x, self.player.y
         return random.choice(candidates)
+
+    def _world_encounter_structure_directional_anchor(self, min_distance):
+        """
+        Anchor point straight out along the player's last movement input,
+        `min_distance + 1` tiles away -- one tile past the minimum
+        clearance, so e.g. a last input of (dx=-1, dy=0) (walked left)
+        anchors the structure at (player.x - (min_distance + 1), player.y),
+        directly to the player's left, rather than the undirected ring
+        search picking an arbitrary point around them.
+
+        Returns None (letting _world_encounter_structure_anchor() fall
+        back to that ring search) if:
+          - no movement has been registered yet (last_move_dx/dy both 0,
+            e.g. right at the start of a session), or
+          - the computed point itself isn't clear ground -- off the map,
+            unwalkable, water, or occupied -- mirroring the same checks
+            _world_encounter_structure_anchor_candidates() applies to
+            every point on the ring, so a directional anchor is never
+            allowed to place a structure somewhere the undirected search
+            would have rejected.
+        """
+        dx, dy = self.last_move_dx, self.last_move_dy
+        if dx == 0 and dy == 0:
+            return None
+
+        distance = min_distance + 1
+        x = self.player.x + dx * distance
+        y = self.player.y + dy * distance
+
+        if not (0 <= x < self.game_map.width and 0 <= y < self.game_map.height):
+            return None
+        if not self.game_map.is_walkable(x, y) or is_water_tile(self.game_map.tiles[y][x]):
+            return None
+        if any(e.x == x and e.y == y and getattr(e, "alive", True) for e in self.entities):
+            return None
+
+        return x, y
 
     def _world_encounter_structure_anchor_candidates(self, min_distance):
         """
@@ -6361,6 +6423,16 @@ class Game:
                             dx -= 1
                         if keys_held[pygame.K_RIGHT] or keys_held[pygame.K_d]:
                             dx += 1
+
+                        # Remember this directional input regardless of
+                        # whether the move below actually succeeds (blocked
+                        # by a wall/entity, etc.) -- see last_move_dx/
+                        # last_move_dy's docstring in __init__. Opposite
+                        # keys held together cancel back to (0, 0) above,
+                        # so there's nothing to register in that case.
+                        if dx != 0 or dy != 0:
+                            self.last_move_dx = dx
+                            self.last_move_dy = dy
 
                     if event.key == pygame.K_t:
                         self.message_log.add_message("You skip a turn...", (200, 200, 255))
