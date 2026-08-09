@@ -3830,7 +3830,12 @@ class Game:
         npcs_for_placement() helper create_town_npcs() uses internally —
         instead of getting NPCs for free from the town pipeline.
         """
-        from world.structures import place_structure_at_anchor, npcs_for_placement
+        from world.structures import (
+            place_structure_at_anchor,
+            npcs_for_placement,
+            assign_npc_schedule_anchors,
+            bounding_box_for_footprints,
+        )
 
         anchor_x, anchor_y = self.player.x, self.player.y
         placed_tiles = place_structure_at_anchor(self.game_map, "tavern", anchor_x, anchor_y)
@@ -3838,6 +3843,13 @@ class Game:
 
         if placed_tiles:
             tavern_npcs = npcs_for_placement("tavern", placed_tiles)
+            # Same schedule-anchor treatment create_town_npcs() gives every
+            # other town's population -- a wander_bounds around this one
+            # building, since it's the only structure known here (see
+            # TownNPC.take_turn()). `home` needs no help here: it already
+            # defaults to each NPC's own spawn tile.
+            wander_bounds = bounding_box_for_footprints([placed_tiles], self.game_map)
+            assign_npc_schedule_anchors(tavern_npcs, wander_bounds)
             self.entities.extend(tavern_npcs)
             chunk = self.overworld_chunks.get(self.overworld_chunk_coord)
             if chunk is not None:

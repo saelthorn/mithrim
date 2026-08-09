@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 import random
 
 from entities.base_entity import NPC
+from core.pathfinding import astar
 from world.tile import (
     ground, grass, road, tall_grass, wall, tavern_floor, floor, bar_counter_two, bar_counter_three, bar_counter_four, 
     table, crate, tavern_barrel_two, altar, door, forge, anvil, shelf, bed, hay, bar_counter, bar_counter_five, bar_counter_six,
@@ -48,9 +49,273 @@ def build_blueprint(key, name, tile_map, char_map, default_tile=ground, walkable
     )
 
 
+#: Cap on astar()'s per-call node-expansion budget when a TownNPC needs
+#: to route around an obstacle to reach home/post -- mirrors summons.py's
+#: SUMMON_PATHFINDING_MAX_EXPANSIONS. A town is small, so this stays
+#: cheap without ever failing to find a real path within it.
+TOWN_NPC_PATHFINDING_MAX_EXPANSIONS = 400
+
+
+class NPCBehavior:
+    """
+    Behavior states for TownNPC.take_turn()'s daily schedule. Plain
+    string constants rather than an Enum -- they're only ever compared
+    and stored on the instance, matching the lightweight style
+    structures.py already uses elsewhere (tile chars, structure keys).
+    """
+    SLEEPING = "sleeping"     # idle at home
+    AT_POST = "at_post"       # idle at their workplace tile (bar, shop counter, altar, forge)
+    WANDERING = "wandering"   # puttering around town, one step every WANDER_INTERVAL turns
+    TRAVELING = "traveling"   # walking toward a specific target tile (home or post)
+
+
+def _behavior_for_hour(schedule, hour):
+    """
+    Look up which NPCBehavior a schedule says covers `hour` (0-23).
+    Entries are (start_hour, end_hour, behavior); a range where
+    start > end wraps past midnight (e.g. (22, 6, SLEEPING) covers
+    22:00 through 05:59). Falls back to WANDERING if no entry matches,
+    so a malformed/incomplete schedule never leaves an NPC stuck.
+    """
+    for start, end, behavior in schedule:
+        if start <= end:
+            if start <= hour < end:
+                return behavior
+        elif hour >= start or hour < end:
+            return behavior
+    return NPCBehavior.WANDERING
+
+
+#: Default schedule for NPCs with no fixed workplace (Townsfolk) --
+#: wander town by day, sleep at night.
+DEFAULT_SCHEDULE = [
+    (22, 6, NPCBehavior.SLEEPING),
+    (6, 22, NPCBehavior.WANDERING),
+]
+
+#: Schedule for NPCs who mind a post (Innkeeper, Shopkeeper, Blacksmith,
+#: Priest) -- stay put during open hours instead of wandering off.
+AT_POST_SCHEDULE = [
+    (22, 6, NPCBehavior.SLEEPING),
+    (6, 22, NPCBehavior.AT_POST),
+]
+
+
 class TownNPC(NPC):
+    """
+    Base class for the population of overworld towns and buildings.
+
+    Every TownNPC knows three places: `post` (where their blueprint
+    spawned them -- bar counter, shop counter, altar, forge), `home`
+    (also their spawn tile by default -- the anchor SLEEPING returns
+    them to), and `wander_bounds` (the town's rough footprint, so
+    wandering never drifts off toward the horizon). `wander_bounds`
+    starts unrestricted and is filled in afterward by
+    assign_npc_schedule_anchors() once the surrounding structure(s) are
+    known -- see create_town_npcs() and game.py's
+    _spawn_player_in_starting_tavern(). This keeps every existing NPC
+    factory's `(x, y) -> NPC` signature untouched. Doors are never a
+    destination in their own right -- astar() just routes through them
+    naturally on the way to home/post (see _pathfind_toward()).
+
+    `schedule` maps hour_of_day to an NPCBehavior; take_turn() reads
+    the world clock each turn and moves one step at a time toward
+    wherever that behavior currently wants them.
+    """
+
+    #: Hour ranges -> NPCBehavior. Subclasses with a fixed workplace
+    #: override this with AT_POST_SCHEDULE.
+    schedule = DEFAULT_SCHEDULE
+
+    #: Turns to idle between wander steps -- a step every single turn
+    #: reads as twitchy for someone just puttering around town.
+    WANDER_INTERVAL = 4
+
     def __init__(self, x, y, char, name, color, dialogue=None):
         super().__init__(x, y, char, name, color, dialogue)
+        self.post = (x, y)
+        self.home = (x, y)
+        self.wander_bounds = None  # (min_x, min_y, max_x, max_y), or None = unrestricted
+        self.behavior_state = NPCBehavior.AT_POST
+        self._travel_target = None
+        self._wander_cooldown = 0
+
+    # -- schedule ------------------------------------------------------
+
+    def take_turn(self, player, game_map, game):
+        """
+        Called once per turn cycle (see game.py's turn_order batch
+        processing, which already calls take_turn() on every entity
+        that has one -- no game.py changes needed for TownNPCs to
+        participate). Reads the world clock, reconciles the current
+        behavior_state toward whatever the schedule wants right now,
+        and takes at most one step in that direction.
+        """
+        hour = self._current_hour(game)
+        if hour is None:
+            return  # world clock not available yet (e.g. character creation)
+
+        desired = _behavior_for_hour(self.schedule, hour)
+        self._reconcile_behavior(desired)
+
+        if self.behavior_state == NPCBehavior.TRAVELING:
+            if not self._step_toward(game_map, game, *self._travel_target):
+                self._pathfind_toward(game_map, game, *self._travel_target)
+            if (self.x, self.y) == self._travel_target:
+                self.behavior_state = desired
+        elif self.behavior_state == NPCBehavior.WANDERING:
+            self._wander(game_map, game)
+        elif self.behavior_state == NPCBehavior.AT_POST:
+            if not self._step_toward(game_map, game, *self.post):
+                self._pathfind_toward(game_map, game, *self.post)
+        # SLEEPING: idle at home, nothing to do.
+
+    def _current_hour(self, game):
+        stories = getattr(game, "stories", None)
+        world_time = getattr(stories, "world_time", None) if stories else None
+        return world_time.clock.hour_of_day if world_time else None
+
+    def _reconcile_behavior(self, desired):
+        """
+        Move behavior_state toward `desired`, routing through TRAVELING
+        whenever the destination needs the NPC somewhere they aren't
+        already standing -- so a schedule change never teleports an
+        NPC across town, it just starts them walking there.
+        """
+        if self.behavior_state == NPCBehavior.TRAVELING:
+            return  # already en route; take_turn() checks arrival itself
+
+        if desired == self.behavior_state:
+            return
+
+        if desired == NPCBehavior.WANDERING:
+            self.behavior_state = NPCBehavior.WANDERING
+            return
+
+        target = self.home if desired == NPCBehavior.SLEEPING else self.post
+        if (self.x, self.y) == target:
+            self.behavior_state = desired
+        else:
+            self.behavior_state = NPCBehavior.TRAVELING
+            self._travel_target = target
+
+    # -- movement --------------------------------------------------------
+
+    def _wander(self, game_map, game):
+        if self._wander_cooldown > 0:
+            self._wander_cooldown -= 1
+            return
+        self._wander_cooldown = self.WANDER_INTERVAL
+
+        candidates = self._adjacent_walkable(game_map, game)
+        if self.wander_bounds is not None:
+            min_x, min_y, max_x, max_y = self.wander_bounds
+            candidates = [
+                (x, y) for x, y in candidates
+                if min_x <= x <= max_x and min_y <= y <= max_y
+            ]
+        if candidates:
+            self.x, self.y = random.choice(candidates)
+
+    def _step_toward(self, game_map, game, tx, ty):
+        """
+        Cheap, search-free steering step: move one tile toward (tx, ty),
+        diagonal-first, falling back to a single axis if the diagonal is
+        blocked -- same Chebyshev-adjacency convention as summons.py's
+        EscortCompanion._step_toward(). Returns True if it moved, False
+        if every candidate tile was blocked (an obstacle -- a doorway
+        approached wrong, a wall corner -- and the caller should fall
+        back to _pathfind_toward() rather than leaving the NPC stuck).
+        """
+        if (self.x, self.y) == (tx, ty):
+            return True
+        dx = (tx > self.x) - (tx < self.x)
+        dy = (ty > self.y) - (ty < self.y)
+        for step_x, step_y in ((dx, dy), (dx, 0), (0, dy)):
+            if step_x == 0 and step_y == 0:
+                continue
+            nx, ny = self.x + step_x, self.y + step_y
+            if self._can_occupy(game_map, game, nx, ny):
+                self.x, self.y = nx, ny
+                return True
+        return False
+
+    def _pathfind_toward(self, game_map, game, tx, ty):
+        """
+        Fallback for when _step_toward() can't make any progress --
+        mirrors EscortCompanion._pathfind_toward(): a full astar()
+        search, only actually paid for on the turns the cheap direct
+        step failed (a wall corner between here and home, or a doorway
+        that has to be approached from a specific side).
+        """
+        path = astar(
+            game_map, (self.x, self.y), (tx, ty),
+            max_expansions=TOWN_NPC_PATHFINDING_MAX_EXPANSIONS,
+        )
+        if not path or len(path) < 2:
+            return  # No route right now (e.g. the door is blocked by someone else)
+
+        # Route the single step through _step_toward() rather than
+        # moving straight there: astar() (pathfinding.py) doesn't forbid
+        # diagonal moves that clip through a solid wall corner, so
+        # _can_occupy()'s corner-cutting guard below can reject path[1]
+        # outright. _step_toward() already knows how to fall back to a
+        # single cardinal axis when a diagonal is blocked -- exactly the
+        # fix, since it decomposes the disallowed diagonal into the two
+        # straight steps that get there instead, rather than the NPC
+        # just stalling in place against the wall every turn.
+        next_x, next_y = path[1]
+        self._step_toward(game_map, game, next_x, next_y)
+
+    def _can_occupy(self, game_map, game, x, y):
+        if x < 0 or y < 0 or x >= game_map.width or y >= game_map.height:
+            return False
+        if not self._tile_walkable(game_map, x, y):
+            return False
+
+        # Forbid slipping diagonally through a solid wall corner: a
+        # diagonal move is only legal if at least one of the two tiles
+        # it would "cut past" is itself open. Without this, both
+        # _step_toward()'s direct diagonal attempt and a step handed
+        # back by astar() (which applies no such rule) can walk an NPC
+        # into a corner nook that looks the same from the other side --
+        # the exact "stuck on the wall" symptom, since the NPC can enter
+        # a spot diagonally but then has no legal diagonal move back out.
+        dx, dy = x - self.x, y - self.y
+        if dx != 0 and dy != 0:
+            flank_a = self._tile_walkable(game_map, x, self.y)
+            flank_b = self._tile_walkable(game_map, self.x, y)
+            if not (flank_a or flank_b):
+                return False
+
+        for entity in getattr(game, "entities", ()):
+            if (
+                entity is not self
+                and getattr(entity, "alive", True)
+                and getattr(entity, "blocks_movement", False)
+                and getattr(entity, "x", None) == x
+                and getattr(entity, "y", None) == y
+            ):
+                return False
+        return True
+
+    def _tile_walkable(self, game_map, x, y):
+        """Terrain-only walkability check (no entity occupancy) -- the
+        piece _can_occupy()'s corner-cutting guard needs for the two
+        flanking tiles of a diagonal move, since occupancy doesn't
+        matter for "is this corner solid", only terrain does."""
+        if x < 0 or y < 0 or x >= game_map.width or y >= game_map.height:
+            return False
+        if hasattr(game_map, "is_walkable"):
+            return game_map.is_walkable(x, y)
+        return not getattr(game_map.tiles[y][x], "blocked", True)
+
+    def _adjacent_walkable(self, game_map, game):
+        offsets = ((-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1))
+        return [
+            (self.x + dx, self.y + dy) for dx, dy in offsets
+            if self._can_occupy(game_map, game, self.x + dx, self.y + dy)
+        ]
 
 
 def _clone_item(item):
@@ -142,6 +407,9 @@ class Townsfolk(TownNPC):
 
 
 class Blacksmith(TownNPC):
+    #: Minds the forge during open hours instead of wandering.
+    schedule = AT_POST_SCHEDULE
+
     def __init__(self, x, y, name=None):
         dialogue = [
             "I am still unpacking the shelves, but I know a good buyer when I see one.",
@@ -152,6 +420,9 @@ class Blacksmith(TownNPC):
 
 
 class Priest(TownNPC):
+    #: Tends the altar during open hours instead of wandering.
+    schedule = AT_POST_SCHEDULE
+
     def __init__(self, x, y, name=None):
         dialogue = [
             "Roads have been busier since the old entrances opened again.",
@@ -168,6 +439,8 @@ class Innkeeper(TownNPC):
     rest_cost = 5
     #: Hours the world clock advances per rest -- see rest_player().
     rest_hours = 8
+    #: Minds the bar during open hours instead of wandering.
+    schedule = AT_POST_SCHEDULE
 
     def __init__(self, x, y):
         dialogue = [
@@ -237,6 +510,9 @@ class Innkeeper(TownNPC):
 
 
 class Shopkeeper(TownNPC):
+    #: Minds the shop during open hours instead of wandering.
+    schedule = AT_POST_SCHEDULE
+
     def __init__(self, x, y):
         dialogue = [
             "I am still unpacking the shelves, but I know a good buyer when I see one.",
@@ -801,6 +1077,53 @@ def _npc_spawns_from_blueprint(blueprint, placed_tiles):
     return spawns
 
 
+def bounding_box_for_footprints(footprints, game_map, pad=4):
+    """
+    Compute a (min_x, min_y, max_x, max_y) box spanning every placed_tiles
+    list in `footprints`, padded outward by `pad` tiles and clamped to
+    the map -- used as TownNPC.wander_bounds so wandering stays roughly
+    within the town/building's surroundings (roads, plaza) instead of
+    drifting off toward the horizon. Returns None if `footprints` is
+    empty (nothing to bound).
+    """
+    # Materialize first -- `footprints` may be a one-shot generator (see
+    # create_town_npcs()'s call site), and walking it twice (once for xs,
+    # once for ys) would silently leave the second pass empty otherwise.
+    footprints = list(footprints)
+    xs = [x for placed_tiles in footprints for x, _y, _tile in placed_tiles]
+    ys = [y for placed_tiles in footprints for _x, y, _tile in placed_tiles]
+    if not xs:
+        return None
+    return (
+        max(0, min(xs) - pad),
+        max(0, min(ys) - pad),
+        min(game_map.width - 1, max(xs) + pad),
+        min(game_map.height - 1, max(ys) + pad),
+    )
+
+
+def assign_npc_schedule_anchors(npcs, wander_bounds):
+    """
+    Post-processing step for freshly spawned TownNPCs: gives each one a
+    shared `wander_bounds`, without changing any NPC factory's
+    `(x, y) -> NPC` signature -- blueprint.npc_map entries and the
+    Innkeeper/Shopkeeper/Townsfolk/... constructors are untouched; this
+    only sets an attribute afterward, the same way place_structure()'s
+    callers already treat "where things end up" as separate from "how
+    they're built".
+
+    `home` deliberately isn't touched here -- TownNPC.__init__() already
+    defaults it to the NPC's own spawn tile (their designated spot from
+    the blueprint's npc_map, e.g. a bed, a stall, a corner of a house),
+    which is exactly where SLEEPING should send them. Doors are only
+    ever a waypoint astar() naturally routes through on the way there
+    (see TownNPC._pathfind_toward()), never the destination itself.
+    """
+    for npc in npcs:
+        if isinstance(npc, TownNPC):
+            npc.wander_bounds = wander_bounds
+
+
 def create_town_npcs(game_map, town_buildings):
     """Create a small static population for overworld town buildings.
 
@@ -808,14 +1131,24 @@ def create_town_npcs(game_map, town_buildings):
     the exact spots marked in the ASCII art. Otherwise this falls back to
     the older per-structure_id placement below, so blueprints that haven't
     been given an npc_map yet still get populated.
+
+    Every spawned TownNPC also gets a wander_bounds shared across the
+    whole town via assign_npc_schedule_anchors() -- see
+    TownNPC.take_turn(). `home` needs no help here: it already defaults
+    to each NPC's own spawn tile.
     """
     npcs = []
     occupied = set()
+
+    wander_bounds = bounding_box_for_footprints(
+        (placed_tiles for _structure_id, placed_tiles in town_buildings), game_map
+    )
 
     for structure_id, placed_tiles in town_buildings:
         blueprint = get_structure_blueprint(structure_id)
         if blueprint and blueprint.npc_map:
             spawned = npcs_for_placement(structure_id, placed_tiles)
+            assign_npc_schedule_anchors(spawned, wander_bounds)
             npcs.extend(spawned)
             occupied.update((npc.x, npc.y) for npc in spawned)
             continue
@@ -824,28 +1157,32 @@ def create_town_npcs(game_map, town_buildings):
         if not positions:
             continue
 
+        structure_npcs = []
         if structure_id == "tavern":
             x, y = positions[len(positions) // 2]
             npc = Innkeeper(x, y)
-            npcs.append(npc)
+            structure_npcs.append(npc)
             occupied.add((x, y))
 
             remaining = [pos for pos in positions if pos not in occupied]
             for x, y in random.sample(remaining, min(2, len(remaining))):
                 npc = Townsfolk(x, y)
-                npcs.append(npc)
+                structure_npcs.append(npc)
                 occupied.add((x, y))
 
         elif structure_id == "shop":
             x, y = positions[len(positions) // 2]
             npc = Shopkeeper(x, y)
-            npcs.append(npc)
+            structure_npcs.append(npc)
             occupied.add((x, y))
 
         elif structure_id == "house":
             x, y = random.choice(positions)
             npc = Townsfolk(x, y)
-            npcs.append(npc)
+            structure_npcs.append(npc)
             occupied.add((x, y))
+
+        assign_npc_schedule_anchors(structure_npcs, wander_bounds)
+        npcs.extend(structure_npcs)
 
     return npcs
