@@ -3,6 +3,7 @@ import random
 
 from core.pathfinding import astar
 from world.water_features import is_water_tile
+from core.floating_text import FloatingText
 
 
 
@@ -139,6 +140,13 @@ class TownNPC(NPC):
     #: turns of travel rather than chasing them forever -- see
     #: _advance_social_travel().
     SOCIALIZE_TRAVEL_TIMEOUT = 40
+    #: Purely cosmetic: how often (in turns) an ongoing conversation
+    #: re-spawns its "..." floating text so a long chat doesn't go
+    #: visually silent after the opening bubble fades -- see
+    #: _spawn_chat_bubble()/_advance_socializing().
+    CHAT_BUBBLE_INTERVAL = 5
+    CHAT_BUBBLE_TEXT = "..."
+    CHAT_BUBBLE_COLOR = (190, 190, 230)
 
     def __init__(self, x, y, char, name, color, dialogue=None):
         super().__init__(x, y, char, name, color, dialogue)
@@ -216,7 +224,7 @@ class TownNPC(NPC):
             self._cancel_social()
 
         if self.behavior_state == NPCBehavior.SOCIALIZING:
-            self._advance_socializing()
+            self._advance_socializing(game)
             return
 
         self._reconcile_behavior(desired)
@@ -382,12 +390,12 @@ class TownNPC(NPC):
             return
 
         if self._chebyshev_distance(partner) <= 1:
-            self._start_conversation(partner)
+            self._start_conversation(partner, game)
             return
 
         self._advance_along_path(game_map, game, (partner.x, partner.y))
 
-    def _start_conversation(self, partner):
+    def _start_conversation(self, partner, game):
         """We've arrived next to our partner -- both of us settle into
         SOCIALIZING for the same randomly-rolled duration."""
         low, high = self.SOCIALIZE_DURATION
@@ -402,7 +410,9 @@ class TownNPC(NPC):
         partner.behavior_state = NPCBehavior.SOCIALIZING
         partner._social_turns_remaining = duration
 
-    def _advance_socializing(self):
+        self._spawn_chat_bubble(game, partner)
+
+    def _advance_socializing(self, game):
         """
         One turn of an ongoing conversation. Only the initiator counts
         down and ends it -- if the partner also decremented its own
@@ -416,13 +426,42 @@ class TownNPC(NPC):
             return
 
         self._social_turns_remaining -= 1
-        if self._social_turns_remaining > 0:
+        if self._social_turns_remaining <= 0:
+            partner = self._social_partner
+            self._end_social()
+            if partner is not None:
+                partner._end_social()
             return
 
-        partner = self._social_partner
-        self._end_social()
-        if partner is not None:
-            partner._end_social()
+        # Still talking -- keep the "..." bubble showing up every so
+        # often so a long conversation doesn't go visually silent once
+        # the opening bubble fades. Purely cosmetic (see
+        # _spawn_chat_bubble()); the countdown above already ended the
+        # conversation on schedule regardless of this.
+        if self._social_turns_remaining % self.CHAT_BUBBLE_INTERVAL == 0:
+            self._spawn_chat_bubble(game, self._social_partner)
+
+    def _spawn_chat_bubble(self, game, partner):
+        """
+        Drop a small ambient "..." floating text over both participants
+        so the player can tell at a glance that two NPCs are mid-
+        conversation rather than just standing around. Purely cosmetic --
+        never touches behavior_state or any other gameplay-relevant
+        field, and silently does nothing if `game` has no floating_texts
+        list (e.g. very early during setup) or `partner` is already gone.
+        """
+        floating_texts = getattr(game, "floating_texts", None)
+        if floating_texts is None:
+            return
+        for participant in (self, partner):
+            if participant is None:
+                continue
+            floating_texts.append(
+                FloatingText(
+                    participant.x, participant.y - 0.5,
+                    self.CHAT_BUBBLE_TEXT, self.CHAT_BUBBLE_COLOR,
+                )
+            )
 
     def _end_social(self):
         """
