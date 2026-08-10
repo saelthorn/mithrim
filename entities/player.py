@@ -248,7 +248,7 @@ class Player: # This is our base class for playable characters
         # so sanity changes tick on a slower cadence out there.
         sanity_tick_interval = 4
         if getattr(game_instance, 'game_state', None) == GameState.OVERWORLD:
-            sanity_tick_interval = 12
+            sanity_tick_interval = 16
 
         self.turns_since_last_sanity_change += 1
         if self.turns_since_last_sanity_change < sanity_tick_interval:
@@ -265,22 +265,44 @@ class Player: # This is our base class for playable characters
             if self.sanity > 0:
                 self.sanity = max(0, self.sanity - self.sanity_change_rate)
 
+            # Ambient flavor differs by "place": the overworld is open sky and
+            # exposed wilderness, not literal darkness pressing in, so its
+            # messages lean on isolation/exposure rather than the dungeon's
+            # claustrophobic shadows-and-whispers imagery.
+            in_overworld = getattr(game_instance, 'game_state', None) == GameState.OVERWORLD
+
             # Warn the player at key thresholds
             if self.sanity <= 25 and self.sanity > 0:
-                low_sanity_msgs = [
-                    f"{self.name} feels a creeping dread gnawing at their mind...",
-                    f"The darkness presses in — {self.name}'s grip on reality thins...",
-                    f"{self.name} hears whispers in the dark that shouldn't be there...",
-                    f"Shadows twist and writhe at the edge of {self.name}'s vision...",
-                    f"{self.name}'s hands tremble — the darkness is winning..."
-                ]
+                if in_overworld:
+                    low_sanity_msgs = [
+                        f"{self.name} feels achingly small beneath the empty sky...",
+                        f"The endless wilds gnaw at {self.name}'s resolve...",
+                        f"{self.name} swears something is watching from the treeline...",
+                        f"The wind carries voices that aren't really there — {self.name} shudders...",
+                        f"{self.name}'s hands tremble — the wilderness is winning..."
+                    ]
+                else:
+                    low_sanity_msgs = [
+                        f"{self.name} feels a creeping dread gnawing at their mind...",
+                        f"The darkness presses in — {self.name}'s grip on reality thins...",
+                        f"{self.name} hears whispers in the dark that shouldn't be there...",
+                        f"Shadows twist and writhe at the edge of {self.name}'s vision...",
+                        f"{self.name}'s hands tremble — the darkness is winning..."
+                    ]
                 game_instance.message_log.add_message(random.choice(low_sanity_msgs), (180, 80, 200))
             elif self.sanity <= self.sanity_threshold:
-                mid_sanity_msgs = [
-                    f"The dark unnerves {self.name}. Equip a torch to steady your mind.",
-                    f"{self.name} feels unsettled — the absence of light takes its toll...",
-                    f"Without light, {self.name}'s courage wavers...",
-                ]
+                if in_overworld:
+                    mid_sanity_msgs = [
+                        f"The open road wears on {self.name}. Equip a torch to steady your mind.",
+                        f"{self.name} feels unsettled — the isolation takes its toll...",
+                        f"Alone under the sky, {self.name}'s courage wavers...",
+                    ]
+                else:
+                    mid_sanity_msgs = [
+                        f"The dark unnerves {self.name}. Equip a torch to steady your mind.",
+                        f"{self.name} feels unsettled — the absence of light takes its toll...",
+                        f"Without light, {self.name}'s courage wavers...",
+                    ]
                 game_instance.message_log.add_message(random.choice(mid_sanity_msgs), (160, 80, 180))
 
     def equip_to_quick_bar(self, item, slot_key, game_instance):
