@@ -4,6 +4,8 @@ import random
 from core.pathfinding import astar
 
 
+
+from core.game import GameState
 from entities.base_entity import NPC
 from core.game import GameState
 from items.items import (
@@ -34,7 +36,7 @@ from items.items import (
 #: home" symptom. There are only ever a handful of town NPCs actually
 #: TRAVELING at once (not one per frame like summons in combat), so
 #: there's no real cost to matching astar()'s own default headroom.
-TOWN_NPC_PATHFINDING_MAX_EXPANSIONS = 400
+TOWN_NPC_PATHFINDING_MAX_EXPANSIONS = 4000
 
 
 class NPCBehavior:
@@ -200,25 +202,20 @@ class TownNPC(NPC):
 
     def _step_toward(self, game_map, game, tx, ty):
         """
-        Cheap, search-free steering step: move one tile toward (tx, ty)
-        along a single cardinal axis (whichever has the larger distance
-        to close first). TownNPCs deliberately never move diagonally --
-        see the module-level note by TOWN_NPC_PATHFINDING_MAX_EXPANSIONS
-        -- so this never has to reason about corner-cutting at all, only
-        "is this cardinal tile open". Returns True if it moved (or was
-        already there), False if both the preferred and secondary axis
-        were blocked and the caller should fall back to
-        _pathfind_toward() instead of leaving the NPC stuck.
+        Cheap, search-free steering step: move one tile toward (tx, ty),
+        diagonal-first, falling back to a single axis if the diagonal is
+        blocked -- same Chebyshev-adjacency convention as summons.py's
+        EscortCompanion._step_toward(). Returns True if it moved (or was
+        already there), False if every candidate tile was blocked (an
+        obstacle -- a doorway approached wrong, a wall corner -- and the
+        caller should fall back to _pathfind_toward() rather than
+        leaving the NPC stuck).
         """
         if (self.x, self.y) == (tx, ty):
             return True
         dx = (tx > self.x) - (tx < self.x)
         dy = (ty > self.y) - (ty < self.y)
-        # Close whichever axis is further from the target first; fall
-        # back to the other axis if that one's blocked.
-        primary = (dx, 0) if abs(tx - self.x) >= abs(ty - self.y) else (0, dy)
-        secondary = (0, dy) if primary == (dx, 0) else (dx, 0)
-        for step_x, step_y in (primary, secondary):
+        for step_x, step_y in ((dx, dy), (dx, 0), (0, dy)):
             if step_x == 0 and step_y == 0:
                 continue
             nx, ny = self.x + step_x, self.y + step_y
@@ -232,19 +229,26 @@ class TownNPC(NPC):
         Fallback for when _step_toward() can't make any progress --
         mirrors EscortCompanion._pathfind_toward(): a full astar()
         search, only actually paid for on the turns the cheap direct
-        step failed (e.g. it needs to detour around a wall entirely,
-        not just pick an axis). Passes allow_diagonal=False so the
-        route itself never proposes a diagonal step in the first place
-        -- keeping TownNPC movement cardinal-only end to end, rather
-        than generating diagonal steps here and then needing to reject
-        the bad ones after the fact (which is what got NPCs stuck
-        before: astar() would find a route through a corner gap that
-        _can_occupy()'s old corner guard then refused to take).
+        step failed (a wall corner between here and home, or a doorway
+        that has to be approached from a specific side).
+
+        This deliberately does NOT re-run _can_occupy()'s corner-cutting
+        guard against the step astar() hands back, and does NOT restrict
+        astar() to cardinal-only movement either -- both were tried and
+        made things worse: some tiles in hand-placed blueprint interiors
+        (a chair or bed tucked into a snug nook between furniture/walls)
+        are only reachable via a diagonal at all, so forbidding diagonal
+        steps here doesn't just occasionally reroute an NPC, it makes
+        astar() report no path exists, ever, full stop. astar() already
+        validated this route against the map's real walkability rules;
+        this only re-checks the immediate next step for entity
+        occupancy, since another entity standing there is the one thing
+        astar()'s search (which doesn't know about entities unless
+        explicitly passed) can't already have accounted for.
         """
         path = astar(
             game_map, (self.x, self.y), (tx, ty),
             max_expansions=TOWN_NPC_PATHFINDING_MAX_EXPANSIONS,
-            allow_diagonal=False,
         )
         if not path or len(path) < 2:
             return  # No route right now (e.g. the door is blocked by someone else)
@@ -255,16 +259,38 @@ class TownNPC(NPC):
 
     def _can_occupy(self, game_map, game, x, y):
         """
-        Whether (x, y) -- always a cardinal neighbor, since TownNPCs
-        never move diagonally -- is walkable terrain and not currently
-        occupied by another blocking entity. With diagonal movement
-        off entirely, there's no corner-cutting case left to guard
-        against here.
+        Full "can I step here right now" check for _step_toward()'s own
+        blind, unvalidated diagonal guess (and for _wander()'s adjacent-
+        tile scan): terrain-walkable, not a wall-corner clip, and not
+        occupied by another blocking entity. _pathfind_toward()
+        deliberately does NOT route through this -- see its docstring --
+        since a step that already came out of a real astar() search
+        needs a different (and, for a step astar() itself proposed,
+        more trustworthy) admissibility check than a blind guess does.
         """
-        return self._tile_walkable(game_map, x, y) and self._is_free_of_entities(game, x, y)
+        if not self._tile_walkable(game_map, x, y):
+            return False
+
+        # Forbid slipping diagonally through a solid wall corner: a
+        # diagonal move is only legal if at least one of the two tiles
+        # it would "cut past" is itself open. This guards _step_toward()'s
+        # direct diagonal guess, which has no path-search behind it and
+        # so has no other way to know it's about to clip a corner.
+        dx, dy = x - self.x, y - self.y
+        if dx != 0 and dy != 0:
+            flank_a = self._tile_walkable(game_map, x, self.y)
+            flank_b = self._tile_walkable(game_map, self.x, y)
+            if not (flank_a or flank_b):
+                return False
+
+        return self._is_free_of_entities(game, x, y)
 
     def _is_free_of_entities(self, game, x, y):
-        """Whether (x, y) is unoccupied by another blocking entity."""
+        """Whether (x, y) is unoccupied by another blocking entity --
+        the entity-collision half of _can_occupy(), split out so
+        _pathfind_toward() can check it alone without also re-applying
+        the terrain corner-cutting guard against an already-validated
+        astar() step (see that method's docstring)."""
         for entity in getattr(game, "entities", ()):
             if (
                 entity is not self
@@ -277,7 +303,10 @@ class TownNPC(NPC):
         return True
 
     def _tile_walkable(self, game_map, x, y):
-        """Terrain-only walkability check (no entity occupancy)."""
+        """Terrain-only walkability check (no entity occupancy) -- the
+        piece _can_occupy()'s corner-cutting guard needs for the two
+        flanking tiles of a diagonal move, since occupancy doesn't
+        matter for "is this corner solid", only terrain does."""
         if x < 0 or y < 0 or x >= game_map.width or y >= game_map.height:
             return False
         if hasattr(game_map, "is_walkable"):
@@ -285,9 +314,7 @@ class TownNPC(NPC):
         return not getattr(game_map.tiles[y][x], "blocked", True)
 
     def _adjacent_walkable(self, game_map, game):
-        """Cardinal-only neighbors (see _step_toward()'s docstring for
-        why TownNPCs never move diagonally) -- used by _wander()."""
-        offsets = ((0, -1), (0, 1), (-1, 0), (1, 0))
+        offsets = ((-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1))
         return [
             (self.x + dx, self.y + dy) for dx, dy in offsets
             if self._can_occupy(game_map, game, self.x + dx, self.y + dy)

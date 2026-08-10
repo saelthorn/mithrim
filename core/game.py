@@ -5073,7 +5073,7 @@ class Game:
         are easier marks. Falls back to that same easier DC for any NPC
         type not called out here, rather than refusing the attempt.
         """
-        if isinstance(npc, (Shopkeeper, Trader, DungeonMerchant, Merchant, Innkeeper)):
+        if isinstance(npc, (Shopkeeper, Trader, DungeonMerchant, Innkeeper)):
             return 15
         return 12
 
@@ -6254,29 +6254,6 @@ class Game:
                                 )
                                 return True
 
-                if self.game_state in GameState.TAVERN:
-                    if event.key == pygame.K_f:  # Check if 'F' is pressed
-                        if self.interaction_mode == InteractionMode.INFO:
-                            self.message_log.add_message(self._describe_surroundings(), (180, 220, 255))
-                            return True
-                        npc = self.check_npc_interaction()  # Check for adjacent NPC
-                        if self.interaction_mode == InteractionMode.STEAL:
-                            if npc:
-                                return self._attempt_pickpocket(npc)
-                            self.message_log.add_message("There's no one close enough to steal from.", (150, 150, 150))
-                            return True
-                        if self.interaction_mode == InteractionMode.INTERACT:
-                            if self.handle_item_pickup():
-                                return True
-                            self.message_log.add_message("There's nothing here to grab.", (150, 150, 150))
-                            return True
-                        if npc:
-                            if isinstance(npc, Merchant):
-                                npc.offer_trade(self.player, self)  # Call the trade method for the Merchant
-                            else:
-                                self.message_log.add_message(f"{npc.name}: {npc.get_dialogue()}", (200, 200, 255))
-                                self.stories.fire_talk(npc, instigator=self.player)
-                            return True  # Consume event
 
                 # --- Quick Bar Key Presses ---
                 if self.game_state not in [GameState.CHARACTER_CREATION, GameState.CLASS_SELECTION, GameState.GAME_OVER, GameState.TRADE, GameState.SHOP_MENU]:
