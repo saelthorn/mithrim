@@ -7264,6 +7264,22 @@ class Game:
                     self.camera.target_y = float(self.player.y)
                     self.player_has_acted = True
                     return True
+                elif isinstance(target_at_new_pos, TownNPC):
+                    # Townsfolk are harmless and often puttering around
+                    # narrow tavern/shop interiors (see town_npcs.py's
+                    # wandering/traveling behavior) -- refusing to move
+                    # past one entirely would make those spaces feel
+                    # like a maze. Swap places instead, the same
+                    # courtesy already extended to the player's own
+                    # summoned entities above.
+                    target_at_new_pos.x, self.player.x = self.player.x, target_at_new_pos.x
+                    target_at_new_pos.y, self.player.y = self.player.y, target_at_new_pos.y
+                    self.message_log.add_message(f"You swap places with {target_at_new_pos.name}.", (200, 220, 255))
+                    self.update_fov()
+                    self.camera.target_x = float(self.player.x)
+                    self.camera.target_y = float(self.player.y)
+                    self.player_has_acted = True
+                    return True
                 else:
                     self.message_log.add_message(f"You can't attack {target_at_new_pos.name}.", (255, 150, 0))
                     return False

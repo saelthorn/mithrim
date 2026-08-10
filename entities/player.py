@@ -205,7 +205,7 @@ class Player: # This is our base class for playable characters
     def update_hunger(self, game_instance):
         """Decrease hunger every 2 turns."""
         self.turns_since_last_hunger_decrease += 1
-        if self.turns_since_last_hunger_decrease >= 4:  
+        if self.turns_since_last_hunger_decrease >= 10:  # Decrease hunger every 10 turns
             if self.hunger > 0:
                 self.hunger -= self.hunger_decrease_rate
             self.turns_since_last_hunger_decrease = 0  # Reset the counter

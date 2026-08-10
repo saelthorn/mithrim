@@ -2,6 +2,7 @@ import random
 
 
 from core.pathfinding import astar
+from world.water_features import is_water_tile
 
 
 
@@ -46,10 +47,11 @@ class NPCBehavior:
     and stored on the instance, matching the lightweight style
     structures.py already uses elsewhere (tile chars, structure keys).
     """
-    SLEEPING = "sleeping"     # idle at home
-    AT_POST = "at_post"       # idle at their workplace tile (bar, shop counter, altar, forge)
-    WANDERING = "wandering"   # puttering around town, one step every WANDER_INTERVAL turns
-    TRAVELING = "traveling"   # walking toward a specific target tile (home or post)
+    SLEEPING = "sleeping"       # idle at home
+    AT_POST = "at_post"         # idle at their workplace tile (bar, shop counter, altar, forge)
+    WANDERING = "wandering"     # puttering around town, one step every WANDER_INTERVAL turns
+    TRAVELING = "traveling"     # walking toward a specific target tile (home, post, or a chat partner)
+    SOCIALIZING = "socializing" # paused with another NPC for a short conversation -- see TownNPC's socializing section
 
 
 def _behavior_for_hour(schedule, hour):
@@ -104,6 +106,12 @@ class TownNPC(NPC):
     `schedule` maps hour_of_day to an NPCBehavior; take_turn() reads
     the world clock each turn and moves one step at a time toward
     wherever that behavior currently wants them.
+
+    While WANDERING, an NPC may also notice another WANDERING NPC nearby
+    and wander over for a chat -- see the "-- socializing --" section
+    below for the full WANDERING -> TRAVELING -> SOCIALIZING -> WANDERING
+    flow. This never interrupts AT_POST/SLEEPING and never survives past
+    bedtime.
     """
 
     #: Hour ranges -> NPCBehavior. Subclasses with a fixed workplace
@@ -113,6 +121,24 @@ class TownNPC(NPC):
     #: Turns to idle between wander steps -- a step every single turn
     #: reads as twitchy for someone just puttering around town.
     WANDER_INTERVAL = 4
+
+    #: Per-wander-step odds that an idle, WANDERING NPC notices someone
+    #: to talk to and sets off toward them (see _try_start_socializing()).
+    SOCIALIZE_CHANCE = 0.15
+    #: How far away (Chebyshev tiles) a WANDERING NPC can notice another
+    #: WANDERING NPC worth approaching.
+    SOCIALIZE_RADIUS = 6
+    #: (min, max) turns a conversation lasts once both NPCs are together --
+    #: see _start_conversation().
+    SOCIALIZE_DURATION = (6, 14)
+    #: (min, max) turns an NPC waits after a conversation ends before it
+    #: will consider starting (or being invited into) another one, so the
+    #: same pair doesn't immediately re-chat the moment they part ways.
+    SOCIALIZE_COOLDOWN = (25, 50)
+    #: Give up on an unreachable/blocked chat partner after this many
+    #: turns of travel rather than chasing them forever -- see
+    #: _advance_social_travel().
+    SOCIALIZE_TRAVEL_TIMEOUT = 40
 
     def __init__(self, x, y, char, name, color, dialogue=None):
         super().__init__(x, y, char, name, color, dialogue)
@@ -135,6 +161,33 @@ class TownNPC(NPC):
         # cleared on turns with nothing to show (sleeping, wandering).
         self._debug_path = None
 
+        # -- socializing (see the "-- socializing --" section below) --
+        # What TRAVELING is currently *for*: None (the ordinary home/post
+        # trip _reconcile_behavior() sets up) or "social" (walking toward
+        # a chat partner instead -- see _begin_social_travel()). Read by
+        # take_turn() to decide which advance method drives a TRAVELING
+        # step, since the two need different arrival logic.
+        self._travel_purpose = None
+        # The other TownNPC we're currently approaching or talking with,
+        # or None if we're not involved in a conversation right now.
+        self._social_partner = None
+        # "initiator" (the one who noticed the partner and set off) or
+        # "partner" (the one who got approached). Only the initiator
+        # drives the shared countdown in _advance_socializing() -- see
+        # its docstring for why.
+        self._social_role = None
+        # Turns left in the current conversation. Stays 0 for a "partner"
+        # who has been reserved but not yet joined by their initiator --
+        # see _accept_social_invite().
+        self._social_turns_remaining = 0
+        # Turns spent TRAVELING toward a partner so far, for
+        # SOCIALIZE_TRAVEL_TIMEOUT below.
+        self._social_travel_turns = 0
+        # Turns left before this NPC will start or accept another
+        # conversation -- ticked down once per take_turn() regardless of
+        # behavior_state, same as _wander_cooldown.
+        self._social_cooldown = 0
+
     # -- schedule ------------------------------------------------------
 
     def take_turn(self, player, game_map, game):
@@ -151,16 +204,35 @@ class TownNPC(NPC):
             return  # world clock not available yet (e.g. character creation)
 
         desired = _behavior_for_hour(self.schedule, hour)
+
+        if self._social_cooldown > 0:
+            self._social_cooldown -= 1
+
+        # A conversation (or the walk toward one) never gets to override
+        # bedtime -- if the schedule now wants us SLEEPING, drop whatever
+        # social plans we had immediately rather than making the partner
+        # (or the sweep for a partner) wait for a natural end.
+        if desired == NPCBehavior.SLEEPING and self._social_partner is not None:
+            self._cancel_social()
+
+        if self.behavior_state == NPCBehavior.SOCIALIZING:
+            self._advance_socializing()
+            return
+
         self._reconcile_behavior(desired)
 
         if self.behavior_state == NPCBehavior.TRAVELING:
-            self._advance_along_path(game_map, game, self._travel_target)
-            if (self.x, self.y) == self._travel_target:
-                self.behavior_state = desired
+            if self._travel_purpose == "social":
+                self._advance_social_travel(game_map, game)
+            else:
+                self._advance_along_path(game_map, game, self._travel_target)
+                if (self.x, self.y) == self._travel_target:
+                    self.behavior_state = desired
         elif self.behavior_state == NPCBehavior.WANDERING:
             self._travel_path = None
             self._debug_path = None
-            self._wander(game_map, game)
+            if not self._try_start_socializing(game_map, game):
+                self._wander(game_map, game)
         elif self.behavior_state == NPCBehavior.AT_POST:
             self._advance_along_path(game_map, game, self.post)
         else:
@@ -196,6 +268,203 @@ class TownNPC(NPC):
         else:
             self.behavior_state = NPCBehavior.TRAVELING
             self._travel_target = target
+
+    # -- socializing -------------------------------------------------------
+    #
+    #   WANDERING -> notice nearby NPC -> decide to socialize
+    #       -> TRAVELING (purpose="social") -> target NPC
+    #       -> SOCIALIZING -> conversation ends
+    #       -> WANDERING / TRAVELING / AT_POST (whatever the schedule wants next)
+    #
+    # Only WANDERING NPCs ever start or accept a conversation -- someone
+    # AT_POST is working and someone SLEEPING is, well, asleep. The
+    # initiator drives the whole thing (finds a partner, walks to them,
+    # starts and ends the shared countdown); the partner is a passive
+    # participant that simply stops wandering and waits once invited, then
+    # goes back to normal schedule reconciliation the instant the
+    # initiator ends the conversation. This keeps the two NPCs' clocks
+    # from ever drifting apart by a turn without needing any shared state
+    # beyond the direct object references they already hold in
+    # `_social_partner`.
+
+    def _try_start_socializing(self, game_map, game):
+        """
+        Called on a WANDERING NPC's turn, before it takes its usual
+        wander step. Occasionally notices a nearby, equally free NPC and
+        sets off toward them instead. Returns True if a conversation was
+        just kicked off (behavior_state is now TRAVELING), so take_turn()
+        knows to skip this turn's wander step.
+        """
+        if self._social_cooldown > 0:
+            return False
+        if random.random() > self.SOCIALIZE_CHANCE:
+            return False
+
+        partner = self._find_social_partner(game)
+        if partner is None:
+            return False
+
+        self._begin_social_travel(partner)
+        partner._accept_social_invite(self)
+        return True
+
+    def _find_social_partner(self, game):
+        """
+        Nearest other TownNPC currently WANDERING and not already tied up
+        in a conversation of their own, within SOCIALIZE_RADIUS tiles.
+        Returns None if nobody nearby qualifies.
+        """
+        best, best_distance = None, self.SOCIALIZE_RADIUS + 1
+        for entity in getattr(game, "entities", ()):
+            if entity is self or not isinstance(entity, TownNPC):
+                continue
+            if (
+                not entity.alive
+                or entity.behavior_state != NPCBehavior.WANDERING
+                or entity._social_partner is not None
+                or entity._social_cooldown > 0
+            ):
+                continue
+            distance = self._chebyshev_distance(entity)
+            if distance <= self.SOCIALIZE_RADIUS and distance < best_distance:
+                best, best_distance = entity, distance
+        return best
+
+    def _chebyshev_distance(self, other):
+        return max(abs(other.x - self.x), abs(other.y - self.y))
+
+    def _begin_social_travel(self, partner):
+        """Commit to approaching `partner` for a chat. Mirrors
+        _reconcile_behavior()'s TRAVELING setup, but targets a moving
+        NPC instead of a fixed home/post tile -- see _travel_purpose."""
+        self._social_partner = partner
+        self._social_role = "initiator"
+        self._social_travel_turns = 0
+        self.behavior_state = NPCBehavior.TRAVELING
+        self._travel_purpose = "social"
+        self._travel_path = None
+        self._debug_path = None
+
+    def _accept_social_invite(self, initiator):
+        """
+        Called directly by the initiator (not from our own take_turn())
+        the moment they set off toward us, so we stop wandering away
+        from underneath them immediately rather than one turn late.
+        `_social_turns_remaining` stays 0 -- the actual conversation
+        clock only starts once the initiator physically arrives, in
+        _start_conversation().
+        """
+        self._social_partner = initiator
+        self._social_role = "partner"
+        self.behavior_state = NPCBehavior.SOCIALIZING
+        self._social_turns_remaining = 0
+        self._travel_path = None
+        self._debug_path = None
+
+    def _advance_social_travel(self, game_map, game):
+        """
+        TRAVELING with _travel_purpose == "social": walk toward wherever
+        our partner currently stands. Unlike home/post, the target isn't
+        fixed -- _advance_along_path() naturally replans if they haven't
+        settled at the spot we last aimed for -- so this checks adjacency
+        itself every turn instead of waiting to land exactly on their tile
+        (which _advance_along_path() would never let us do anyway, since
+        their tile is occupied).
+        """
+        partner = self._social_partner
+        if partner is None or not partner.alive or partner._social_partner is not self:
+            self._cancel_social()
+            return
+
+        self._social_travel_turns += 1
+        if self._social_travel_turns > self.SOCIALIZE_TRAVEL_TIMEOUT:
+            self._cancel_social()
+            return
+
+        if self._chebyshev_distance(partner) <= 1:
+            self._start_conversation(partner)
+            return
+
+        self._advance_along_path(game_map, game, (partner.x, partner.y))
+
+    def _start_conversation(self, partner):
+        """We've arrived next to our partner -- both of us settle into
+        SOCIALIZING for the same randomly-rolled duration."""
+        low, high = self.SOCIALIZE_DURATION
+        duration = random.randint(low, high)
+
+        self.behavior_state = NPCBehavior.SOCIALIZING
+        self._travel_purpose = None
+        self._travel_path = None
+        self._debug_path = None
+        self._social_turns_remaining = duration
+
+        partner.behavior_state = NPCBehavior.SOCIALIZING
+        partner._social_turns_remaining = duration
+
+    def _advance_socializing(self):
+        """
+        One turn of an ongoing conversation. Only the initiator counts
+        down and ends it -- if the partner also decremented its own
+        copy independently, the two could end up one turn apart (e.g.
+        if either of them got skipped a turn for being too far from the
+        player -- see game.py's 10-tile turn-processing radius check)
+        and try to clear each other's already-cleared state. The partner
+        just waits for the initiator to call `_end_social()` on it directly.
+        """
+        if self._social_role != "initiator":
+            return
+
+        self._social_turns_remaining -= 1
+        if self._social_turns_remaining > 0:
+            return
+
+        partner = self._social_partner
+        self._end_social()
+        if partner is not None:
+            partner._end_social()
+
+    def _end_social(self):
+        """
+        A conversation ran its full course. Land back on WANDERING and
+        start our post-chat cooldown; the very next take_turn() reads
+        the world clock fresh and reconciles normally from there, exactly
+        like any other schedule transition -- so a partner who's now due
+        AT_POST or SLEEPING sorts itself out on its own next turn without
+        this method needing to know anything about schedules.
+        """
+        self._social_partner = None
+        self._social_role = None
+        self._social_turns_remaining = 0
+        self._social_travel_turns = 0
+        self._social_cooldown = random.randint(*self.SOCIALIZE_COOLDOWN)
+        self._travel_purpose = None
+        self.behavior_state = NPCBehavior.WANDERING
+        self._travel_path = None
+        self._debug_path = None
+
+    def _cancel_social(self):
+        """
+        Abandon an in-progress invite/approach -- our partner died, wandered
+        out of reach, got claimed by someone else, or our own schedule
+        needs us elsewhere (see the SLEEPING check in take_turn()). Unlike
+        _end_social(), this skips SOCIALIZE_COOLDOWN: we never actually
+        talked, so there's no reason to make either of us wait before
+        trying again. Also unwinds the other side of the invite, if they
+        still think they're paired with us.
+        """
+        partner = self._social_partner
+        self._social_partner = None
+        self._social_role = None
+        self._social_turns_remaining = 0
+        self._social_travel_turns = 0
+        self._travel_purpose = None
+        self.behavior_state = NPCBehavior.WANDERING
+        self._travel_path = None
+        self._debug_path = None
+
+        if partner is not None and partner._social_partner is self:
+            partner._cancel_social()
 
     # -- movement --------------------------------------------------------
 
@@ -344,15 +613,31 @@ class TownNPC(NPC):
         return True
 
     def _tile_walkable(self, game_map, x, y):
-        """Terrain-only walkability check (no entity occupancy) -- the
-        piece _can_occupy()'s corner-cutting guard needs for the two
-        flanking tiles of a diagonal move, since occupancy doesn't
-        matter for "is this corner solid", only terrain does."""
+        """
+        Terrain-only walkability check (no entity occupancy). Used both
+        by _can_occupy()'s corner-cutting guard (the two flanking tiles
+        of a diagonal move) and directly by _wander()'s adjacent scan.
+
+        Also rejects water tiles (rivers, lakes, ponds) outright:
+        TownNPCs have no can_swim flag (see base_entity.py's NPC),
+        matching the same default astar() itself already applies for
+        _advance_along_path()'s route searches -- pathfinding.py's
+        can_swim defaults to False whenever no moving_entity is passed,
+        which TownNPC's astar() calls never do, so a TRAVELING NPC is
+        already routed around water automatically. is_walkable() alone
+        doesn't know the difference between open ground and open water
+        (both are blocked=False), so without this check here too,
+        _wander() could still send a wandering NPC straight into a
+        river that TRAVELING would never cross.
+        """
         if x < 0 or y < 0 or x >= game_map.width or y >= game_map.height:
             return False
         if hasattr(game_map, "is_walkable"):
-            return game_map.is_walkable(x, y)
-        return not getattr(game_map.tiles[y][x], "blocked", True)
+            if not game_map.is_walkable(x, y):
+                return False
+        elif getattr(game_map.tiles[y][x], "blocked", True):
+            return False
+        return not is_water_tile(game_map.tiles[y][x])
 
     def _adjacent_walkable(self, game_map, game):
         offsets = ((-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1))
