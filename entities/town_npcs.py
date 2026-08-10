@@ -1,6 +1,7 @@
+import math
 import random
 
-
+import config
 from core.pathfinding import astar
 from world.water_features import is_water_tile
 from core.floating_text import FloatingText
@@ -38,7 +39,7 @@ from items.items import (
 #: home" symptom. There are only ever a handful of town NPCs actually
 #: TRAVELING at once (not one per frame like summons in combat), so
 #: there's no real cost to matching astar()'s own default headroom.
-TOWN_NPC_PATHFINDING_MAX_EXPANSIONS = 4000
+TOWN_NPC_PATHFINDING_MAX_EXPANSIONS = 400
 
 
 class NPCBehavior:
@@ -76,15 +77,67 @@ def _behavior_for_hour(schedule, hour):
 #: wander town by day, sleep at night.
 DEFAULT_SCHEDULE = [
     (22, 6, NPCBehavior.SLEEPING),
-    (6, 22, NPCBehavior.WANDERING),
+    (6, 7, NPCBehavior.AT_POST),
+    (7, 12, NPCBehavior.WANDERING),
+    (12, 13, NPCBehavior.AT_POST),  # lunch break
+    (13, 22, NPCBehavior.WANDERING),
 ]
 
 #: Schedule for NPCs who mind a post (Innkeeper, Shopkeeper, Blacksmith,
 #: Priest) -- stay put during open hours instead of wandering off.
 AT_POST_SCHEDULE = [
     (22, 6, NPCBehavior.SLEEPING),
-    (6, 22, NPCBehavior.AT_POST),
+    (10, 20, NPCBehavior.AT_POST),
 ]
+
+
+class ChatBubbleText(FloatingText):
+    """
+    A FloatingText that sways side to side as it drifts upward, instead
+    of rising in a dead-straight line -- used for TownNPC's "..."
+    conversation indicator (see _spawn_chat_bubble()) so it reads as
+    idle chatter rather than a damage number or a "MISS!" callout.
+
+    Only `draw()` differs from FloatingText: fade timing, upward drift,
+    and font caching are all inherited unchanged. The sway itself is a
+    simple sine wave driven by how far through its lifetime the bubble
+    currently is, so it always completes a whole number of swings and
+    never "jumps" partway through one if `duration` is changed later.
+    """
+
+    #: How far the bubble sways from its tile's center, in tiles.
+    WAVE_AMPLITUDE = 0.18
+    #: How many full left-right swings it completes over its lifetime.
+    WAVE_CYCLES = 1.5
+
+    def __init__(self, x, y, text, color, duration=60, y_speed=-0.5, font_size=None):
+        super().__init__(x, y, text, color, duration=duration, y_speed=y_speed, font_size=font_size)
+        # frames_left counts down toward 0 across the bubble's life, but
+        # duration itself doesn't change after __init__ -- capturing it
+        # here (rather than re-reading self.duration, which *does* count
+        # down alongside frames_left) gives draw() a fixed denominator to
+        # compute "how far through its life" against.
+        self._wave_total_frames = max(duration, 1)
+
+    def draw(self, screen_surface, camera):
+        """
+        Identical to FloatingText.draw(), except the world x position is
+        offset by a sine wave before the camera converts it to screen
+        space -- everything downstream (centering, pixel snapping) stays
+        the same math FloatingText already uses.
+        """
+        elapsed_frames = self._wave_total_frames - self.frames_left
+        progress = elapsed_frames / self._wave_total_frames
+        wave_offset = math.sin(progress * self.WAVE_CYCLES * 2 * math.pi) * self.WAVE_AMPLITUDE
+
+        screen_x_tile, screen_y_tile = camera.world_to_screen(self.x + wave_offset, self.y)
+
+        screen_x_pixel = screen_x_tile * config.TILE_SIZE
+        screen_y_pixel = screen_y_tile * config.TILE_SIZE
+
+        draw_x = screen_x_pixel + (config.TILE_SIZE - self.rect.width) // 2
+        draw_y = screen_y_pixel - self.rect.height
+        screen_surface.blit(self.surface, (draw_x, draw_y))
 
 
 class TownNPC(NPC):
@@ -443,8 +496,8 @@ class TownNPC(NPC):
 
     def _spawn_chat_bubble(self, game, partner):
         """
-        Drop a small ambient "..." floating text over both participants
-        so the player can tell at a glance that two NPCs are mid-
+        Drop a small ambient, waving "..." over both participants so
+        the player can tell at a glance that two NPCs are mid-
         conversation rather than just standing around. Purely cosmetic --
         never touches behavior_state or any other gameplay-relevant
         field, and silently does nothing if `game` has no floating_texts
@@ -457,7 +510,7 @@ class TownNPC(NPC):
             if participant is None:
                 continue
             floating_texts.append(
-                FloatingText(
+                ChatBubbleText(
                     participant.x, participant.y - 0.5,
                     self.CHAT_BUBBLE_TEXT, self.CHAT_BUBBLE_COLOR,
                 )
