@@ -122,6 +122,18 @@ class TownNPC(NPC):
         self.behavior_state = NPCBehavior.AT_POST
         self._travel_target = None
         self._wander_cooldown = 0
+        # Cached astar() route currently being followed toward home/post
+        # (see _advance_along_path()) plus the target it was computed
+        # for, so a schedule change or a nudge off the route is detected
+        # and replanned rather than silently followed anyway.
+        self._travel_path = None
+        self._travel_path_target = None
+        # Same list, purely for the F9 debug overlay (see game.py's
+        # render_tile_highlights()) -- not read by any movement logic
+        # itself. Kept as its own attribute (rather than reading
+        # _travel_path directly at render time) so it can be explicitly
+        # cleared on turns with nothing to show (sleeping, wandering).
+        self._debug_path = None
 
     # -- schedule ------------------------------------------------------
 
@@ -142,16 +154,19 @@ class TownNPC(NPC):
         self._reconcile_behavior(desired)
 
         if self.behavior_state == NPCBehavior.TRAVELING:
-            if not self._step_toward(game_map, game, *self._travel_target):
-                self._pathfind_toward(game_map, game, *self._travel_target)
+            self._advance_along_path(game_map, game, self._travel_target)
             if (self.x, self.y) == self._travel_target:
                 self.behavior_state = desired
         elif self.behavior_state == NPCBehavior.WANDERING:
+            self._travel_path = None
+            self._debug_path = None
             self._wander(game_map, game)
         elif self.behavior_state == NPCBehavior.AT_POST:
-            if not self._step_toward(game_map, game, *self.post):
-                self._pathfind_toward(game_map, game, *self.post)
-        # SLEEPING: idle at home, nothing to do.
+            self._advance_along_path(game_map, game, self.post)
+        else:
+            # SLEEPING: idle at home, nothing to do.
+            self._travel_path = None
+            self._debug_path = None
 
     def _current_hour(self, game):
         stories = getattr(game, "stories", None)
@@ -206,10 +221,17 @@ class TownNPC(NPC):
         diagonal-first, falling back to a single axis if the diagonal is
         blocked -- same Chebyshev-adjacency convention as summons.py's
         EscortCompanion._step_toward(). Returns True if it moved (or was
-        already there), False if every candidate tile was blocked (an
-        obstacle -- a doorway approached wrong, a wall corner -- and the
-        caller should fall back to _pathfind_toward() rather than
-        leaving the NPC stuck).
+        already there), False if every candidate tile was blocked.
+
+        Not used by TRAVELING/AT_POST movement (see
+        _advance_along_path()'s docstring for why -- this heuristic and
+        a real astar() route can disagree about which direction is
+        actually correct near a corridor bend, and since this succeeds
+        by its own limited judgment far more often than it fails, the
+        astar() fallback almost never got a chance to correct course,
+        which is what made NPCs visibly oscillate between two tiles).
+        Kept only as a building block other callers may still want for
+        a single unplanned nudge.
         """
         if (self.x, self.y) == (tx, ty):
             return True
@@ -224,58 +246,81 @@ class TownNPC(NPC):
                 return True
         return False
 
-    def _pathfind_toward(self, game_map, game, tx, ty):
+    def _advance_along_path(self, game_map, game, target):
         """
-        Fallback for when _step_toward() can't make any progress --
-        mirrors EscortCompanion._pathfind_toward(): a full astar()
-        search, only actually paid for on the turns the cheap direct
-        step failed (a wall corner between here and home, or a doorway
-        that has to be approached from a specific side).
+        Move one step toward `target` by following a cached astar()
+        route to completion, rather than re-deciding fresh every turn
+        from a mix of a cheap greedy guess and an occasional real
+        search. That "greedy first, search only as a fallback" design
+        is what caused NPCs to visibly walk back and forth: the greedy
+        step's sign(dx)/sign(dy) heuristic and astar()'s actual
+        shortest path can disagree about which direction is correct
+        near an L-shaped corridor or an offset doorway, and because the
+        greedy step almost always finds *some* legal tile to move to,
+        astar() rarely got consulted to correct course -- so the F9
+        overlay could show a perfectly good route that the NPC was
+        never actually following.
 
-        This deliberately does NOT re-run _can_occupy()'s corner-cutting
-        guard against the step astar() hands back, and does NOT restrict
-        astar() to cardinal-only movement either -- both were tried and
-        made things worse: some tiles in hand-placed blueprint interiors
-        (a chair or bed tucked into a snug nook between furniture/walls)
-        are only reachable via a diagonal at all, so forbidding diagonal
-        steps here doesn't just occasionally reroute an NPC, it makes
-        astar() report no path exists, ever, full stop. astar() already
-        validated this route against the map's real walkability rules;
-        this only re-checks the immediate next step for entity
-        occupancy, since another entity standing there is the one thing
-        astar()'s search (which doesn't know about entities unless
-        explicitly passed) can't already have accounted for.
+        Committing to one real path and only replanning when it's
+        actually invalid (target changed, exhausted, or we're no longer
+        where it expects) removes that disagreement: the NPC now always
+        walks the exact route the debug overlay shows.
         """
-        path = astar(
-            game_map, (self.x, self.y), (tx, ty),
-            max_expansions=TOWN_NPC_PATHFINDING_MAX_EXPANSIONS,
-        )
-        if not path or len(path) < 2:
+        if (self.x, self.y) == target:
+            self._travel_path = None
+            self._debug_path = None
+            return
+
+        # Recompute only when the cached path isn't usable as-is: none
+        # yet, aimed at a different target (a schedule change mid-route),
+        # or our position no longer matches where the path expects us
+        # (nudged aside, or this is the very first step).
+        if (
+            not self._travel_path
+            or self._travel_path_target != target
+            or self._travel_path[0] != (self.x, self.y)
+        ):
+            self._travel_path = astar(
+                game_map, (self.x, self.y), target,
+                max_expansions=TOWN_NPC_PATHFINDING_MAX_EXPANSIONS,
+            )
+            self._travel_path_target = target
+            self._debug_path = self._travel_path
+
+        if not self._travel_path or len(self._travel_path) < 2:
+            self._travel_path = None
             return  # No route right now (e.g. the door is blocked by someone else)
 
-        next_x, next_y = path[1]
+        next_x, next_y = self._travel_path[1]
         if self._is_free_of_entities(game, next_x, next_y):
             self.x, self.y = next_x, next_y
+            self._travel_path = self._travel_path[1:]
+            self._debug_path = self._travel_path
+        # Otherwise another entity is standing on the next tile right
+        # now -- wait rather than discarding a perfectly good path. If
+        # they're still there next turn we keep waiting (cheap); if our
+        # position ever stops matching path[0] the staleness check
+        # above replans automatically.
 
     def _can_occupy(self, game_map, game, x, y):
         """
-        Full "can I step here right now" check for _step_toward()'s own
-        blind, unvalidated diagonal guess (and for _wander()'s adjacent-
-        tile scan): terrain-walkable, not a wall-corner clip, and not
-        occupied by another blocking entity. _pathfind_toward()
-        deliberately does NOT route through this -- see its docstring --
-        since a step that already came out of a real astar() search
-        needs a different (and, for a step astar() itself proposed,
-        more trustworthy) admissibility check than a blind guess does.
+        Full "can I step here right now" check for _wander()'s blind,
+        unvalidated adjacent-tile scan: terrain-walkable, not a wall-
+        corner clip, and not occupied by another blocking entity.
+        _advance_along_path() deliberately does NOT route through this
+        -- a step that already came out of a real astar() search needs
+        a different (and, for a step astar() itself proposed, more
+        trustworthy) admissibility check than a blind guess does; see
+        that method's docstring and _is_free_of_entities() below.
         """
         if not self._tile_walkable(game_map, x, y):
             return False
 
         # Forbid slipping diagonally through a solid wall corner: a
         # diagonal move is only legal if at least one of the two tiles
-        # it would "cut past" is itself open. This guards _step_toward()'s
-        # direct diagonal guess, which has no path-search behind it and
-        # so has no other way to know it's about to clip a corner.
+        # it would "cut past" is itself open. This guards _wander()'s
+        # blind adjacent-tile guess, which has no path-search behind it
+        # and so has no other way to know it's about to clip a corner.
         dx, dy = x - self.x, y - self.y
         if dx != 0 and dy != 0:
             flank_a = self._tile_walkable(game_map, x, self.y)
@@ -286,11 +331,7 @@ class TownNPC(NPC):
         return self._is_free_of_entities(game, x, y)
 
     def _is_free_of_entities(self, game, x, y):
-        """Whether (x, y) is unoccupied by another blocking entity --
-        the entity-collision half of _can_occupy(), split out so
-        _pathfind_toward() can check it alone without also re-applying
-        the terrain corner-cutting guard against an already-validated
-        astar() step (see that method's docstring)."""
+        """Whether (x, y) is unoccupied by another blocking entity."""
         for entity in getattr(game, "entities", ()):
             if (
                 entity is not self

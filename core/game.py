@@ -519,6 +519,12 @@ class Game:
         self._owned_blocking_entities = []
         self.turn_order = []  # Initialize the turn order list
         self.current_turn_index = 0
+        # Debug overlay (F9): tints the tiles of each TownNPC's most
+        # recently computed astar() route -- see town_npcs.py's
+        # TownNPC._pathfind_toward() (which sets _debug_path) and
+        # render_tile_highlights() (which draws it when this is True).
+        # Off by default so normal play never sees it.
+        self.debug_show_npc_pathfinding = False
         # NPCs currently being escorted -- a subset of self.entities/
         # self.turn_order (see entities/summons.py's EscortCompanion).
         # Populated by recruit_companion(), drained by
@@ -6559,6 +6565,17 @@ class Game:
                         else:
                             self.message_log.add_message("No ability assigned to that hotkey.", (150, 150, 150)) 
 
+                    elif event.key == pygame.K_F9:
+                        # Debug overlay only -- doesn't cost a turn, works
+                        # in any game_state (no reason to restrict it the
+                        # way F1-F4's interaction modes are).
+                        self.debug_show_npc_pathfinding = not self.debug_show_npc_pathfinding
+                        state_label = "ON" if self.debug_show_npc_pathfinding else "OFF"
+                        self.message_log.add_message(
+                            f"Debug: NPC pathfinding overlay {state_label}", (150, 220, 255)
+                        )
+                        return True
+
                     elif event.key == pygame.K_F11:
                         flags = self.screen.get_flags()
                         if flags & pygame.FULLSCREEN:
@@ -9256,6 +9273,41 @@ class Game:
                 overlay = pygame.Surface((config.TILE_SIZE, config.TILE_SIZE), pygame.SRCALPHA)
                 overlay.fill((r, g, b, a))
                 self.internal_surface.blit(overlay, (px, py))
+
+        # --- Debug: NPC pathfinding overlay (F9) ---
+        # Tints the tiles of each TownNPC's most recently computed
+        # astar() route -- see town_npcs.py's TownNPC._pathfind_toward(),
+        # which sets/clears entity._debug_path every turn. Deliberately
+        # a separate loop from the telegraph one above rather than
+        # reusing pending_telegraph_tiles: that attribute means "the
+        # player is about to get hit here" and is always drawn, while
+        # this is purely a debug aid that should stay invisible unless
+        # explicitly toggled on.
+        if self.debug_show_npc_pathfinding:
+            debug_path_overlay = pygame.Surface((config.TILE_SIZE, config.TILE_SIZE), pygame.SRCALPHA)
+            debug_path_overlay.fill((80, 220, 255, 90))  # translucent cyan -- distinct from combat reds
+            debug_next_step_overlay = pygame.Surface((config.TILE_SIZE, config.TILE_SIZE), pygame.SRCALPHA)
+            debug_next_step_overlay.fill((255, 230, 80, 140))  # brighter amber for the immediate next step
+
+            for entity in self.entities:
+                path = getattr(entity, '_debug_path', None)
+                if not path:
+                    continue
+                # path[0] is the NPC's own current tile -- only the steps
+                # ahead of it are worth highlighting.
+                for index, (hx, hy) in enumerate(path[1:], start=1):
+                    if not (0 <= hx < self.game_map.width and 0 <= hy < self.game_map.height):
+                        continue
+                    if not self.camera.is_in_viewport(hx, hy):
+                        continue
+                    vis = self.fov.get_visibility_type(hx, hy)
+                    if vis not in ['player', 'torch', 'darkvision', 'explored']:
+                        continue
+                    sx, sy = self.camera.world_to_screen(hx, hy)
+                    px = sx * config.TILE_SIZE
+                    py = sy * config.TILE_SIZE
+                    overlay = debug_next_step_overlay if index == 1 else debug_path_overlay
+                    self.internal_surface.blit(overlay, (px, py))
 
 
     def render_entities(self, full_redraw=False):
