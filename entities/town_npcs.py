@@ -1,0 +1,663 @@
+import random
+
+
+from core.pathfinding import astar
+
+
+from entities.base_entity import NPC
+from core.game import GameState
+from items.items import (
+    torch, throwing_knife, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, 
+    carrot, spell_book, holy_symbol, full_plate_armor, robes_of_protection, adamantine_long_sword, staff_of_magi, 
+    duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, scale_mail_armor, 
+    sturdy_quarterstaff, leather_cap, iron_helmet, steel_helmet, hood_of_shadows, great_helm, mages_circlet, leather_boots, 
+    iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers, silver_dagger, round_shield, iron_short_sword,
+    CampfireKit, Food, Weapon, Helmet, Armor, Boots, OffHand, FocusItem
+)
+
+
+
+#: Cap on astar()'s per-call node-expansion budget when a TownNPC needs
+#: to route around an obstacle to reach home/post. Deliberately NOT
+#: copied from summons.py's SUMMON_PATHFINDING_MAX_EXPANSIONS (400) --
+#: that value is sized for combat-radius pathing (short hops, called
+#: every frame for potentially many summons at once, so it has to stay
+#: cheap). A TownNPC's wander_bounds spans the *whole* town footprint
+#: (padded by only a few tiles -- see bounding_box_for_footprints()), so
+#: an NPC that wandered to the far side of a sprawling town can easily
+#: be 40-80+ tiles from home once walls and buildings are accounted
+#: for -- well beyond what 400 expansions reliably covers. astar()
+#: silently returns None when it runs out of budget rather than raising
+#: (see pathfinding.py's max_expansions comment), so a cap that's too
+#: tight here doesn't error, it just leaves the NPC stuck retrying the
+#: same failed search forever -- exactly the "some NPCs never make it
+#: home" symptom. There are only ever a handful of town NPCs actually
+#: TRAVELING at once (not one per frame like summons in combat), so
+#: there's no real cost to matching astar()'s own default headroom.
+TOWN_NPC_PATHFINDING_MAX_EXPANSIONS = 400
+
+
+class NPCBehavior:
+    """
+    Behavior states for TownNPC.take_turn()'s daily schedule. Plain
+    string constants rather than an Enum -- they're only ever compared
+    and stored on the instance, matching the lightweight style
+    structures.py already uses elsewhere (tile chars, structure keys).
+    """
+    SLEEPING = "sleeping"     # idle at home
+    AT_POST = "at_post"       # idle at their workplace tile (bar, shop counter, altar, forge)
+    WANDERING = "wandering"   # puttering around town, one step every WANDER_INTERVAL turns
+    TRAVELING = "traveling"   # walking toward a specific target tile (home or post)
+
+
+def _behavior_for_hour(schedule, hour):
+    """
+    Look up which NPCBehavior a schedule says covers `hour` (0-23).
+    Entries are (start_hour, end_hour, behavior); a range where
+    start > end wraps past midnight (e.g. (22, 6, SLEEPING) covers
+    22:00 through 05:59). Falls back to WANDERING if no entry matches,
+    so a malformed/incomplete schedule never leaves an NPC stuck.
+    """
+    for start, end, behavior in schedule:
+        if start <= end:
+            if start <= hour < end:
+                return behavior
+        elif hour >= start or hour < end:
+            return behavior
+    return NPCBehavior.WANDERING
+
+
+#: Default schedule for NPCs with no fixed workplace (Townsfolk) --
+#: wander town by day, sleep at night.
+DEFAULT_SCHEDULE = [
+    (22, 6, NPCBehavior.SLEEPING),
+    (6, 22, NPCBehavior.WANDERING),
+]
+
+#: Schedule for NPCs who mind a post (Innkeeper, Shopkeeper, Blacksmith,
+#: Priest) -- stay put during open hours instead of wandering off.
+AT_POST_SCHEDULE = [
+    (22, 6, NPCBehavior.SLEEPING),
+    (6, 22, NPCBehavior.AT_POST),
+]
+
+
+class TownNPC(NPC):
+    """
+    Base class for the population of overworld towns and buildings.
+
+    Every TownNPC knows three places: `post` (where their blueprint
+    spawned them -- bar counter, shop counter, altar, forge), `home`
+    (also their spawn tile by default -- the anchor SLEEPING returns
+    them to), and `wander_bounds` (the town's rough footprint, so
+    wandering never drifts off toward the horizon). `wander_bounds`
+    starts unrestricted and is filled in afterward by
+    assign_npc_schedule_anchors() once the surrounding structure(s) are
+    known -- see create_town_npcs() and game.py's
+    _spawn_player_in_starting_tavern(). This keeps every existing NPC
+    factory's `(x, y) -> NPC` signature untouched. Doors are never a
+    destination in their own right -- astar() just routes through them
+    naturally on the way to home/post (see _pathfind_toward()).
+
+    `schedule` maps hour_of_day to an NPCBehavior; take_turn() reads
+    the world clock each turn and moves one step at a time toward
+    wherever that behavior currently wants them.
+    """
+
+    #: Hour ranges -> NPCBehavior. Subclasses with a fixed workplace
+    #: override this with AT_POST_SCHEDULE.
+    schedule = DEFAULT_SCHEDULE
+
+    #: Turns to idle between wander steps -- a step every single turn
+    #: reads as twitchy for someone just puttering around town.
+    WANDER_INTERVAL = 4
+
+    def __init__(self, x, y, char, name, color, dialogue=None):
+        super().__init__(x, y, char, name, color, dialogue)
+        self.post = (x, y)
+        self.home = (x, y)
+        self.wander_bounds = None  # (min_x, min_y, max_x, max_y), or None = unrestricted
+        self.behavior_state = NPCBehavior.AT_POST
+        self._travel_target = None
+        self._wander_cooldown = 0
+
+    # -- schedule ------------------------------------------------------
+
+    def take_turn(self, player, game_map, game):
+        """
+        Called once per turn cycle (see game.py's turn_order batch
+        processing, which already calls take_turn() on every entity
+        that has one -- no game.py changes needed for TownNPCs to
+        participate). Reads the world clock, reconciles the current
+        behavior_state toward whatever the schedule wants right now,
+        and takes at most one step in that direction.
+        """
+        hour = self._current_hour(game)
+        if hour is None:
+            return  # world clock not available yet (e.g. character creation)
+
+        desired = _behavior_for_hour(self.schedule, hour)
+        self._reconcile_behavior(desired)
+
+        if self.behavior_state == NPCBehavior.TRAVELING:
+            if not self._step_toward(game_map, game, *self._travel_target):
+                self._pathfind_toward(game_map, game, *self._travel_target)
+            if (self.x, self.y) == self._travel_target:
+                self.behavior_state = desired
+        elif self.behavior_state == NPCBehavior.WANDERING:
+            self._wander(game_map, game)
+        elif self.behavior_state == NPCBehavior.AT_POST:
+            if not self._step_toward(game_map, game, *self.post):
+                self._pathfind_toward(game_map, game, *self.post)
+        # SLEEPING: idle at home, nothing to do.
+
+    def _current_hour(self, game):
+        stories = getattr(game, "stories", None)
+        world_time = getattr(stories, "world_time", None) if stories else None
+        return world_time.clock.hour_of_day if world_time else None
+
+    def _reconcile_behavior(self, desired):
+        """
+        Move behavior_state toward `desired`, routing through TRAVELING
+        whenever the destination needs the NPC somewhere they aren't
+        already standing -- so a schedule change never teleports an
+        NPC across town, it just starts them walking there.
+        """
+        if self.behavior_state == NPCBehavior.TRAVELING:
+            return  # already en route; take_turn() checks arrival itself
+
+        if desired == self.behavior_state:
+            return
+
+        if desired == NPCBehavior.WANDERING:
+            self.behavior_state = NPCBehavior.WANDERING
+            return
+
+        target = self.home if desired == NPCBehavior.SLEEPING else self.post
+        if (self.x, self.y) == target:
+            self.behavior_state = desired
+        else:
+            self.behavior_state = NPCBehavior.TRAVELING
+            self._travel_target = target
+
+    # -- movement --------------------------------------------------------
+
+    def _wander(self, game_map, game):
+        if self._wander_cooldown > 0:
+            self._wander_cooldown -= 1
+            return
+        self._wander_cooldown = self.WANDER_INTERVAL
+
+        candidates = self._adjacent_walkable(game_map, game)
+        if self.wander_bounds is not None:
+            min_x, min_y, max_x, max_y = self.wander_bounds
+            candidates = [
+                (x, y) for x, y in candidates
+                if min_x <= x <= max_x and min_y <= y <= max_y
+            ]
+        if candidates:
+            self.x, self.y = random.choice(candidates)
+
+    def _step_toward(self, game_map, game, tx, ty):
+        """
+        Cheap, search-free steering step: move one tile toward (tx, ty)
+        along a single cardinal axis (whichever has the larger distance
+        to close first). TownNPCs deliberately never move diagonally --
+        see the module-level note by TOWN_NPC_PATHFINDING_MAX_EXPANSIONS
+        -- so this never has to reason about corner-cutting at all, only
+        "is this cardinal tile open". Returns True if it moved (or was
+        already there), False if both the preferred and secondary axis
+        were blocked and the caller should fall back to
+        _pathfind_toward() instead of leaving the NPC stuck.
+        """
+        if (self.x, self.y) == (tx, ty):
+            return True
+        dx = (tx > self.x) - (tx < self.x)
+        dy = (ty > self.y) - (ty < self.y)
+        # Close whichever axis is further from the target first; fall
+        # back to the other axis if that one's blocked.
+        primary = (dx, 0) if abs(tx - self.x) >= abs(ty - self.y) else (0, dy)
+        secondary = (0, dy) if primary == (dx, 0) else (dx, 0)
+        for step_x, step_y in (primary, secondary):
+            if step_x == 0 and step_y == 0:
+                continue
+            nx, ny = self.x + step_x, self.y + step_y
+            if self._can_occupy(game_map, game, nx, ny):
+                self.x, self.y = nx, ny
+                return True
+        return False
+
+    def _pathfind_toward(self, game_map, game, tx, ty):
+        """
+        Fallback for when _step_toward() can't make any progress --
+        mirrors EscortCompanion._pathfind_toward(): a full astar()
+        search, only actually paid for on the turns the cheap direct
+        step failed (e.g. it needs to detour around a wall entirely,
+        not just pick an axis). Passes allow_diagonal=False so the
+        route itself never proposes a diagonal step in the first place
+        -- keeping TownNPC movement cardinal-only end to end, rather
+        than generating diagonal steps here and then needing to reject
+        the bad ones after the fact (which is what got NPCs stuck
+        before: astar() would find a route through a corner gap that
+        _can_occupy()'s old corner guard then refused to take).
+        """
+        path = astar(
+            game_map, (self.x, self.y), (tx, ty),
+            max_expansions=TOWN_NPC_PATHFINDING_MAX_EXPANSIONS,
+            allow_diagonal=False,
+        )
+        if not path or len(path) < 2:
+            return  # No route right now (e.g. the door is blocked by someone else)
+
+        next_x, next_y = path[1]
+        if self._is_free_of_entities(game, next_x, next_y):
+            self.x, self.y = next_x, next_y
+
+    def _can_occupy(self, game_map, game, x, y):
+        """
+        Whether (x, y) -- always a cardinal neighbor, since TownNPCs
+        never move diagonally -- is walkable terrain and not currently
+        occupied by another blocking entity. With diagonal movement
+        off entirely, there's no corner-cutting case left to guard
+        against here.
+        """
+        return self._tile_walkable(game_map, x, y) and self._is_free_of_entities(game, x, y)
+
+    def _is_free_of_entities(self, game, x, y):
+        """Whether (x, y) is unoccupied by another blocking entity."""
+        for entity in getattr(game, "entities", ()):
+            if (
+                entity is not self
+                and getattr(entity, "alive", True)
+                and getattr(entity, "blocks_movement", False)
+                and getattr(entity, "x", None) == x
+                and getattr(entity, "y", None) == y
+            ):
+                return False
+        return True
+
+    def _tile_walkable(self, game_map, x, y):
+        """Terrain-only walkability check (no entity occupancy)."""
+        if x < 0 or y < 0 or x >= game_map.width or y >= game_map.height:
+            return False
+        if hasattr(game_map, "is_walkable"):
+            return game_map.is_walkable(x, y)
+        return not getattr(game_map.tiles[y][x], "blocked", True)
+
+    def _adjacent_walkable(self, game_map, game):
+        """Cardinal-only neighbors (see _step_toward()'s docstring for
+        why TownNPCs never move diagonally) -- used by _wander()."""
+        offsets = ((0, -1), (0, 1), (-1, 0), (1, 0))
+        return [
+            (self.x + dx, self.y + dy) for dx, dy in offsets
+            if self._can_occupy(game_map, game, self.x + dx, self.y + dy)
+        ]
+
+
+def _clone_item(item):
+    """
+    Return a fresh instance of `item`, matching the clone pattern
+    merchants already use when handing out one of their own template
+    items, so the player never ends up aliasing the template object
+    itself. Shared by Shopkeeper's stocking/bulk-buy and Innkeeper's
+    food menu below.
+    """
+    if isinstance(item, CampfireKit):
+        return CampfireKit()
+    return item.__class__(
+        name=item.name,
+        char=item.char,
+        color=item.color,
+        description=item.description,
+        **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+    )
+
+
+def _buy_from_stock(seller, player, item_name):
+    """
+    Shared "buy an item (or every food item at once) from a merchant's
+    items_for_sale list" logic, used by both Shopkeeper.buy_item() and
+    Innkeeper.buy_item() so the purchase rules (afford-check, inventory-
+    full refund, bulk "all food" buy) only live in one place. `seller`
+    only needs an `items_for_sale` list -- it doesn't need to be a
+    Shopkeeper itself, which is what lets Innkeeper reuse this too.
+    """
+    if item_name == "all food":
+        food_items = [item for item in seller.items_for_sale if isinstance(item, Food)]
+        if not food_items:
+            return "No food items are available for sale."
+
+        purchased_items = []
+        total_cost = 0
+        for item in list(food_items):
+            if player.gold < item.price:
+                continue
+
+            new_item = _clone_item(item)
+            if player.inventory.add_item(new_item):
+                player.gold -= item.price
+                total_cost += item.price
+                purchased_items.append(item.name)
+                seller.items_for_sale.remove(item)
+            else:
+                break
+
+        if not purchased_items:
+            return "You couldn't buy any food. Check your gold or inventory space."
+        item_list = ", ".join(purchased_items)
+        player.update_throw_knife_ability()
+        player.update_spellbook_abilities()
+        player.update_guard_ability()
+        return f"You bought {len(purchased_items)} food items for {total_cost} gold: {item_list}."
+
+    for item in seller.items_for_sale:
+        if item.name.lower() == item_name.lower():
+            if player.gold >= item.price:
+                player.gold -= item.price
+
+                # Give the actual item instance to the player
+                if player.inventory.add_item(item):
+                    seller.items_for_sale.remove(item)  # Remove the item from the seller
+                    player.update_throw_knife_ability()
+                    player.update_spellbook_abilities()
+                    player.update_guard_ability()
+                    return f"You bought {item.name}!"
+                else:
+                    # If adding failed, refund the player
+                    player.gold += item.price
+                    return "Your inventory is full!"
+            else:
+                return "Scram! you don't have enough gold!"
+    return "We don't sell that kind of item here!"
+
+
+class Townsfolk(TownNPC):
+    def __init__(self, x, y, name=None):
+        dialogue = [
+            "Roads have been busier since the old entrances opened again.",
+            "Mind the wilds after dusk. The grass gets quiet before trouble.",
+            "If you are heading below, make sure you have food and light.",
+            "Every town around here has a story about someone who went missing.",
+        ]
+        super().__init__(x, y, 'p', name or random.choice(TOWNSFOLK_NAMES), (205, 205, 185), dialogue)
+
+
+class Blacksmith(TownNPC):
+    #: Minds the forge during open hours instead of wandering.
+    schedule = AT_POST_SCHEDULE
+
+    def __init__(self, x, y, name=None):
+        dialogue = [
+            "I am still unpacking the shelves, but I know a good buyer when I see one.",
+            "Bring back anything odd from the ruins. Odd things sell.",
+            "A careful blade and a dry torch are worth more than bravado.",            
+        ]
+        super().__init__(x, y, 'p', name or random.choice(TOWNSFOLK_NAMES), (205, 205, 185), dialogue)
+
+
+class Priest(TownNPC):
+    #: Tends the altar during open hours instead of wandering.
+    schedule = AT_POST_SCHEDULE
+
+    def __init__(self, x, y, name=None):
+        dialogue = [
+            "Roads have been busier since the old entrances opened again.",
+            "Mind the wilds after dusk. The grass gets quiet before trouble.",
+            "If you are heading below, make sure you have food and light.",
+            "Every town around here has a story about someone who went missing.",
+        ]
+        super().__init__(x, y, 'p', name or random.choice(TOWNSFOLK_NAMES), (205, 205, 185), dialogue)
+
+
+
+class Innkeeper(TownNPC):
+    #: Gold charged for a night's stay -- see rest_player().
+    rest_cost = 5
+    #: Hours the world clock advances per rest -- see rest_player().
+    rest_hours = 8
+    #: Minds the bar during open hours instead of wandering.
+    schedule = AT_POST_SCHEDULE
+
+    def __init__(self, x, y):
+        dialogue = [
+            "Welcome in, traveler. Warm floorboards beat cold roads.",
+            "Most adventurers ask about dungeons. The wise ones ask about supper.",
+            "You can learn plenty by listening before you descend.",
+        ]
+        super().__init__(x, y, 'A', 'Innkeeper', (255, 215, 120), dialogue)
+
+        # A small, fixed food menu -- unlike Shopkeeper, the innkeeper
+        # doesn't restock randomly or carry equipment, only supper and a
+        # bed. See structures.STRUCTURE_BLUEPRINTS' "tavern" blueprint.
+        food_menu = [bread, meat, fromage, green_apple, carrot, mushroom]
+        self.items_for_sale = [_clone_item(item) for item in food_menu]
+
+    def offer_trade(self, player, game):
+        """
+        Open the same shop overlay Shopkeeper.offer_trade() uses (see
+        game.py's render_shop_menu()/handle_shop_menu_input()) scoped to
+        the innkeeper's food menu -- that overlay only needs an object
+        with .name/.items_for_sale/.buy_item()/.sell_item(), so it works
+        unmodified for any merchant-shaped NPC, not just Shopkeeper.
+        """
+        game._previous_game_state = game.game_state
+        game._shop_menu_merchant  = self
+        game._shop_selected_index = 0
+        game._shop_mode           = "buy"
+        game.game_state           = GameState.SHOP_MENU
+
+    def buy_item(self, player, item_name):
+        return _buy_from_stock(self, player, item_name)
+
+    def sell_item(self, player, item_name):
+        """The innkeeper doesn't buy anything back -- kept so the shared
+        shop overlay's SELL tab has something safe to call rather than
+        crashing if a player tabs over to it out of habit."""
+        return f'{self.name} shakes their head. "I only deal in food and lodging here."'
+
+    def rest_player(self, player, game):
+        """
+        Handle the player paying for a night's stay: charges rest_cost
+        gold, fully restores HP, and advances the world clock by a full
+        night through StorySystems.fire_rest() -- the canonical inn/camp
+        rest path story_integration.py's docstring already earmarks for
+        this, so any story timer (deadlines, decay, scheduled events)
+        sees it exactly like any other rest.
+
+        Returns a message string for the caller to log, matching
+        buy_item()/sell_item()'s "return a string, let the caller log
+        it" convention.
+        """
+        if player.gold < self.rest_cost:
+            return f"You can't afford a room tonight. A bed costs {self.rest_cost} gold."
+
+        player.gold -= self.rest_cost
+        player.hp = player.max_hp
+
+        # Some classes track further per-rest resources (spell slots,
+        # ability charges, ...) behind their own long_rest() hook; restore
+        # those too if present, without this needing to know their shape.
+        long_rest = getattr(player, "long_rest", None)
+        if callable(long_rest):
+            long_rest()
+
+        game.stories.fire_rest(self.rest_hours)
+        return f"You rest through the night and wake up refreshed. (-{self.rest_cost} gold)"
+
+
+class Shopkeeper(TownNPC):
+    #: Minds the shop during open hours instead of wandering.
+    schedule = AT_POST_SCHEDULE
+
+    def __init__(self, x, y):
+        dialogue = [
+            "I am still unpacking the shelves, but I know a good buyer when I see one.",
+            "Bring back anything odd from the ruins. Odd things sell.",
+            "A careful blade and a dry torch are worth more than bravado.",
+        ]
+        super().__init__(x, y, 'rc', 'Shopkeeper', (230, 200, 120), dialogue)
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+        # Default items always sold
+        default_items = [
+            CampfireKit(),
+            lesser_healing_potion,
+            greater_healing_potion,
+            meat,
+            bread,
+            carrot,
+            fromage,
+            torch,
+            throwing_knife,
+        ]
+        # Chance-based items with their spawn probabilities (fewer and simpler than dungeon merchant)
+        chance_items_with_chance = [
+            (duelists_rapier, 0.3),
+            (staff_of_magi, 0.3),
+            (full_plate_armor, 0.35),
+            (scale_mail_armor, 0.4),
+            (sturdy_quarterstaff, 0.6),
+            (iron_helmet, 0.7),
+            (leather_cap, 0.8),
+            (steel_helmet, 0.6),
+            (hood_of_shadows, 0.4),
+            (great_helm, 0.3),
+            (mages_circlet, 0.4),
+            (leather_boots, 0.8),
+            (iron_greaves, 0.8),
+            (boots_of_speed, 0.4),
+            (boots_of_stealth, 0.4),
+            (dwarven_stompers, 0.3),
+            (adamantine_long_sword, 0.5),
+            (flameheart_flail, 0.5),
+            (flameheart_short_sword, 0.4),
+            (robes_of_protection, 0.35),
+            (dwarven_battle_axe, 0.45),
+            (dragonsbane_warhammer, 0.3),
+            (spell_book, 0.25),
+            (holy_symbol, 0.25),
+            (carrot, 0.3),
+            (mushroom, 0.3),
+            (green_apple, 0.3),
+            (bread, 0.3),
+            (meat, 0.3),
+        ]
+
+        self.items_for_sale = []
+       
+        # Add default items
+        for item in default_items:
+            if isinstance(item, CampfireKit):
+                self.items_for_sale.append(CampfireKit()) # Create a new instance directly
+            else:
+                # Create a new instance for other items
+                new_item = item.__class__(
+                    name=item.name,
+                    char=item.char,
+                    color=item.color,
+                    description=item.description,
+                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                )
+                self.items_for_sale.append(new_item)
+    
+        # Add chance-based items
+        for item, chance in chance_items_with_chance:
+            if random.random() < chance:
+                new_item = item.__class__(
+                    name=item.name,
+                    char=item.char,
+                    color=item.color,
+                    description=item.description,
+                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                )
+                self.items_for_sale.append(new_item)
+
+    def offer_trade(self, player, game):
+        """Open the shop menu overlay instead of the legacy text-input trade flow."""
+        game._previous_game_state  = game.game_state
+        game._shop_menu_merchant   = self
+        game._shop_selected_index  = 0
+        game._shop_mode            = "buy"
+        game.game_state            = GameState.SHOP_MENU
+
+
+
+    def buy_item(self, player, item_name):
+        return _buy_from_stock(self, player, item_name)
+    
+
+
+    def sell_item(self, player, item_name):
+        """Logic to sell an item or multiple items."""
+        # Handle bulk selling
+        if item_name == "all equipments":
+            equipments = [item for item in player.inventory.items if isinstance(item, (Weapon, OffHand, Armor, Helmet, Boots, FocusItem))]
+            if not equipments:
+                return "You don't have any equipments to sell."
+            total_gold = 0
+            for item in equipments:
+                player.inventory.remove_item(item)
+                total_gold += item.price // 2
+                self.items_for_sale.append(item)
+            player.gold += total_gold
+            player.update_throw_knife_ability()
+            player.update_spellbook_abilities()
+            player.update_holy_symbol_abilities()
+            player.update_guard_ability()
+            return f"You sold {len(equipments)} equipment(s) for {total_gold} gold!"
+
+        if item_name == "all weapons":
+            weapons = [item for item in player.inventory.items if isinstance(item, (Weapon, OffHand))]
+            if not weapons:
+                return "You don't have any weapons to sell."
+            total_gold = 0
+            for item in weapons:
+                player.inventory.remove_item(item)
+                total_gold += item.price // 2
+                self.items_for_sale.append(item)
+            player.gold += total_gold
+            player.update_throw_knife_ability()
+            player.update_spellbook_abilities()
+            player.update_guard_ability()
+            return f"You sold {len(weapons)} weapon(s) for {total_gold} gold!"
+
+        if item_name == "all armors":
+            armor_items = [item for item in player.inventory.items if isinstance(item, (Helmet, Armor, Boots))]
+            if not armor_items:
+                return "You don't have any armor to sell."
+            total_gold = 0
+            for item in armor_items:
+                player.inventory.remove_item(item)
+                total_gold += item.price // 2
+                self.items_for_sale.append(item)
+            player.gold += total_gold
+            player.update_throw_knife_ability()
+            player.update_spellbook_abilities()
+            player.update_holy_symbol_abilities()
+            player.update_guard_ability()
+            return f"You sold {len(armor_items)} armor item(s) for {total_gold} gold!"
+        
+        # Handle single item selling
+        for item in player.inventory.items:  # Access the player's inventory items
+            if item.name.lower() == item_name.lower():  # Case insensitive comparison
+                player.inventory.remove_item(item)  # Remove the item from the player's inventory
+                player.gold += item.price // 2  # Assuming the merchant pays half the price
+                self.items_for_sale.append(item)  # Add the item back to the merchant's inventory
+                player.update_throw_knife_ability()
+                player.update_spellbook_abilities()
+                player.update_holy_symbol_abilities()
+                player.update_guard_ability()
+                return f"You sold {item.name}!"
+        return "Item not found in your inventory."
+
+
+TOWNSFOLK_NAMES = [
+    "Mara", "Edrin", "Tess", "Borin", "Lysa", "Corren", "Nessa", "Tobin"
+]

@@ -385,7 +385,7 @@ from entities.monster import (
 )
 
 from entities.base_entity import NPC
-from entities.tavern_npcs import NPC, Merchant
+from entities.town_npcs import NPC
 from entities.dungeon_npcs import DungeonHealer, DungeonMerchant, PrisonerNPC, make_encounter_victims, GuardVictim, Trader, EncounterVictim
 from world.structures import TownNPC, Townsfolk, Innkeeper, Shopkeeper
 
@@ -735,7 +735,7 @@ class Game:
         #
         # 10 moves/minute is a starting point, not a design decision --
         # tune to taste once you can see it moving alongside actual play.
-        self.moves_per_minute = 10
+        self.moves_per_minute = 6
 
         self.stories = StorySystems(self)
         self.world_encounter_scenarios = self._load_world_encounter_scenarios()
@@ -3854,6 +3854,22 @@ class Game:
             chunk = self.overworld_chunks.get(self.overworld_chunk_coord)
             if chunk is not None:
                 chunk["population"] = list(chunk.get("population", [])) + tavern_npcs
+
+            # generate_overworld_map() (called just before this method, see
+            # start_new_game()) already built self.turn_order from the
+            # chunk's population as it stood *then* -- before this tavern
+            # and its NPCs existed. Appending to self.entities above isn't
+            # enough on its own: take_turn() is only ever called on
+            # entities actually in turn_order, so without this these NPCs
+            # would sit in self.entities looking perfectly normal but never
+            # get a turn -- exactly the "static" symptom. Roll initiative
+            # and re-sort the same way generate_overworld_map() does for
+            # everyone else, so the tavern's population isn't a special case.
+            self.turn_order.extend(tavern_npcs)
+            for npc in tavern_npcs:
+                npc.roll_initiative()
+            self.turn_order = sorted(self.turn_order, key=lambda e: e.initiative, reverse=True)
+            self.current_turn_index = 0
 
         if tavern_tile is not None:
             self.player.x, self.player.y = tavern_tile

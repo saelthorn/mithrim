@@ -1,6 +1,6 @@
 from world.tile import tavern_floor, tavern_wall, bar_counter, table, chair, door, fireplace, wall, tavern_floor, tavern_barrel, tavern_crate, torch, floor, crate, barrel, tavern_kitchen_floor # Ensure 'door' is imported
 from entities.dungeon_npcs import DungeonHealer
-from entities.tavern_npcs import Bartender, Patron
+from entities.town_npcs import Bartender, Patron
 from core import game
 from core.fov import FOV
 import random

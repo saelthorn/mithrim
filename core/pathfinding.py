@@ -16,7 +16,7 @@ class Node:
 
 
 def astar(game_map, start, end, entities=None, moving_entity=None, ignore_destructible=False,
-          max_expansions=4000):
+          max_expansions=4000, allow_diagonal=True):
     footprint_size = getattr(moving_entity, 'footprint_size', 1) if moving_entity else 1
     can_swim = getattr(moving_entity, 'can_swim', False)
 
@@ -72,8 +72,16 @@ def astar(game_map, start, end, entities=None, moving_entity=None, ignore_destru
     heapq.heappush(open_heap, start_node)
     open_dict[start] = start_node
 
-    neighbor_steps = [(0, -1), (0, 1), (-1, 0), (1, 0),
-                      (-1, -1), (-1, 1), (1, -1), (1, 1)]
+    neighbor_steps = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+    if allow_diagonal:
+        # Every existing caller (EscortCompanion, monster AI, ...) relies
+        # on the default True here, so behavior for them is unchanged.
+        # allow_diagonal=False exists for movers where a diagonal step
+        # would be ambiguous whenever it clips between two solid tiles
+        # (a "corner cut") -- see structures.py's TownNPC, which opts out
+        # entirely rather than trying to detect and reject just the bad
+        # diagonals after the fact.
+        neighbor_steps += [(-1, -1), (-1, 1), (1, -1), (1, 1)]
 
     while open_heap:
         if len(closed_set) >= max_expansions:
