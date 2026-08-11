@@ -11,7 +11,7 @@ from items.items import (
     duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, scale_mail_armor, 
     sturdy_quarterstaff, leather_cap, iron_helmet, steel_helmet, hood_of_shadows, great_helm, mages_circlet, leather_boots, 
     iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers, silver_dagger, round_shield, iron_short_sword,
-    CampfireKit, Food, Weapon, Helmet, Armor, Boots, OffHand, FocusItem
+    CampfireKit, Food, Weapon, Helmet, Armor, Boots, OffHand, FocusItem, format_price
 )
 
 
@@ -155,7 +155,7 @@ class DungeonMerchant(NPC):
             purchased_items = []
             total_cost = 0
             for item in list(food_items):
-                if player.gold < item.price:
+                if player.money < item.price:
                     continue
 
                 new_item = item.__class__(
@@ -167,7 +167,7 @@ class DungeonMerchant(NPC):
                 )
 
                 if player.inventory.add_item(new_item):
-                    player.gold -= item.price
+                    player.money -= item.price
                     total_cost += item.price
                     purchased_items.append(item.name)
                     self.items_for_sale.remove(item)
@@ -180,12 +180,12 @@ class DungeonMerchant(NPC):
             player.update_throw_knife_ability()
             player.update_spellbook_abilities()
             player.update_guard_ability()
-            return f"You bought {len(purchased_items)} food items for {total_cost} gold: {item_list}."
+            return f"You bought {len(purchased_items)} food items for {format_price(total_cost)}: {item_list}."
 
         for item in self.items_for_sale:
             if item.name.lower() == item_name.lower():
-                if player.gold >= item.price:
-                    player.gold -= item.price
+                if player.money >= item.price:
+                    player.money -= item.price
     
                     # Give the actual item instance to the player
                     if player.inventory.add_item(item):
@@ -196,7 +196,7 @@ class DungeonMerchant(NPC):
                         return f"You bought {item.name}!"
                     else:
                         # If adding failed, refund the player
-                        player.gold += item.price
+                        player.money += item.price
                         return "Your inventory is full!"
                 else:
                     return "Scram! you don't have enough gold!"
@@ -211,54 +211,54 @@ class DungeonMerchant(NPC):
             equipments = [item for item in player.inventory.items if isinstance(item, (Weapon, OffHand, Armor, Helmet, Boots, FocusItem))]
             if not equipments:
                 return "You don't have any equipments to sell."
-            total_gold = 0
+            total_price = 0
             for item in equipments:
                 player.inventory.remove_item(item)
-                total_gold += item.price // 2
+                total_price += item.price // 2
                 self.items_for_sale.append(item)
-            player.gold += total_gold
+            player.money += total_price
             player.update_throw_knife_ability()
             player.update_spellbook_abilities()
             player.update_holy_symbol_abilities()
             player.update_guard_ability()
-            return f"You sold {len(equipments)} equipment(s) for {total_gold} gold!"
+            return f"You sold {len(equipments)} equipment(s) for {format_price(total_price)}!"
 
         if item_name == "all weapons":
             weapons = [item for item in player.inventory.items if isinstance(item, (Weapon, OffHand))]
             if not weapons:
                 return "You don't have any weapons to sell."
-            total_gold = 0
+            total_price = 0
             for item in weapons:
                 player.inventory.remove_item(item)
-                total_gold += item.price // 2
+                total_price += item.price // 2
                 self.items_for_sale.append(item)
-            player.gold += total_gold
+            player.money += total_price
             player.update_throw_knife_ability()
             player.update_spellbook_abilities()
             player.update_guard_ability()
-            return f"You sold {len(weapons)} weapon(s) for {total_gold} gold!"
+            return f"You sold {len(weapons)} weapon(s) for {format_price(total_price)}!"
 
         if item_name == "all armors":
             armor_items = [item for item in player.inventory.items if isinstance(item, (Helmet, Armor, Boots))]
             if not armor_items:
                 return "You don't have any armor to sell."
-            total_gold = 0
+            total_price = 0
             for item in armor_items:
                 player.inventory.remove_item(item)
-                total_gold += item.price // 2
+                total_price += item.price // 2
                 self.items_for_sale.append(item)
-            player.gold += total_gold
+            player.money += total_price
             player.update_throw_knife_ability()
             player.update_spellbook_abilities()
             player.update_holy_symbol_abilities()
             player.update_guard_ability()
-            return f"You sold {len(armor_items)} armor item(s) for {total_gold} gold!"
+            return f"You sold {len(armor_items)} armor item(s) for {format_price(total_price)}!"
         
         # Handle single item selling
         for item in player.inventory.items:  # Access the player's inventory items
             if item.name.lower() == item_name.lower():  # Case insensitive comparison
                 player.inventory.remove_item(item)  # Remove the item from the player's inventory
-                player.gold += item.price // 2  # Assuming the merchant pays half the price
+                player.money += item.price // 2  # Assuming the merchant pays half the price
                 self.items_for_sale.append(item)  # Add the item back to the merchant's inventory
                 player.update_throw_knife_ability()
                 player.update_spellbook_abilities()
@@ -580,7 +580,7 @@ class Trader(EncounterVictim):
             purchased_items = []
             total_cost = 0
             for item in list(food_items):
-                if player.gold < item.price:
+                if player.money < item.price:
                     continue
 
                 new_item = item.__class__(
@@ -592,7 +592,7 @@ class Trader(EncounterVictim):
                 )
 
                 if player.inventory.add_item(new_item):
-                    player.gold -= item.price
+                    player.money -= item.price
                     total_cost += item.price
                     purchased_items.append(item.name)
                     self.items_for_sale.remove(item)
@@ -605,12 +605,12 @@ class Trader(EncounterVictim):
             player.update_throw_knife_ability()
             player.update_spellbook_abilities()
             player.update_guard_ability()
-            return f"You bought {len(purchased_items)} food items for {total_cost} gold: {item_list}."
+            return f"You bought {len(purchased_items)} food items for {format_price(total_cost)}: {item_list}."
 
         for item in self.items_for_sale:
             if item.name.lower() == item_name.lower():
-                if player.gold >= item.price:
-                    player.gold -= item.price
+                if player.money >= item.price:
+                    player.money -= item.price
     
                     # Give the actual item instance to the player
                     if player.inventory.add_item(item):
@@ -621,7 +621,7 @@ class Trader(EncounterVictim):
                         return f"You bought {item.name}!"
                     else:
                         # If adding failed, refund the player
-                        player.gold += item.price
+                        player.money += item.price
                         return "Your inventory is full!"
                 else:
                     return "Scram! you don't have enough gold!"
@@ -636,54 +636,54 @@ class Trader(EncounterVictim):
             equipments = [item for item in player.inventory.items if isinstance(item, (Weapon, OffHand, Armor, Helmet, Boots, FocusItem))]
             if not equipments:
                 return "You don't have any equipments to sell."
-            total_gold = 0
+            total_price = 0
             for item in equipments:
                 player.inventory.remove_item(item)
-                total_gold += item.price // 2
+                total_price += item.price // 2
                 self.items_for_sale.append(item)
-            player.gold += total_gold
+            player.money += total_price
             player.update_throw_knife_ability()
             player.update_spellbook_abilities()
             player.update_holy_symbol_abilities()
             player.update_guard_ability()
-            return f"You sold {len(equipments)} equipment(s) for {total_gold} gold!"
+            return f"You sold {len(equipments)} equipment(s) for {format_price(total_price)}!"
 
         if item_name == "all weapons":
             weapons = [item for item in player.inventory.items if isinstance(item, (Weapon, OffHand))]
             if not weapons:
                 return "You don't have any weapons to sell."
-            total_gold = 0
+            total_price = 0
             for item in weapons:
                 player.inventory.remove_item(item)
-                total_gold += item.price // 2
+                total_price += item.price // 2
                 self.items_for_sale.append(item)
-            player.gold += total_gold
+            player.money += total_price
             player.update_throw_knife_ability()
             player.update_spellbook_abilities()
             player.update_guard_ability()
-            return f"You sold {len(weapons)} weapon(s) for {total_gold} gold!"
+            return f"You sold {len(weapons)} weapon(s) for {format_price(total_price)}!"
 
         if item_name == "all armors":
             armor_items = [item for item in player.inventory.items if isinstance(item, (Helmet, Armor, Boots))]
             if not armor_items:
                 return "You don't have any armor to sell."
-            total_gold = 0
+            total_price = 0
             for item in armor_items:
                 player.inventory.remove_item(item)
-                total_gold += item.price // 2
+                total_price += item.price // 2
                 self.items_for_sale.append(item)
-            player.gold += total_gold
+            player.money += total_price
             player.update_throw_knife_ability()
             player.update_spellbook_abilities()
             player.update_holy_symbol_abilities()
             player.update_guard_ability()
-            return f"You sold {len(armor_items)} armor item(s) for {total_gold} gold!"
+            return f"You sold {len(armor_items)} armor item(s) for {format_price(total_price)}!"
         
         # Handle single item selling
         for item in player.inventory.items:  # Access the player's inventory items
             if item.name.lower() == item_name.lower():  # Case insensitive comparison
                 player.inventory.remove_item(item)  # Remove the item from the player's inventory
-                player.gold += item.price // 2  # Assuming the merchant pays half the price
+                player.money += item.price // 2  # Assuming the merchant pays half the price
                 self.items_for_sale.append(item)  # Add the item back to the merchant's inventory
                 player.update_throw_knife_ability()
                 player.update_spellbook_abilities()

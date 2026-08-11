@@ -15,6 +15,29 @@ SILVER = 10 * COPPER
 GOLD = 10 * SILVER
 
 
+def format_price(copper_amount):
+    """
+    Render a raw copper amount (the unit every item's `price` -- and
+    player.money, see player.py -- is stored in) as a compact coin
+    string, e.g. "3g 4s", "5s 2c", "8c". Zero denominations are omitted,
+    except a price of exactly 0 which still renders as "0c" so callers
+    never end up displaying a blank price. Shared by every screen/shop
+    that shows a price (game.py, ui_screens.py, town_npcs.py,
+    dungeon_npcs.py) so the format can't drift between them.
+    """
+    gold, remainder = divmod(copper_amount, GOLD)
+    silver, copper = divmod(remainder, SILVER)
+
+    parts = []
+    if gold:
+        parts.append(f"{gold}g")
+    if silver:
+        parts.append(f"{silver}s")
+    if copper or not parts:
+        parts.append(f"{copper}c")
+    return " ".join(parts)
+
+
 class Item:
     """Base class for all items."""
     def __init__(self, name, char, color, description="", price=10 * SILVER):
