@@ -370,7 +370,7 @@ from story.trigger_system import TriggerRule, TriggerType
 from story.consequence_system import RewardXPConsequence, RewardGoldConsequence, ModifyReputationConsequence, consequence_from_dict
 from story.story_failure_system import FailureMode, FailurePolicy
 
-from entities.player import Player, Fighter, Rogue, Wizard, Cleric
+from entities.player import Player, Fighter, Rogue, Wizard, Cleric, COPPER_PER_GOLD, COPPER_PER_SILVER
 
 # NEW: Import all monster classes
 from entities.monster import (
@@ -491,6 +491,28 @@ class Camera:
         screen_x, screen_y = self.world_to_screen(world_x, world_y)
         return (0 <= screen_x < self.viewport_width and
                 0 <= screen_y < self.viewport_height)
+
+
+def format_coin_price(copper_amount):
+    """
+    Render a raw copper amount (the unit items.py prices are stored in --
+    see its GOLD/SILVER/COPPER constants) as a compact coin string for
+    shop/tooltip display, e.g. "3g 4s", "5s 2c", "8c". Denominations that
+    are zero are omitted, except for a price of exactly 0 which renders
+    as "0c" (mainly relevant for junk/food items priced free) so the UI
+    never shows a blank price.
+    """
+    gold, remainder = divmod(copper_amount, COPPER_PER_GOLD)
+    silver, copper = divmod(remainder, COPPER_PER_SILVER)
+
+    parts = []
+    if gold:
+        parts.append(f"{gold}g")
+    if silver:
+        parts.append(f"{silver}s")
+    if copper or not parts:
+        parts.append(f"{copper}c")
+    return " ".join(parts)
 
 
 class Game:
@@ -8975,7 +8997,7 @@ class Game:
             (font_body.size(f"  >  {n}")[0] for n in all_names),
             default=0
         )
-        price_col_w  = font_body.size("9999 gp")[0] + PAD
+        price_col_w  = font_body.size("999g 9s 9c")[0] + PAD
         min_w        = font_title.size(f"  {merchant.name}")[0] + font_small.size("999g 9s 9c  ")[0] + PAD * 3
         W = max(560, min_w, max_name_px + price_col_w + PAD * 3)
         W = min(W, config.GAME_AREA_WIDTH - PAD * 4)   # never wider than the game area
@@ -9073,12 +9095,12 @@ class Game:
             name_col = (255, 245, 160) if is_sel else (210, 210, 210)
 
             if is_buy:
-                price_val = item.price
-                price_str = f"{price_val} gp"
-                price_col = (90, 210, 90) if self.player.can_afford(gold=price_val) else (210, 70, 70)
+                price_val = item.price  # in copper -- see items.py's GOLD/SILVER/COPPER constants
+                price_str = format_coin_price(price_val)
+                price_col = (90, 210, 90) if self.player.money >= price_val else (210, 70, 70)
             else:
                 price_val = item.price // 2
-                price_str = f"{price_val} gp"
+                price_str = format_coin_price(price_val)
                 price_col = (90, 190, 255)
 
             # Scroll indicator arrows when list overflows

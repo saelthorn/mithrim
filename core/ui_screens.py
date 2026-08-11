@@ -1,7 +1,28 @@
 import pygame
 import graphics
 import config
-from items.items import CampfireKit, Weapon, Helmet, Armor, Boots, FocusItem, OffHand, Potion, Food, Accessory, Tools, Junk
+from items.items import CampfireKit, Weapon, Helmet, Armor, Boots, FocusItem, OffHand, Potion, Food, Accessory, Tools, Junk, GOLD, SILVER
+
+
+def _format_price(copper_amount):
+    """
+    Render a raw copper amount (the unit item.price is stored in -- see
+    items.py's GOLD/SILVER/COPPER constants) as a compact coin string,
+    e.g. "3g 4s", "5s 2c", "8c". Zero denominations are omitted, except
+    a price of exactly 0 still renders as "0c" so the UI never shows a
+    blank price.
+    """
+    gold, remainder = divmod(copper_amount, GOLD)
+    silver, copper = divmod(remainder, SILVER)
+
+    parts = []
+    if gold:
+        parts.append(f"{gold}g")
+    if silver:
+        parts.append(f"{silver}s")
+    if copper or not parts:
+        parts.append(f"{copper}c")
+    return " ".join(parts)
 
 # ── Palette ──────────────────────────────────────────────────────────────────
 
@@ -183,7 +204,7 @@ def _item_stats(item):
     elif isinstance(item, Food):
         rows += [("Hunger", f"+{item.healing_value}")]
     if hasattr(item, "price") and item.price:
-        rows.append(("Price", f"{item.price} gp"))
+        rows.append(("Price", _format_price(item.price)))
     return rows
 
 

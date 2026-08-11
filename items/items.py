@@ -3,10 +3,21 @@ import random
 
 from core.game import GameState
 
+# ── Currency helpers ─────────────────────────────────────────────────────
+# Item prices are stored in copper pieces -- the same base unit
+# player.money is tracked in (see player.py) -- so a price can be spent
+# down to the copper without ever going fractional. GOLD/SILVER let a
+# price be written in whichever denomination reads most naturally for
+# that item (a loaf of bread costs a few COPPER, a sturdy sword costs a
+# few GOLD) while still storing one plain integer under the hood.
+COPPER = 1
+SILVER = 10 * COPPER
+GOLD = 10 * SILVER
+
 
 class Item:
     """Base class for all items."""
-    def __init__(self, name, char, color, description="", price=10):
+    def __init__(self, name, char, color, description="", price=10 * SILVER):
         self.name = name
         self.char = char
         self.color = color
@@ -132,7 +143,7 @@ class Accessory(Item):
 
 class Helmet(Item):
     """A helmet that can be equipped for defense and stat bonuses."""
-    def __init__(self, name, char, color, description, ac_bonus=0, attack_bonus=0, spell_bonus=0, price=10,
+    def __init__(self, name, char, color, description, ac_bonus=0, attack_bonus=0, spell_bonus=0, price=10 * SILVER,
                  perception_bonus=0, intelligence_bonus=0, category=None):
         super().__init__(name, char, color, description, price)
         self.ac_bonus = ac_bonus
@@ -145,7 +156,7 @@ class Helmet(Item):
 
 class Boots(Item):
     """Boots that can be equipped for movement and stat bonuses."""
-    def __init__(self, name, char, color, description, ac_bonus=0, attack_bonus=0, price=10,
+    def __init__(self, name, char, color, description, ac_bonus=0, attack_bonus=0, price=10 * SILVER,
                  speed_bonus=0, stealth_bonus=0, dexterity_bonus=0, spell_bonus=0, category=None):
         super().__init__(name, char, color, description, price)
         self.ac_bonus = ac_bonus
@@ -159,7 +170,7 @@ class Boots(Item):
 
 class FocusItem(Item):
     """An arcane or divine focus that boosts spell attack rolls and save DCs."""
-    def __init__(self, name, char, color, description, spell_bonus=0, price=10,
+    def __init__(self, name, char, color, description, spell_bonus=0, price=10 * SILVER,
                  intelligence_bonus=0, wisdom_bonus=0, category=None):
         super().__init__(name, char, color, description, price)
         self.spell_bonus = spell_bonus        # added to spell_bonus stat
@@ -292,7 +303,7 @@ class LockedChest(Chest):
 
 class CampfireKit(Item):
     def __init__(self):
-        super().__init__(name="Campfire Kit", char="cf", color=(255, 140, 0), description="A kit to set up a campfire.", price=25)
+        super().__init__(name="Campfire Kit", char="cf", color=(255, 140, 0), description="A kit to set up a campfire.", price=25 * SILVER)
         self.uses_left = 5  # Number of uses for the campfire kit
 
     def use(self, user, game_instance):
@@ -329,7 +340,7 @@ wood_plank = Junk(
     char="pn",
     color=(139, 69, 19),
     description="Just a useless piece of wood.",
-    price = 1
+    price = 1 * SILVER
 )
 
 
@@ -341,7 +352,7 @@ lesser_healing_potion = Potion(
     description="Restores a small amount of health.",
     effect_type="heal",
     effect_value=10, # Heals 8 HP
-    price = 10
+    price = 10 * SILVER
 )
 
 greater_healing_potion = Potion(
@@ -351,7 +362,7 @@ greater_healing_potion = Potion(
     description="Restores a great amount of health.",
     effect_type="heal",
     effect_value=24,
-    price = 20
+    price = 20 * SILVER
 )
 
 
@@ -360,7 +371,7 @@ meat = Food(
     name="Meat",
     description="A meat from unknown origin, chewy but full of taste.",
     healing_value=40,
-    price=15,
+    price=15 * SILVER,
     char="met",
     color=(255, 0, 0)
 )
@@ -369,7 +380,7 @@ carrot = Food(
     name="Carrot",
     description="A crunchy vegetable that has a sweet and earthy flavor.",
     healing_value=15,
-    price=5,
+    price=5 * SILVER,
     char="crt",
     color=(143, 188, 143)
 )
@@ -378,7 +389,7 @@ green_apple = Food(
     name="Green Apple",
     description="A fruit that has sweet and tarty taste.",
     healing_value=15,
-    price=5,
+    price=5 * SILVER,
     char="gra",
     color=(0, 255, 0)
 )
@@ -387,7 +398,7 @@ fromage = Food(
     name="Fromage",
     description="Ce type de fromage est un peu salé et a une saveur umami.",
     healing_value=30,
-    price=12,
+    price=12 * SILVER,
     char="frg",
     color=(255, 255, 0)
 )
@@ -396,7 +407,7 @@ bread = Food(
     name="Bread",
     description="Food that is often brought when crawling dungeons.",
     healing_value=25,
-    price=8,
+    price=8 * SILVER,
     char="brd",
     color=(200, 200, 100)
 )
@@ -432,7 +443,7 @@ torch = OffHand(
     description="A burning torch that can be held in your off-hand. Provides extra light.", 
     damage_modifier=1,
     attack_bonus=0,
-    price=10,
+    price=10 * SILVER,
     remaining_duration=350
 )
 
@@ -444,7 +455,7 @@ throwing_knife = OffHand(
     damage_dice="1d4",
     damage_modifier=1,
     attack_bonus=2,
-    price = 10,
+    price = 10 * SILVER,
     category="Dagger"
 )
 
@@ -456,7 +467,7 @@ spell_book = FocusItem(
     spell_bonus=4,
     #intelligence_bonus=2,
 
-    price=50,
+    price=50 * SILVER,
     category="Spellbook"
 )
 
@@ -468,7 +479,7 @@ holy_symbol = FocusItem(
     spell_bonus=4,
     #wisdom_bonus=2,
 
-    price=40,
+    price=40 * SILVER,
     category="Holy Symbol",
 )
 
@@ -480,7 +491,7 @@ iron_dagger = OffHand(
     damage_dice="1d4",
     damage_modifier=2,
     attack_bonus=1,
-    price = 15,
+    price = 15 * SILVER,
     category="Dagger"
 )
 
@@ -492,7 +503,7 @@ silver_dagger = OffHand(
     damage_dice="1d4",
     damage_modifier=3,
     attack_bonus=3,
-    price = 30,
+    price = 30 * SILVER,
     category="Dagger"
 )
 
@@ -504,7 +515,7 @@ glass_orb = OffHand(
     damage_dice="1d4",
     spell_bonus=1,
     attack_bonus=1,
-    price=20,
+    price=20 * SILVER,
     category="Orb"
 )
 
@@ -516,7 +527,7 @@ orb_of_chaos = OffHand(
     damage_dice="1d4",
     spell_bonus=3,
     attack_bonus=4,
-    price=40,
+    price=40 * SILVER,
     category="Orb"
 )
 
@@ -528,7 +539,7 @@ iron_short_sword = Weapon(
     damage_dice="1d6",
     damage_modifier=0,
     attack_bonus=0,
-    price = 10,
+    price = 10 * SILVER,
     category="Shortsword"
 )
 
@@ -540,7 +551,7 @@ flameheart_short_sword = Weapon(
     damage_dice="1d6",
     damage_modifier=2,
     attack_bonus=2,
-    price = 30,
+    price = 30 * SILVER,
     category="Shortsword"
 )
 
@@ -552,7 +563,7 @@ bronze_short_sword = Weapon(
     damage_dice="1d6",
     damage_modifier=0,
     attack_bonus=0,
-    price = 5,
+    price = 5 * SILVER,
     category="Shortsword"
 )
 
@@ -565,7 +576,7 @@ iron_long_sword = Weapon(
     damage_dice="1d8",
     damage_modifier=0,
     attack_bonus=1,
-    price = 15,
+    price = 15 * SILVER,
     category="Longsword"
 )
 
@@ -577,7 +588,7 @@ steel_long_sword = Weapon(
     damage_dice="1d8",
     damage_modifier=1,
     attack_bonus=2,
-    price = 25,
+    price = 25 * SILVER,
     category="Longsword"
 )
 
@@ -589,7 +600,7 @@ adamantine_long_sword = Weapon(
     damage_dice="1d8",
     damage_modifier=4,
     attack_bonus=2,
-    price = 50,
+    price = 50 * SILVER,
     category="Longsword"
 )
 
@@ -602,7 +613,7 @@ steel_battle_axe = Weapon(
     damage_dice="1d12",
     damage_modifier=1,
     attack_bonus=0,
-    price = 15,
+    price = 15 * SILVER,
     category="Battleaxe"
 )
 
@@ -614,7 +625,7 @@ dwarven_battle_axe = Weapon(
     damage_dice="1d12",
     damage_modifier=1,
     attack_bonus=3,
-    price = 30,
+    price = 30 * SILVER,
     is_two_handed=True,
     category="Battleaxe"
 )
@@ -627,7 +638,7 @@ pole_arm = Weapon(
     damage_dice="1d10",
     damage_modifier=1,
     attack_bonus=2,
-    price = 25,
+    price = 25 * SILVER,
     is_two_handed=True,
     category="Polearm"
 )
@@ -641,7 +652,7 @@ oak_staff = Weapon(
     damage_modifier=0,
     attack_bonus=1,
     spell_bonus=1,
-    price = 20,
+    price = 20 * SILVER,
     category="Quarterstaff"
 )
 
@@ -654,7 +665,7 @@ apprentices_staff = Weapon(
     damage_modifier=2,
     attack_bonus=1,
     spell_bonus=2,
-    price = 30,
+    price = 30 * SILVER,
     category="Quarterstaff"
 )
 
@@ -667,7 +678,7 @@ staff_of_magi = Weapon(
     damage_modifier=4,
     attack_bonus=1,
     spell_bonus=3,
-    price = 50,
+    price = 50 * SILVER,
     category="Quarterstaff"
 )
 
@@ -680,7 +691,7 @@ sturdy_quarterstaff = Weapon(
     damage_modifier=2,
     attack_bonus=3,
     spell_bonus=0,
-    price = 20,
+    price = 20 * SILVER,
     category="Quarterstaff"
 )
 
@@ -692,7 +703,7 @@ steel_rapier = Weapon(
     damage_dice="1d8",
     damage_modifier=1,
     attack_bonus=0,
-    price=20,
+    price=20 * SILVER,
     category="Rapier"
 )
 
@@ -704,7 +715,7 @@ duelists_rapier = Weapon(
     damage_dice="2d8",
     damage_modifier=2,
     attack_bonus=1,
-    price=60,
+    price=60 * SILVER,
     category="Rapier"
 )
 
@@ -716,7 +727,7 @@ iron_hammer = OffHand(
     damage_dice="1d8",
     damage_modifier=1,
     attack_bonus=0,
-    price=15,
+    price=15 * SILVER,
     category="Hammer"
 )
 
@@ -728,7 +739,7 @@ dragonsbane_warhammer = Weapon(
     damage_dice="2d8",
     damage_modifier=4,
     attack_bonus=3,
-    price=70,
+    price=70 * SILVER,
     is_two_handed=True,
     category="Hammer"
 )
@@ -741,7 +752,7 @@ steel_maul = Weapon(
     damage_dice="2d6",
     damage_modifier=2,
     attack_bonus=1,
-    price=30,
+    price=30 * SILVER,
     is_two_handed=True,
     category="Hammer"
 )
@@ -754,7 +765,7 @@ steel_mace = Weapon(
     damage_dice="1d6",
     damage_modifier=1,
     attack_bonus=1,
-    price=25,
+    price=25 * SILVER,
     category="Mace"
 )
 
@@ -766,7 +777,7 @@ dwarven_flail = Weapon(
     damage_dice="1d8",
     damage_modifier=2,
     attack_bonus=1,
-    price=35,
+    price=35 * SILVER,
     category="Flail"
 )
 
@@ -778,7 +789,7 @@ flameheart_flail = Weapon(
     damage_dice="1d8",
     damage_modifier=4,
     attack_bonus=2,
-    price=50,
+    price=50 * SILVER,
     category="Flail"
 )
 
@@ -800,7 +811,7 @@ round_shield = OffHand(
     color=(175, 175, 175),
     description="A round shield.",
     ac_bonus=1,
-    price=15,
+    price=15 * SILVER,
     category="Shield"
 
 )
@@ -812,7 +823,7 @@ kite_shield = OffHand(
     description="A kite shield.",
     ac_bonus=2, 
     attack_bonus=-1, # Heavier shield that provides more AC but imposes a penalty to attack rolls
-    price=35,
+    price=35 * SILVER,
     category="Shield"
 )
 
@@ -823,7 +834,7 @@ tower_shield = OffHand(
     description="A tower shield.",
     ac_bonus=3, 
     attack_bonus=-2, # Heavier shield that provides more AC but imposes a penalty to attack rolls
-    price=50,
+    price=50 * SILVER,
     category="Shield"
 )
 
@@ -833,7 +844,7 @@ padded_armor = Armor(
     color=(139, 69, 19),
     description="Light leather armor.",
     ac_bonus=1, # Adds 1 to base AC
-    price = 10,
+    price = 10 * SILVER,
     category="Light"
 )
 
@@ -844,7 +855,7 @@ studded_leather_armor = Armor(
     description="A studded leather armor.",
     ac_bonus=2,
     attack_bonus=1,
-    price=20,
+    price=20 * SILVER,
     category="Light"
 )
 
@@ -854,7 +865,7 @@ chainmail_armor = Armor(
     color=(175, 175, 175),
     description="Chainmail armor.",
     ac_bonus=2, # Adds 1 to base AC
-    price = 20,
+    price = 20 * SILVER,
     category="Medium"
 )
 
@@ -865,7 +876,7 @@ half_plate_armor = Armor(
     description="A half plate armor.",
     ac_bonus=3,
     attack_bonus=-1, 
-    price=30,
+    price=30 * SILVER,
     category="Medium"
 )
 
@@ -875,7 +886,7 @@ scale_mail_armor = Armor(
     color=(175, 175, 175),
     description="A scale mail armor.",
     ac_bonus=2,
-    price=25,
+    price=25 * SILVER,
     category="Medium"
 )
 
@@ -886,7 +897,7 @@ full_plate_armor = Armor(
     description=("Full plate armor."),
     ac_bonus=4,
     attack_bonus=-2, 
-    price=50,
+    price=50 * SILVER,
     category="Heavy"
 )
 
@@ -896,7 +907,7 @@ robes = Armor(
     color=(100, 100, 200),
     description="Simple cloth robes.",
     ac_bonus=0, # Robes typically provide no AC bonus, relying on Dex
-    price = 10,
+    price = 10 * SILVER,
     category="Light"
 )
 
@@ -906,7 +917,7 @@ robes_of_protection = Armor(
     color=(150, 20, 20),
     description="A robe infused with protection magic.",
     ac_bonus=4,
-    price=40,
+    price=40 * SILVER,
     category="Light"
 )
 
@@ -918,7 +929,7 @@ leather_cap = Helmet(
     description="A simple leather cap. Provides minimal protection.",
     ac_bonus=0,
     #perception_bonus=1,
-    price=10,
+    price=10 * SILVER,
     category="Light"
 )
 
@@ -928,7 +939,7 @@ iron_helmet = Helmet(
     color=(160, 160, 160),
     description="A solid iron helmet. Protects the head from blows.",
     ac_bonus=1,
-    price=15,
+    price=15 * SILVER,
     category="Medium"
 )
 
@@ -938,7 +949,7 @@ steel_helmet = Helmet(
     color=(180, 180, 190),
     description="A well-crafted steel helmet.",
     ac_bonus=2,
-    price=20,
+    price=20 * SILVER,
     category="Medium"
 )
 
@@ -949,7 +960,7 @@ great_helm = Helmet(
     description="A full great helm. Heavy but excellent protection.",
     ac_bonus=3,
     attack_bonus=-1, 
-    price=30,
+    price=30 * SILVER,
     category="Heavy"
 )
 
@@ -961,7 +972,7 @@ mages_circlet = Helmet(
     ac_bonus=0,
     attack_bonus=0,
     spell_bonus=2,
-    price=40,
+    price=40 * SILVER,
     category="Light"
 )
 
@@ -973,7 +984,7 @@ hood_of_shadows = Helmet(
     ac_bonus=2,
     attack_bonus=1,
     #perception_bonus=2,
-    price=45,
+    price=45 * SILVER,
     category="Light"
 )
 
@@ -984,7 +995,7 @@ leather_boots = Boots(
     color=(139, 100, 60),
     description="Simple leather boots. Light and comfortable.",
     ac_bonus=0,
-    price=10,
+    price=10 * SILVER,
     category="Light"
 )
 
@@ -994,7 +1005,7 @@ iron_greaves = Boots(
     color=(160, 160, 160),
     description="Iron leg guards. Heavy but protective.",
     ac_bonus=1,
-    price=20,
+    price=20 * SILVER,
     category="Medium"
 )
 
@@ -1007,7 +1018,7 @@ boots_of_speed = Boots(
     attack_bonus=2, 
     #speed_bonus=1,
     #dexterity_bonus=1,
-    price=40,
+    price=40 * SILVER,
     category="Light"
 )
 
@@ -1019,7 +1030,7 @@ boots_of_stealth = Boots(
     ac_bonus=0,
     #stealth_bonus=3,
     attack_bonus=1,
-    price=40,
+    price=40 * SILVER,
     category="Light"
 )
 
@@ -1030,7 +1041,7 @@ dwarven_stompers = Boots(
     description="Thick dwarven-forged boots. Built to last forever.",
     ac_bonus=2,
     attack_bonus=-2, 
-    price=40,
+    price=40 * SILVER,
     category="Heavy"
 )
 
@@ -1041,7 +1052,7 @@ thieves_tools = Tools(
     char="tt",
     color=(255, 215, 0),
     description="Tools to unlock/disable trinkets",
-    price = 10
+    price = 10 * SILVER
 )
 
 
