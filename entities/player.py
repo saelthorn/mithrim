@@ -38,7 +38,7 @@ from core.abilities import (
     Parry, SecondWind, SpiritualWeapon, DivineStrike, HealingWord, SummonCelestial, PowerAttack, CunningActionDash, 
     Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, 
     ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp, PreciseStrike, PrepTime, CureWounds, SacredFlame,
-    MagicMissile, ArrowShot, Multishot
+    MagicMissile, ArrowShot, Multishot, SummonAnimalCompanion
 )
 
 from core.status_effects import (
@@ -2261,6 +2261,7 @@ class Ranger(Player):
 
         # Ranger-exclusive abilities
         self.abilities["Multishot"] = Multishot()
+        self.abilities["Animal Companion"] = SummonAnimalCompanion()
 
         self._scale_all_abilities()
 

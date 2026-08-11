@@ -1001,3 +1001,215 @@ class SpiritualWeaponEntity(SummonedEntity):
             if summon_ability:
                 summon_ability.current_cooldown = summon_ability.cooldown
         game_instance.update_fov()
+
+
+class AnimalCompanion(SummonedEntity):
+    """
+    A loyal wolf summoned/bonded via the Ranger's Animal Companion
+    ability. Fights alongside the Ranger in melee, indefinitely rather
+    than on a timer (duration=0, matching EscortCompanion's "permanent
+    until dismissed/killed" convention) -- a Ranger's companion is a
+    standing ally, not a spell effect with a clock on it the way
+    Imp/Celestial are.
+
+    Combat AI is a deliberate copy of Imp/Celestial's take_turn/
+    attack_enemy/add_status_effect/make_saving_throw structure (this
+    codebase re-templates each summon rather than sharing a combat-AI
+    mixin -- see Imp/Celestial above), re-flavored for a wolf and with
+    a bite attack instead of a sting/smite.
+    """
+    def __init__(self, x, y, owner, hp=14, attack_power=3, proficiency_bonus=2):
+        super().__init__(x, y, 'WF', 'Wolf Companion', (140, 110, 80), owner, duration=0)  # Permanent until dismissed or slain
+        self.hp = hp
+        self.max_hp = hp
+        self.armor_class = 13
+        self.blocks_movement = True
+        self.attack_power = attack_power  # +3 modifier for d6 bite attack
+        self.initiative = 0
+        self.active_status_effects = []
+        self.proficiency_bonus = proficiency_bonus
+
+        self.strength = 13
+        self.dexterity = 16
+        self.constitution = 14
+        self.intelligence = 4
+        self.wisdom = 13
+        self.charisma = 7
+
+    def add_status_effect(self, effect_name, duration, game_instance, source=None):
+        """Adds a status effect to the wolf companion."""
+        new_effect = None
+
+        if effect_name == "Poisoned":
+            new_effect = Poisoned(duration, source)
+        elif effect_name == "AcidBurned":
+            new_effect = AcidBurned(duration, source)
+        elif effect_name == "Burning":
+            new_effect = Burning(duration, source)
+
+        if new_effect:
+            for existing_effect in self.active_status_effects:
+                if type(existing_effect) is type(new_effect):
+                    existing_effect.turns_left = new_effect.duration
+                    game_instance.message_log.add_message(f"{self.name}'s {new_effect.name} effect is refreshed.", (200, 200, 255))
+                    return
+            self.active_status_effects.append(new_effect)
+            game_instance.message_log.add_message(f"{self.name} triggers the trap and dissipates!", (255, 100, 0))
+        else:
+            game_instance.message_log.add_message(f"Warning: Attempted to add unknown status effect: {effect_name}", (255, 0, 0))
+            print(f"Warning: Attempted to add unknown status effect: {effect_name}")
+
+    def make_saving_throw(self, save_type, dc, game_instance, source=None):
+        """The wolf companion can make saving throws to avoid certain effects."""
+        ability_score = getattr(self, save_type, 10)
+        save_bonus = (ability_score - 10) // 2 + self.proficiency_bonus
+        d20_roll = random.randint(1, 20)
+        total_save = d20_roll + save_bonus
+
+        game_instance.message_log.add_message(f"The {self.name} rolls a {save_type} saving throw: [{d20_roll}] + [{save_bonus}] (Save Bonus) = {total_save} vs DC {dc}", (200, 180, 140))
+
+        return total_save >= dc
+
+    def take_turn(self, player, game_map, game_instance):
+        """
+        The wolf companion takes its turn. It attacks enemies in melee
+        range, pathfinds to enemies within 8 tiles, or follows its owner
+        if no enemies are nearby -- identical priority order to Imp/
+        Celestial's take_turn().
+        """
+        self.tick_duration(game_instance)
+        if not self.alive:
+            return
+
+        # Find all adjacent enemies (melee range - distance of 1)
+        adjacent_enemies = []
+        for entity in game_instance.entities:
+            if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
+                continue
+            # Combat summons only ever fight Monster instances -- never
+            # NPCs (shopkeepers, questgivers, escort companions, DungeonHealer/
+            # DungeonMerchant, ...), even if one happens to block movement.
+            if not isinstance(entity, Monster):
+                continue
+            if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
+                distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
+                if distance == 1:  # Adjacent (melee range)
+                    adjacent_enemies.append(entity)
+
+        # Priority 1: Attack adjacent enemies
+        if adjacent_enemies:
+            target = min(adjacent_enemies, key=lambda e: abs(self.x - e.x) + abs(self.y - e.y))
+            self.attack_enemy(target, game_instance)
+            return
+
+        # Priority 2: Find enemies within 8 tiles and pathfind toward the nearest one
+        enemies_in_range = []
+        for entity in game_instance.entities:
+            if entity == self or entity == self.owner or not hasattr(entity, 'alive') or not entity.alive or isinstance(entity, SummonedEntity):
+                continue
+            if not isinstance(entity, Monster):
+                continue
+            if hasattr(entity, 'blocks_movement') and entity.blocks_movement:
+                distance = _chebyshev_distance(self.x, self.y, entity.x, entity.y)
+                if distance <= 8:  # Within 8 tiles
+                    enemies_in_range.append(entity)
+
+        if enemies_in_range:
+            nearest_enemy = min(enemies_in_range, key=lambda e: abs(self.x - e.x) + abs(self.y - e.y))
+
+            path = astar(game_map, (self.x, self.y), (nearest_enemy.x, nearest_enemy.y),
+                         max_expansions=SUMMON_PATHFINDING_MAX_EXPANSIONS)
+            if path and len(path) > 1:  # path[0] is current position, path[1] is next step
+                next_x, next_y = path[1]
+
+                if game_map.is_walkable(next_x, next_y):
+                    blocked = False
+                    for entity in game_instance.entities:
+                        if entity.x == next_x and entity.y == next_y and entity.blocks_movement and entity != self:
+                            blocked = True
+                            break
+                    if not blocked:
+                        self.x = next_x
+                        self.y = next_y
+                        return
+
+        # Priority 3: If not adjacent to owner, move towards the owner
+        distance_to_player = _chebyshev_distance(self.x, self.y, self.owner.x, self.owner.y)
+
+        if distance_to_player > 1:
+            dx = 0
+            dy = 0
+            if self.owner.x < self.x:
+                dx = -1
+            elif self.owner.x > self.x:
+                dx = 1
+            if self.owner.y < self.y:
+                dy = -1
+            elif self.owner.y > self.y:
+                dy = 1
+
+            new_x = self.x + dx
+            new_y = self.y + dy
+
+            if game_map.is_walkable(new_x, new_y):
+                blocked = False
+                for entity in game_instance.entities:
+                    if entity.x == new_x and entity.y == new_y and entity.blocks_movement:
+                        blocked = True
+                        break
+                if not blocked:
+                    self.x = new_x
+                    self.y = new_y
+            else:
+                print(f"[DEBUG] Target tile ({new_x}, {new_y}) not walkable")
+
+    def attack_enemy(self, target, game_instance):
+        """The wolf companion bites an adjacent enemy."""
+        d20_roll = random.randint(1, 20)
+        attack_bonus = self.attack_power + self.proficiency_bonus
+        attack_total = d20_roll + attack_bonus
+        target_ac = getattr(target, 'armor_class', 10)
+
+        game_instance.message_log.add_message(f"The wolf rolls a d20: [{d20_roll}] + [{attack_bonus}] (Attack Bonus) = {attack_total} vs AC {target_ac}!", (200, 180, 140))
+
+        if attack_total >= target_ac:
+            game_instance.message_log.add_message(f"The wolf's bite hits {target.name}!", (200, 160, 120))
+
+            damage_roll = random.randint(1, 6)
+            damage_dealt = target.take_damage(damage_roll, game_instance, damage_type="piercing") + self.attack_power
+            game_instance.message_log.add_message(f"The wolf rolls a 1d6: [{damage_roll}] + [{self.attack_power}] (Attack Power) = {damage_dealt} damage!", (200, 180, 140))
+            game_instance.message_log.add_message(f"The wolf bites {target.name} for {damage_dealt} damage!", (200, 160, 120))
+            game_instance.message_log.add_message(f"{target.name} has {getattr(target, 'hp', 'unknown')}/{getattr(target, 'max_hp', 'unknown')} HP.", (200, 180, 140))
+
+            hit_text = FloatingText(target.x, target.y, "HIT!", (255, 255, 0))
+            damage_text = FloatingText(target.x, target.y - 0.5, str(damage_dealt), (255, 0, 0))
+            game_instance.floating_texts.append(hit_text)
+            game_instance.floating_texts.append(damage_text)
+        else:
+            game_instance.message_log.add_message(f"The wolf's bite misses {target.name}!", (150, 150, 150))
+
+            miss_text = FloatingText(target.x, target.y, "MISS!", (150, 150, 150))
+            game_instance.floating_texts.append(miss_text)
+
+    def die(self, game_instance):
+        """
+        Handles the wolf companion's despawn -- used both for a voluntary
+        dismissal (see SummonAnimalCompanion.use()'s toggle-off branch)
+        and for being slain in combat, exactly mirroring Imp.die()/
+        Celestial.die(): either path unconditionally puts the summoning
+        ability on cooldown, so re-bonding a companion (whether it was
+        dismissed or killed) always costs the same cooldown, matching
+        the existing Imp/Celestial convention rather than inventing a
+        softer "free to dismiss" rule for this one summon.
+        """
+        self.alive = False
+        game_instance.message_log.add_message(f"The {self.name} whines and slinks away into the underbrush.", self.color)
+        if self in game_instance.entities:
+            game_instance.entities.remove(self)
+        if self in game_instance.turn_order:
+            game_instance.turn_order.remove(self)
+        if self.owner and hasattr(self.owner, 'abilities'):
+            summon_ability = self.owner.abilities.get("Animal Companion")
+            if summon_ability:
+                summon_ability.current_cooldown = summon_ability.cooldown
+        game_instance.update_fov()

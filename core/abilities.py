@@ -4,7 +4,7 @@ from world.tile import floor, MimicTile, TrapTile, PrisonDoorTile
 from core.status_effects import DivineStrikeBuff, PowerAttackBuff, EvasionBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
 from core.game import GameState
 from entities.monster import Monster, Mimic
-from entities.summons import MageHandEntity, Imp, Celestial, SpiritualWeaponEntity
+from entities.summons import MageHandEntity, Imp, Celestial, SpiritualWeaponEntity, AnimalCompanion
 from entities.base_entity import NPC
 from core.floating_text import FloatingText
 
@@ -2145,6 +2145,83 @@ class SummonImp(Ability):
         self.imp_max_hp = 10 + max(0, (player_level - 1) // 2)
         self.imp_attack_power = 2 + max(0, (player_level - 1) // 4)
         self.imp_proficiency_bonus = 2 + max(0, (player_level - 1) // 5)
+
+
+class SummonAnimalCompanion(Ability):
+    """
+    Ranger signature ability: call a bonded wolf companion to fight
+    alongside the Ranger. Structurally a direct copy of SummonImp above
+    (same toggle-summon/dismiss shape, same "no cast cooldown, cooldown
+    only applied via the summon's own die()" design -- see AnimalCompanion.
+    die()'s docstring in entities/summons.py) -- the wolf is simply
+    permanent (duration=0) rather than timed, since a Ranger's companion
+    is meant to be a standing ally rather than a spell effect.
+    """
+    def __init__(self):
+        super().__init__("Animal Companion", "Call your bonded wolf companion to fight at your side.", cooldown=30)
+        self.companion_max_hp = 14
+        self.companion_attack_power = 3
+        self.companion_proficiency_bonus = 2
+
+    def use(self, user, game_instance):
+        if not self.can_use(user, game_instance):
+            return False
+
+        existing_companion = None
+        for entity in game_instance.entities:
+            if isinstance(entity, AnimalCompanion) and entity.owner == user:
+                existing_companion = entity
+                break
+
+        if existing_companion:
+            game_instance.message_log.add_message(f"You call your companion back to your side and release the bond.", (180, 180, 255))
+            existing_companion.die(game_instance)
+            return True
+
+        # Systematically check all 8 adjacent tiles
+        adjacent_offsets = [(0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1)]
+
+        for dx, dy in adjacent_offsets:
+            new_x = user.x + dx
+            new_y = user.y + dy
+
+            # Check if the spot is walkable
+            if game_instance.game_map.is_walkable(new_x, new_y):
+                # Check if blocked by another entity
+                blocked = False
+                for entity in game_instance.entities:
+                    if entity.x == new_x and entity.y == new_y and entity.blocks_movement:
+                        blocked = True
+                        break
+
+                if not blocked:
+                    # Summon the companion with scaled stats
+                    companion = AnimalCompanion(
+                        new_x,
+                        new_y,
+                        user,
+                        hp=self.companion_max_hp,
+                        attack_power=self.companion_attack_power,
+                        proficiency_bonus=self.companion_proficiency_bonus,
+                    )
+                    game_instance.entities.append(companion)
+                    game_instance.turn_order.append(companion)
+                    game_instance.message_log.add_message(f"Your wolf companion bounds to your side!", (140, 110, 80))
+                    game_instance.update_fov()
+                    return True
+
+        game_instance.message_log.add_message(f"There's no room for your companion to appear nearby!", (255, 150, 0))
+        return False
+
+    def scale_with_level(self, player_level):
+        """
+        Scales the Animal Companion ability with player level.
+        Increases the wolf's HP and bite damage as the Ranger gains
+        levels -- same formula shape as Summon Imp's scaling above.
+        """
+        self.companion_max_hp = 14 + max(0, (player_level - 1) // 2)
+        self.companion_attack_power = 3 + max(0, (player_level - 1) // 4)
+        self.companion_proficiency_bonus = 2 + max(0, (player_level - 1) // 5)
 
 
 

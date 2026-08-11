@@ -13,8 +13,10 @@ Programming, game design, procedural generation, UI/UX, artwork integration, and
 Mithrim draws inspiration from many classic role-playing games and tabletop systems, including but not limited to:
 
 - Dungeons & Dragons 5th Edition
+- The Elders Scrolls II: Daggerfall
 - Diablo II
 - Darkest Dungeon
+- Caves of Qud
 - Tales of Maj'Eyal (ToME)
 - Dungeon Crawl Stone Soup
 - Pathfinder
