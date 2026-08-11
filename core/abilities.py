@@ -305,6 +305,427 @@ class Evasion(Ability):
         return True
 
 
+class ArrowShot(Ability):
+    def __init__(self):
+        super().__init__("Arrow Shot", "Shoot an arrow at a foe.", cost=0, cooldown=2)
+        self.range = 6  # Range in tiles
+        self.damage_dice = 1  # 1d6
+        self.is_bonus_action = True  # This ability can be used as a bonus action
+
+    def use(self, user, game_instance):
+        # Check if user has a bow equipped and arrows in inventory
+        if not user.has_bow_equipped():
+            game_instance.message_log.add_message(f"You must have a bow equipped to use Arrow Shot!", (255, 100, 100))
+            return False
+        
+        if not user.has_arrows():
+            game_instance.message_log.add_message(f"You don't have any arrows to shoot!", (255, 100, 100))
+            return False
+
+        if not super().use(user, game_instance):
+            return False
+
+
+        def is_entity_visible(ent):
+            allowed = ['player', 'torch', 'darkvision']
+            size = getattr(ent, 'footprint_size', 1)
+            if size > 1:
+                for oy in range(size):
+                    for ox in range(size):
+                        if game_instance.fov.get_visibility_type(ent.x + ox, ent.y + oy) in allowed:
+                            return True
+                return False
+            return game_instance.fov.get_visibility_type(ent.x, ent.y) in allowed
+
+        def distance_to_entity(ent):
+            size = getattr(ent, 'footprint_size', 1)
+            if size > 1:
+                best = None
+                for oy in range(size):
+                    for ox in range(size):
+                        d = user.distance_to(ent.x + ox, ent.y + oy)
+                        if best is None or d < best:
+                            best = d
+                return best if best is not None else 9999
+            return user.distance_to(ent.x, ent.y)
+
+        # Find only monster targets within range (footprint-aware)
+        monster_targets = []
+        for entity in game_instance.entities:
+            if isinstance(entity, Monster) and entity.alive:
+                distance = distance_to_entity(entity)
+                if distance <= self.range:  # Check against ability range
+                    if is_entity_visible(entity):  # Footprint-aware FOV
+                        monster_targets.append(entity)
+
+        if monster_targets:
+            target = min(monster_targets, key=lambda m: user.distance_to(m.x, m.y))
+
+            game_instance.game_state = GameState.TARGETING
+            game_instance.ability_in_use = self  # Store which ability is being used
+            game_instance.targeting_ability_range = self.range
+
+            game_instance.targeting_cursor_x = target.x
+            game_instance.targeting_cursor_y = target.y
+
+            game_instance.message_log.add_message(f"{user.name} prepares to shoot an arrow! Auto-targeting {target.name}.", (100, 255, 100))
+            return True  # Indicate successful initiation of targeting
+        else:
+            game_instance.message_log.add_message(f"{user.name} prepares to shoot an arrow! No enemies in range.", (100, 255, 100))
+            game_instance.game_state = GameState.TARGETING
+            game_instance.ability_in_use = self  # Store which ability is being used
+            game_instance.targeting_ability_range = self.range
+
+            # Initialize targeting cursor at player's position
+            game_instance.targeting_cursor_x = user.x
+            game_instance.targeting_cursor_y = user.y
+
+            return True  # Indicate successful initiation of targeting
+
+
+    def execute_on_target(self, user, game_instance, target_x, target_y):
+        """
+        Performs the Arrow Shot effect on the selected target.
+        """
+        target_monster = game_instance.get_target_at(target_x, target_y)
+
+        if not game_instance.fov.get_visibility_type(target_x, target_y) in ['player', 'torch', 'darkvision']:
+            game_instance.message_log.add_message(f"You cannot shoot at {target_x}, {target_y} because it is out of sight!", (255, 0, 0))
+            return False  # Do not consume a turn
+
+        if not game_instance.check_line_of_sight(user.x, user.y, target_x, target_y):
+            game_instance.message_log.add_message(f"A wall blocks your shot to {target_x}, {target_y}!", (255, 0, 0))
+            return False  # Do not consume a turn
+
+        if not target_monster or not isinstance(target_monster, Monster):
+            game_instance.message_log.add_message("Arrow Shot requires a monster target.", (255, 150, 0))
+            return False  # Invalid target, do not consume a turn
+
+        arrow_to_shoot = None
+        attack_modifier = user.get_ability_modifier(user.dexterity) + user.proficiency_bonus
+
+        if user.equipped_off_hand and user.equipped_off_hand.name.lower() == "arrow":
+            arrow_to_shoot = user.equipped_off_hand
+            attack_modifier += getattr(arrow_to_shoot, "attack_bonus", 0)
+            user.equipped_off_hand = None
+            user.update_arrow_shot_ability()
+            game_instance.message_log.add_message(f"You shoot your equipped {arrow_to_shoot.name}!", (100, 255, 100))
+        else:
+            for item in user.inventory.items:
+                if item.name.lower() == "arrow":
+                    arrow_to_shoot = item
+                    attack_modifier += getattr(item, "attack_bonus", 0)
+                    user.inventory.remove_item(item)
+                    user.update_arrow_shot_ability()
+                    game_instance.message_log.add_message(f"You shoot an {arrow_to_shoot.name} from your inventory!", (100, 255, 100))
+                    break
+
+        if not arrow_to_shoot:
+            game_instance.message_log.add_message(f"No arrows found!", (255, 0, 0))
+            return False
+
+        d20_roll = random.randint(1, 20)
+        attack_roll_total = d20_roll + attack_modifier
+        target_ac = getattr(target_monster, "armor_class", 10)
+
+        game_instance.message_log.add_message(
+            f"You roll a d20: [{d20_roll}] + [{attack_modifier}] Attack Modifier = {attack_roll_total} vs AC {target_ac}",
+            (200, 200, 255)
+        )
+
+        is_critical_hit = (d20_roll == 20)
+        is_critical_fumble = (d20_roll == 1)
+
+        if is_critical_hit:
+            game_instance.message_log.add_message("CRITICAL HIT! The arrow finds a weak point!", (255, 255, 0))
+            hit_successful = True
+        elif is_critical_fumble:
+            game_instance.message_log.add_message("CRITICAL FUMBLE! Your shot goes wild.", (255, 0, 0))
+            hit_successful = False
+        else:
+            hit_successful = attack_roll_total >= target_ac
+
+        if hit_successful:
+            hit_messages = [
+                f"An arrow streaks towards the {target_monster.name}!",
+                f"Your arrow flies through the air and strikes the {target_monster.name}!",
+                f"The {target_monster.name} is hit by your arrow!",
+            ]
+            game_instance.message_log.add_message(random.choice(hit_messages), (255, 100, 100))
+
+            damage_modifier = user.get_ability_modifier(user.dexterity)
+            damage_rolls = [random.randint(1, 8) for _ in range(self.damage_dice)]
+            total_damage = sum(damage_rolls) + damage_modifier
+
+            game_instance.message_log.add_message(f"You roll {self.damage_dice}d8 for damage: {damage_rolls} + [{damage_modifier}] (DEX Modifier) = {total_damage} damage!", (255, 100, 0))
+
+            if isinstance(target_monster, Mimic):
+                damage_dealt = target_monster.take_damage(total_damage, game_instance)
+            else:
+                damage_dealt = target_monster.take_damage(total_damage, game_instance)
+
+            game_instance.message_log.add_message(f"An arrow strikes {target_monster.name} for {damage_dealt} damage!", (255, 100, 0))
+            game_instance.message_log.add_message(f"{target_monster.name} has {target_monster.hp}/{target_monster.max_hp}", (255, 100, 0))
+
+            hit_text = FloatingText(target_monster.x, target_monster.y, "HIT!", (255, 255, 0))
+            game_instance.floating_texts.append(hit_text)
+
+            damage_text = FloatingText(target_monster.x, target_monster.y - 0.5, str(damage_dealt), (255, 0, 0))
+            game_instance.floating_texts.append(damage_text)
+
+            if not target_monster.alive:
+                xp_gained = target_monster.die(game_instance, killer=user)
+                user.gain_xp(xp_gained, game_instance)
+                game_instance.stories.fire_kill(target_monster, instigator=user, group_id=getattr(target_monster, "group_id", None))
+        else:
+            miss_messages = [
+                f"Your arrow sails past the {target_monster.name}!",
+                f"The {target_monster.name} narrowly avoids your arrow!",
+                f"You miss the {target_monster.name} with your shot!",
+            ]
+            game_instance.message_log.add_message(random.choice(miss_messages), (255, 150, 150))
+
+            miss_text = FloatingText(target_x, target_y, "MISS!", (255, 150, 150))
+            game_instance.floating_texts.append(miss_text)
+
+        arrow_to_shoot.x = target_x
+        arrow_to_shoot.y = target_y
+        game_instance.game_map.items_on_ground.append(arrow_to_shoot)
+
+        # The rest of the targeting logic is similar to ThrowKnife
+        # You can reuse the targeting logic from ThrowKnife here
+        # For brevity, I'm not repeating it all here.
+        
+        # After selecting a target, call execute_on_target with the target coordinates.
+        return True  # Indicate successful initiation of targeting
+
+    def scale_with_level(self, player_level):
+        """
+        Scales the Arrow Shot ability with player level.
+        Increased damage dice by 1 for every 4 levels.
+        """
+        additional_dice = (player_level - 1) // 4
+        self.damage_dice = 1 + additional_dice
+
+
+class Multishot(Ability):
+    """
+    Ranger signature ability: fire arrows at several distinct foes in rapid
+    succession, one attack roll and one spent arrow per shot.
+
+    Mechanically this is ArrowShot's attack/damage math (d20 + DEX/prof vs
+    AC, DEX-modified 1dX damage, arrow consumed from off-hand or inventory)
+    reused across multiple targets, using the same step-through-targets
+    targeting protocol MagicMissile introduced: execute_on_target() fires
+    one shot per call and returns "next_shot" while shots remain, so
+    game.py's execute_targeted_ability() keeps the player in TARGETING mode
+    between shots instead of ending the turn after the first one.
+    """
+
+    def __init__(self):
+        super().__init__("Multishot", "Fire arrows at up to 3 different foes in rapid succession.", cost=0, cooldown=6)
+        self.range = 6  # Range in tiles, matches Arrow Shot
+        self.damage_dice = 1  # 1d6 per shot (scales with level)
+        self.number_of_shots = 3  # Distinct targets per use (scales with level)
+
+    def use(self, user, game_instance):
+        if not user.has_bow_equipped():
+            game_instance.message_log.add_message("You must have a bow equipped to use Multishot!", (255, 100, 100))
+            return False
+
+        if not user.has_arrows():
+            game_instance.message_log.add_message("You don't have any arrows to shoot!", (255, 100, 100))
+            return False
+
+        if not super().use(user, game_instance):
+            return False
+
+        def is_entity_visible(ent):
+            allowed = ['player', 'torch', 'darkvision']
+            size = getattr(ent, 'footprint_size', 1)
+            if size > 1:
+                for oy in range(size):
+                    for ox in range(size):
+                        if game_instance.fov.get_visibility_type(ent.x + ox, ent.y + oy) in allowed:
+                            return True
+                return False
+            return game_instance.fov.get_visibility_type(ent.x, ent.y) in allowed
+
+        def distance_to_entity(ent):
+            size = getattr(ent, 'footprint_size', 1)
+            if size > 1:
+                best = None
+                for oy in range(size):
+                    for ox in range(size):
+                        d = user.distance_to(ent.x + ox, ent.y + oy)
+                        if best is None or d < best:
+                            best = d
+                return best if best is not None else 9999
+            return user.distance_to(ent.x, ent.y)
+
+        monster_targets = []
+        for entity in game_instance.entities:
+            if isinstance(entity, Monster) and entity.alive:
+                if distance_to_entity(entity) <= self.range and is_entity_visible(entity):
+                    monster_targets.append(entity)
+
+        # Per-use shot counter, kept on game_instance so game.py's HUD can
+        # display "Shot X/N" the same way it already does for Magic
+        # Missile's dart counter.
+        game_instance.multishot_shots_remaining = self.number_of_shots
+
+        game_instance.game_state = GameState.TARGETING
+        game_instance.ability_in_use = self
+        game_instance.targeting_ability_range = self.range
+
+        if monster_targets:
+            target = min(monster_targets, key=lambda m: user.distance_to(m.x, m.y))
+            game_instance.targeting_cursor_x = target.x
+            game_instance.targeting_cursor_y = target.y
+            game_instance.message_log.add_message(
+                f"{user.name} nocks a volley of arrows! "
+                f"Aim shot 1/{self.number_of_shots} — auto-targeting {target.name}.",
+                (100, 255, 100)
+            )
+        else:
+            game_instance.targeting_cursor_x = user.x
+            game_instance.targeting_cursor_y = user.y
+            game_instance.message_log.add_message(
+                f"{user.name} nocks a volley of arrows! Aim shot 1/{self.number_of_shots}.",
+                (100, 255, 100)
+            )
+
+        return True  # Indicate successful initiation of targeting
+
+    def execute_on_target(self, user, game_instance, target_x, target_y):
+        """
+        Fires ONE arrow at the chosen target per call.
+
+        Return values (read by execute_targeted_ability in game.py):
+          False        — invalid target; stay in TARGETING mode, don't spend a shot
+          "next_shot"  — shot landed, more shots remain; stay in TARGETING for the next shot
+          True         — last shot landed (or no arrows left); exit TARGETING and end the turn
+        """
+        target_monster = game_instance.get_target_at(target_x, target_y)
+
+        if not game_instance.fov.get_visibility_type(target_x, target_y) in ['player', 'torch', 'darkvision']:
+            game_instance.message_log.add_message(f"You cannot shoot at {target_x}, {target_y} because it is out of sight!", (255, 0, 0))
+            return False
+
+        if not game_instance.check_line_of_sight(user.x, user.y, target_x, target_y):
+            game_instance.message_log.add_message(f"A wall blocks your shot to {target_x}, {target_y}!", (255, 0, 0))
+            return False
+
+        if not target_monster or not isinstance(target_monster, Monster):
+            game_instance.message_log.add_message("Multishot requires a monster target.", (255, 150, 0))
+            return False
+
+        shots_remaining = getattr(game_instance, 'multishot_shots_remaining', 1)
+        shot_number = self.number_of_shots - shots_remaining + 1
+
+        arrow_to_shoot = None
+        attack_modifier = user.get_ability_modifier(user.dexterity) + user.proficiency_bonus
+
+        if user.equipped_off_hand and user.equipped_off_hand.name.lower() == "arrow":
+            arrow_to_shoot = user.equipped_off_hand
+            attack_modifier += getattr(arrow_to_shoot, "attack_bonus", 0)
+            user.equipped_off_hand = None
+            user.update_arrow_shot_ability()
+        else:
+            for item in user.inventory.items:
+                if item.name.lower() == "arrow":
+                    arrow_to_shoot = item
+                    attack_modifier += getattr(item, "attack_bonus", 0)
+                    user.inventory.remove_item(item)
+                    user.update_arrow_shot_ability()
+                    break
+
+        if not arrow_to_shoot:
+            game_instance.message_log.add_message("No arrows left for another shot!", (255, 0, 0))
+            game_instance.multishot_shots_remaining = 0
+            return True  # End the turn -- can't fire what we don't have
+
+        d20_roll = random.randint(1, 20)
+        attack_roll_total = d20_roll + attack_modifier
+        target_ac = getattr(target_monster, "armor_class", 10)
+
+        game_instance.message_log.add_message(
+            f"Shot {shot_number}/{self.number_of_shots}: d20 [{d20_roll}] + [{attack_modifier}] Attack Modifier = {attack_roll_total} vs AC {target_ac}",
+            (200, 200, 255)
+        )
+
+        is_critical_hit = (d20_roll == 20)
+        is_critical_fumble = (d20_roll == 1)
+
+        if is_critical_hit:
+            game_instance.message_log.add_message("CRITICAL HIT! The arrow finds a weak point!", (255, 255, 0))
+            hit_successful = True
+        elif is_critical_fumble:
+            game_instance.message_log.add_message("CRITICAL FUMBLE! Your shot goes wild.", (255, 0, 0))
+            hit_successful = False
+        else:
+            hit_successful = attack_roll_total >= target_ac
+
+        if hit_successful:
+            game_instance.message_log.add_message(f"An arrow from your volley strikes the {target_monster.name}!", (255, 100, 100))
+
+            damage_modifier = user.get_ability_modifier(user.dexterity)
+            damage_dice_count = self.damage_dice * (2 if is_critical_hit else 1)
+            damage_rolls = [random.randint(1, 6) for _ in range(damage_dice_count)]
+            total_damage = sum(damage_rolls) + damage_modifier
+
+            game_instance.message_log.add_message(
+                f"You roll {damage_dice_count}d6 for damage: {damage_rolls} + [{damage_modifier}] (DEX Modifier) = {total_damage} damage!",
+                (255, 100, 0)
+            )
+
+            damage_dealt = target_monster.take_damage(total_damage, game_instance)
+
+            game_instance.message_log.add_message(f"An arrow strikes {target_monster.name} for {damage_dealt} damage!", (255, 100, 0))
+            game_instance.message_log.add_message(f"{target_monster.name} has {target_monster.hp}/{target_monster.max_hp}", (255, 100, 0))
+
+            hit_text = FloatingText(target_monster.x, target_monster.y, "HIT!", (255, 255, 0))
+            game_instance.floating_texts.append(hit_text)
+
+            damage_text = FloatingText(target_monster.x, target_monster.y - 0.5, str(damage_dealt), (255, 0, 0))
+            game_instance.floating_texts.append(damage_text)
+
+            if not target_monster.alive:
+                xp_gained = target_monster.die(game_instance, killer=user)
+                user.gain_xp(xp_gained, game_instance)
+                game_instance.stories.fire_kill(target_monster, instigator=user, group_id=getattr(target_monster, "group_id", None))
+        else:
+            game_instance.message_log.add_message(f"Your arrow sails past the {target_monster.name}!", (255, 150, 150))
+            miss_text = FloatingText(target_x, target_y, "MISS!", (255, 150, 150))
+            game_instance.floating_texts.append(miss_text)
+
+        arrow_to_shoot.x = target_x
+        arrow_to_shoot.y = target_y
+        game_instance.game_map.items_on_ground.append(arrow_to_shoot)
+
+        game_instance.multishot_shots_remaining = shots_remaining - 1
+
+        if game_instance.multishot_shots_remaining > 0 and user.has_arrows():
+            next_shot_num = shot_number + 1
+            game_instance.message_log.add_message(
+                f"Aim shot {next_shot_num}/{self.number_of_shots} "
+                f"— {game_instance.multishot_shots_remaining} shot(s) remaining.",
+                (100, 255, 100)
+            )
+            return "next_shot"  # Signal game.py to stay in TARGETING for the next shot
+
+        return True  # All shots fired (or out of arrows) -- normal exit, turn ends
+
+    def scale_with_level(self, player_level):
+        """
+        Scales Multishot with player level.
+        Gains one extra shot every 6 levels (base 3 shots).
+        Gains one extra damage die every 5 levels (base 1d6 per shot).
+        """
+        self.number_of_shots = 3 + (player_level - 1) // 6
+        self.damage_dice = 1 + (player_level - 1) // 5
+
+
 class ThrowKnife(Ability):
     def __init__(self):
         super().__init__("Throw Knife", "Hurl a throwing knife at a foe.", cost=0, cooldown=2)

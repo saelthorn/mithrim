@@ -38,7 +38,7 @@ from core.abilities import (
     Parry, SecondWind, SpiritualWeapon, DivineStrike, HealingWord, SummonCelestial, PowerAttack, CunningActionDash, 
     Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, 
     ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp, PreciseStrike, PrepTime, CureWounds, SacredFlame,
-    MagicMissile
+    MagicMissile, ArrowShot, Multishot
 )
 
 from core.status_effects import (
@@ -55,6 +55,7 @@ from items.items import (
     greater_healing_potion, thieves_tools, round_shield, kite_shield, tower_shield, spell_book, staff_of_magi, 
     scale_mail_armor, sturdy_quarterstaff, leather_cap, iron_helmet, steel_helmet, hood_of_shadows, great_helm, 
     mages_circlet, leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers, meat,
+    long_bow, hand_crossbow, arrow, short_bow,
     Item, CampfireKit, Weapon, Armor, OffHand, Accessory,
     Helmet, Boots, FocusItem, WEAPON_CATEGORIES, ARMOR_CATEGORIES, 
 )
@@ -456,7 +457,7 @@ class Player: # This is our base class for playable characters
         self.hunger = min(self.hunger + food_item.healing_value, 100)  # Restore hunger, max 100
 
         # Food also steadies the mind — restore a small amount of sanity
-        sanity_restored = 10
+        sanity_restored = 40
         if self.sanity < self.max_sanity:
             self.sanity = min(self.max_sanity, self.sanity + sanity_restored)
 
@@ -1201,6 +1202,21 @@ class Player: # This is our base class for playable characters
             if getattr(item, "name", "").lower() == "throwing knife":
                 return True
         return False
+
+    def has_bow_equipped(self):
+        """Return True if the player has a Bow equipped in the main hand."""
+        return (
+            self.equipped_weapon or self.equipped_off_hand is not None and
+            (getattr(self.equipped_weapon, 'category', None) or '').lower() == 'bow'
+        )
+
+
+    def has_arrows(self):
+        """Return True if the player has Arrows in inventory."""
+        for item in self.inventory.items:
+            if getattr(item, "name", "").lower() == "arrow":
+                return True
+        return False
     
     def update_throw_knife_ability(self):
         if self.has_throwing_knife():
@@ -1215,6 +1231,20 @@ class Player: # This is our base class for playable characters
                 self.abilities = dict(items)
         else:
             self.abilities.pop("Throwing Knife", None)
+
+    def update_arrow_shot_ability(self):
+        if self.has_bow_equipped() and self.has_arrows():
+            if "Arrow Shot" not in self.abilities:
+                # Insert "Arrow Shot" at index 0 (1st position) in the ability dict
+                items = list(self.abilities.items())
+                shoot_ability = ArrowShot()
+                if hasattr(shoot_ability, 'scale_with_level'):
+                    shoot_ability.scale_with_level(self.level)
+                insert_pos = min(0, len(items))
+                items.insert(insert_pos, ("Arrow Shot", shoot_ability))
+                self.abilities = dict(items)
+        else:
+            self.abilities.pop("Arrow Shot", None)
 
     def has_spell_book_equipped(self):
         return (
@@ -1274,6 +1304,7 @@ class Player: # This is our base class for playable characters
                     self.update_spellbook_abilities()
                     self.update_guard_ability()
                     self.update_throw_knife_ability()
+                    self.update_arrow_shot_ability()
 
             # If the player is equipping a weapon, check for existing equipped weapon
             if self.equipped_weapon:
@@ -1476,6 +1507,7 @@ class Player: # This is our base class for playable characters
             self.update_throw_knife_ability()
             self.update_spellbook_abilities()
             self.update_thieves_tools_ability()
+            self.update_arrow_shot_ability()
             self.update_guard_ability()
 
             return True
@@ -1608,6 +1640,7 @@ class Player: # This is our base class for playable characters
                 self.update_attack_power()
                 self.update_throw_knife_ability()
                 self.update_spellbook_abilities()
+                self.update_arrow_shot_ability()
                 self.update_guard_ability()
                 return True
 
@@ -1950,6 +1983,7 @@ class Fighter(Player):
         self.abilities["Second Wind"] = SecondWind()
         self.abilities["Action Surge"] = ActionSurge()
         self.update_throw_knife_ability()
+        self.update_arrow_shot_ability()
         self.update_guard_ability()
         self._scale_all_abilities()  # Scale abilities after adding them
 
@@ -1977,6 +2011,13 @@ class Rogue(Player):
 
         # Set starting equipment
         self.inventory.add_item(thieves_tools)
+        self.inventory.add_item(hand_crossbow)
+        self.inventory.add_item(iron_dagger)
+        self.inventory.add_item(arrow)
+        self.inventory.add_item(arrow)
+        self.inventory.add_item(arrow)
+        self.inventory.add_item(arrow)
+        self.inventory.add_item(arrow)
         self.inventory.add_item(bread)
         self.inventory.add_item(bread)
         self.inventory.add_item(throwing_knife)
@@ -1987,7 +2028,7 @@ class Rogue(Player):
         self.inventory.add_item(torch)
 
         self.equipped_weapon = iron_short_sword
-        self.equipped_off_hand = iron_dagger
+        self.equipped_off_hand = hand_crossbow
         self.equipped_helmet = leather_cap
         self.equipped_armor = padded_armor
         self.equipped_boots = leather_boots
@@ -2015,6 +2056,7 @@ class Rogue(Player):
         self.abilities["Prep Time"] = PrepTime()
         self.update_throw_knife_ability()
         self.update_thieves_tools_ability()
+        self.update_arrow_shot_ability()
         self._scale_all_abilities()  # Scale abilities after adding them
 
 
@@ -2083,6 +2125,7 @@ class Wizard(Player):
         self.abilities["Detect Magic"] = DetectMagic()
         self.update_spellbook_abilities()
         self.update_throw_knife_ability()
+        self.update_arrow_shot_ability()
         self._scale_all_abilities()  # Scale abilities after adding them
 
 class Cleric(Player):
@@ -2149,6 +2192,78 @@ class Cleric(Player):
         self.update_guard_ability()
         self.update_holy_symbol_abilities()
         self._scale_all_abilities()  # Scale abilities after adding them
+
+
+class Ranger(Player):
+    def __init__(self, x, y, char, name, color):
+        super().__init__(x, y, char, name, color)
+        self.class_name = "Ranger"
+        self.hit_die = 10
+
+        self.strength = 13
+        self.dexterity = 15
+        self.constitution = 14
+        self.intelligence = 10
+        self.wisdom = 12
+        self.charisma = 8
+
+        self.saving_throw_proficiencies = {
+            "STR": True, "DEX": True,
+            "CON": False, "INT": False, 
+            "WIS": False, "CHA": False,
+        }
+
+        self.primary_stat = 'dexterity'  # Set primary stat for Ranger 
+
+        # Set starting equipment
+        self.inventory.add_item(arrow)
+        self.inventory.add_item(arrow)
+        self.inventory.add_item(arrow)
+        self.inventory.add_item(arrow)
+        self.inventory.add_item(arrow)
+        self.inventory.add_item(bread)
+        self.inventory.add_item(bread)
+        self.inventory.add_item(lesser_healing_potion)
+        self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
+        self.inventory.add_item(torch)
+
+        self.equipped_weapon = short_bow
+        self.equipped_off_hand = iron_dagger
+        self.equipped_helmet = leather_cap
+        self.equipped_armor = padded_armor
+        self.equipped_boots = leather_boots
+        
+        # Recalculate HP, AC, Attack Power, Attack Bonus based on new stats AND equipped gear
+        # These calculations MUST happen
+        self.max_hp = self._calculate_max_hp()
+        self.hp = self.max_hp
+        self.armor_class = self._calculate_ac()
+
+        # Class-specific weapon and armor proficiencies
+        self.class_weapon_proficiencies = ["Longbow", "Shortbow", "Shortsword", "Longsword", "Dagger"]  # Rangers typically use these
+        self.class_armor_proficiencies = ["Light", "Medium"]  # Rangers can wear light and medium armor
+
+        self.weapon_proficiencies = self.class_weapon_proficiencies.copy()
+        self.armor_proficiencies = self.class_armor_proficiencies.copy()
+
+        # Ranger's primary attack stat is Dexterity (for bows) or Strength (for melee weapons)
+        # For basic weapon attacks, let's use Dexterity for now.
+        # For spell attack rolls, it would be Wisdom.
+        self.spell_bonus = self.get_spell_modifier() + self.proficiency_bonus
+        self.attack_power = self.get_ability_modifier(self.dexterity) + self.equipped_weapon.damage_modifier
+        self.attack_bonus = self.get_ability_modifier(self.dexterity) + self.proficiency_bonus + self.equipped_weapon.attack_bonus
+
+        # Ranger abilities
+        self.update_arrow_shot_ability()
+
+        self.update_throw_knife_ability()
+        self.update_thieves_tools_ability()
+
+        # Ranger-exclusive abilities
+        self.abilities["Multishot"] = Multishot()
+
+        self._scale_all_abilities()
+
 
 class Sorcerer(Player):
     def __init__(self, x, y, char, name, color):

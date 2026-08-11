@@ -32,7 +32,7 @@ Design summary
                       trigger response).
 - Concrete types   : RewardXP, RewardGold, SpawnNPC, SpawnMerchant,
                       DestroyLandmark, UnlockStory, ModifyReputation,
-                      GiveItem, ChangeWeather, UnlockRegion.
+                      GiveItem, RemoveItem, ChangeWeather, UnlockRegion.
 - ConsequenceChain : a composite Consequence (so chains nest) that runs
                       its children in order and, on any failure, rolls
                       back every already-applied, reversible child in
@@ -575,6 +575,43 @@ class GiveItemConsequence(Consequence):
 
     def __repr__(self) -> str:
         return f"GiveItemConsequence({self.item_id} x{self.count})"
+
+
+@register_consequence("remove_item")
+class RemoveItemConsequence(Consequence):
+    """
+    Removes a fixed count of an item (or, on undo, gives it back) -- the
+    inverse of GiveItemConsequence, for content that spends an item as a
+    cost rather than awards one (e.g. a choice that consumes a torch, or
+    hands over rations as a kindness). ExecutionContext.remove_item()
+    already existed as GiveItemConsequence's own undo path; this is that
+    same effect exposed as a first-class forward consequence, so content
+    JSON can declare {"type": "remove_item", ...} directly instead of
+    only ever reaching it indirectly through undoing a give_item.
+    """
+
+    is_reversible = True
+
+    def __init__(self, item_id: str, count: int = 1, consequence_id: Optional[str] = None):
+        super().__init__(consequence_id)
+        self.item_id = item_id
+        self.count = count
+
+    def _apply(self, context: ExecutionContext) -> None:
+        context.remove_item(self.item_id, self.count)
+
+    def _undo(self, context: ExecutionContext, undo_data: Any) -> None:
+        context.give_item(self.item_id, self.count)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"type": "remove_item", "id": self.id, "item_id": self.item_id, "count": self.count}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "RemoveItemConsequence":
+        return cls(item_id=data["item_id"], count=data.get("count", 1), consequence_id=data.get("id"))
+
+    def __repr__(self) -> str:
+        return f"RemoveItemConsequence({self.item_id} x{self.count})"
 
 
 @register_consequence("change_weather")

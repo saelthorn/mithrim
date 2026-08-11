@@ -446,6 +446,8 @@ mushroom = Food(
 
 
 WEAPON_CATEGORIES = {
+    "Ammunition": ["Arrow"],
+    "Bow": ["Long Bow", "Short Bow"],
     "Dagger": ["Iron Dagger", "Silver Dagger"],
     "Orb": ["Glass Orb", "Orb of Chaos"],
     "Shortsword": ["Iron Short Sword", "Bronze Short Sword", "Flameheart Short Sword"],
@@ -552,6 +554,66 @@ orb_of_chaos = OffHand(
     attack_bonus=4,
     price=40 * SILVER,
     category="Orb"
+)
+
+arrow = OffHand(
+    name="Arrow",
+    char="arr",
+    color=(180, 180, 180),
+    description="Ammunition for bows.",
+    damage_dice="1d4",
+    damage_modifier=0,
+    attack_bonus=0,
+    price = 1 * SILVER,
+    category="Ammunition"
+)
+
+long_bow = Weapon(
+    name="Long Bow",
+    char="lbo",
+    color=(150, 150, 150),
+    description="A long bow for ranged attacks.",
+    damage_dice="1d8",
+    damage_modifier=1,
+    attack_bonus=2,
+    price = 30 * SILVER,
+    category="Bow"
+)
+
+short_bow = Weapon(
+    name="Short Bow",
+    char="sbo",
+    color=(150, 150, 150),
+    description="A short bow for ranged attacks.",
+    damage_dice="1d6",
+    damage_modifier=1,
+    attack_bonus=1,
+    price = 20 * SILVER,
+    category="Bow"
+)
+
+crossbow = Weapon(
+    name="Cross Bow",
+    char="crb",
+    color=(150, 150, 150),
+    description="A cross bow for ranged attacks",
+    damage_dice="1d8",
+    damage_modifier=2,
+    attack_bonus=1,
+    price= 30 * SILVER,
+    category="Bow"
+)
+
+hand_crossbow = OffHand(
+    name="Hand Crossbow",
+    char="hbo",
+    color=(150, 150, 150),
+    description="A crossbow for ranged attacks.",
+    damage_dice="1d6",
+    damage_modifier=0,
+    attack_bonus=1,
+    price = 15 * SILVER,
+    category="Bow"
 )
 
 iron_short_sword = Weapon(

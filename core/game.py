@@ -370,7 +370,7 @@ from story.trigger_system import TriggerRule, TriggerType
 from story.consequence_system import RewardXPConsequence, RewardGoldConsequence, ModifyReputationConsequence, consequence_from_dict
 from story.story_failure_system import FailureMode, FailurePolicy
 
-from entities.player import Player, Fighter, Rogue, Wizard, Cleric
+from entities.player import Player, Fighter, Rogue, Wizard, Cleric, Ranger
 
 # NEW: Import all monster classes
 from entities.monster import (
@@ -664,6 +664,7 @@ class Game:
         self.targeting_cursor_x = 0
         self.targeting_cursor_y = 0
         self.missile_darts_remaining = 0  # Per-cast dart counter for Magic Missile
+        self.multishot_shots_remaining = 0  # Per-use shot counter for Multishot
             
         self.message_log.add_message("Welcome to the dungeon!", (100, 255, 255))
         
@@ -842,7 +843,7 @@ class Game:
         }
 
         # Class selection
-        self.available_classes = [Fighter, Rogue, Wizard, Cleric] # List of class objects
+        self.available_classes = [Fighter, Rogue, Wizard, Cleric, Ranger] # List of class objects
         self.selected_class_index = 0 
 
         # Call a method to start character creation
@@ -6832,10 +6833,11 @@ class Game:
         # This method will contain the specific logic for each ability.
         result = self.ability_in_use.execute_on_target(self.player, self, target_x, target_y)
 
-        if result == "next_dart":
-            # Magic Missile per-dart targeting: dart landed, more darts remain.
-            # Stay in TARGETING so the player can aim the next dart.
-            print("DEBUG: ability_in_use.execute_on_target returned 'next_dart'. Staying in TARGETING for next dart.")
+        if result in ("next_dart", "next_shot"):
+            # Magic Missile / Multishot per-target targeting: this shot/dart
+            # landed, more remain. Stay in TARGETING so the player can aim
+            # the next one instead of ending the turn after the first hit.
+            print(f"DEBUG: ability_in_use.execute_on_target returned '{result}'. Staying in TARGETING for next target.")
             return  # Keep game_state as TARGETING, ability_in_use intact
         elif result:
             print("DEBUG: ability_in_use.execute_on_target returned True. Resetting state.")
@@ -6858,6 +6860,7 @@ class Game:
         self.targeting_cursor_x = 0 # Reset cursor position
         self.targeting_cursor_y = 0
         self.missile_darts_remaining = 0  # Clear Magic Missile dart counter
+        self.multishot_shots_remaining = 0  # Clear Multishot shot counter
         self.player.current_action_state = None # <--- THIS IS THE CRITICAL FIX FOR MISTY STEP
 
         if end_turn:
@@ -6955,6 +6958,7 @@ class Game:
                 # Remove the item from the ground after successful pickup
                 self.game_map.items_on_ground.remove(item_to_pick_up)
                 self.player.update_throw_knife_ability()
+                self.player.update_arrow_shot_ability()
                 self.player.update_spellbook_abilities()
                 self.player.update_thieves_tools_ability()
                 self.player.update_guard_ability()
@@ -7022,6 +7026,7 @@ class Game:
         elif key == pygame.K_d:
             self.player.inventory.remove_item(self.selected_inventory_item)
             self.player.update_throw_knife_ability()
+            self.player.update_arrow_shot_ability()
             self.player.update_spellbook_abilities()
             self.player.update_thieves_tools_ability()
             self.player.update_guard_ability()
@@ -7037,6 +7042,7 @@ class Game:
         elif key == pygame.K_q: # New key for quick bar slot 'q'
             if self.player.equip_to_quick_bar(self.selected_inventory_item, 'q', self):
                 self.player.update_throw_knife_ability()
+                self.player.update_arrow_shot_ability()
                 self.player.update_spellbook_abilities()
                 self.player.update_thieves_tools_ability()
                 self.player.update_guard_ability()
@@ -7047,6 +7053,7 @@ class Game:
         elif key == pygame.K_e: # New key for quick bar slot 'e'
             if self.player.equip_to_quick_bar(self.selected_inventory_item, 'e', self):
                 self.player.update_throw_knife_ability()
+                self.player.update_arrow_shot_ability()
                 self.player.update_spellbook_abilities()
                 self.player.update_thieves_tools_ability()
                 self.player.update_guard_ability()
@@ -8367,6 +8374,19 @@ class Game:
                     dart_label = f"Dart {current_dart}/{darts_total}"
                     font = pygame.font.SysFont(None, 18)
                     label_surf = font.render(dart_label, True, (220, 180, 255))
+                    label_x = screen_x * config.TILE_SIZE
+                    label_y = screen_y * config.TILE_SIZE - label_surf.get_height() - 2
+                    self.internal_surface.blit(label_surf, (label_x, label_y))
+
+                # Multishot: show which shot the player is currently aiming,
+                # same presentation as Magic Missile's dart label above.
+                from core.abilities import Multishot as _Multishot
+                if isinstance(self.ability_in_use, _Multishot) and self.multishot_shots_remaining > 0:
+                    shots_total = self.ability_in_use.number_of_shots
+                    current_shot = shots_total - self.multishot_shots_remaining + 1
+                    shot_label = f"Shot {current_shot}/{shots_total}"
+                    font = pygame.font.SysFont(None, 18)
+                    label_surf = font.render(shot_label, True, (150, 255, 150))
                     label_x = screen_x * config.TILE_SIZE
                     label_y = screen_y * config.TILE_SIZE - label_surf.get_height() - 2
                     self.internal_surface.blit(label_surf, (label_x, label_y))
@@ -9817,6 +9837,7 @@ class Game:
             "Rogue":   ( 80, 160,  80),
             "Wizard":  ( 80, 130, 220),
             "Cleric":  (220, 200,  60),
+            "Ranger":  (80,  120, 100),
         }
         class_color = class_color_map.get(class_str, _GOLD)
 
@@ -9828,7 +9849,7 @@ class Game:
                          (col1_x + col_w, y1 + fSec.get_linesize() + 3), 1)
         y1 += fSec.get_linesize() + 10
 
-        hit_die_map  = {"Fighter": 10, "Rogue": 8, "Wizard": 6, "Cleric": 8}
+        hit_die_map  = {"Fighter": 10, "Rogue": 8, "Wizard": 6, "Cleric": 8, "Ranger": 10}
         for i, cls in enumerate(self.available_classes):
             sel   = (i == self.selected_class_index)
             cname = cls.__name__
@@ -9892,6 +9913,7 @@ class Game:
             "Rogue":   ["dgr", "pda"],
             "Wizard":  ["spb", "!"],
             "Cleric":  ["shs", "cha"],
+            "Ranger":  ["sbo", "pda"]
         }
         icons = icon_chars.get(class_str, [])
         ICON  = 36
@@ -10039,6 +10061,15 @@ class Game:
                 "weapon_proficiencies": ["Simple"],
                 "starting_equipment": ["A mace", "Scale mail", "A light crossbow and 20 bolts", "A priest's pack", "A shield emblazoned with the symbol of their deity"]
             },
+            "Ranger": {
+                "description": "A skilled wilderness hunter who combines martial prowess with nature magic. Rangers track enemies, survive in harsh environments, and strike their foes with deadly precision.",
+                "hit_die": "1d10",
+                "primary_ability": "Dexterity",
+                "saving_throws": ["Strength", "Dexterity"],
+                "armor_proficiencies": ["Light", "Medium", "Shields"],
+                "weapon_proficiencies": ["Simple", "Martial"],
+                "starting_equipment": ["A longbow and 20 arrows", "Two shortswords", "Leather armor", "An explorer's pack", "A hunting knife"]
+            },            
             "Sorcerer": {
                 "description": "A spellcaster who draws on inherent magic from a powerful bloodline. Sorcerers have a limited number of spells but can cast them with great flexibility.",
                 "hit_die": "1d6",
