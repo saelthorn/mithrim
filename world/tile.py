@@ -92,11 +92,16 @@ tent = Tile(blocked=True, char='ten', color=(180, 40, 40), block_sight=True, des
 gravestone = Tile(blocked=True, char='gvs1', color=(120, 120, 120), block_sight=False, destructible=True, name="Gravestone One")
 gravestone_two = Tile(blocked=True, char='gvs2', color=(120, 120, 120), block_sight=False, destructible=True, name="Gravestone Two")
 gravestone_three = Tile(blocked=True, char='gvs3', color=(120, 120, 120), block_sight=False, destructible=True, name="Gravestone Three")
-wood_plank = Tile(blocked=False, char='pn', color=(139, 69, 19), block_sight=False, destructible=True, name="Wood Plank")
-tavern_cobweb = Tile(blocked=True, char='tcw', color=(200, 200, 200), block_sight=False, destructible=True, name="Tavern Cobweb")
 
 campfire = Tile(blocked=False, char='cf', color=(255, 140, 0), block_sight=False, destructible=False, name="Campfire")
+cauldron = Tile(blocked=True, char='cau', color=(80, 80, 80), block_sight=False, destructible=False, name="Cauldron")
 ladder = Tile(blocked=False, char='lad', color=(139, 69, 19), block_sight=False, destructible=False, name="Ladder")
+wood_plank = Tile(blocked=False, char='tpn', color=(139, 69, 19), block_sight=False, destructible=True, name="Wood Plank")
+tavern_cobweb = Tile(blocked=True, char='tcw', color=(200, 200, 200), block_sight=False, destructible=True, name="Tavern Cobweb")
+
+dragon_skull = Tile(blocked=True, char='dsk', color=(200, 200, 200), block_sight=False, destructible=False, name="Dragon Skull")
+dragon_skeleton = Tile(blocked=True, char='dskl', color=(200, 200, 200), block_sight=False, destructible=False, name="Dragon Skeleton")
+dragon_tail = Tile(blocked=True, char='dtl', color=(200, 200, 200), block_sight=False, destructible=False, name="Dragon Tail")
 
 # Overworld terrain decoration (non-POI nature features)
 clearing = Tile(blocked=False, char='cl', color=(20, 100, 20), name="Clearing")

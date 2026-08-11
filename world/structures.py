@@ -3,6 +3,7 @@ import random
 
 from entities.base_entity import NPC
 from entities.town_npcs import TownNPC, Innkeeper, Shopkeeper, Townsfolk, Blacksmith, Priest
+from entities.monster import GiantRat, Goblin, Skeleton, Wolf
 
 from world.tile import (
     ground, grass, road, tall_grass, wall, tavern_floor, floor, bar_counter_two, bar_counter_three, bar_counter_four, 
@@ -24,9 +25,16 @@ class StructureBlueprint:
     # blueprint declare its own population directly in the ASCII art
     # (e.g. 'A' for an innkeeper) instead of NPCs being placed afterwards.
     npc_map: dict[str, object] = field(default_factory=dict)
+    # Maps a tile_map char to a Monster factory `(x, y) -> Monster`, the
+    # monster equivalent of npc_map above. Lets a blueprint declare a
+    # squatter or guardian baked directly into its ASCII art (e.g. 'r'
+    # for a giant rat nesting in an abandoned cabin) instead of monsters
+    # being spawned separately by whatever encounter/room system placed
+    # the building.
+    monster_map: dict[str, object] = field(default_factory=dict)
 
 
-def build_blueprint(key, name, tile_map, char_map, default_tile=ground, walkable_chars=None, description="", npc_map=None):
+def build_blueprint(key, name, tile_map, char_map, default_tile=ground, walkable_chars=None, description="", npc_map=None, monster_map=None):
     return StructureBlueprint(
         key=key,
         name=name,
@@ -36,6 +44,7 @@ def build_blueprint(key, name, tile_map, char_map, default_tile=ground, walkable
         walkable_chars=frozenset(walkable_chars or ()),
         description=description,
         npc_map=dict(npc_map or {}),
+        monster_map=dict(monster_map or {}),
     )
 
 
@@ -57,6 +66,29 @@ def _spawn_blacksmith(x, y):
 
 def _spawn_priest(x, y):
     return Priest(x, y)
+
+
+# Monster factories used by blueprint monster_map entries below -- the
+# monster equivalent of the NPC factories above. Each takes (x, y) and
+# returns a Monster instance, matching the same `(x, y) -> entity`
+# signature npc_map factories use, so npcs_for_placement() and
+# monsters_for_placement() can share the exact same char-in-ASCII-art
+# spawning logic (see _spawns_from_entity_map()).
+def _spawn_giant_rat(x, y):
+    return GiantRat(x, y)
+
+
+def _spawn_goblin(x, y):
+    return Goblin(x, y)
+
+
+def _spawn_skeleton(x, y):
+    return Skeleton(x, y)
+
+
+def _spawn_wolf(x, y):
+    return Wolf(x, y)
+
 
 STRUCTURE_BLUEPRINTS = {
     "witch_hut": build_blueprint(
@@ -396,13 +428,29 @@ def npcs_for_placement(structure_id, placed_tiles):
     tavern, placed on its own in game.py).
     """
     blueprint = get_structure_blueprint(structure_id)
-    return _npc_spawns_from_blueprint(blueprint, placed_tiles) if blueprint else []
+    return _spawns_from_entity_map(blueprint.npc_map, blueprint, placed_tiles) if blueprint else []
 
 
-def _npc_spawns_from_blueprint(blueprint, placed_tiles):
+def monsters_for_placement(structure_id, placed_tiles):
     """
-    Instantiate the NPCs a blueprint declares in its npc_map, at the exact
-    positions marked in its ASCII art (e.g. the 'A' in the tavern layout).
+    Instantiate the Monsters a structure's blueprint declares in its
+    monster_map, given the placed_tiles returned by place_structure()/
+    place_structure_at_anchor() -- the monster equivalent of
+    npcs_for_placement() above, for blueprints that want a squatter or
+    guardian (giant rats nesting in a cabin, a skeleton warding a shrine,
+    ...) baked directly into their ASCII art instead of spawned
+    separately by whatever encounter/room system placed the building.
+    """
+    blueprint = get_structure_blueprint(structure_id)
+    return _spawns_from_entity_map(blueprint.monster_map, blueprint, placed_tiles) if blueprint else []
+
+
+def _spawns_from_entity_map(entity_map, blueprint, placed_tiles):
+    """
+    Shared by npcs_for_placement()/monsters_for_placement(): instantiate
+    whatever `entity_map` (a blueprint's npc_map or monster_map) declares,
+    at the exact positions marked in its ASCII art (e.g. the 'A' in the
+    tavern layout, or a monster_map's 'r' in a cabin layout).
 
     place_structure() only returns the flat list of placed (x, y, tile)
     tuples, so to recover *which* placed tile corresponds to which char we
@@ -410,7 +458,7 @@ def _npc_spawns_from_blueprint(blueprint, placed_tiles):
     corner, i.e. the minimum x/y among placed_tiles) rather than changing
     place_structure's return shape, which other callers rely on.
     """
-    if not blueprint.npc_map or not placed_tiles:
+    if not entity_map or not placed_tiles:
         return []
 
     origin_x = min(x for x, _, _ in placed_tiles)
@@ -420,12 +468,12 @@ def _npc_spawns_from_blueprint(blueprint, placed_tiles):
     spawns = []
     for dy, row in enumerate(blueprint.tile_map):
         for dx, char in enumerate(row):
-            spawn_npc = blueprint.npc_map.get(char)
-            if spawn_npc is None:
+            spawn_entity = entity_map.get(char)
+            if spawn_entity is None:
                 continue
             gx, gy = origin_x + dx, origin_y + dy
             if (gx, gy) in placed_positions:
-                spawns.append(spawn_npc(gx, gy))
+                spawns.append(spawn_entity(gx, gy))
     return spawns
 
 
@@ -479,15 +527,19 @@ def assign_npc_schedule_anchors(npcs, wander_bounds):
 def create_town_npcs(game_map, town_buildings):
     """Create a small static population for overworld town buildings.
 
-    If a building's blueprint declares an npc_map, its NPCs are spawned at
-    the exact spots marked in the ASCII art. Otherwise this falls back to
-    the older per-structure_id placement below, so blueprints that haven't
-    been given an npc_map yet still get populated.
+    If a building's blueprint declares an npc_map and/or a monster_map,
+    its NPCs and monsters are spawned at the exact spots marked in the
+    ASCII art. Otherwise this falls back to the older per-structure_id
+    placement below, so blueprints that haven't been given an npc_map
+    yet still get populated.
 
     Every spawned TownNPC also gets a wander_bounds shared across the
     whole town via assign_npc_schedule_anchors() -- see
     TownNPC.take_turn(). `home` needs no help here: it already defaults
-    to each NPC's own spawn tile.
+    to each NPC's own spawn tile. assign_npc_schedule_anchors() is a
+    no-op for anything that isn't a TownNPC, so mixing a blueprint's
+    monster_map spawns (e.g. a squatter left behind after a raid) into
+    the same list here is safe.
     """
     npcs = []
     occupied = set()
@@ -498,11 +550,11 @@ def create_town_npcs(game_map, town_buildings):
 
     for structure_id, placed_tiles in town_buildings:
         blueprint = get_structure_blueprint(structure_id)
-        if blueprint and blueprint.npc_map:
-            spawned = npcs_for_placement(structure_id, placed_tiles)
+        if blueprint and (blueprint.npc_map or blueprint.monster_map):
+            spawned = npcs_for_placement(structure_id, placed_tiles) + monsters_for_placement(structure_id, placed_tiles)
             assign_npc_schedule_anchors(spawned, wander_bounds)
             npcs.extend(spawned)
-            occupied.update((npc.x, npc.y) for npc in spawned)
+            occupied.update((entity.x, entity.y) for entity in spawned)
             continue
 
         positions = _walkable_structure_positions(game_map, placed_tiles, occupied)

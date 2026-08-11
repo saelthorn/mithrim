@@ -2595,13 +2595,23 @@ class Game:
         approach _spawn_world_encounter_landmark_tile() takes with
         unknown tile keys.
 
-        Every successfully placed structure also spawns its own NPC
-        population (structures.py's blueprint.npc_map), exactly like
-        _spawn_player_in_starting_tavern() already does when placing a
-        tavern directly rather than through _place_town() -- otherwise a
-        multi-building "town" landmark would read as an empty film set.
+        Every successfully placed structure also spawns its own NPC and
+        monster population (structures.py's blueprint.npc_map/
+        monster_map), exactly like _spawn_player_in_starting_tavern()
+        already does when placing a tavern directly rather than through
+        _place_town() -- otherwise a multi-building "town" landmark would
+        read as an empty film set. monster_map is the same idea as
+        npc_map but for a squatter/guardian baked into the blueprint's
+        own ASCII art (a giant rat nesting in a cabin, a skeleton warding
+        a shrine, ...), independent of whatever this stage's own
+        "monster_pool" spawns once the player investigates/sneaks.
         """
-        from world.structures import get_structure_blueprint, npcs_for_placement, place_structure_at_anchor
+        from world.structures import (
+            get_structure_blueprint,
+            monsters_for_placement,
+            npcs_for_placement,
+            place_structure_at_anchor,
+        )
 
         previous_anchor = None  # (x, y, width, height) of the last structure actually placed
         for structure_id in structure_ids:
@@ -2623,6 +2633,7 @@ class Game:
 
             previous_anchor = (structure_anchor_x, structure_anchor_y, width, height)
             self.entities.extend(npcs_for_placement(structure_id, placed_tiles))
+            self.entities.extend(monsters_for_placement(structure_id, placed_tiles))
 
     def _world_encounter_next_cluster_anchor(self, previous_anchor, width, height):
         """

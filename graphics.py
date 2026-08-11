@@ -239,8 +239,16 @@ def setup_tile_mapping():
         '53': (12 * CELL_DIM, 17 * CELL_DIM),  # Shelf Three
         '|2': (13 * CELL_DIM, 17 * CELL_DIM),  # Bar Counter Five
         '|3': (14 * CELL_DIM, 17 * CELL_DIM),  # Bar Counter Six
+        'cau': (15 * CELL_DIM, 17 * CELL_DIM), # Cauldron
+        'lad': (16 * CELL_DIM, 17 * CELL_DIM), # Ladder
+        'tcw': (17 * CELL_DIM, 17 * CELL_DIM), # Tavern Cobweb
+        'tpn': (18 * CELL_DIM, 17 * CELL_DIM), # Wood Plank
         'hy': (15 * CELL_DIM, 17 * CELL_DIM),  # Hay
 
+        # Dragon Bones
+        'dsk': (16 * CELL_DIM, 17 * CELL_DIM),  # Dragon Skull
+        'dskl': (17 * CELL_DIM, 17 * CELL_DIM), # Dragon Skeleton
+        'dtl': (18 * CELL_DIM, 17 * CELL_DIM),  # Dragon Tail
 
         # Static Decorations (using distinct chars)
         'b': (2 * CELL_DIM, 5 * CELL_DIM), # Static Barrel (original graphic)
