@@ -482,7 +482,7 @@ def render_inventory_screen(game):
         ("Atk Bon",  f"+{player.attack_bonus}", _TEXT_NORMAL),
         ("Atk Power", f"{player.attack_power}", _TEXT_NORMAL),
         ("Spell Bon", f"+{player.spell_bonus}",  _TEXT_NORMAL),
-        ("Gold",     f"{player.gold} gp",       _GOLD),
+        ("Gold",     f"{player.gold}g {player.silver}s {player.copper}c", _GOLD),
     ]:
         _blit(surf, fXs, label, _TEXT_DIM, bx, qs_y)
         vs = fXs.render(str(val), True, col)
@@ -631,7 +631,7 @@ def render_character_menu(game):
         ("Race",  race_name),
         ("Level", player.level),
         ("XP",    f"{player.current_xp} / {player.xp_to_next_level}"),
-        ("Gold",  f"{player.gold} gp"),
+        ("Gold",  f"{player.gold}g {player.silver}s {player.copper}c"),
     ]:
         _blit(surf, fSm, label, _TEXT_DIM, col1_x, y1)
         vs = fN.render(str(val), True, _TEXT_BRIGHT)

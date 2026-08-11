@@ -229,9 +229,20 @@ def draw_sidebar(game) -> None:
     # XP bar
     y = _xp_bar(screen, x0, y, W, player.current_xp, player.xp_to_next_level, player.level, fSm)
 
-    # Gold
-    g_s = fN.render(f"◆ {player.gold} gp", True, _GOLD)
-    screen.blit(g_s, (x0, y))
+    # Currency -- gold/silver/copper coin breakdown, each denomination in
+    # its own color so the three stay visually distinct at a glance.
+    coin_x = x0
+    diamond_surf = fN.render("◆ ", True, _GOLD)
+    screen.blit(diamond_surf, (coin_x, y))
+    coin_x += diamond_surf.get_width()
+    for amount, suffix, color in (
+        (player.gold,   "g ", _GOLD),
+        (player.silver, "s ", _TEXT_NORMAL),
+        (player.copper, "c",  _ORANGE),
+    ):
+        piece_surf = fN.render(f"{amount}{suffix}", True, color)
+        screen.blit(piece_surf, (coin_x, y))
+        coin_x += piece_surf.get_width()
     y += fN.get_linesize() + 12
 
     # ════════════════════════════════════════════════════════════════════

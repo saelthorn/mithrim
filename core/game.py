@@ -8976,7 +8976,7 @@ class Game:
             default=0
         )
         price_col_w  = font_body.size("9999 gp")[0] + PAD
-        min_w        = font_title.size(f"  {merchant.name}")[0] + font_small.size("Gold: 99999 gp  ")[0] + PAD * 3
+        min_w        = font_title.size(f"  {merchant.name}")[0] + font_small.size("999g 9s 9c  ")[0] + PAD * 3
         W = max(560, min_w, max_name_px + price_col_w + PAD * 3)
         W = min(W, config.GAME_AREA_WIDTH - PAD * 4)   # never wider than the game area
 
@@ -9007,7 +9007,7 @@ class Game:
         # ── Title row ─────────────────────────────────────────────────────
         cur_y      = sy + PAD
         title_surf = font_title.render(f"  {merchant.name}", True, (255, 220, 90))
-        gold_text  = f"Gold: {self.player.gold} gp"
+        gold_text  = f"{self.player.gold}g {self.player.silver}s {self.player.copper}c"
         gold_surf  = font_body.render(gold_text, True, (220, 190, 60))
         self.screen.blit(title_surf, (sx + PAD, cur_y))
         self.screen.blit(gold_surf,  (sx + W - gold_surf.get_width() - PAD, cur_y + 2))
@@ -9075,7 +9075,7 @@ class Game:
             if is_buy:
                 price_val = item.price
                 price_str = f"{price_val} gp"
-                price_col = (90, 210, 90) if self.player.gold >= price_val else (210, 70, 70)
+                price_col = (90, 210, 90) if self.player.can_afford(gold=price_val) else (210, 70, 70)
             else:
                 price_val = item.price // 2
                 price_str = f"{price_val} gp"

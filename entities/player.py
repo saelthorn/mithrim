@@ -2,6 +2,14 @@ import random
 from core. game import GameState
 from core.inventory import Inventory
 
+# ── Currency ────────────────────────────────────────────────────────────
+# Three coin denominations: copper is the base unit everything is stored
+# in internally (see Player.money), silver and gold are just larger,
+# named multiples of it.
+COPPER_PER_SILVER = 10
+SILVER_PER_GOLD = 10
+COPPER_PER_GOLD = COPPER_PER_SILVER * SILVER_PER_GOLD  # 100
+
 # ── D&D 5e XP Progression Table ────────────────────────────────────────────
 XP_PROGRESSION = {
     1: 0,
@@ -76,7 +84,16 @@ class Player: # This is our base class for playable characters
         self.blocks_movement = True
         self.facing_right = False  # Default facing left
         self.initiative = 0
-        self.gold = 50
+
+        # Currency: stored internally as a single running total in copper
+        # pieces (COPPER_PER_GOLD * COPPER_PER_SILVER = 100 copper to the
+        # gold) so amounts of any denomination add/subtract cleanly without
+        # ever going fractional. `gold`/`silver`/`copper` below are the
+        # coin-breakdown view of that total; prefer add_money()/spend_money()
+        # for gameplay code, though `player.gold += n`-style code (older
+        # gold-only callers, e.g. story reward consequences) still works --
+        # see the `gold` property's setter.
+        self.money = 50 * COPPER_PER_GOLD  # 50 gold pieces, expressed in copper
 
         # Player-specific attributes
         self.level = 6
@@ -795,6 +812,68 @@ class Player: # This is our base class for playable characters
 
         return False
 
+    # ── Currency ────────────────────────────────────────────────────────
+    # `money` (set in __init__) is the single source of truth, stored in
+    # copper. Everything else here is a derived view or a convenience
+    # mutator over that one number, so gold/silver/copper can never drift
+    # out of sync with each other the way three separately-tracked
+    # counters could.
+
+    @property
+    def gold(self):
+        """Whole gold coins in the player's purse (floor of total money)."""
+        return self.money // COPPER_PER_GOLD
+
+    @gold.setter
+    def gold(self, value):
+        """
+        Set the whole-gold portion of the purse.
+
+        Older gold-only code (e.g. consequence_system.py's
+        RewardGoldConsequence, wired up in story_integration.py) still
+        does `player.gold = player.gold + amount`. Rather than treating
+        that as "replace the whole purse with `value` gold and drop any
+        silver/copper", this applies just the *change* in whole gold as a
+        copper delta -- so existing silver/copper carried over from other
+        sources isn't silently wiped out by an older call site.
+        """
+        delta_gold = value - self.gold
+        self.money = max(0, self.money + delta_gold * COPPER_PER_GOLD)
+
+    @property
+    def silver(self):
+        """Silver coins left over after gold is counted out (0-9)."""
+        return (self.money // COPPER_PER_SILVER) % SILVER_PER_GOLD
+
+    @property
+    def copper(self):
+        """Copper coins left over after gold and silver are counted out (0-9)."""
+        return self.money % COPPER_PER_SILVER
+
+    def add_money(self, gold=0, silver=0, copper=0):
+        """Add coins to the purse, in whichever denominations are convenient."""
+        self.money += gold * COPPER_PER_GOLD + silver * COPPER_PER_SILVER + copper
+
+    def spend_money(self, gold=0, silver=0, copper=0):
+        """
+        Remove coins from the purse. Returns False (and changes nothing)
+        if the purse doesn't hold enough, so callers can check affordability
+        and pay in one step instead of comparing totals themselves first.
+        """
+        cost = gold * COPPER_PER_GOLD + silver * COPPER_PER_SILVER + copper
+        if self.money < cost:
+            return False
+        self.money -= cost
+        return True
+
+    def can_afford(self, gold=0, silver=0, copper=0):
+        """Whether the purse currently holds at least this much, without spending it."""
+        cost = gold * COPPER_PER_GOLD + silver * COPPER_PER_SILVER + copper
+        return self.money >= cost
+
+    def format_money(self):
+        """Human-readable coin breakdown, e.g. '12g 4s 7c'."""
+        return f"{self.gold}g {self.silver}s {self.copper}c"
 
     def rest(self, game_instance, hours=1):
         """Handle resting mechanics and reset ability cooldowns.
