@@ -142,6 +142,8 @@ FIGHTER = CompanionClass(
     armor_proficiencies=["Light", "Medium", "Heavy"],
     damage_type="slashing",
     attack_range=1,
+    
+    abilities = {}
 )
 
 #: A companion Ranger: ranged skirmisher, armed with a real Short Bow
@@ -169,7 +171,8 @@ RANGER = CompanionClass(
     armor_proficiencies=["Light"],
     damage_type="piercing",
     attack_range=6,
-    starting_ammo=24,
+    starting_ammo=24,    
+    abilities = {}
 )
 
 #: A companion Rogue: a fast, finesse-fighting duelist -- adjacent
@@ -196,7 +199,8 @@ ROGUE = CompanionClass(
     weapon_proficiencies=["Dagger", "Shortsword", "Rapier", "Shortbow"],
     armor_proficiencies=["Light"],
     damage_type="piercing",
-    attack_range=1,
+    attack_range=1,    
+    abilities = {}
 )
 
 #: A companion Wizard: squishy and Intelligence-driven, wielding a
@@ -227,7 +231,8 @@ WIZARD = CompanionClass(
     weapon_proficiencies=["Quarterstaff", "Dagger"],
     armor_proficiencies=["Light"],
     damage_type="bludgeoning",
-    attack_range=1,
+    attack_range=1,    
+    abilities = {}
 )
 
 #: A companion Cleric: a Wisdom-driven frontline healer/support
@@ -258,7 +263,8 @@ CLERIC = CompanionClass(
     weapon_proficiencies=["Mace", "Hammer"],
     armor_proficiencies=["Light", "Medium"],
     damage_type="bludgeoning",
-    attack_range=1,
+    attack_range=1,    
+    abilities = {}
 )
 
 
@@ -453,6 +459,14 @@ class CombatCompanion(SummonedEntity):
         self.armor_proficiencies = self.class_armor_proficiencies.copy()
         self.darkvision_radius = 0
         self.damage_resistances = []
+        # Race.apply_traits() writes racial cantrips (Fire Bolt, Mage Hand,
+        # ...) directly into this dict (see races.py's HighElf/Mephistopheles
+        # Tiefling) -- must exist before apply_race() runs, same reasoning
+        # as the proficiency lists above. A companion has no way to cast
+        # these yet (see CompanionClass.focus's docstring on spellcasting),
+        # but apply_traits() still needs somewhere to record that the
+        # companion knows them.
+        self.abilities = {}
 
         # -- Equipment -- straight from the class definition, same slots
         # player.py's Fighter/Rogue equip directly onto self.

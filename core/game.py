@@ -9787,14 +9787,23 @@ class Game:
                     footprint_size = getattr(entity, 'footprint_size', 1)
                     tile_size_override = config.TILE_SIZE * footprint_size if footprint_size > 1 else None
     
-                    # Determine flip_x only for player
+                    # Determine flip_x for the player, and mirror that same
+                    # flip onto any companion (EscortCompanion or
+                    # CombatCompanion) so they visually face the same way
+                    # the player does rather than only ever facing one
+                    # direction.
                     flip_x = False
-                    if entity == self.player:
+                    if entity == self.player or isinstance(entity, (EscortCompanion, CombatCompanion)):
                         flip_x = not self.player.facing_right
     
-                    # Check for submersion (player or swimming monsters on water)
+                    # Check for submersion (player, companions following the
+                    # player, or swimming monsters on water)
                     entity_tile = self.game_map.tiles[entity.y][entity.x]
-                    is_submerged = (entity == self.player or (hasattr(entity, 'can_swim') and entity.can_swim)) and is_water_tile(entity_tile)
+                    is_submerged = (
+                        entity == self.player
+                        or isinstance(entity, (EscortCompanion, CombatCompanion))
+                        or (hasattr(entity, 'can_swim') and entity.can_swim)
+                    ) and is_water_tile(entity_tile)
     
                     if is_submerged:
                         # Composited top-half-sprite + bottom-half-ripple surface is
