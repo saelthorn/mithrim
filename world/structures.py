@@ -4,6 +4,7 @@ import random
 from entities.base_entity import NPC
 from entities.town_npcs import TownNPC, Innkeeper, Shopkeeper, Townsfolk, Blacksmith, Priest
 from entities.monster import GiantRat, Goblin, Skeleton, Wolf
+from entities.companions import RACE_CLASS_VISUALS
 
 from world.tile import (
     ground, grass, road, tall_grass, wall, tavern_floor, floor, bar_counter_two, bar_counter_three, bar_counter_four, 
@@ -66,6 +67,34 @@ def _spawn_blacksmith(x, y):
 
 def _spawn_priest(x, y):
     return Priest(x, y)
+
+
+def _spawn_tavern_patron(x, y):
+    """
+    A tavern patron -- visually a race+class adventurer rather than a
+    plain villager, drawn from entities/companions.py's
+    RACE_CLASS_VISUALS (the same table game.py's character creation
+    uses for the player's own sprite). Taverns are where a player would
+    expect to find hired swords to recruit, not farmers, so their
+    patrons get an appearance that actually reads as "adventurer" --
+    still a Townsfolk underneath (dialogue, wandering/socializing
+    schedule, everything else about them is unchanged), just re-skinned.
+
+    `visual_race`/`visual_class` are stashed on the NPC so a future
+    recruiting interaction (see game.py's recruit_combat_companion(),
+    which already accepts a race + CompanionClass pair) can read back
+    which race/class this patron's sprite represents, rather than the
+    choice only existing as a char/color pair that gets thrown away.
+    """
+    race, class_name = random.choice(list(RACE_CLASS_VISUALS.keys()))
+    char, color = RACE_CLASS_VISUALS[(race, class_name)]
+
+    patron = Townsfolk(x, y)
+    patron.char = char
+    patron.color = color
+    patron.visual_race = race
+    patron.visual_class = class_name
+    return patron
 
 
 # Monster factories used by blueprint monster_map entries below -- the
@@ -197,7 +226,7 @@ STRUCTURE_BLUEPRINTS = {
         {"#": wall, ".": tavern_floor, "s": shelf, "h": shelf_two, "g": tavern_floor, "c": tavern_crate, "b": tavern_barrel, "p": tavern_floor, "A": tavern_floor, "k": tavern_barrel_two, "I": bar_counter_two, "|": bar_counter_three, "7": bar_counter_four, "t": table, "+": door},
         walkable_chars={".", "p", "A", "g", "+"},
         description="A rowdy wayside tavern.",
-        npc_map={"A": _spawn_innkeeper, "p": _spawn_villager, "g": _spawn_goblin},
+        npc_map={"A": _spawn_innkeeper, "p": _spawn_tavern_patron, "g": _spawn_goblin},
     ),
 
     "blacksmith": build_blueprint(
@@ -570,7 +599,7 @@ def create_town_npcs(game_map, town_buildings):
 
             remaining = [pos for pos in positions if pos not in occupied]
             for x, y in random.sample(remaining, min(2, len(remaining))):
-                npc = Townsfolk(x, y)
+                npc = _spawn_tavern_patron(x, y)
                 structure_npcs.append(npc)
                 occupied.add((x, y))
 

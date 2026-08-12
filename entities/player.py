@@ -2266,6 +2266,7 @@ class Ranger(Player):
         self.abilities["Multishot"] = Multishot()
         self.abilities["Animal Companion"] = SummonAnimalCompanion()
         self.abilities["Hunter's Mark"] = HunterMark()
+        self.abilities["Cure Wounds"] = CureWounds()
 
         self._scale_all_abilities()
 

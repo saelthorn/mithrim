@@ -24,6 +24,8 @@ class GameState:
     CHEST_MENU = "chest_menu"  # Locked chest interaction menu
     SHOP_MENU  = "shop_menu"   # Merchant shop overlay
     INNKEEPER_MENU = "innkeeper_menu"  # Innkeeper's Buy Food / Rest for the Night choice menu
+    COMPANION_MENU = "companion_menu"  # A recruited CombatCompanion's stance/dismiss choice menu
+    RECRUIT_MENU = "recruit_menu"  # A tavern patron's hire/decline choice menu
     REST_MENU = "rest_menu"  # Player short rest / long rest choice menu
     GAME_OVER = "game_over" # NEW: Add GAME_OVER state
     OVERWORLD = "overworld"  # Cellular-automata overworld map (dungeon_generator's sibling)
@@ -398,6 +400,10 @@ from entities.races import (
     RACE_GROUPS,          # lineage catalogue used by the creation screen
 )
 from entities.summons import MageHandEntity, SummonedEntity, EscortCompanion
+from entities.companions import (
+    CombatCompanion, CompanionStance, CompanionClass,
+    FIGHTER, RANGER, ROGUE, WIZARD, CLERIC, RACE_CLASS_VISUALS,
+)
 from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
 from core.message_log import MessageBox
 from core.status_effects import (
@@ -413,7 +419,7 @@ from items.items import (
     Helmet, Boots, FocusItem,
     leather_cap, iron_helmet, steel_helmet, great_helm, mages_circlet, hood_of_shadows,
     leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,
-    format_price,
+    format_price, GOLD,
 )
 
 from core.pathfinding import astar
@@ -533,6 +539,14 @@ class Game:
         # Innkeeper, or by a companion's own die() if they're killed
         # along the way.
         self.companions = []
+        # Recruited CombatCompanions (entities/companions.py) -- a
+        # separate list from self.companions above, which stays reserved
+        # for non-combat EscortCompanion escort deliverables. Unlike
+        # those, combat companions are meant to follow the player into
+        # dungeons and fight there, so nothing here blocks descent the
+        # way self.companions being non-empty does (see the "You can't
+        # take {names} down there" check).
+        self.combat_companions = []
         self.bloodstains = []
         self.active_fire_tiles = []  # Tracks (x, y) positions of active FireElementalTiles
         # Marks (by id(npc)) which NPCs have already been successfully
@@ -637,6 +651,10 @@ class Game:
         self._chest_menu_target = None  # Locked chest awaiting player's choice
         self._innkeeper_menu_target = None  # Innkeeper awaiting player's Buy Food / Rest / Leave choice
         self._innkeeper_menu_return_state = GameState.OVERWORLD  # Where INNKEEPER_MENU itself returns to (see open_innkeeper_menu())
+        self._companion_menu_target = None  # CombatCompanion awaiting player's stance/dismiss choice
+        self._companion_menu_return_state = GameState.OVERWORLD  # Where COMPANION_MENU itself returns to (see open_companion_menu())
+        self._recruit_menu_target = None  # Tavern patron (Townsfolk) awaiting player's hire/decline choice
+        self._recruit_menu_return_state = GameState.OVERWORLD  # Where RECRUIT_MENU itself returns to (see open_recruit_menu())
         self._rest_menu_target = None  # Player rest choice menu target
         self._world_encounter_target = None    # Scenario dict awaiting the player's choice
         self._world_encounter_story_id = None  # StoryInstance id backing the currently-offered/active encounter
@@ -766,81 +784,12 @@ class Game:
 
         self._wire_story_npc_spawning()
 
-        self.race_class_visuals = {
-            # ── Human ─────────────────────────────────────────────────────
-            ("Human",           "Fighter"): ("HF",  (255, 255, 255)),
-            ("Human",           "Rogue"):   ("HR",  (255, 255,   0)),
-            ("Human",           "Wizard"):  ("HW",  (  0, 200, 255)),
-            ("Human",           "Cleric"):  ("HC",  (255, 215,   0)),
- 
-            # ── Elf lineages ───────────────────────────────────────────────
-            ("Drow Elf",        "Fighter"): ("EF",  (100,   0, 130)),
-            ("Drow Elf",        "Rogue"):   ("ER",  (150,   0, 180)),
-            ("Drow Elf",        "Wizard"):  ("EW",  (200,   0, 220)),
-            ("Drow Elf",        "Cleric"):  ("EC",  (255, 255,   0)),
-            ("High Elf",        "Fighter"): ("HEF", (180, 220, 180)),
-            ("High Elf",        "Rogue"):   ("HER", (130, 190, 130)),
-            ("High Elf",        "Wizard"):  ("HEW", ( 80, 150, 255)),
-            ("High Elf",        "Cleric"):  ("HEC", (255, 255, 180)),
-            ("Wood Elf",        "Fighter"): ("WEF", ( 80, 140,  60)),
-            ("Wood Elf",        "Rogue"):   ("WER", ( 60, 120,  40)),
-            ("Wood Elf",        "Wizard"):  ("WEW", ( 40, 160,  80)),
-            ("Wood Elf",        "Cleric"):  ("WEC", (200, 220, 120)),
- 
-            # ── Dwarf lineages ─────────────────────────────────────────────
-            ("Hill Dwarf",      "Fighter"): ("DF",  (180, 120,  60)),
-            ("Hill Dwarf",      "Rogue"):   ("DR",  (200, 150,   0)),
-            ("Hill Dwarf",      "Wizard"):  ("DW",  (100, 150, 255)),
-            ("Hill Dwarf",      "Cleric"):  ("DC",  (255, 215,   0)),
-            ("Mountain Dwarf",  "Fighter"): ("MDF", (160, 100,  50)),
-            ("Mountain Dwarf",  "Rogue"):   ("MDR", (130,  80,  40)),
-            ("Mountain Dwarf",  "Wizard"):  ("MDW", ( 90, 110, 200)),
-            ("Mountain Dwarf",  "Cleric"):  ("MDC", (220, 190,  80)),
-            ("Duergar",         "Fighter"): ("DGF", (100,  90,  90)),
-            ("Duergar",         "Rogue"):   ("DGR", ( 80,  70,  70)),
-            ("Duergar",         "Wizard"):  ("DGW", ( 70,  80, 130)),
-            ("Duergar",         "Cleric"):  ("DGC", (180, 170, 140)),
- 
-            # ── Tiefling lineages ──────────────────────────────────────────
-            # Zariel — ember orange (martial fury)
-            ("Zariel Tiefling",       "Fighter"): ("ZTF", (210,  80,  20)),
-            ("Zariel Tiefling",       "Rogue"):   ("ZTR", (190,  60,  10)),
-            ("Zariel Tiefling",       "Wizard"):  ("ZTW", (240, 110,  40)),
-            ("Zariel Tiefling",       "Cleric"):  ("ZTC", (255, 180,  60)),
-            # Levistus — ice blue (cold cunning)
-            ("Levistus Tiefling",     "Fighter"): ("LTF", ( 60, 120, 200)),
-            ("Levistus Tiefling",     "Rogue"):   ("LTR", ( 40, 100, 180)),
-            ("Levistus Tiefling",     "Wizard"):  ("LTW", ( 80, 160, 240)),
-            ("Levistus Tiefling",     "Cleric"):  ("LTC", (160, 210, 255)),
-            # Dispater — iron violet (infiltrator)
-            ("Dispater Tiefling",     "Fighter"): ("DTF", (110,  70, 140)),
-            ("Dispater Tiefling",     "Rogue"):   ("DTR", ( 90,  50, 120)),
-            ("Dispater Tiefling",     "Wizard"):  ("DTW", (140,  90, 180)),
-            ("Dispater Tiefling",     "Cleric"):  ("DTC", (200, 160, 255)),
-            # Mephistopheles — arcane teal (arcanist)
-            ("Mephistopheles Tiefling", "Fighter"): ("MTF", ( 20, 160, 140)),
-            ("Mephistopheles Tiefling", "Rogue"):   ("MTR", ( 10, 130, 110)),
-            ("Mephistopheles Tiefling", "Wizard"):  ("MTW", ( 40, 200, 180)),
-            ("Mephistopheles Tiefling", "Cleric"):  ("MTC", (160, 240, 220)),
- 
-            # ── Dragonborn lineages ────────────────────────────────────────
-            ("Red Dragonborn",   "Fighter"): ("RDF", (180,  40,  20)),
-            ("Red Dragonborn",   "Rogue"):   ("DBR", (160,  30,  10)),
-            ("Red Dragonborn",   "Wizard"):  ("RDW", (220,  60,  30)),
-            ("Red Dragonborn",   "Cleric"):  ("RDC", (255, 200,  60)),
-            ("Blue Dragonborn",  "Fighter"): ("BDF", ( 40,  80, 200)),
-            ("Blue Dragonborn",  "Rogue"):   ("BDR", ( 30,  60, 170)),
-            ("Blue Dragonborn",  "Wizard"):  ("BDW", ( 60, 120, 255)),
-            ("Blue Dragonborn",  "Cleric"):  ("BDC", (200, 220, 255)),
-            ("Gold Dragonborn",  "Fighter"): ("GDF", (200, 160,  20)),
-            ("Gold Dragonborn",  "Rogue"):   ("GDR", (180, 140,  10)),
-            ("Gold Dragonborn",  "Wizard"):  ("GDW", (240, 200,  60)),
-            ("Gold Dragonborn",  "Cleric"):  ("GDC", (255, 230, 120)),
-            ("Green Dragonborn", "Fighter"): ("GNF", ( 30, 130,  50)),
-            ("Green Dragonborn", "Rogue"):   ("GNR", ( 20, 110,  40)),
-            ("Green Dragonborn", "Wizard"):  ("GNW", ( 40, 160,  70)),
-            ("Green Dragonborn", "Cleric"):  ("GNC", (160, 220, 100)),
-        }
+        # Moved to entities/companions.py's RACE_CLASS_VISUALS -- shared
+        # with world/structures.py's tavern patrons (see
+        # _spawn_tavern_patron()), which use the exact same race+class
+        # sprite table so a recruitable patron looks like an appearance
+        # the player themselves could have chosen at character creation.
+        self.race_class_visuals = RACE_CLASS_VISUALS
 
         # Class selection
         self.available_classes = [Fighter, Rogue, Wizard, Cleric, Ranger] # List of class objects
@@ -3650,6 +3599,227 @@ class Game:
         )
         return companion
 
+    #: Pick-list a recruiting UI can offer, mirroring how races.py's own
+    #: catalogue of Race instances gets offered during character
+    #: creation. Adding a class means adding it to entities/companions.py
+    #: and to this dict -- nothing else here needs to change.
+    COMPANION_CLASSES = {
+        "Fighter": FIGHTER,
+        "Ranger": RANGER,
+        "Rogue": ROGUE,
+        "Wizard": WIZARD,
+        "Cleric": CLERIC,
+    }
+
+    #: Reverse lookup from a Race instance's own .name (e.g. "Drow Elf")
+    #: back to the instance itself -- the same string RACE_CLASS_VISUALS'
+    #: keys use (see entities/companions.py) and the same one
+    #: world/structures.py's _spawn_tavern_patron() stashes on a patron
+    #: as `visual_race`. Built from RACE_GROUPS (entities/races.py) --
+    #: the same already-instantiated catalogue character creation uses
+    #: (see self.race_groups/self.available_races above) -- rather than
+    #: instantiating Human/DrowElf/etc. directly, since those names refer
+    #: to the classes themselves, not ready-made instances.
+    RACE_BY_NAME = {
+        race.name: race
+        for _, _, race_list in RACE_GROUPS
+        for race in race_list
+    }
+
+    #: Flat gold cost to hire a tavern patron, per class -- a rough
+    #: "more specialized training costs more" curve, not meant to be
+    #: exact game balance. See render_recruit_menu()/_try_recruit_patron().
+    COMPANION_RECRUIT_COSTS = {
+        "Fighter": 40 * GOLD,
+        "Rogue":   35 * GOLD,
+        "Ranger":  45 * GOLD,
+        "Wizard":  50 * GOLD,
+        "Cleric":  45 * GOLD,
+    }
+
+    def open_recruit_menu(self, patron):
+        """
+        Open the hire/decline popup for an adjacent tavern patron (a
+        Townsfolk carrying visual_race/visual_class -- see
+        world/structures.py's _spawn_tavern_patron()). Mirrors
+        open_companion_menu()'s "stash the target, remember what to
+        return to, switch game_state" shape exactly.
+        """
+        self._previous_game_state = self.game_state
+        self._recruit_menu_return_state = self.game_state
+        self._recruit_menu_target = patron
+        self.game_state = GameState.RECRUIT_MENU
+
+    def handle_recruit_menu_input(self, key):
+        """
+        [1] Recruit -- pay this patron's class recruit cost and turn
+            them into a real CombatCompanion (see _try_recruit_patron()).
+        [2] / ESC / F -- leave, no change.
+        """
+        patron = self._recruit_menu_target
+        return_state = self._recruit_menu_return_state or GameState.OVERWORLD
+        if not patron:
+            self.game_state = return_state
+            return
+
+        if key == pygame.K_1:
+            self._try_recruit_patron(patron)
+            self.game_state = return_state
+            self._recruit_menu_target = None
+        elif key in (pygame.K_2, pygame.K_ESCAPE, pygame.K_f):
+            self.game_state = return_state
+            self._recruit_menu_target = None
+
+    def _try_recruit_patron(self, patron):
+        """
+        Resolve a tavern patron's stashed visual_race/visual_class
+        (strings) back into a real Race instance + CompanionClass,
+        charge the player, and hand off to recruit_combat_companion().
+
+        Declines gracefully (a message, no charge, patron stays put and
+        keeps looking like an adventurer for a later attempt) if the
+        player can't afford it. The race/class lookup failing at all is
+        defensive only -- every patron world/structures.py spawns uses
+        a RACE_CLASS_VISUALS key, and RACE_BY_NAME/COMPANION_CLASSES
+        above are built to cover every one of those keys -- but a
+        patron surviving from an older save after a race/class was
+        renamed shouldn't crash the interaction.
+        """
+        race = self.RACE_BY_NAME.get(getattr(patron, 'visual_race', None))
+        companion_class = self.COMPANION_CLASSES.get(getattr(patron, 'visual_class', None))
+        if race is None or companion_class is None:
+            self.message_log.add_message(f"{patron.name} isn't interested in adventuring.", (150, 150, 150))
+            return
+
+        cost = self.COMPANION_RECRUIT_COSTS.get(companion_class.name, 40 * GOLD)
+        if self.player.money < cost:
+            self.message_log.add_message(
+                f"You need {format_price(cost)} to hire {patron.name}. "
+                f"You have {format_price(self.player.money)}.",
+                (210, 70, 70)
+            )
+            return
+
+        self.player.money -= cost
+        self.message_log.add_message(
+            f"You pay {format_price(cost)} to hire {patron.name} the {companion_class.name}.",
+            (150, 220, 255)
+        )
+        # recruit_combat_companion() removes `patron` from entities/
+        # turn_order and constructs the real CombatCompanion in its
+        # place -- see that method's own docstring.
+        self.recruit_combat_companion(patron, race, companion_class, name=patron.name)
+
+    def recruit_combat_companion(self, source_entity, race, companion_class, name=None):
+        """
+        Turns a live NPC entity already in self.entities into a
+        fighting CombatCompanion (entities/companions.py), at the same
+        position and carrying over its name/color unless overridden --
+        same "recruit in place" shape as recruit_companion() above, but
+        producing a companion built from a race + CompanionClass instead
+        of an EscortCompanion.
+
+        `companion_class` may be a CompanionClass instance directly, or
+        one of the string keys in COMPANION_CLASSES (e.g. "Fighter") for
+        callers wiring this up to a menu/dialogue choice rather than
+        importing entities/companions.py themselves.
+
+        Unlike recruit_companion(), this list -- self.combat_companions
+        -- never blocks dungeon descent (see that list's own comment in
+        __init__) and the companion is never "delivered" anywhere; it
+        stays in the party until dismissed (see CombatCompanion.dismiss())
+        or killed (see CombatCompanion.die()).
+        """
+        if isinstance(companion_class, str):
+            companion_class = self.COMPANION_CLASSES[companion_class]
+
+        if source_entity in self.entities:
+            self.entities.remove(source_entity)
+        if source_entity in self.turn_order:
+            self.turn_order.remove(source_entity)
+
+        companion = CombatCompanion(
+            source_entity.x, source_entity.y,
+            name=name or getattr(source_entity, "name", companion_class.name),
+            color=getattr(source_entity, "color", (200, 200, 150)),
+            char=getattr(source_entity, "char", None),
+            owner=self.player,
+            race=race,
+            companion_class=companion_class,
+        )
+        # Racial bonuses/resistances/darkvision -- see CombatCompanion.
+        # apply_race()'s docstring for why this is a separate call from
+        # __init__ rather than folded into it.
+        companion.apply_race(self)
+
+        self.entities.append(companion)
+        self.turn_order.append(companion)
+        self._resort_turn_order_preserving_current()
+        self.combat_companions.append(companion)
+
+        self.message_log.add_message(
+            f"{companion.name} the {companion_class.name} joins you! "
+            f"Talk to them (F) to give combat orders.",
+            (150, 220, 255)
+        )
+        return companion
+
+    def open_companion_menu(self, companion):
+        """
+        Open the stance/dismiss choice menu for an adjacent
+        CombatCompanion -- mirrors open_innkeeper_menu()'s "stash the
+        target, remember what to return to, switch game_state" shape
+        exactly (see that method's docstring); rendering and input
+        handling pick it up from there (render_companion_menu()/
+        handle_companion_menu_input()).
+        """
+        self._previous_game_state = self.game_state
+        self._companion_menu_return_state = self.game_state
+        self._companion_menu_target = companion
+        self.game_state = GameState.COMPANION_MENU
+
+    def handle_companion_menu_input(self, key):
+        """
+        Handles keyboard input while a CombatCompanion's stance/dismiss
+        overlay (GameState.COMPANION_MENU, see open_companion_menu() and
+        render_companion_menu()) is open. Same numbered-choice
+        convention as handle_innkeeper_menu_input().
+
+        [1]-[5] set the companion's combat stance (see CompanionStance)
+            and close the menu immediately, same as CHEST_MENU's choices
+            resolving in one step.
+        [6] Dismiss -- the companion leaves the party for good.
+        [7] / ESC / F -- leave, no change.
+        """
+        companion = self._companion_menu_target
+        if not companion:
+            self.game_state = self._companion_menu_return_state or GameState.OVERWORLD
+            return
+
+        return_state = self._companion_menu_return_state or GameState.OVERWORLD
+
+        stance_keys = {
+            pygame.K_1: CompanionStance.WEAKEST,
+            pygame.K_2: CompanionStance.NEAREST,
+            pygame.K_3: CompanionStance.FARTHEST,
+            pygame.K_4: CompanionStance.PROTECT,
+            pygame.K_5: CompanionStance.PASSIVE,
+        }
+
+        if key in stance_keys:
+            companion.set_stance(stance_keys[key], self)
+            self.game_state = return_state
+            self._companion_menu_target = None
+
+        elif key == pygame.K_6:
+            companion.dismiss(self)
+            self.game_state = return_state
+            self._companion_menu_target = None
+
+        elif key in (pygame.K_7, pygame.K_ESCAPE, pygame.K_f):
+            self.game_state = return_state
+            self._companion_menu_target = None
+
     def try_deliver_companions(self, innkeeper):
         """
         Called when the player talks to an Innkeeper while escorting
@@ -4145,8 +4315,17 @@ class Game:
         for companion in self.companions:
             companion.x, companion.y = self._find_open_tile_near_player(taken_positions)
             taken_positions.add((companion.x, companion.y))
+        # Combat companions carry over the same way -- they're meant to
+        # stay with the player across chunk boundaries too, not just
+        # escort deliverables.
+        for companion in self.combat_companions:
+            companion.x, companion.y = self._find_open_tile_near_player(taken_positions)
+            taken_positions.add((companion.x, companion.y))
 
-        self.entities = [self.player] + list(chunk.get("population", [])) + list(self.companions)
+        self.entities = (
+            [self.player] + list(chunk.get("population", []))
+            + list(self.companions) + list(self.combat_companions)
+        )
 
         # Build the turn order from the populated entities (player + any
         # overworld monsters/NPCs, plus any escort companions carried over
@@ -4496,9 +4675,20 @@ class Game:
             "torch_light_sources": self.torch_light_sources,
             "lit_wall_torches": set(self.lit_wall_torches),
             "fov": self.fov,
-            # Every entity on this level except the player, who carries
-            # over to whichever level (or the overworld) they move to next.
-            "entities": [e for e in self.entities if e is not self.player],
+            # Every entity on this level except the player and any
+            # CombatCompanions, both of which carry over to whichever
+            # level (or the overworld) they move to next rather than
+            # belonging to this specific level's cache -- see
+            # _restore_dungeon_level()/generate_level(), which each add
+            # self.combat_companions back in explicitly, repositioned
+            # for wherever the player actually landed. Without this
+            # exclusion, a companion's shared (not copied) object would
+            # get its (x, y) mutated by whichever level it visits next,
+            # silently corrupting this level's cached position for it.
+            "entities": [
+                e for e in self.entities
+                if e is not self.player and e not in self.combat_companions
+            ],
         }
 
     def _restore_dungeon_level(self, level_number, spawn_on_stairs_up):
@@ -4538,7 +4728,18 @@ class Game:
         if landing_stairs is not None:
             self.player.x, self.player.y = landing_stairs
 
-        self.entities = [self.player] + list(cached["entities"])
+        # Combat companions are deliberately excluded from the cached
+        # snapshot (see _snapshot_dungeon_level()) since they carry over
+        # with the player rather than being tied to this level -- added
+        # back explicitly here, repositioned near wherever the player
+        # just landed, same reasoning as generate_level()'s fresh-
+        # generation path uses for a level visited for the first time.
+        taken_positions = {(self.player.x, self.player.y)}
+        for companion in self.combat_companions:
+            companion.x, companion.y = self._find_open_tile_near_player(taken_positions)
+            taken_positions.add((companion.x, companion.y))
+
+        self.entities = [self.player] + list(self.combat_companions) + list(cached["entities"])
 
         self.turn_order = [e for e in self.entities if not (isinstance(e, Mimic) and e.disguised)]
         for entity in self.turn_order:
@@ -4682,7 +4883,20 @@ class Game:
         # Altars are now generated exclusively in circular temple rooms via generate_circular_temple()
         # See: dungeon_generator.py _generate_circular_room() and temple_room.py generate_circular_temple()
 
-        self.entities = [self.player]
+        # Combat companions (entities/companions.py) follow the player
+        # into the dungeon -- unlike self.companions (escorts), which are
+        # blocked from descending entirely (see the "You can't take
+        # {names} down there" check in handle_player_action). Their old
+        # (x, y) belonged to whichever map was active before this call
+        # and would be meaningless here, so each gets its own open tile
+        # near the player, same reasoning as generate_overworld_map()'s
+        # chunk-transition repositioning.
+        taken_positions = {(self.player.x, self.player.y)}
+        for companion in self.combat_companions:
+            companion.x, companion.y = self._find_open_tile_near_player(taken_positions)
+            taken_positions.add((companion.x, companion.y))
+
+        self.entities = [self.player] + list(self.combat_companions)
         # Add any prison prisoners to the entity list
         for prisoner in prison_prisoners:
             self.entities.append(prisoner)        
@@ -5015,7 +5229,7 @@ class Game:
     def check_dungeon_npc_interaction(self):
         if self.game_state == GameState.DUNGEON:
             for entity in self.entities:
-                if isinstance(entity, (DungeonHealer, DungeonMerchant, PrisonerNPC)):
+                if isinstance(entity, (DungeonHealer, DungeonMerchant, PrisonerNPC, CombatCompanion)):
                     if (abs(self.player.x - entity.x) <= 1 and
                         abs(self.player.y - entity.y) <= 1 and
                         (abs(self.player.x - entity.x) + abs(self.player.y - entity.y)) == 1):
@@ -5780,6 +5994,16 @@ class Game:
             if not getattr(companion, "alive", True):
                 companion.die(self)
 
+        # Same reasoning as self.companions above -- a CombatCompanion
+        # killed via take_damage() (the normal way it dies, in combat)
+        # never calls its own die() automatically; nothing else prunes
+        # self.combat_companions. It isn't a dungeon-descent blocker the
+        # way self.companions is, but it would otherwise sit in the list
+        # forever, dead, still countable/orderable via the companion menu.
+        for companion in list(self.combat_companions):
+            if not getattr(companion, "alive", True):
+                companion.die(self)
+
         # self.turn_order is a separate list from self.entities (see
         # generate_overworld_map()/generate_level()/recruit_companion()) and
         # was never being pruned here — every monster that ever died over a
@@ -6033,6 +6257,16 @@ class Game:
                     self.handle_innkeeper_menu_input(event.key)
                     return True  # Consume all input while menu is open
 
+                # --- Companion Menu ---
+                elif self.game_state == GameState.COMPANION_MENU:
+                    self.handle_companion_menu_input(event.key)
+                    return True  # Consume all input while menu is open
+
+                # --- Recruit Menu ---
+                elif self.game_state == GameState.RECRUIT_MENU:
+                    self.handle_recruit_menu_input(event.key)
+                    return True  # Consume all input while menu is open
+
                 # --- Rest Menu ---
                 elif self.game_state == GameState.REST_MENU:
                     self.handle_rest_menu_input(event.key)
@@ -6188,9 +6422,10 @@ class Game:
                             npc = self.check_overworld_npc_interaction()
 
                             if self.interaction_mode == InteractionMode.STEAL:
-                                # Encounter victims are being rescued, not robbed --
+                                # Encounter victims are being rescued, not robbed,
+                                # and a companion isn't fair game either --
                                 # everyone else adjacent is fair game for a pickpocket attempt.
-                                if npc and not isinstance(npc, EncounterVictim):
+                                if npc and not isinstance(npc, (EncounterVictim, CombatCompanion)):
                                     return self._attempt_pickpocket(npc)
                                 self.message_log.add_message("There's no one close enough to steal from.", (150, 150, 150))
                                 return True
@@ -6219,6 +6454,17 @@ class Game:
                             elif isinstance(npc, (Shopkeeper, Trader)):
                                 npc.offer_trade(self.player, self)  # Call the trade method for the Shopkeeper/Trader
                                 return True
+                            elif isinstance(npc, CombatCompanion):
+                                self.open_companion_menu(npc)
+                                return True
+                            elif isinstance(npc, Townsfolk) and getattr(npc, 'visual_race', None):
+                                # A tavern patron (see world/structures.py's
+                                # _spawn_tavern_patron()) -- looks like an
+                                # adventurer because it's meant to be
+                                # recruitable, not talked to like a plain
+                                # villager.
+                                self.open_recruit_menu(npc)
+                                return True
                             elif npc:
                                 self.message_log.add_message(f'{npc.name}: "{npc.get_dialogue()}"', (200, 200, 255))
                                 self.stories.fire_talk(npc, instigator=self.player)
@@ -6238,7 +6484,10 @@ class Game:
 
                         merchant = self.check_dungeon_npc_interaction()  # Check for adjacent NPC
                         if self.interaction_mode == InteractionMode.STEAL:
-                            if merchant:
+                            # A companion isn't fair game for a pickpocket
+                            # attempt, same reasoning as EncounterVictim
+                            # being excluded in the overworld branch above.
+                            if merchant and not isinstance(merchant, CombatCompanion):
                                 return self._attempt_pickpocket(merchant)
                             self.message_log.add_message("There's no one close enough to steal from.", (150, 150, 150))
                             return True
@@ -6248,6 +6497,9 @@ class Game:
                             if self.handle_item_pickup():
                                 return True
                             self.message_log.add_message("There's nothing here to grab.", (150, 150, 150))
+                            return True
+                        if isinstance(merchant, CombatCompanion):
+                            self.open_companion_menu(merchant)
                             return True
                         if isinstance(merchant, DungeonMerchant):
                             merchant.offer_trade(self.player, self)  # Call the trade method for the Merchant
@@ -8470,6 +8722,14 @@ class Game:
         if self.game_state == GameState.INNKEEPER_MENU and self._innkeeper_menu_target:
             self.render_innkeeper_menu()
 
+        # A recruited companion's stance/dismiss overlay — drawn over the world, under nothing else
+        if self.game_state == GameState.COMPANION_MENU and self._companion_menu_target:
+            self.render_companion_menu()
+
+        # A tavern patron's hire/decline overlay — drawn over the world, under nothing else
+        if self.game_state == GameState.RECRUIT_MENU and self._recruit_menu_target:
+            self.render_recruit_menu()
+
         # Short rest / long rest overlay — drawn over the world, under nothing else
         if self.game_state == GameState.REST_MENU and self._rest_menu_target:
             self.render_rest_menu()
@@ -8712,6 +8972,145 @@ class Game:
         ]
 
         y = sy + PAD + 32
+        for header, sub, color in options:
+            h_surf = font_body.render(header, True, color)
+            s_surf = font_body.render(f"    {sub}", True, (90, 90, 100))
+            self.screen.blit(h_surf, (sx + PAD, y))
+            y += font_body.get_linesize() + 1
+            self.screen.blit(s_surf, (sx + PAD, y))
+            y += font_body.get_linesize() + 6
+
+    def render_companion_menu(self):
+        """
+        Draws a recruited CombatCompanion's stance/dismiss choice popup,
+        visually mirroring render_innkeeper_menu() -- same overlay size,
+        fonts, and numbered-option layout -- so "adjacent NPC offers a
+        short numbered choice" reads as one consistent UI language
+        across the innkeeper, chest, and companion menus alike.
+
+        The currently-active stance is highlighted so the player can
+        tell what order the companion is already under without having
+        to remember it.
+        """
+        companion = self._companion_menu_target
+        if companion is None:
+            return
+
+        try:
+            font_title = pygame.font.SysFont("consolas", 16, bold=True)
+            font_body  = pygame.font.SysFont("consolas", 14)
+        except Exception:
+            font_title = pygame.font.Font(None, 18)
+            font_body  = pygame.font.Font(None, 16)
+
+        PAD = 14
+        W   = 440
+        H   = 260
+        sx  = (config.GAME_AREA_WIDTH - W) // 2
+        sy  = (config.SCREEN_HEIGHT   - H) // 2
+
+        bg = pygame.Surface((W, H), pygame.SRCALPHA)
+        bg.fill((10, 8, 14, 220))
+        self.screen.blit(bg, (sx, sy))
+
+        pygame.draw.rect(self.screen, (150, 220, 255), (sx, sy, W, H), 2, border_radius=4)
+
+        title_surf = font_title.render(
+            f"  {companion.name} the {companion.companion_class.name}", True, (150, 220, 255)
+        )
+        self.screen.blit(title_surf, (sx + PAD, sy + PAD))
+
+        hp_surf = font_body.render(
+            f"  HP {companion.hp}/{companion.max_hp}   AC {companion.armor_class}", True, (200, 200, 200)
+        )
+        self.screen.blit(hp_surf, (sx + PAD, sy + PAD + 20))
+
+        pygame.draw.line(
+            self.screen, (60, 60, 75),
+            (sx + PAD, sy + PAD + 46), (sx + W - PAD, sy + PAD + 46)
+        )
+
+        options = [
+            ("[1] Focus Weakest", CompanionStance.WEAKEST, (255, 180, 180)),
+            ("[2] Focus Nearest", CompanionStance.NEAREST, (255, 220, 150)),
+            ("[3] Focus Farthest", CompanionStance.FARTHEST, (200, 200, 255)),
+            ("[4] Protect Me", CompanionStance.PROTECT, (160, 220, 160)),
+            ("[5] Hold Fire (Passive)", CompanionStance.PASSIVE, (180, 180, 180)),
+        ]
+
+        y = sy + PAD + 56
+        for header, stance, color in options:
+            # The companion's active stance is drawn brighter with a
+            # leading marker, so its current order is visible at a
+            # glance -- everything else here is a plain numbered list.
+            active = companion.stance == stance
+            display_color = color if active else tuple(c // 2 for c in color)
+            marker = "> " if active else "  "
+            h_surf = font_body.render(f"{marker}{header}", True, display_color)
+            self.screen.blit(h_surf, (sx + PAD, y))
+            y += font_body.get_linesize() + 4
+
+        y += 6
+        pygame.draw.line(self.screen, (60, 60, 75), (sx + PAD, y), (sx + W - PAD, y))
+        y += 10
+
+        dismiss_surf = font_body.render("[6] Dismiss", True, (255, 140, 140))
+        self.screen.blit(dismiss_surf, (sx + PAD, y))
+        y += font_body.get_linesize() + 4
+        leave_surf = font_body.render("[7] Leave    ESC / F also cancels", True, (150, 150, 150))
+        self.screen.blit(leave_surf, (sx + PAD, y))
+
+    def render_recruit_menu(self):
+        """
+        Draws a tavern patron's hire/decline popup -- same visual
+        language as render_companion_menu()/render_innkeeper_menu().
+        The cost line is colored red/green the same way the shop menu
+        already colors unaffordable/affordable prices (see
+        price_col near the shop rendering code), so affordability
+        reads at a glance before the player commits.
+        """
+        patron = self._recruit_menu_target
+        if patron is None:
+            return
+
+        try:
+            font_title = pygame.font.SysFont("consolas", 16, bold=True)
+            font_body  = pygame.font.SysFont("consolas", 14)
+        except Exception:
+            font_title = pygame.font.Font(None, 18)
+            font_body  = pygame.font.Font(None, 16)
+
+        PAD = 14
+        W   = 440
+        H   = 170
+        sx  = (config.GAME_AREA_WIDTH - W) // 2
+        sy  = (config.SCREEN_HEIGHT   - H) // 2
+
+        bg = pygame.Surface((W, H), pygame.SRCALPHA)
+        bg.fill((10, 8, 14, 220))
+        self.screen.blit(bg, (sx, sy))
+        pygame.draw.rect(self.screen, (255, 215, 0), (sx, sy, W, H), 2, border_radius=4)
+
+        race = getattr(patron, 'visual_race', '???')
+        class_name = getattr(patron, 'visual_class', '???')
+        title_surf = font_title.render(f"  {patron.name} -- {race} {class_name}", True, (255, 215, 0))
+        self.screen.blit(title_surf, (sx + PAD, sy + PAD))
+
+        cost = self.COMPANION_RECRUIT_COSTS.get(class_name, 40 * GOLD)
+        afford_color = (90, 210, 90) if self.player.money >= cost else (210, 70, 70)
+        cost_surf = font_body.render(f"  Hire for {format_price(cost)}", True, afford_color)
+        self.screen.blit(cost_surf, (sx + PAD, sy + PAD + 24))
+
+        pygame.draw.line(
+            self.screen, (60, 60, 75),
+            (sx + PAD, sy + PAD + 48), (sx + W - PAD, sy + PAD + 48)
+        )
+
+        options = [
+            ("[1] Recruit", "Pay and they join your party", afford_color),
+            ("[2] Leave", "ESC / F also cancels", (150, 150, 150)),
+        ]
+        y = sy + PAD + 58
         for header, sub, color in options:
             h_surf = font_body.render(header, True, color)
             s_surf = font_body.render(f"    {sub}", True, (90, 90, 100))
