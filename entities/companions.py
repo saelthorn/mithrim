@@ -410,7 +410,7 @@ class CombatCompanion(SummonedEntity):
     #: to chase down a target -- mirrors Imp/Celestial's hardcoded 8.
     DETECTION_RADIUS = 6
 
-    def __init__(self, x, y, name, color, owner, race, companion_class, level=1, char=None):
+    def __init__(self, x, y, name, color, owner, race, companion_class, level=6, char=None):
         # `char` defaults to whatever RACE_CLASS_VISUALS says this
         # race+class combo looks like (the same table world/structures.py's
         # _spawn_tavern_patron() draws from) rather than a fixed 'C' --

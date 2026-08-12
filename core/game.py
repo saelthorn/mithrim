@@ -6412,9 +6412,14 @@ class Game:
                             return True  # Consume event regardless (don't fall to quick-bar)                    
 
                         if self.interaction_mode == InteractionMode.INFO:
+                            npc = self.check_overworld_npc_interaction()
                             # Location-based, not NPC-based, so this doesn't need
                             # check_overworld_npc_interaction()/check_dungeon_npc_interaction()
                             # at all -- one check covers both DUNGEON and OVERWORLD.
+                            if isinstance(npc, CombatCompanion):
+                                self.open_companion_menu(npc)
+                                return True                            
+                            
                             self.message_log.add_message(self._describe_surroundings(), (180, 220, 255))
                             return True
 
@@ -6453,9 +6458,6 @@ class Game:
                                 return True
                             elif isinstance(npc, (Shopkeeper, Trader)):
                                 npc.offer_trade(self.player, self)  # Call the trade method for the Shopkeeper/Trader
-                                return True
-                            elif isinstance(npc, CombatCompanion):
-                                self.open_companion_menu(npc)
                                 return True
                             elif isinstance(npc, Townsfolk) and getattr(npc, 'visual_race', None):
                                 # A tavern patron (see world/structures.py's
