@@ -38,14 +38,14 @@ from core.abilities import (
     Parry, SecondWind, SpiritualWeapon, DivineStrike, HealingWord, SummonCelestial, PowerAttack, CunningActionDash, 
     Evasion, FireBolt, MistyStep, SpotTrapsAbility, DisarmTrapsAbility, DetectMagic, MageHand, Fireball, RayOfFrost, 
     ActionSurge, CunningActionHide, ThrowKnife, Guard, SummonImp, PreciseStrike, PrepTime, CureWounds, SacredFlame,
-    MagicMissile, ArrowShot, Multishot, SummonAnimalCompanion
+    MagicMissile, ArrowShot, Multishot, SummonAnimalCompanion, HunterMark
 )
 
 from core.status_effects import (
     BlessingOfBloodlust, BlessingOfFortitude, CurseOfRot, ParryBuff, StatusEffect, DivineStrikeBuff, Poisoned, 
     AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, 
     CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff, PreciseStrikeBuff, Prepared, 
-    FleetFooted, AppliedToxins, SpotTrapsEffect, DetectMagicEffect
+    FleetFooted, AppliedToxins, SpotTrapsEffect, DetectMagicEffect, HunterMarkBuff
 )
 
 from items.items import ( 
@@ -1783,6 +1783,9 @@ class Player: # This is our base class for playable characters
 
         elif effect_name == "PreciseStrikeBuff":
             new_effect = PreciseStrikeBuff(duration)
+
+        elif effect_name == "HunterMarkBuff":
+            new_effect = HunterMarkBuff(duration)
         
         elif effect_name == "Prepared":
             new_effect = Prepared(duration)
@@ -2262,6 +2265,7 @@ class Ranger(Player):
         # Ranger-exclusive abilities
         self.abilities["Multishot"] = Multishot()
         self.abilities["Animal Companion"] = SummonAnimalCompanion()
+        self.abilities["Hunter's Mark"] = HunterMark()
 
         self._scale_all_abilities()
 

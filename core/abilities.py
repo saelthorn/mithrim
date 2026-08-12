@@ -1,7 +1,7 @@
 import random
 from world.tile import floor, MimicTile, TrapTile, PrisonDoorTile
 
-from core.status_effects import DivineStrikeBuff, PowerAttackBuff, EvasionBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
+from core.status_effects import DivineStrikeBuff, PowerAttackBuff, EvasionBuff, PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins, HunterMarkBuff
 from core.game import GameState
 from entities.monster import Monster, Mimic
 from entities.summons import MageHandEntity, Imp, Celestial, SpiritualWeaponEntity, AnimalCompanion
@@ -305,6 +305,22 @@ class Evasion(Ability):
         return True
 
 
+def _get_active_hunter_mark(user):
+    """
+    Shared lookup used by ArrowShot/Multishot: returns the user's active
+    HunterMarkBuff, if any, or None. A small free function rather than a
+    duplicated inline loop in each ability -- unlike summons.py's
+    intentionally-duplicated combat AI (see Imp/Celestial there), this
+    is pure, stateless lookup logic with no per-ability flavor, so
+    sharing it doesn't risk the two ranged abilities drifting out of
+    sync with each other's damage math.
+    """
+    for effect in getattr(user, "active_status_effects", ()):
+        if isinstance(effect, HunterMarkBuff):
+            return effect
+    return None
+
+
 class ArrowShot(Ability):
     def __init__(self):
         super().__init__("Arrow Shot", "Shoot an arrow at a foe.", cost=0, cooldown=2)
@@ -404,6 +420,11 @@ class ArrowShot(Ability):
         arrow_to_shoot = None
         attack_modifier = user.get_ability_modifier(user.dexterity) + user.proficiency_bonus
 
+        hunter_mark = _get_active_hunter_mark(user)
+        if hunter_mark:
+            attack_modifier += hunter_mark.attack_bonus_modifier
+            game_instance.message_log.add_message(f"Hunter's Mark: +{hunter_mark.attack_bonus_modifier} to hit.", (100, 220, 100))
+
         if user.equipped_off_hand and user.equipped_off_hand.name.lower() == "arrow":
             arrow_to_shoot = user.equipped_off_hand
             attack_modifier += getattr(arrow_to_shoot, "attack_bonus", 0)
@@ -456,6 +477,18 @@ class ArrowShot(Ability):
             damage_modifier = user.get_ability_modifier(user.dexterity)
             damage_rolls = [random.randint(1, 8) for _ in range(self.damage_dice)]
             total_damage = sum(damage_rolls) + damage_modifier
+
+            if hunter_mark:
+                total_damage += hunter_mark.damage_modifier
+                extra_rolls = [random.randint(1, 8) for _ in range(hunter_mark.extra_damage_dice)]
+                total_damage += sum(extra_rolls)
+                game_instance.message_log.add_message(
+                    f"Hunter's Mark adds {hunter_mark.extra_damage_dice}d8 {extra_rolls}: +{sum(extra_rolls) + hunter_mark.damage_modifier} damage!",
+                    (100, 220, 100)
+                )
+                # Consumed on a hit only -- a miss leaves the mark active for the next shot,
+                # matching how DivineStrikeBuff/PowerAttackBuff are consumed in game.py's melee handler.
+                user.active_status_effects.remove(hunter_mark)
 
             game_instance.message_log.add_message(f"You roll {self.damage_dice}d8 for damage: {damage_rolls} + [{damage_modifier}] (DEX Modifier) = {total_damage} damage!", (255, 100, 0))
 
@@ -626,6 +659,14 @@ class Multishot(Ability):
         arrow_to_shoot = None
         attack_modifier = user.get_ability_modifier(user.dexterity) + user.proficiency_bonus
 
+        # Hunter's Mark applies to whichever shot in the volley lands first (see
+        # _get_active_hunter_mark's docstring) -- not every shot, so a marked
+        # Multishot isn't a straight multiplier on the buff's bonus.
+        hunter_mark = _get_active_hunter_mark(user)
+        if hunter_mark:
+            attack_modifier += hunter_mark.attack_bonus_modifier
+            game_instance.message_log.add_message(f"Hunter's Mark: +{hunter_mark.attack_bonus_modifier} to hit.", (100, 220, 100))
+
         if user.equipped_off_hand and user.equipped_off_hand.name.lower() == "arrow":
             arrow_to_shoot = user.equipped_off_hand
             attack_modifier += getattr(arrow_to_shoot, "attack_bonus", 0)
@@ -673,6 +714,17 @@ class Multishot(Ability):
             damage_dice_count = self.damage_dice * (2 if is_critical_hit else 1)
             damage_rolls = [random.randint(1, 6) for _ in range(damage_dice_count)]
             total_damage = sum(damage_rolls) + damage_modifier
+
+            if hunter_mark:
+                total_damage += hunter_mark.damage_modifier
+                extra_rolls = [random.randint(1, 6) for _ in range(hunter_mark.extra_damage_dice)]
+                total_damage += sum(extra_rolls)
+                game_instance.message_log.add_message(
+                    f"Hunter's Mark adds {hunter_mark.extra_damage_dice}d6 {extra_rolls}: +{sum(extra_rolls) + hunter_mark.damage_modifier} damage!",
+                    (100, 220, 100)
+                )
+                # Consumed by this shot only -- the rest of the volley proceeds unmarked.
+                user.active_status_effects.remove(hunter_mark)
 
             game_instance.message_log.add_message(
                 f"You roll {damage_dice_count}d6 for damage: {damage_rolls} + [{damage_modifier}] (DEX Modifier) = {total_damage} damage!",
@@ -724,6 +776,48 @@ class Multishot(Ability):
         """
         self.number_of_shots = 3 + (player_level - 1) // 6
         self.damage_dice = 1 + (player_level - 1) // 5
+
+
+class HunterMark(Ability):
+    """
+    Ranger signature ability: mark a quarry, empowering the Ranger's next
+    ranged shot (Arrow Shot or Multishot) with extra accuracy and damage.
+
+    This is a self-buff (HunterMarkBuff, applied to `user`), not a debuff
+    placed on the target monster -- the classic 5e version of Hunter's
+    Mark marks the enemy, but this codebase has no monster-side status-
+    effect infrastructure (every StatusEffect subclass here lives on the
+    Player; monsters only take flat damage-over-time via take_damage()).
+    Building a true target-side mark would mean adding that
+    infrastructure to Monster first, which is out of scope for this
+    pass -- a self-buff consumed on the Ranger's next hit gets the same
+    "focus fire on this shot" feel without it, and mirrors DivineStrike's
+    existing shape exactly (see DivineStrike above).
+    """
+    def __init__(self):
+        super().__init__("Hunter's Mark", "Mark your quarry, empowering your next Arrow Shot or Multishot with extra damage.", cost=0, cooldown=8)
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+
+        user.add_status_effect("HunterMarkBuff", duration=2, game_instance=game_instance)
+        game_instance.message_log.add_message(f"{user.name} marks their quarry, focusing for the kill!", (100, 220, 100))
+        return True
+
+    def scale_with_level(self, player_level):
+        """
+        Scales Hunter's Mark with player level, mirroring Divine Strike's
+        scaling shape exactly (mutating the buff's class-level base_*
+        attributes, since a fresh HunterMarkBuff instance is created each
+        time the ability is used -- see add_status_effect()).
+        Gains one extra damage die every 5 levels (base 1d8/1d6 depending
+        on which ranged ability consumes it) and +1 to-hit every 4 levels.
+        """
+        additional_dice = (player_level - 1) // 5
+        HunterMarkBuff.base_extra_damage_dice = 1 + additional_dice
+        additional_bonus = (player_level - 1) // 4
+        HunterMarkBuff.base_attack_bonus_modifier = 2 + additional_bonus
 
 
 class ThrowKnife(Ability):

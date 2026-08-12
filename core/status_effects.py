@@ -146,6 +146,45 @@ class PreciseStrikeBuff(StatusEffect):
         game_instance.message_log.add_message(f"{target.name}'s precise strike fades.", (150, 150, 150))
 
 
+class HunterMarkBuff(StatusEffect):
+    """
+    Ranger signature buff: the Ranger's next ranged shot (Arrow Shot or
+    Multishot) hits harder against a chosen quarry. Deliberately shaped
+    exactly like DivineStrikeBuff above -- a flat to-hit bonus plus
+    extra damage dice, consumed on the next successful hit -- rather
+    than a true enemy-targeted mark, since no monster-side status
+    infrastructure exists in this codebase to mark a specific target;
+    every buff here (Poisoned/Burning aside) lives on the Player. See
+    HunterMark's docstring in core/abilities.py for the full rationale.
+
+    Unlike DivineStrikeBuff (checked only in game.py's melee attack
+    handler), this buff is also checked directly inside ArrowShot.
+    execute_on_target()/Multishot.execute_on_target() in
+    core/abilities.py, since ranged shots roll their own attack/damage
+    math independently of handle_player_attack() and would otherwise
+    never see it.
+    """
+    base_attack_bonus_modifier = 2
+    base_extra_damage_dice = 1
+    base_damage_modifier = 0
+
+    def __init__(self, duration=2):  # Lasts to the very next shot, same shape as Divine Strike
+        super().__init__("Hunter's Mark", duration)
+        self.attack_bonus_modifier = self.base_attack_bonus_modifier
+        self.extra_damage_dice = self.base_extra_damage_dice
+        self.damage_modifier = self.base_damage_modifier
+
+    def apply_effect(self, target, game_instance):
+        """This effect modifies the target's next ranged attack directly when active."""
+        if self.turns_left == self.duration:  # Only log when first applied
+            game_instance.message_log.add_message(f"{target.name} marks their quarry!", (100, 220, 100))
+
+    def on_end(self, target, game_instance):
+        """Called when the buff expires."""
+        super().on_end(target, game_instance)
+        # No need to revert stats here, as they are applied dynamically during the next shot.
+
+
 class Prepared(StatusEffect):
     base_attack_power_modifier = 2
 
@@ -527,4 +566,3 @@ class DetectMagicEffect(StatusEffect):
     def on_end(self, target, game_instance):
         super().on_end(target, game_instance)
         game_instance.message_log.add_message(f"{target.name}'s magical detection fades.", (150, 150, 150))
-
