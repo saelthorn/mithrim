@@ -56,11 +56,13 @@ class CompanionClass:
         off_hand=None,
         boots=None,
         focus=None,
+        saving_throw_proficiencies=None,
         weapon_proficiencies=None,
         armor_proficiencies=None,
         damage_type="slashing",
         attack_range=1,
         starting_ammo=None,
+        abilities=None,
     ):
         self.name = name
         self.hit_die = hit_die
@@ -89,6 +91,11 @@ class CompanionClass:
         #: unlocking real spells.
         self.focus = focus
 
+        self.saving_throw_proficiencies = {
+            "STR": False, "DEX": False, "CON": False,
+            "INT": False, "WIS": False, "CHA": False,
+        }
+
         self.weapon_proficiencies = list(weapon_proficiencies or [])
         self.armor_proficiencies = list(armor_proficiencies or [])
 
@@ -103,6 +110,8 @@ class CompanionClass:
         #: None for melee (unlimited attacks); a starting shot count for
         #: ranged classes -- see CombatCompanion.ammo.
         self.starting_ammo = starting_ammo
+
+        self.abilities = {}
 
     def __repr__(self):
         return f"CompanionClass({self.name!r}, style={self.combat_style!r})"
@@ -124,6 +133,11 @@ FIGHTER = CompanionClass(
     weapon=iron_short_sword,
     armor=padded_armor,
     boots=leather_boots,
+    saving_throw_proficiencies = {
+        "STR": True, "CON": True,
+        "DEX": False, "INT": False, 
+        "WIS": False, "CHA": False,
+    },    
     weapon_proficiencies=["Shortsword", "Longsword", "Dagger", "Mace"],
     armor_proficiencies=["Light", "Medium", "Heavy"],
     damage_type="slashing",
@@ -146,6 +160,11 @@ RANGER = CompanionClass(
     weapon=short_bow,
     armor=padded_armor,
     boots=leather_boots,
+    saving_throw_proficiencies = {
+        "STR": True, "DEX": True,
+        "CON": False, "INT": False, 
+        "WIS": False, "CHA": False,
+    },    
     weapon_proficiencies=["Shortbow", "Longbow", "Hand Crossbow", "Dagger"],
     armor_proficiencies=["Light"],
     damage_type="piercing",
@@ -169,6 +188,11 @@ ROGUE = CompanionClass(
     weapon=iron_dagger,
     armor=studded_leather_armor,
     boots=leather_boots,
+    saving_throw_proficiencies = {
+        "DEX": True, "INT": True,
+        "STR": False, "CON": False, 
+        "WIS": False, "CHA": False,
+    },    
     weapon_proficiencies=["Dagger", "Shortsword", "Rapier", "Shortbow"],
     armor_proficiencies=["Light"],
     damage_type="piercing",
@@ -195,6 +219,11 @@ WIZARD = CompanionClass(
     armor=robes,
     boots=leather_boots,
     focus=spell_book,
+    saving_throw_proficiencies = {
+        "INT": True, "WIS": True,
+        "STR": False, "DEX": False, 
+        "CON": False, "CHA": False,
+    },
     weapon_proficiencies=["Quarterstaff", "Dagger"],
     armor_proficiencies=["Light"],
     damage_type="bludgeoning",
@@ -221,6 +250,11 @@ CLERIC = CompanionClass(
     off_hand=round_shield,
     boots=leather_boots,
     focus=holy_symbol,
+    saving_throw_proficiencies = {
+        "WIS": True, "CHA": True,
+        "STR": False, "DEX": False, 
+        "CON": False, "INT": False,
+    },
     weapon_proficiencies=["Mace", "Hammer"],
     armor_proficiencies=["Light", "Medium"],
     damage_type="bludgeoning",
@@ -368,7 +402,7 @@ class CombatCompanion(SummonedEntity):
 
     #: How far (in tiles) a companion will voluntarily leave its owner
     #: to chase down a target -- mirrors Imp/Celestial's hardcoded 8.
-    DETECTION_RADIUS = 8
+    DETECTION_RADIUS = 6
 
     def __init__(self, x, y, name, color, owner, race, companion_class, level=1, char=None):
         # `char` defaults to whatever RACE_CLASS_VISUALS says this
@@ -434,6 +468,8 @@ class CombatCompanion(SummonedEntity):
         self.attack_range = companion_class.attack_range
         self.max_ammo = companion_class.starting_ammo  # None for melee -- unlimited
         self.ammo = self.max_ammo
+
+        self.saving_throw_proficiencies = companion_class.saving_throw_proficiencies
 
         self.hit_die = companion_class.hit_die
         # Same +2-at-1/+1-per-4-levels progression Player's proficiency

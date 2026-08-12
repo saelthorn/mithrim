@@ -94,7 +94,7 @@ class Player: # This is our base class for playable characters
         # for gameplay code, though `player.gold += n`-style code (older
         # gold-only callers, e.g. story reward consequences) still works --
         # see the `gold` property's setter.
-        self.money = 50 * COPPER_PER_GOLD  # 50 gold pieces, expressed in copper
+        self.money = 500 * COPPER_PER_GOLD  # 50 gold pieces, expressed in copper
 
         # Player-specific attributes
         self.level = 6
