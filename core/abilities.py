@@ -1808,6 +1808,7 @@ class MageHand(Ability):
                 game_instance.message_log.add_message(f"The Mage Hand picks up the {item_at_target.name}!", (0, 255, 0))
                 # Remove the item from the ground after successful pickup
                 game_instance.game_map.items_on_ground.remove(item_at_target)  # <-- Remove from ground
+                user.update_throw_knife_ability()
                 return True  # Action successful, end turn
             else:
                 game_instance.message_log.add_message(f"The Mage Hand cannot pick up the {item_at_target.name}.", (255, 150, 0))

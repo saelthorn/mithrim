@@ -1060,7 +1060,7 @@ class Player: # This is our base class for playable characters
             return
 
         self._steps_since_regen += 1
-        if self._steps_since_regen < 10:
+        if self._steps_since_regen < 20:
             return
         self._steps_since_regen = 0
 
