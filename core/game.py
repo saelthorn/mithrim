@@ -9008,7 +9008,7 @@ class Game:
 
         PAD = 14
         W   = 440
-        H   = 260
+        H   = 280
         sx  = (config.GAME_AREA_WIDTH - W) // 2
         sy  = (config.SCREEN_HEIGHT   - H) // 2
 
@@ -9028,9 +9028,21 @@ class Game:
         )
         self.screen.blit(hp_surf, (sx + PAD, sy + PAD + 20))
 
+        # Level/XP -- next_threshold is float('inf') at level 20, so the
+        # "XP to next level" half of the line is dropped once a companion
+        # is maxed out, matching how the player's own level-20 state is
+        # displayed elsewhere.
+        next_threshold = companion.get_next_level_xp_threshold()
+        if next_threshold == float('inf'):
+            xp_text = f"  Level {companion.level} (MAX)   XP {companion.current_xp}"
+        else:
+            xp_text = f"  Level {companion.level}   XP {companion.current_xp}/{next_threshold}"
+        xp_surf = font_body.render(xp_text, True, (200, 200, 200))
+        self.screen.blit(xp_surf, (sx + PAD, sy + PAD + 40))
+
         pygame.draw.line(
             self.screen, (60, 60, 75),
-            (sx + PAD, sy + PAD + 46), (sx + W - PAD, sy + PAD + 46)
+            (sx + PAD, sy + PAD + 66), (sx + W - PAD, sy + PAD + 66)
         )
 
         options = [
@@ -9041,7 +9053,7 @@ class Game:
             ("[5] Hold Fire (Passive)", CompanionStance.PASSIVE, (180, 180, 180)),
         ]
 
-        y = sy + PAD + 56
+        y = sy + PAD + 76
         for header, stance, color in options:
             # The companion's active stance is drawn brighter with a
             # leading marker, so its current order is visible at a

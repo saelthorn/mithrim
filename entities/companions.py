@@ -17,6 +17,38 @@ from core.status_effects import (
 )
 
 # ---------------------------------------------------------------------------
+# XP progression
+# ---------------------------------------------------------------------------
+# Same D&D 5e XP table player.py's XP_PROGRESSION uses, duplicated here
+# rather than imported -- companions.py's own stat formulas (see
+# CombatCompanion._recalculate_stats()'s docstring) are already kept
+# independent of player.py on purpose, so a companion's leveling curve
+# stays that way too.
+COMPANION_XP_PROGRESSION = {
+    1: 0,
+    2: 300,
+    3: 900,
+    4: 2700,
+    5: 6500,
+    6: 14000,
+    7: 23000,
+    8: 34000,
+    9: 48000,
+    10: 64000,
+    11: 85000,
+    12: 100000,
+    13: 120000,
+    14: 140000,
+    15: 165000,
+    16: 195000,
+    17: 225000,
+    18: 265000,
+    19: 305000,
+    20: 355000,
+}
+
+
+# ---------------------------------------------------------------------------
 # CompanionStance
 # ---------------------------------------------------------------------------
 
@@ -415,16 +447,6 @@ class CombatCompanion(SummonedEntity):
     #: to chase down a target -- mirrors Imp/Celestial's hardcoded 8.
     DETECTION_RADIUS = 6
 
-
-    _ability_name_map = {
-        "STR": "strength",
-        "DEX": "dexterity",
-        "CON": "constitution",
-        "INT": "intelligence",
-        "WIS": "wisdom",
-        "CHA": "charisma",
-    }
-
     def __init__(self, x, y, name, color, owner, race, companion_class, level=6, char=None):
         # `char` defaults to whatever RACE_CLASS_VISUALS says this
         # race+class combo looks like (the same table world/structures.py's
@@ -442,11 +464,19 @@ class CombatCompanion(SummonedEntity):
         # EscortCompanion; a recruited companion doesn't expire on a timer.
         super().__init__(x, y, char, name, color, owner, duration=0)
 
+        # SummonedEntity.__init__ just set self.hp/self.max_hp to a
+        # placeholder of 1, meant for stat-less summons that never call
+        # _recalculate_stats() below. Clear it back to None here so that
+        # first call sees old_hp=None and heals to the freshly computed
+        # max_hp -- otherwise it reads the placeholder 1 as "real prior
+        # damage to preserve" and clamps the companion to 1 HP forever,
+        # even immediately after being recruited at full health.
         self.hp = None
 
         self.race = race
         self.companion_class = companion_class
         self.level = level
+        self.current_xp = 0  # See gain_xp()/level_up() below
         self.blocks_movement = True  # Unlike EscortCompanion, a fighter takes up space
         self.can_swim = getattr(race, 'can_swim', False)
         self.active_status_effects = []  # AC/status-effect hooks expect this list to exist
@@ -716,6 +746,43 @@ class CombatCompanion(SummonedEntity):
         if self.equipped_focus:
             self.attack_bonus += self.equipped_focus.spell_bonus
 
+    # -- experience / leveling --------------------------------------------
+    # Mirrors Player.get_next_level_xp_threshold()/gain_xp()/level_up()
+    # (player.py) in shape, but stays a local, independent copy for the
+    # same reason _recalculate_stats() does above -- a companion levels
+    # up on its own XP total, earned from its own kills (see
+    # _resolve_attack() below), not the player's.
+
+    def get_next_level_xp_threshold(self):
+        next_level = self.level + 1
+        if next_level > 20:
+            return float('inf')
+        return COMPANION_XP_PROGRESSION.get(next_level, float('inf'))
+
+    def gain_xp(self, amount, game_instance=None):
+        self.current_xp += amount
+        while self.level < 20 and self.current_xp >= self.get_next_level_xp_threshold():
+            self.level_up(game_instance)
+
+    def level_up(self, game_instance=None):
+        if self.level >= 20:
+            return
+
+        self.level += 1
+        self.proficiency_bonus = 2 + max(0, (self.level - 1) // 4)
+
+        # HP/AC/attack all derive from level via proficiency_bonus and
+        # the hit-die progression in _recalculate_stats() -- recomputing
+        # there (rather than duplicating the formulas here) keeps this
+        # in lockstep with __init__/apply_race()'s own calls to it.
+        self._recalculate_stats()
+        self.hp = self.max_hp  # Heal to full on level up, matching Player.level_up()
+
+        if game_instance:
+            game_instance.message_log.add_message(
+                f"{self.name} reaches level {self.level}!", self.color
+            )
+
     # -- combat orders (wired to the AI in the next pass) --------------------
 
     def set_stance(self, stance, game_instance):
@@ -924,6 +991,23 @@ class CombatCompanion(SummonedEntity):
             )
             game_instance.floating_texts.append(FloatingText(target.x, target.y, "HIT!", (255, 255, 0)))
             game_instance.floating_texts.append(FloatingText(target.x, target.y - 0.5, str(damage_dealt), (255, 0, 0)))
+
+            if not target.alive:
+                # Route through the same die()/_notify_monster_killed()
+                # pipeline game.py's own player-attack site uses (see
+                # handle_player_action()) -- loot, death messages, and
+                # story kill triggers all still need to happen for a
+                # kill landed by a companion, exactly as they do for one
+                # landed by the player. `killer=self.owner` (the player)
+                # keeps that attribution identical to every other kill
+                # site in the game; the companion's own reward is
+                # tracked separately via gain_xp() below.
+                xp_gained = target.die(game_instance, killer=self.owner)
+                self.gain_xp(xp_gained, game_instance)
+                game_instance.message_log.add_message(
+                    f"{self.name} gains {xp_gained} XP!", self.color
+                )
+                game_instance._notify_monster_killed(target, killer=self.owner)
         else:
             game_instance.message_log.add_message(f"{self.name} misses {target.name}!", (150, 150, 150))
             game_instance.floating_texts.append(FloatingText(target.x, target.y, "MISS!", (150, 150, 150)))
