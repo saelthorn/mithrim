@@ -5797,6 +5797,7 @@ class Game:
             if current_acting_entity == self.player:
                 self.player.update_hunger(self)  # Decrease hunger each turn
                 self.player.update_sanity(self)  # Update sanity (torch/darkness effect)
+                self.player.track_natural_regen(self)  # +1 HP (player and companions) every 10 steps walked
                 self.stories.advance_turn()  # World time moves with player actions, not real time
                 # Tick every monster type's ambient cooldown down independently
                 # (see show_monster_ambient_popup()), dropping a type entirely

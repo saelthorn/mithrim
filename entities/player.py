@@ -180,6 +180,13 @@ class Player: # This is our base class for playable characters
         self.hunger_threshold = 25  # Increase threshold for hunger warnings
         self.turns_since_last_hunger_decrease = 0 
 
+        # --- Natural regeneration (see track_natural_regen()) ---
+        # Tracks the player's tile position across turns purely to detect
+        # movement; None until the first turn so the very first call
+        # never miscounts "no prior position" as a step.
+        self._last_position_for_regen = None
+        self._steps_since_regen = 0
+
         # --- Sanity ---
         self.sanity = 100           # Current sanity (0-100)
         self.max_sanity = 100       # Maximum sanity
@@ -1022,6 +1029,62 @@ class Player: # This is our base class for playable characters
                 effect.on_end(entity, game_instance)
             if full:
                 entity.active_status_effects.clear()
+
+    def track_natural_regen(self, game_instance):
+        """
+        Called once per player turn (see game.py's next_turn(), inside
+        its "current_acting_entity == self.player" block) to give a
+        small passive HP trickle for simply moving around, separate from
+        resting: every 10 tiles walked, the player and every owned
+        companion recover 1 HP.
+
+        Movement is detected purely by comparing self.x/self.y against
+        the position recorded on the previous call -- these coordinates
+        are chunk-local in the overworld and level-local in a dungeon
+        (see world_map.py's chunk_local_to_world_position() docstring),
+        so crossing a chunk/level boundary can occasionally miscount a
+        single step. That's an acceptable rough edge for a flavor
+        mechanic like this, not worth threading global coordinates
+        through for. Actions that don't move the player (attacking,
+        waiting, opening a menu) leave the position unchanged and so
+        never count as a step.
+        """
+        current_position = (self.x, self.y)
+        moved = (
+            self._last_position_for_regen is not None
+            and current_position != self._last_position_for_regen
+        )
+        self._last_position_for_regen = current_position
+
+        if not moved:
+            return
+
+        self._steps_since_regen += 1
+        if self._steps_since_regen < 10:
+            return
+        self._steps_since_regen = 0
+
+        if self.hp < self.max_hp:
+            self.hp += 1
+        self._natural_regen_companions(game_instance)
+
+    def _natural_regen_companions(self, game_instance):
+        """
+        The companion equivalent of track_natural_regen()'s own +1 HP
+        tick -- every owned SummonedEntity (combat/escort/animal
+        companion) still below its max HP recovers 1 HP alongside the
+        player. Deferred import for the same circular-import reason as
+        _heal_companions() above.
+        """
+        from entities.summons import SummonedEntity
+
+        for entity in game_instance.entities:
+            if entity is self or not isinstance(entity, SummonedEntity):
+                continue
+            if entity.owner is not self or not entity.alive:
+                continue
+            if entity.hp < entity.max_hp:
+                entity.hp += 1
 
     def trigger_ambush(self, game_instance):
         """Spawn enemies for an ambush."""
