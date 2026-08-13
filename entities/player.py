@@ -60,7 +60,7 @@ from items.items import (
     Helmet, Boots, FocusItem, WEAPON_CATEGORIES, ARMOR_CATEGORIES, 
 )
 
-from entities.monster import Goblin, GoblinArcher, GiantRat
+from entities.monster import Goblin, GoblinArcher, GiantRat, Monster
 from core.floating_text import FloatingText
     
 
@@ -888,9 +888,15 @@ class Player: # This is our base class for playable characters
 
         hours = max(1, int(hours))
 
-        # Check for enemies within 10 tiles
+        # Check for enemies within 10 tiles. Only actual monsters should
+        # block a rest -- combat companions, escort companions, animal
+        # companions/summons, and every town/dungeon NPC (merchants,
+        # innkeepers, healers, ...) are all friendly and share the map
+        # with the player constantly, so they must never count as a
+        # threat here even though they're regular entries in
+        # game_instance.entities.
         for entity in game_instance.entities:
-            if entity != self and entity.alive:
+            if entity != self and entity.alive and isinstance(entity, Monster):
                 distance = self.distance_to(entity.x, entity.y)
                 if distance < 10:  # If any enemy is within 10 tiles
                     rest_block_msgs = [
@@ -932,6 +938,10 @@ class Player: # This is our base class for playable characters
             # Reset ability cooldowns
             for ability in self.abilities.values():
                 ability.current_cooldown = 0  # Reset cooldown for each ability
+
+            # A campfire rest is a full recovery for the party, not just the
+            # player -- heal every companion fully too, same as self.hp above.
+            self._heal_companions(game_instance, full=True)
         
             # Increase ambush chance (e.g., from 20% to 50%)
             if random.random() < 0.3:  # 30% chance for ambush
@@ -958,6 +968,10 @@ class Player: # This is our base class for playable characters
             ]
             game_instance.message_log.add_message(random.choice(campfire_msgs), (255, 255, 0))
 
+            # Same partial recovery (a third of max HP) extended to the
+            # player's companions, matching self.hp's recovery just above.
+            self._heal_companions(game_instance, full=False)
+
             if random.random() < 0.6:  # 60% chance for ambush even without a campfire
                 ambush_msgs = [
                     "The dungeon's shadows are restless... an ambush!",
@@ -972,6 +986,42 @@ class Player: # This is our base class for playable characters
 
         return True
 
+    def _heal_companions(self, game_instance, full):
+        """
+        Extend the player's own rest recovery (above) to every companion
+        following them -- combat companions, escort companions, animal
+        companions, and any other SummonedEntity whose `owner` is this
+        player. Without this, a companion's HP only ever moved downward
+        in combat and a rest never brought it back, so a companion could
+        sit at a sliver of HP indefinitely even while the player fully
+        recovered at the very same campfire.
+
+        `full=True` mirrors self.hp's campfire recovery (heal to max,
+        clear status effects); `full=False` mirrors the no-campfire
+        branch (recover a third of max HP, still clear status effects --
+        status effects don't get a "partial" cure any more than the
+        player's own do above).
+
+        Deferred import to avoid a circular import: entities/summons.py
+        pulls in core/game.py, which in turn imports this module.
+        """
+        from entities.summons import SummonedEntity
+
+        for entity in game_instance.entities:
+            if entity is self or not isinstance(entity, SummonedEntity):
+                continue
+            if entity.owner is not self or not entity.alive:
+                continue
+
+            if full:
+                entity.hp = entity.max_hp
+            else:
+                entity.hp = min(entity.max_hp, entity.hp + entity.max_hp // 3)
+
+            for effect in list(entity.active_status_effects):
+                effect.on_end(entity, game_instance)
+            if full:
+                entity.active_status_effects.clear()
 
     def trigger_ambush(self, game_instance):
         """Spawn enemies for an ambush."""

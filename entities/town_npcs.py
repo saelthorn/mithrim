@@ -919,6 +919,12 @@ class Innkeeper(TownNPC):
         player.gold -= self.rest_cost
         player.hp = player.max_hp
 
+        # A night at the inn is a full rest, same as resting at a
+        # campfire -- extend that same full recovery to the player's
+        # companions (combat/escort/animal) so they don't stay stuck at
+        # whatever HP they had when the player walked in.
+        player._heal_companions(game, full=True)
+
         # Some classes track further per-rest resources (spell slots,
         # ability charges, ...) behind their own long_rest() hook; restore
         # those too if present, without this needing to know their shape.

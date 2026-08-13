@@ -9,7 +9,12 @@ from items.items import (
     iron_dagger, oak_staff, steel_mace, studded_leather_armor,
     chainmail_armor, robes, round_shield, spell_book, holy_symbol,
 )
-
+from core.status_effects import (
+    BlessingOfBloodlust, BlessingOfFortitude, CurseOfRot, ParryBuff, StatusEffect, DivineStrikeBuff, Poisoned, 
+    AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, 
+    CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff, PreciseStrikeBuff, Prepared, 
+    FleetFooted, AppliedToxins, SpotTrapsEffect, DetectMagicEffect, HunterMarkBuff
+)
 
 # ---------------------------------------------------------------------------
 # CompanionStance
@@ -410,6 +415,16 @@ class CombatCompanion(SummonedEntity):
     #: to chase down a target -- mirrors Imp/Celestial's hardcoded 8.
     DETECTION_RADIUS = 6
 
+
+    _ability_name_map = {
+        "STR": "strength",
+        "DEX": "dexterity",
+        "CON": "constitution",
+        "INT": "intelligence",
+        "WIS": "wisdom",
+        "CHA": "charisma",
+    }
+
     def __init__(self, x, y, name, color, owner, race, companion_class, level=6, char=None):
         # `char` defaults to whatever RACE_CLASS_VISUALS says this
         # race+class combo looks like (the same table world/structures.py's
@@ -426,6 +441,8 @@ class CombatCompanion(SummonedEntity):
         # duration=0 -> permanent until dismissed or killed, same as
         # EscortCompanion; a recruited companion doesn't expire on a timer.
         super().__init__(x, y, char, name, color, owner, duration=0)
+
+        self.hp = None
 
         self.race = race
         self.companion_class = companion_class
@@ -512,6 +529,138 @@ class CombatCompanion(SummonedEntity):
 
     def get_ability_modifier(self, score):
         return (score - 10) // 2
+
+    def get_saving_throw_bonus(self, ability_name):
+        attribute_name = self._ability_name_map.get(ability_name.upper())
+        if not attribute_name:
+            raise ValueError(f"Invalid ability name for saving throw: {ability_name}")
+        ability_score = getattr(self, attribute_name)
+        modifier = self.get_ability_modifier(ability_score)
+
+        if self.saving_throw_proficiencies.get(ability_name.upper(), False):
+            return modifier + self.proficiency_bonus
+        return modifier
+
+    def make_saving_throw(self, ability_name, dc, game_instance):
+        d20_roll = random.randint(1, 20)
+        save_bonus = self.get_saving_throw_bonus(ability_name)
+        save_total = d20_roll + save_bonus
+        print(f"DEBUG: {self.name} {ability_name} Save: Roll={d20_roll}, Bonus={save_bonus}, Total={save_total}, DC={dc}") # ADD THIS
+
+        game_instance.message_log.add_message(
+            f"{self.name} make a {ability_name} saving throw: {d20_roll} + {save_bonus} = {save_total} (DC {dc})",
+            (150, 200, 255)
+        )
+
+        if save_total >= dc:
+            game_instance.message_log.add_message(
+                f"Your {ability_name} save succeeds!",
+                (100, 255, 100)
+            )
+            return True
+        else:
+            game_instance.message_log.add_message(
+                f"Your {ability_name} save fails!",
+                (255, 100, 100)
+            )
+            return False
+
+    def add_status_effect(self, effect_name, duration, game_instance, source=None):
+        """Adds a status effect to the player."""
+        new_effect = None
+        
+        if effect_name == "Poisoned":
+            new_effect = Poisoned(duration, source)
+        
+        elif effect_name == "AcidBurned":
+            new_effect = AcidBurned(duration, source)
+        
+        elif effect_name == "Burning":
+            new_effect = Burning(duration, source)   
+        
+        elif effect_name == "CurseOfBlindness":
+            new_effect = CurseOfBlindness(duration)  
+
+        elif effect_name == "CurseOfRot":
+            new_effect = CurseOfRot(duration)
+
+        elif effect_name == "CurseOfWeakness":
+            new_effect = CurseOfWeakness(duration)
+
+        elif effect_name == "BlessingOfStrength":
+            new_effect = BlessingOfStrength(duration)
+
+        elif effect_name == "BlessingOfFortitude":
+            new_effect = BlessingOfFortitude(duration)
+
+        elif effect_name == "BlessingOfBloodlust":
+            new_effect = BlessingOfBloodlust(duration)
+
+        elif effect_name == "BlessingOfAgility":
+            new_effect = BlessingOfAgility(duration)
+
+        elif effect_name == "PowerAttackBuff":
+            new_effect = PowerAttackBuff(duration)
+        
+        elif effect_name == "DivineStrikeBuff":
+            new_effect = DivineStrikeBuff(duration)
+
+        elif effect_name == "PreciseStrikeBuff":
+            new_effect = PreciseStrikeBuff(duration)
+
+        elif effect_name == "HunterMarkBuff":
+            new_effect = HunterMarkBuff(duration)
+        
+        elif effect_name == "Prepared":
+            new_effect = Prepared(duration)
+        
+        elif effect_name == "FleetFooted":
+            new_effect = FleetFooted(duration)
+        
+        elif effect_name == "AppliedToxins":
+            new_effect = AppliedToxins(duration)
+        
+        elif effect_name == "CunningActionDashBuff":
+            new_effect = CunningActionDashBuff(duration)
+        
+        elif effect_name == "EvasionBuff":
+            new_effect = EvasionBuff(duration)          
+
+        elif effect_name == "Guard":
+            guard_bonus = getattr(source, 'ac_bonus', 5)
+            new_effect = GuardBuff(duration, ac_bonus=guard_bonus, source=source)
+        
+        elif effect_name == "ParryBuff":
+            parry_bonus = getattr(source, 'ac_bonus', 3)
+            new_effect = ParryBuff(duration, ac_bonus=parry_bonus, source=source)
+
+        elif effect_name == "Torchlight":
+            new_effect = Torchlight(duration)
+        
+        elif effect_name == "ActionSurgeEffect":
+            new_effect = ActionSurgeEffect(duration)
+        
+        elif effect_name == "Hidden":
+            new_effect = Hidden(duration)
+
+        elif effect_name == "SpotTrapsEffect":
+            new_effect = SpotTrapsEffect(duration)
+
+        elif effect_name == "DetectMagicEffect":
+            new_effect = DetectMagicEffect(duration)
+
+        if new_effect:
+            for existing_effect in self.active_status_effects:
+                if type(existing_effect) is type(new_effect):
+                    existing_effect.turns_left = new_effect.duration
+                    game_instance.message_log.add_message(f"{self.name}'s {new_effect.name} effect is refreshed.", (200, 200, 255))
+                    return
+            self.active_status_effects.append(new_effect)
+            print(f"DEBUG: {effect_name} successfully added to {self.name}.") # ADD THIS            
+        else:
+            game_instance.message_log.add_message(f"Warning: Attempted to add unknown status effect: {effect_name}", (255, 0, 0))
+            print(f"Warning: Attempted to add unknown status effect: {effect_name}")
+
 
     def _recalculate_stats(self):
         """
