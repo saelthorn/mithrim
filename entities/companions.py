@@ -49,6 +49,43 @@ COMPANION_XP_PROGRESSION = {
 
 
 # ---------------------------------------------------------------------------
+# Ambient chatter
+# ---------------------------------------------------------------------------
+# Generic flavor lines a CombatCompanion occasionally chimes in with while
+# following the player around -- see CombatCompanion.speak_ambient() below.
+# Not tied to race/class on purpose: a per-class/per-race pool would mean
+# touching every existing CompanionClass definition just for flavor text,
+# not worth the coupling for a purely cosmetic feature.
+COMPANION_AMBIENT_LINES = [
+    "Quiet stretch, this. I don't trust it.",
+    "You hear that? ...No? Must've been nothing.",
+    "I've fought worse than this. Probably.",
+    "Lead on. I'll watch your back.",
+    "Remind me why we're doing this again?",
+    "Something about this place gives me the chills.",
+    "Could use a hot meal after this.",
+    "Careful of your footing up ahead.",
+    "I've got a good feeling about today.",
+    "Just say the word and I'll cut them down.",
+    "Doesn't hurt to keep your guard up here.",
+    "Almost peaceful... for now.",
+]
+
+#: Player turns the whole party's ambient chatter is silenced after any
+#: one companion speaks -- see Game._companion_ambient_cooldown (game.py)
+#: and speak_ambient() below. Shared across every companion rather than
+#: tracked per-companion, so recruiting a full party doesn't multiply how
+#: often chatter interrupts play: only one line comes through per
+#: interval, whichever companion's turn happens to roll it first.
+COMPANION_AMBIENT_COOLDOWN_TURNS = 6
+
+#: Rolled once per companion, per turn, only once the shared cooldown
+#: above has cleared -- keeps chatter sounding occasional and organic
+#: rather than firing like clockwork the instant the cooldown hits zero.
+COMPANION_AMBIENT_CHANCE = 0.08
+
+
+# ---------------------------------------------------------------------------
 # CompanionStance
 # ---------------------------------------------------------------------------
 
@@ -446,6 +483,15 @@ class CombatCompanion(SummonedEntity):
     #: How far (in tiles) a companion will voluntarily leave its owner
     #: to chase down a target -- mirrors Imp/Celestial's hardcoded 8.
     DETECTION_RADIUS = 6
+
+    _ability_name_map = {
+        "STR": "strength",
+        "DEX": "dexterity",
+        "CON": "constitution",
+        "INT": "intelligence",
+        "WIS": "wisdom",
+        "CHA": "charisma",
+    }
 
     def __init__(self, x, y, name, color, owner, race, companion_class, level=6, char=None):
         # `char` defaults to whatever RACE_CLASS_VISUALS says this
@@ -1073,6 +1119,34 @@ class CombatCompanion(SummonedEntity):
                     return
 
         self._follow_owner(game_map, game_instance)
+        # Only chime in on a quiet, non-combat turn (the two branches
+        # above already returned early if there was a fight to attack or
+        # close distance on) -- ambient flavor, not a battle bark.
+        self.speak_ambient(game_instance)
+
+    def speak_ambient(self, game_instance):
+        """
+        Occasionally drops a flavor line into the message log while
+        following the player -- lighter-weight than monster.py's
+        speak_ambient()/Game.show_monster_ambient_popup() (see that
+        method's docstring), since a party member's aside doesn't need
+        to interrupt play with a popup the way a spotted monster's line
+        does.
+
+        Gated by a cooldown shared across the whole party (see
+        Game._companion_ambient_cooldown, ticked down once per player
+        turn in next_turn()) rather than one cooldown per companion, so
+        recruiting several companions doesn't multiply how often the
+        party chatters -- only one line comes through per interval.
+        """
+        if getattr(game_instance, "_companion_ambient_cooldown", 0) > 0:
+            return
+        if random.random() > COMPANION_AMBIENT_CHANCE:
+            return
+
+        line = random.choice(COMPANION_AMBIENT_LINES)
+        game_instance.message_log.add_message(f'{self.name}: "{line}"', self.color)
+        game_instance._companion_ambient_cooldown = COMPANION_AMBIENT_COOLDOWN_TURNS
 
     def _take_melee_turn(self, game_map, game_instance):
         """Returns True if the companion attacked or moved toward a

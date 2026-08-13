@@ -675,6 +675,7 @@ class Game:
         self._monster_ambient_color = (200, 200, 200)  # Speaking monster's own color, used for the popup text
         self._monster_ambient_return_state = GameState.OVERWORLD  # GameState to restore once the popup is dismissed
         self._monster_ambient_cooldowns = {}  # monster type name -> player turns left before that type's next ambient popup can show, see show_monster_ambient_popup()
+        self._companion_ambient_cooldown = 0  # player turns left before any companion can chime in again, see CombatCompanion.speak_ambient() (companions.py)
         self._shop_menu_merchant = None   # Active merchant for shop overlay
         self._shop_selected_index = 0     # Highlighted item index in shop
         self._shop_mode = "buy"           # "buy" or "sell"
@@ -5809,6 +5810,10 @@ class Game:
                         del self._monster_ambient_cooldowns[monster_type]
                     else:
                         self._monster_ambient_cooldowns[monster_type] = remaining
+                # Same idea, one shared counter for the whole party's
+                # ambient chatter -- see CombatCompanion.speak_ambient().
+                if self._companion_ambient_cooldown > 0:
+                    self._companion_ambient_cooldown -= 1
                 if self.player.hunger < self.player.hunger_threshold:
                     hunger_msgs = [
                         f"{self.player.name}'s stomach growls hungrily...",
@@ -6412,20 +6417,32 @@ class Game:
                             self.try_light_wall_torch()
                             return True  # Consume event regardless (don't fall to quick-bar)                    
 
-                        if self.interaction_mode == InteractionMode.INFO:
-                            npc = self.check_overworld_npc_interaction()
-                            # Location-based, not NPC-based, so this doesn't need
-                            # check_overworld_npc_interaction()/check_dungeon_npc_interaction()
-                            # at all -- one check covers both DUNGEON and OVERWORLD.
-                            if isinstance(npc, CombatCompanion):
-                                self.open_companion_menu(npc)
-                                return True                            
-                            
-                            self.message_log.add_message(self._describe_surroundings(), (180, 220, 255))
-                            return True
+                        if self.game_state == GameState.DUNGEON:
+                            if self.interaction_mode == InteractionMode.INFO:
+                                npc = self.check_overworld_npc_interaction()
+                                # Location-based, not NPC-based, so this doesn't need
+                                # check_overworld_npc_interaction()/check_dungeon_npc_interaction()
+                                # at all -- one check covers both DUNGEON and OVERWORLD.
+                                if isinstance(npc, CombatCompanion):
+                                    self.open_companion_menu(npc)
+                                    return True                            
+                                
+                                self.message_log.add_message(self._describe_surroundings(), (180, 220, 255))
+                                return True
 
                         if self.game_state == GameState.OVERWORLD:
                             npc = self.check_overworld_npc_interaction()
+
+                            if self.interaction_mode == InteractionMode.INFO:
+                                # Location-based, not NPC-based, so this doesn't need
+                                # check_overworld_npc_interaction()/check_dungeon_npc_interaction()
+                                # at all -- one check covers both DUNGEON and OVERWORLD.
+                                if isinstance(npc, CombatCompanion):
+                                    self.open_companion_menu(npc)
+                                    return True                            
+                                
+                                self.message_log.add_message(self._describe_surroundings(), (180, 220, 255))
+                                return True
 
                             if self.interaction_mode == InteractionMode.STEAL:
                                 # Encounter victims are being rescued, not robbed,
@@ -6500,9 +6517,6 @@ class Game:
                             if self.handle_item_pickup():
                                 return True
                             self.message_log.add_message("There's nothing here to grab.", (150, 150, 150))
-                            return True
-                        if isinstance(merchant, CombatCompanion):
-                            self.open_companion_menu(merchant)
                             return True
                         if isinstance(merchant, DungeonMerchant):
                             merchant.offer_trade(self.player, self)  # Call the trade method for the Merchant
@@ -6774,6 +6788,8 @@ class Game:
                                 else:
                                     # If no altar, check for adjacent interactables
                                     target = self.get_adjacent_target()
+                                    # If no adjacent entity, check for chests at player's position
+                                    chest_at_pos = self.get_chest_at(self.player.x, self.player.y)                                    
                                     if target:
                                         if isinstance(target, Mimic): # Mimics are entities, but also interactable
                                             target.reveal(self)
@@ -6781,12 +6797,7 @@ class Game:
                                         elif isinstance(target, Monster): # If it's a monster, attack it
                                             self.handle_player_attack(target, self)
                                             action_taken = True
-                                        else:
-                                            self.message_log.add_message(f"You can't interact with {target.name} that way.", (150, 150, 150))
-                                    else:
-                                        # If no adjacent entity, check for chests at player's position
-                                        chest_at_pos = self.get_chest_at(self.player.x, self.player.y)
-                                        if chest_at_pos:
+                                        elif chest_at_pos:
                                             if isinstance(chest_at_pos, LockedChest) and chest_at_pos.is_locked:
                                                 # Show the interaction choice menu instead of opening directly
                                                 self._chest_menu_target = chest_at_pos
