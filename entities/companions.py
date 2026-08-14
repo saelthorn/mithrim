@@ -707,7 +707,7 @@ class CombatCompanion(SummonedEntity):
         # -- Combat style / ranged-specific state --
         self.combat_style = companion_class.combat_style
         self.attack_range = companion_class.attack_range
-        self.max_ammo = companion_class.starting_ammo  # None for melee -- unlimited
+        self.max_ammo = companion_class.starting_ammo  # None -- unlimited: no ammo to track (melee, or a ranged caster like Wizard firing spells instead of arrows)
         self.ammo = self.max_ammo
 
         self.saving_throw_proficiencies = companion_class.saving_throw_proficiencies
@@ -989,6 +989,23 @@ class CombatCompanion(SummonedEntity):
             f"{self.name} restocks ammunition ({self.ammo}/{self.max_ammo}).", self.color
         )
 
+    def _has_ammo(self):
+        """
+        Whether this companion is currently able to fire a ranged
+        attack. `max_ammo is None` means "no ammo to track" -- a Wizard
+        loosing spells from a staff rather than physical arrows -- which
+        should always be able to shoot, not read as permanently out
+        (see ranged_attack_enemy()/_take_ranged_turn(), which both used
+        to check truthiness of `self.ammo` directly: for an unlimited
+        caster self.ammo is None, and `if self.ammo:` treats that the
+        same as an empty quiver, so a Wizard with combat_style="ranged"
+        and no starting_ammo could never actually take its ranged shot
+        and fell straight through to melee_scuffle()/kiting instead).
+        A finite-ammo companion (Ranger) is only able to fire while
+        self.ammo > 0.
+        """
+        return self.max_ammo is None or self.ammo > 0
+
     # -- turn AI: targeting -------------------------------------------------
 
     def _gather_enemies(self, game_instance, max_distance):
@@ -1209,15 +1226,20 @@ class CombatCompanion(SummonedEntity):
         """Ranged attack against a target within attack_range and line
         of sight. Consumes one shot of ammo whether it hits or misses,
         same as a real quiver -- callers (see _take_ranged_turn) are
-        expected to have already checked self.ammo > 0."""
-        self.ammo -= 1
-        note = f" ({self.ammo}/{self.max_ammo} ammo left)"
+        expected to have already checked self._has_ammo(). A companion
+        with max_ammo is None (a caster like Wizard, firing spells
+        rather than physical arrows) has nothing to consume or run out
+        of, so both steps are skipped for it."""
+        note = ""
+        if self.max_ammo is not None:
+            self.ammo -= 1
+            note = f" ({self.ammo}/{self.max_ammo} ammo left)"
         dice = self.equipped_weapon.damage_dice if self.equipped_weapon else "1d4"
         self._resolve_attack(
             target, game_instance, self.attack_bonus, self.attack_power,
             dice, self.companion_class.damage_type, verb="looses a shot", out_of_ammo_note=note,
         )
-        if self.ammo == 0:
+        if self.max_ammo is not None and self.ammo == 0:
             game_instance.message_log.add_message(f"{self.name} is out of ammunition!", (255, 150, 150))
 
     def melee_scuffle(self, target, game_instance):
@@ -1318,14 +1340,14 @@ class CombatCompanion(SummonedEntity):
             enemy for enemy in in_range
             if game_instance.check_line_of_sight(self.x, self.y, enemy.x, enemy.y)
         ]
-        if shootable and self.ammo:
+        if shootable and self._has_ammo():
             self.ranged_attack_enemy(self._select_target(shootable), game_instance)
             return True
 
         adjacent = self._gather_enemies(game_instance, max_distance=1)
         if adjacent:
             threat = self._select_target(adjacent)
-            if self.ammo:
+            if self._has_ammo():
                 if self._kite_away_from(threat, game_map, game_instance):
                     return True
                 # Cornered with nowhere to retreat -- still better than
