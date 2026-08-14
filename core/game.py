@@ -399,7 +399,7 @@ from entities.races import (
     RedDragonborn, BlueDragonborn, GoldDragonborn, GreenDragonborn,
     RACE_GROUPS,          # lineage catalogue used by the creation screen
 )
-from entities.summons import MageHandEntity, SummonedEntity, EscortCompanion
+from entities.summons import MageHandEntity, SummonedEntity, EscortCompanion, _chebyshev_distance
 from entities.companions import (
     CombatCompanion, CompanionStance, CompanionClass,
     FIGHTER, RANGER, ROGUE, WIZARD, CLERIC, RACE_CLASS_VISUALS,
@@ -5231,9 +5231,13 @@ class Game:
         if self.game_state == GameState.DUNGEON:
             for entity in self.entities:
                 if isinstance(entity, (DungeonHealer, DungeonMerchant, PrisonerNPC, CombatCompanion)):
-                    if (abs(self.player.x - entity.x) <= 1 and
-                        abs(self.player.y - entity.y) <= 1 and
-                        (abs(self.player.x - entity.x) + abs(self.player.y - entity.y)) == 1):
+                    # Chebyshev, not Manhattan -- a companion (or any other
+                    # dungeon NPC) diagonally adjacent to the player, which
+                    # happens constantly in dungeon corridors, was being
+                    # missed entirely by the old (abs(dx)+abs(dy))==1 check,
+                    # so open_companion_menu() never triggered there even
+                    # though it worked fine in the more open overworld.
+                    if _chebyshev_distance(self.player.x, self.player.y, entity.x, entity.y) == 1:
                         if isinstance(entity, DungeonMerchant):
                             self.dungeon_merchant = entity
                         elif isinstance(entity, PrisonerNPC) and entity.has_been_freed:
@@ -6417,32 +6421,29 @@ class Game:
                             self.try_light_wall_torch()
                             return True  # Consume event regardless (don't fall to quick-bar)                    
 
-                        if self.game_state == GameState.DUNGEON:
-                            if self.interaction_mode == InteractionMode.INFO:
-                                npc = self.check_overworld_npc_interaction()
-                                # Location-based, not NPC-based, so this doesn't need
-                                # check_overworld_npc_interaction()/check_dungeon_npc_interaction()
-                                # at all -- one check covers both DUNGEON and OVERWORLD.
-                                if isinstance(npc, CombatCompanion):
-                                    self.open_companion_menu(npc)
-                                    return True                            
-                                
-                                self.message_log.add_message(self._describe_surroundings(), (180, 220, 255))
+
+                        npc = self.check_overworld_npc_interaction()
+                        if self.interaction_mode == InteractionMode.INFO:
+                            # check_overworld_npc_interaction() only ever returns
+                            # something while self.game_state == OVERWORLD, so a
+                            # companion standing next to the player in a dungeon
+                            # was invisible to this check and INFO mode fell
+                            # straight to the surroundings message below instead
+                            # of opening the companion menu. check_dungeon_npc_interaction()
+                            # covers that case the same way the DIALOGUE-mode branch
+                            # further below does.
+                            info_target = npc if npc is not None else self.check_dungeon_npc_interaction()
+                            if isinstance(info_target, CombatCompanion):
+                                self.open_companion_menu(info_target)
                                 return True
+                            # Location-based, not NPC-based, so this doesn't need
+                            # check_overworld_npc_interaction()/check_dungeon_npc_interaction()
+                            # at all -- one check covers both DUNGEON and OVERWORLD.
+                            self.message_log.add_message(self._describe_surroundings(), (180, 220, 255))
+                            return True
 
                         if self.game_state == GameState.OVERWORLD:
                             npc = self.check_overworld_npc_interaction()
-
-                            if self.interaction_mode == InteractionMode.INFO:
-                                # Location-based, not NPC-based, so this doesn't need
-                                # check_overworld_npc_interaction()/check_dungeon_npc_interaction()
-                                # at all -- one check covers both DUNGEON and OVERWORLD.
-                                if isinstance(npc, CombatCompanion):
-                                    self.open_companion_menu(npc)
-                                    return True                            
-                                
-                                self.message_log.add_message(self._describe_surroundings(), (180, 220, 255))
-                                return True
 
                             if self.interaction_mode == InteractionMode.STEAL:
                                 # Encounter victims are being rescued, not robbed,
@@ -6528,6 +6529,15 @@ class Game:
                                 f'{merchant.name}: "{merchant.get_dialogue()}"', (220, 200, 140)
                             )
                             self.stories.fire_talk(merchant, instigator=self.player)
+                            return True
+                        elif isinstance(merchant, CombatCompanion):
+                            # Without this branch a recruited companion standing
+                            # adjacent to the player in a dungeon matched none of
+                            # the isinstance checks above and fell all the way
+                            # through to check_adjacent_monster_interaction()
+                            # below, which a companion is not, so pressing F did
+                            # nothing -- open_companion_menu() never triggered.
+                            self.open_companion_menu(merchant)
                             return True
 
                         if self.game_state == GameState.DUNGEON:

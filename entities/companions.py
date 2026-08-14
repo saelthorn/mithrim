@@ -77,12 +77,12 @@ COMPANION_AMBIENT_LINES = [
 #: tracked per-companion, so recruiting a full party doesn't multiply how
 #: often chatter interrupts play: only one line comes through per
 #: interval, whichever companion's turn happens to roll it first.
-COMPANION_AMBIENT_COOLDOWN_TURNS = 6
+COMPANION_AMBIENT_COOLDOWN_TURNS = 12
 
 #: Rolled once per companion, per turn, only once the shared cooldown
 #: above has cleared -- keeps chatter sounding occasional and organic
 #: rather than firing like clockwork the instant the cooldown hits zero.
-COMPANION_AMBIENT_CHANCE = 0.08
+COMPANION_AMBIENT_CHANCE = 0.02
 
 
 # ---------------------------------------------------------------------------
