@@ -579,6 +579,101 @@ RACE_CLASS_VISUALS.update({
 
 
 # ---------------------------------------------------------------------------
+# DAMAGE_TYPE_FLAVOR
+# ---------------------------------------------------------------------------
+
+#: Per-damage_type ambient flavor for a CombatCompanion's attack
+#: messages (see CombatCompanion._resolve_attack()) -- keyed by
+#: CompanionClass.damage_type, so a Wizard's "magic" attacks read
+#: distinctly from a Ranger's "piercing" ones, a Fighter's "slashing",
+#: or a Cleric's "bludgeoning", turn after turn, not just once.
+#:
+#: Each entry has four pools _resolve_attack() draws from at random:
+#:   "melee_verbs"/"ranged_verbs" -- short action phrase for the
+#:       attack-roll announcement line, e.g. "{name} swings: [...] vs
+#:       AC ...!" (no target mentioned yet, matching that line's
+#:       existing format). Split by delivery, not just damage type, so
+#:       Rogue's melee piercing dagger ("stabs") doesn't borrow Ranger's
+#:       ranged piercing arrow language ("looses a shot") or vice versa.
+#:   "hits"/"misses" -- full sentence templates for the follow-up
+#:       result line, filled in via str.format(name=..., target=...,
+#:       damage=...). These describe the moment of impact, which reads
+#:       fine regardless of how the attack was delivered, so they're
+#:       not split by melee/ranged the way the verbs are.
+#:
+#: A damage_type without its own entry (a future CompanionClass this
+#: table hasn't caught up with yet) falls back to _DEFAULT_DAMAGE_FLAVOR
+#: rather than raising a KeyError mid-combat.
+DAMAGE_TYPE_FLAVOR = {
+    "slashing": {
+        "melee_verbs": ["swings", "slashes", "cuts", "hacks"],
+        "ranged_verbs": ["hurls a blade", "flings a throwing knife"],
+        "hits": [
+            "{name}'s blade bites into {target} for {damage} damage!",
+            "{name} carves a deep gash into {target} for {damage} damage!",
+            "{name}'s strike opens a wound on {target} for {damage} damage!",
+        ],
+        "misses": [
+            "{name}'s blade whistles past {target}!",
+            "{target} twists aside, and {name}'s strike cuts only air!",
+        ],
+    },
+    "piercing": {
+        "melee_verbs": ["stabs", "lunges", "jabs", "thrusts"],
+        "ranged_verbs": ["looses a shot", "fires an arrow", "lets an arrow fly", "looses a bolt"],
+        "hits": [
+            "{name}'s point punches through {target} for {damage} damage!",
+            "{name} skewers {target} for {damage} damage!",
+            "{name}'s strike drives deep into {target} for {damage} damage!",
+        ],
+        "misses": [
+            "{name}'s thrust glances off {target}'s guard!",
+            "{target} sidesteps, and {name}'s shot finds nothing!",
+        ],
+    },
+    "bludgeoning": {
+        "melee_verbs": ["swings a crushing blow", "hammers", "smashes", "brings a mace down"],
+        "ranged_verbs": ["hurls a stone", "flings a sling shot"],
+        "hits": [
+            "{name} crushes {target} for {damage} damage!",
+            "{name}'s blow slams into {target} for {damage} damage!",
+            "{name} batters {target} for {damage} damage!",
+        ],
+        "misses": [
+            "{name}'s blow crashes into empty ground!",
+            "{target} ducks under {name}'s swing!",
+        ],
+    },
+    "magic": {
+        "melee_verbs": ["channels a burst of force into a strike", "lashes out with a spell-charged blow"],
+        "ranged_verbs": [
+            "channels a bolt of arcane energy", "weaves a crackling spell",
+            "hurls a surge of magic", "unleashes a burst of arcane force",
+        ],
+        "hits": [
+            "{name}'s spell scorches {target} for {damage} damage!",
+            "Arcane energy detonates against {target} for {damage} damage!",
+            "{name}'s magic tears into {target} for {damage} damage!",
+        ],
+        "misses": [
+            "{name}'s spell fizzles against {target}'s guard!",
+            "A bolt of raw magic streaks past {target} and dissipates!",
+        ],
+    },
+}
+
+#: Fallback flavor for any damage_type not covered above, so an
+#: unrecognized type degrades to the plain original wording instead of
+#: a KeyError.
+_DEFAULT_DAMAGE_FLAVOR = {
+    "melee_verbs": ["attacks"],
+    "ranged_verbs": ["attacks from range"],
+    "hits": ["{name} hits {target} for {damage} damage!"],
+    "misses": ["{name} misses {target}!"],
+}
+
+
+# ---------------------------------------------------------------------------
 # CombatCompanion
 # ---------------------------------------------------------------------------
 
@@ -1162,12 +1257,27 @@ class CombatCompanion(SummonedEntity):
             return 1
 
     def _resolve_attack(self, target, game_instance, attack_bonus, attack_power,
-                         dice, damage_type, verb, out_of_ammo_note=""):
+                         dice, damage_type, style="melee", verb=None, out_of_ammo_note=""):
         """
         Shared d20-vs-AC roll/damage/floating-text flow behind
         attack_enemy(), ranged_attack_enemy(), and melee_scuffle() --
         same shape as Imp.attack_enemy()/Celestial.attack_enemy(), just
         parameterized instead of copy-pasted three times.
+
+        The attack-roll verb and the hit/miss follow-up line are drawn
+        at random from DAMAGE_TYPE_FLAVOR[damage_type] (falling back to
+        _DEFAULT_DAMAGE_FLAVOR for a damage_type that table doesn't
+        cover), so a Wizard's "magic" attacks read differently from a
+        Ranger's "piercing" ones -- and differently turn to turn, not
+        just once. `style` ("melee" or "ranged") picks which verb pool
+        to draw from, since the delivery reads very differently even
+        for the same damage_type (Rogue's melee piercing dagger
+        "stabs"; Ranger's ranged piercing arrow "looses a shot").
+
+        Pass an explicit `verb` to bypass the table entirely --
+        melee_scuffle() does this for its "out of ammo, fighting
+        bare-handed" moment, which reads better as its own fixed line
+        than as a random pick from the weapon's usual flavor.
 
         Unlike Imp/Celestial's own attack_enemy() (which adds
         attack_power to the *displayed* damage total without actually
@@ -1175,6 +1285,11 @@ class CombatCompanion(SummonedEntity):
         dice-roll + attack_power to take_damage() so the number shown
         is the number actually taken.
         """
+        flavor = DAMAGE_TYPE_FLAVOR.get(damage_type, _DEFAULT_DAMAGE_FLAVOR)
+        if verb is None:
+            verb_pool = flavor["ranged_verbs"] if style == "ranged" else flavor["melee_verbs"]
+            verb = random.choice(verb_pool)
+
         d20_roll = random.randint(1, 20)
         attack_total = d20_roll + attack_bonus
         target_ac = getattr(target, 'armor_class', 10)
@@ -1187,9 +1302,10 @@ class CombatCompanion(SummonedEntity):
         if attack_total >= target_ac:
             total_damage = self._roll_dice(dice) + attack_power
             damage_dealt = target.take_damage(total_damage, game_instance, damage_type=damage_type)
-            game_instance.message_log.add_message(
-                f"{self.name} hits {target.name} for {damage_dealt} damage!", self.color
+            hit_line = random.choice(flavor["hits"]).format(
+                name=self.name, target=target.name, damage=damage_dealt
             )
+            game_instance.message_log.add_message(hit_line, self.color)
             game_instance.floating_texts.append(FloatingText(target.x, target.y, "HIT!", (255, 255, 0)))
             game_instance.floating_texts.append(FloatingText(target.x, target.y - 0.5, str(damage_dealt), (255, 0, 0)))
 
@@ -1210,7 +1326,8 @@ class CombatCompanion(SummonedEntity):
                 )
                 game_instance._notify_monster_killed(target, killer=self.owner)
         else:
-            game_instance.message_log.add_message(f"{self.name} misses {target.name}!", (150, 150, 150))
+            miss_line = random.choice(flavor["misses"]).format(name=self.name, target=target.name)
+            game_instance.message_log.add_message(miss_line, (150, 150, 150))
             game_instance.floating_texts.append(FloatingText(target.x, target.y, "MISS!", (150, 150, 150)))
 
     def attack_enemy(self, target, game_instance):
@@ -1219,7 +1336,7 @@ class CombatCompanion(SummonedEntity):
         dice = self.equipped_weapon.damage_dice if self.equipped_weapon else "1d4"
         self._resolve_attack(
             target, game_instance, self.attack_bonus, self.attack_power,
-            dice, self.companion_class.damage_type, verb="swings",
+            dice, self.companion_class.damage_type, style="melee",
         )
 
     def ranged_attack_enemy(self, target, game_instance):
@@ -1237,7 +1354,7 @@ class CombatCompanion(SummonedEntity):
         dice = self.equipped_weapon.damage_dice if self.equipped_weapon else "1d4"
         self._resolve_attack(
             target, game_instance, self.attack_bonus, self.attack_power,
-            dice, self.companion_class.damage_type, verb="looses a shot", out_of_ammo_note=note,
+            dice, self.companion_class.damage_type, style="ranged", out_of_ammo_note=note,
         )
         if self.max_ammo is not None and self.ammo == 0:
             game_instance.message_log.add_message(f"{self.name} is out of ammunition!", (255, 150, 150))
@@ -1248,7 +1365,12 @@ class CombatCompanion(SummonedEntity):
         than standing there doing nothing. Strips the equipped weapon's
         own attack_bonus/damage_modifier back out (they represent the
         bow, which isn't being used here), leaving just the companion's
-        raw ability/proficiency numbers."""
+        raw ability/proficiency numbers. Keeps its own fixed verb rather
+        than drawing from DAMAGE_TYPE_FLAVOR["bludgeoning"]'s usual
+        pool -- "out of ammo, fighting bare-handed" is a distinct enough
+        narrative beat to deserve its own line instead of blending in
+        with a Cleric's mace flavor.
+        """
         weapon = self.equipped_weapon
         unarmed_bonus = self.attack_bonus - (weapon.attack_bonus if weapon else 0)
         unarmed_power = max(0, self.attack_power - (weapon.damage_modifier if weapon else 0))
