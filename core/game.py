@@ -9040,7 +9040,9 @@ class Game:
         pygame.draw.rect(self.screen, (150, 220, 255), (sx, sy, W, H), 2, border_radius=4)
 
         title_surf = font_title.render(
-            f"  {companion.name} the {companion.companion_class.name}", True, (150, 220, 255)
+            f"  {companion.name} the {companion.companion_class.name} "
+            f"({companion.personality.display_name})",
+            True, (150, 220, 255)
         )
         self.screen.blit(title_surf, (sx + PAD, sy + PAD))
 

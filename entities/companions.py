@@ -53,9 +53,11 @@ COMPANION_XP_PROGRESSION = {
 # ---------------------------------------------------------------------------
 # Generic flavor lines a CombatCompanion occasionally chimes in with while
 # following the player around -- see CombatCompanion.speak_ambient() below.
-# Not tied to race/class on purpose: a per-class/per-race pool would mean
-# touching every existing CompanionClass definition just for flavor text,
-# not worth the coupling for a purely cosmetic feature.
+# Kept as a fallback pool for CompanionPersonality.ambient_lines: any
+# personality that leaves its own list empty (or a companion built with
+# personality=None resolving to nothing, which shouldn't happen but is
+# handled defensively anyway) still has something to say rather than going
+# silent.
 COMPANION_AMBIENT_LINES = [
     "Quiet stretch, this. I don't trust it.",
     "You hear that? ...No? Must've been nothing.",
@@ -83,6 +85,130 @@ COMPANION_AMBIENT_COOLDOWN_TURNS = 12
 #: above has cleared -- keeps chatter sounding occasional and organic
 #: rather than firing like clockwork the instant the cooldown hits zero.
 COMPANION_AMBIENT_CHANCE = 0.02
+
+
+# ---------------------------------------------------------------------------
+# CompanionPersonality
+# ---------------------------------------------------------------------------
+
+class CompanionPersonality:
+    """
+    A companion's voice: the flavor-text pools speak_ambient()/level_up()/
+    die() draw from, so two recruits standing in the same tavern don't
+    read as the exact same person wearing different armor.
+
+    Deliberately independent of CompanionClass/race (same reasoning as
+    the old single COMPANION_AMBIENT_LINES pool this replaces) -- a
+    personality is about *who this companion is*, not what they fight
+    with, so any race/class combination can land any personality. Adding
+    a new personality means adding one more instance to
+    COMPANION_PERSONALITIES below; CombatCompanion itself never needs to
+    change.
+
+    `level_up_line`/`death_line` are optional single flavor lines (as
+    opposed to `ambient_lines`, a pool sampled repeatedly) -- a
+    companion only levels up or dies once per occurrence, so there's no
+    need for variety within a single instance the way ambient chatter
+    needs to avoid repeating itself turn after turn.
+    """
+
+    def __init__(self, personality_id, display_name, ambient_lines, level_up_line=None, death_line=None):
+        self.id = personality_id
+        self.display_name = display_name
+        self.ambient_lines = list(ambient_lines)
+        self.level_up_line = level_up_line
+        self.death_line = death_line
+
+    def __repr__(self):
+        return f"CompanionPersonality({self.id!r})"
+
+
+#: Every recruitable personality. Purely flavor text -- none of it
+#: affects stats, combat AI, or stance behavior, so new entries are
+#: always additive and safe to tune without touching CombatCompanion.
+COMPANION_PERSONALITIES = {
+    "stoic": CompanionPersonality(
+        "stoic", "Stoic",
+        ambient_lines=[
+            "I have nothing to report.",
+            "We continue.",
+            "No complaints here.",
+            "Stay alert. That's all I'll say.",
+            "I've seen worse roads than this one.",
+        ],
+        level_up_line="Stronger. Good.",
+        death_line="No words. Just silence, then stillness.",
+    ),
+    "jovial": CompanionPersonality(
+        "jovial", "Jovial",
+        ambient_lines=[
+            "Ha! Remember that last fight? Good times.",
+            "You know, I actually like it out here.",
+            "Bet you five gold we find treasure today.",
+            "This is the life, eh? Well -- mostly.",
+            "Sing with me! ...No? Fine, I'll manage alone.",
+            "I could do this every day and never tire of it.",
+        ],
+        level_up_line="Ha! Getting stronger by the day! Drinks are on me later.",
+        death_line="Heh... not bad, for a life... not bad at all...",
+    ),
+    "grim": CompanionPersonality(
+        "grim", "Grim",
+        ambient_lines=[
+            "Everything out here wants us dead. Remember that.",
+            "Don't get comfortable. Comfortable people die first.",
+            "I've buried better folk than us on roads like this.",
+            "The quiet never lasts. It never does.",
+            "Watch the treeline. Always watch the treeline.",
+        ],
+        level_up_line="Another step from the grave. For now.",
+        death_line="...I knew it would end like this.",
+    ),
+    "sarcastic": CompanionPersonality(
+        "sarcastic", "Sarcastic",
+        ambient_lines=[
+            "Oh good, more walking. My favorite.",
+            "Truly, a thrilling adventure so far.",
+            "Do tell me again why this was a good idea.",
+            "I'm thrilled. Can you tell? I'm being thrilled right now.",
+            "Sure, let's just wander toward the scary noise. Great plan.",
+            "Riveting scenery. Just riveting.",
+        ],
+        level_up_line="Oh look, I'm marginally less likely to die now. Thrilling.",
+        death_line="Figures. Should've... seen this... coming...",
+    ),
+    "devout": CompanionPersonality(
+        "devout", "Devout",
+        ambient_lines=[
+            "The light watches over us on this road.",
+            "I say a quiet prayer before every journey.",
+            "Whatever waits ahead, faith will see us through.",
+            "This place feels forsaken. We should be careful.",
+            "Even in darkness, there is always a light to find.",
+        ],
+        level_up_line="I feel the light's favor growing within me.",
+        death_line="Into the light... I go gladly...",
+    ),
+    "greedy": CompanionPersonality(
+        "greedy", "Greedy",
+        ambient_lines=[
+            "You smell that? Gold. I'm sure of it.",
+            "Split evenly, right? RIGHT?",
+            "I didn't sign up for danger. I signed up for coin.",
+            "That looked expensive. We should have grabbed it.",
+            "Every corpse is a coin purse waiting to be found.",
+        ],
+        level_up_line="Stronger AND more valuable. Excellent.",
+        death_line="My share... someone... take my share...",
+    ),
+}
+
+
+def random_personality():
+    """Pick a random CompanionPersonality for a freshly recruited
+    companion that wasn't given one explicitly (see CombatCompanion.
+    __init__'s `personality` parameter)."""
+    return random.choice(list(COMPANION_PERSONALITIES.values()))
 
 
 # ---------------------------------------------------------------------------
@@ -493,7 +619,7 @@ class CombatCompanion(SummonedEntity):
         "CHA": "charisma",
     }
 
-    def __init__(self, x, y, name, color, owner, race, companion_class, level=6, char=None):
+    def __init__(self, x, y, name, color, owner, race, companion_class, level=6, char=None, personality=None):
         # `char` defaults to whatever RACE_CLASS_VISUALS says this
         # race+class combo looks like (the same table world/structures.py's
         # _spawn_tavern_patron() draws from) rather than a fixed 'C' --
@@ -521,6 +647,14 @@ class CombatCompanion(SummonedEntity):
 
         self.race = race
         self.companion_class = companion_class
+        # Who this companion is when they open their mouth -- see
+        # CompanionPersonality above. `personality=None` (the common
+        # case: every existing call site that constructs a
+        # CombatCompanion without naming one, e.g. game.py's
+        # recruit_combat_companion()) rolls a random personality so
+        # recruits don't all sound identical, without any caller needing
+        # to change.
+        self.personality = personality or random_personality()
         self.level = level
         self.current_xp = 0  # See gain_xp()/level_up() below
         self.blocks_movement = True  # Unlike EscortCompanion, a fighter takes up space
@@ -828,6 +962,10 @@ class CombatCompanion(SummonedEntity):
             game_instance.message_log.add_message(
                 f"{self.name} reaches level {self.level}!", self.color
             )
+            if self.personality.level_up_line:
+                game_instance.message_log.add_message(
+                    f'{self.name}: "{self.personality.level_up_line}"', self.color
+                )
 
     # -- combat orders (wired to the AI in the next pass) --------------------
 
@@ -1144,7 +1282,12 @@ class CombatCompanion(SummonedEntity):
         if random.random() > COMPANION_AMBIENT_CHANCE:
             return
 
-        line = random.choice(COMPANION_AMBIENT_LINES)
+        # Draw from this companion's own personality pool so party
+        # members read as distinct people -- fall back to the generic
+        # pool for the defensive case of a personality with no lines of
+        # its own (or, in principle, no personality at all).
+        pool = getattr(self.personality, "ambient_lines", None) or COMPANION_AMBIENT_LINES
+        line = random.choice(pool)
         game_instance.message_log.add_message(f'{self.name}: "{line}"', self.color)
         game_instance._companion_ambient_cooldown = COMPANION_AMBIENT_COOLDOWN_TURNS
 
@@ -1216,6 +1359,10 @@ class CombatCompanion(SummonedEntity):
         """Handles the companion falling in battle."""
         self.alive = False
         game_instance.message_log.add_message(f"{self.name} has fallen!", (255, 80, 80))
+        if self.personality.death_line:
+            game_instance.message_log.add_message(
+                f'{self.name}: "{self.personality.death_line}"', (255, 80, 80)
+            )
         self._leave_party(game_instance)
 
     def _leave_party(self, game_instance):
@@ -1234,5 +1381,6 @@ class CombatCompanion(SummonedEntity):
     def __repr__(self):
         return (
             f"CombatCompanion({self.name!r}, {self.companion_class.name}, "
+            f"personality={self.personality.id}, "
             f"hp={self.hp}/{self.max_hp}, stance={self.stance})"
         )
