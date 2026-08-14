@@ -317,6 +317,7 @@ def setup_tile_mapping():
 
 
         # Tavern Entities and Misc.
+        'bls': (5 * CELL_DIM, 0 * CELL_DIM),  # Blacksmith (NPC)
         'H': (6 * CELL_DIM,   0 * CELL_DIM),  # Healer (NPC)        
         'rc': (7 * CELL_DIM,  0 * CELL_DIM),  # Merchant (NPC)
         'p': (8 * CELL_DIM,   0 * CELL_DIM),  # Patron (NPC)
@@ -411,6 +412,13 @@ def setup_tile_mapping():
 
         'glo': (13 * CELL_DIM, 13 * CELL_DIM), # Glass Orb
         'ooc': (13 * CELL_DIM, 14 * CELL_DIM), # Orb of Chaos
+
+        'arr': (19 * CELL_DIM, 13 * CELL_DIM), # Arrow
+
+        'hbo': (18 * CELL_DIM, 13 * CELL_DIM), # Hand Crossbow
+        'crb': (18 * CELL_DIM, 13 * CELL_DIM), # Crossbow
+        'sbo': (18 * CELL_DIM, 14 * CELL_DIM), # Shortbow
+        'lbo': (18 * CELL_DIM, 15 * CELL_DIM), # Longbow
 
        
     }

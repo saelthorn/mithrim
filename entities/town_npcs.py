@@ -1091,7 +1091,7 @@ class Blacksmith(TownNPC):
             "Bring back anything odd from the ruins. Odd things sell.",
             "A careful blade and a dry torch are worth more than bravado.",            
         ]
-        super().__init__(x, y, 'p', name or random.choice(TOWNSFOLK_NAMES), (205, 205, 185), dialogue)
+        super().__init__(x, y, 'bls', name or random.choice(TOWNSFOLK_NAMES), (205, 205, 185), dialogue)
 
 
 class Priest(TownNPC):

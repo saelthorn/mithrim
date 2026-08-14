@@ -5228,22 +5228,42 @@ class Game:
 
 
     def check_dungeon_npc_interaction(self):
-        if self.game_state == GameState.DUNGEON:
-            for entity in self.entities:
-                if isinstance(entity, (DungeonHealer, DungeonMerchant, PrisonerNPC, CombatCompanion)):
-                    # Chebyshev, not Manhattan -- a companion (or any other
-                    # dungeon NPC) diagonally adjacent to the player, which
-                    # happens constantly in dungeon corridors, was being
-                    # missed entirely by the old (abs(dx)+abs(dy))==1 check,
-                    # so open_companion_menu() never triggered there even
-                    # though it worked fine in the more open overworld.
-                    if _chebyshev_distance(self.player.x, self.player.y, entity.x, entity.y) == 1:
-                        if isinstance(entity, DungeonMerchant):
-                            self.dungeon_merchant = entity
-                        elif isinstance(entity, PrisonerNPC) and entity.has_been_freed:
-                            return entity
-                        return entity
-        return None
+        """
+        Adjacency check for dungeon NPCs (healer/merchant/prisoner) and
+        the player's own CombatCompanion.
+
+        Real dungeon NPCs are checked first and returned immediately if
+        found; only if none is adjacent do we fall back to the
+        companion. A CombatCompanion follows the player closely and is
+        therefore adjacent almost constantly, so scanning self.entities
+        in a single pass and returning whichever match came first (the
+        old behavior) meant the companion would frequently be found
+        before -- and mask -- an actually-adjacent healer/merchant/
+        prisoner, silently blocking trade/dialogue with them whenever
+        the companion was in tow. Companions still open their own menu
+        (see the CombatCompanion branches at the F-key call sites) --
+        they just no longer take priority over a real NPC.
+        """
+        if self.game_state != GameState.DUNGEON:
+            return None
+
+        companion = None
+        for entity in self.entities:
+            # Chebyshev, not Manhattan -- an entity diagonally adjacent
+            # to the player, which happens constantly in dungeon
+            # corridors, was being missed entirely by the old
+            # (abs(dx)+abs(dy))==1 check, so interaction never triggered
+            # there even though it worked fine in the more open overworld.
+            if isinstance(entity, (DungeonHealer, DungeonMerchant, PrisonerNPC)):
+                if _chebyshev_distance(self.player.x, self.player.y, entity.x, entity.y) == 1:
+                    if isinstance(entity, DungeonMerchant):
+                        self.dungeon_merchant = entity
+                    return entity
+            elif isinstance(entity, CombatCompanion) and companion is None:
+                if _chebyshev_distance(self.player.x, self.player.y, entity.x, entity.y) == 1:
+                    companion = entity
+
+        return companion
 
     def check_overworld_npc_interaction(self):
         if self.game_state == GameState.OVERWORLD:
@@ -6502,16 +6522,7 @@ class Game:
                                     f'{monster.name}: "{monster.get_dialogue()}"', (200, 200, 255)
                                 )
                                 return True
-
-                        merchant = self.check_dungeon_npc_interaction()  # Check for adjacent NPC
-                        if self.interaction_mode == InteractionMode.STEAL:
-                            # A companion isn't fair game for a pickpocket
-                            # attempt, same reasoning as EncounterVictim
-                            # being excluded in the overworld branch above.
-                            if merchant and not isinstance(merchant, CombatCompanion):
-                                return self._attempt_pickpocket(merchant)
-                            self.message_log.add_message("There's no one close enough to steal from.", (150, 150, 150))
-                            return True
+                        
                         if self.interaction_mode == InteractionMode.INTERACT:
                             # Reached for GameState.DUNGEON (the OVERWORLD branch above
                             # already returned before getting here for that state).
@@ -6519,25 +6530,43 @@ class Game:
                                 return True
                             self.message_log.add_message("There's nothing here to grab.", (150, 150, 150))
                             return True
-                        if isinstance(merchant, DungeonMerchant):
-                            merchant.offer_trade(self.player, self)  # Call the trade method for the Merchant
-                            return True  # Consume event
-                        elif isinstance(merchant, PrisonerNPC) and merchant.has_been_freed:
-                            # Give the reward first (only fires once), then show dialogue.
-                            merchant.give_reward(self.player, self)
-                            self.message_log.add_message(
-                                f'{merchant.name}: "{merchant.get_dialogue()}"', (220, 200, 140)
-                            )
-                            self.stories.fire_talk(merchant, instigator=self.player)
-                            return True
-                        elif isinstance(merchant, CombatCompanion) and self.interaction_mode == InteractionMode.INFO:
-                            # Without this branch a recruited companion standing
-                            # adjacent to the player in a dungeon matched none of
-                            # the isinstance checks above and fell all the way
-                            # through to check_adjacent_monster_interaction()
-                            # below, which a companion is not, so pressing F did
-                            # nothing -- open_companion_menu() never triggered.
-                            self.open_companion_menu(merchant)
+
+
+                        merchant = self.check_dungeon_npc_interaction()  # Check for adjacent NPC
+                        if self.game_state == GameState.DUNGEON:
+                            if isinstance(merchant, DungeonMerchant) and self.interaction_mode == InteractionMode.DIALOGUE:
+                                merchant.offer_trade(self.player, self)  # Call the trade method for the Merchant
+                                return True  # Consume event
+                            elif isinstance(merchant, PrisonerNPC) and merchant.has_been_freed:
+                                # Give the reward first (only fires once), then show dialogue.
+                                merchant.give_reward(self.player, self)
+                                self.message_log.add_message(
+                                    f'{merchant.name}: "{merchant.get_dialogue()}"', (220, 200, 140)
+                                )
+                                self.stories.fire_talk(merchant, instigator=self.player)
+                                return True
+                            elif isinstance(merchant, CombatCompanion) and self.interaction_mode == InteractionMode.INFO:
+                                # Without this branch a recruited companion standing
+                                # adjacent to the player in a dungeon matched none of
+                                # the isinstance checks above and fell all the way
+                                # through to check_adjacent_monster_interaction()
+                                # below, which a companion is not, so pressing F did
+                                # nothing -- open_companion_menu() never triggered.
+                                self.open_companion_menu(merchant)
+                                return True
+
+                            elif merchant:
+                                self.message_log.add_message(f'{merchant.name}: "{merchant.get_dialogue()}"', (200, 200, 255))
+                                self.stories.fire_talk(merchant, instigator=self.player)
+                                return True                                   
+
+                        if self.interaction_mode == InteractionMode.STEAL:
+                            # A companion isn't fair game for a pickpocket
+                            # attempt, same reasoning as EncounterVictim
+                            # being excluded in the overworld branch above.
+                            if merchant and not isinstance(merchant, CombatCompanion):
+                                return self._attempt_pickpocket(merchant)
+                            self.message_log.add_message("There's no one close enough to steal from.", (150, 150, 150))
                             return True
 
                         if self.game_state == GameState.DUNGEON:
