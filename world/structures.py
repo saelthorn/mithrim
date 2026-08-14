@@ -69,16 +69,27 @@ def _spawn_priest(x, y):
     return Priest(x, y)
 
 
+#: Odds that a tavern patron spawns as a race+class adventurer worth
+#: recruiting rather than a plain villager. Kept low so a tavern still
+#: mostly reads as an ordinary room full of ordinary tavern-goers, with
+#: a recruitable adventurer only turning up in it every so often.
+TAVERN_PATRON_ADVENTURER_CHANCE = 0.5
+
+
 def _spawn_tavern_patron(x, y):
     """
-    A tavern patron -- visually a race+class adventurer rather than a
-    plain villager, drawn from entities/companions.py's
-    RACE_CLASS_VISUALS (the same table game.py's character creation
-    uses for the player's own sprite). Taverns are where a player would
-    expect to find hired swords to recruit, not farmers, so their
-    patrons get an appearance that actually reads as "adventurer" --
-    still a Townsfolk underneath (dialogue, wandering/socializing
-    schedule, everything else about them is unchanged), just re-skinned.
+    A tavern patron. Most of the time this is just a plain villager --
+    same as any other Townsfolk in town -- so a tavern doesn't read as
+    wall-to-wall hired swords. TAVERN_PATRON_ADVENTURER_CHANCE of the
+    time it's instead visually a race+class adventurer, drawn from
+    entities/companions.py's RACE_CLASS_VISUALS (the same table
+    game.py's character creation uses for the player's own sprite),
+    marking them as someone actually worth recruiting.
+
+    Either way this is still a Townsfolk underneath (dialogue,
+    wandering/socializing schedule, everything else about them is
+    unchanged) -- only the sprite, and whether `visual_race`/
+    `visual_class` get stashed on it, differ.
 
     `visual_race`/`visual_class` are stashed on the NPC so a future
     recruiting interaction (see game.py's recruit_combat_companion(),
@@ -86,10 +97,14 @@ def _spawn_tavern_patron(x, y):
     which race/class this patron's sprite represents, rather than the
     choice only existing as a char/color pair that gets thrown away.
     """
+    patron = Townsfolk(x, y)
+
+    if random.random() >= TAVERN_PATRON_ADVENTURER_CHANCE:
+        return patron
+
     race, class_name = random.choice(list(RACE_CLASS_VISUALS.keys()))
     char, color = RACE_CLASS_VISUALS[(race, class_name)]
 
-    patron = Townsfolk(x, y)
     patron.char = char
     patron.color = color
     patron.visual_race = race

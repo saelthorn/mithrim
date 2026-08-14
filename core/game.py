@@ -6530,7 +6530,7 @@ class Game:
                             )
                             self.stories.fire_talk(merchant, instigator=self.player)
                             return True
-                        elif isinstance(merchant, CombatCompanion):
+                        elif isinstance(merchant, CombatCompanion) and InteractionMode.INFO:
                             # Without this branch a recruited companion standing
                             # adjacent to the player in a dungeon matched none of
                             # the isinstance checks above and fell all the way

@@ -54,6 +54,7 @@ class NPCBehavior:
     WANDERING = "wandering"     # puttering around town, one step every WANDER_INTERVAL turns
     TRAVELING = "traveling"     # walking toward a specific target tile (home, post, or a chat partner)
     SOCIALIZING = "socializing" # paused with another NPC for a short conversation -- see TownNPC's socializing section
+    ALERTED = "alerted"         # fleeing a nearby aggressive monster -- see the "-- alert / fear --" section
 
 
 def _behavior_for_hour(schedule, hour):
@@ -201,6 +202,19 @@ class TownNPC(NPC):
     CHAT_BUBBLE_TEXT = "..."
     CHAT_BUBBLE_COLOR = (190, 190, 230)
 
+    #: Chebyshev tiles within which a living, AGGRESSIVE Monster (see
+    #: Disposition in entities/monster.py) puts an NPC on ALERTED --
+    #: see the "-- alert / fear --" section below.
+    ALERT_DETECT_RADIUS = 6
+    #: Turns an NPC keeps fleeing after it last sensed a threat within
+    #: ALERT_DETECT_RADIUS. Refreshed back to this value every turn a
+    #: threat remains in range, so a monster that lingers nearby keeps
+    #: them running the whole time, but one that only passed through
+    #: briefly is still fled from for a little while after it's gone --
+    #: World of Warcraft-style fear, except the duration is counted in
+    #: turns rather than real time.
+    ALERT_DURATION = 6
+
     def __init__(self, x, y, char, name, color, dialogue=None):
         super().__init__(x, y, char, name, color, dialogue)
         self.post = (x, y)
@@ -249,6 +263,15 @@ class TownNPC(NPC):
         # behavior_state, same as _wander_cooldown.
         self._social_cooldown = 0
 
+        # -- alert / fear (see the "-- alert / fear --" section below) --
+        # The Monster currently being fled from, or None. Only ever set
+        # while behavior_state is ALERTED.
+        self._alert_threat = None
+        # Turns left before fear wears off once no threat remains within
+        # ALERT_DETECT_RADIUS -- refreshed to ALERT_DURATION every turn
+        # a threat is still in range.
+        self._alert_turns_remaining = 0
+
     # -- schedule ------------------------------------------------------
 
     def take_turn(self, player, game_map, game):
@@ -275,6 +298,20 @@ class TownNPC(NPC):
         # (or the sweep for a partner) wait for a natural end.
         if desired == NPCBehavior.SLEEPING and self._social_partner is not None:
             self._cancel_social()
+
+        # A nearby aggressive monster overrides everything else -- the
+        # schedule, a conversation, even sleep -- the same way it would
+        # for anyone startled awake by something dangerous. See the
+        # "-- alert / fear --" section below.
+        threat = self._nearby_threat(game)
+        if threat is not None:
+            self._begin_alert(threat)
+        elif self.behavior_state == NPCBehavior.ALERTED:
+            self._advance_alert_timer()
+
+        if self.behavior_state == NPCBehavior.ALERTED:
+            self._flee_from_threat(game_map, game)
+            return
 
         if self.behavior_state == NPCBehavior.SOCIALIZING:
             self._advance_socializing(game)
@@ -557,6 +594,138 @@ class TownNPC(NPC):
 
         if partner is not None and partner._social_partner is self:
             partner._cancel_social()
+
+    # -- alert / fear ------------------------------------------------------
+    #
+    # A living, AGGRESSIVE Monster (see Disposition in entities/monster.py)
+    # within ALERT_DETECT_RADIUS puts an NPC into ALERTED -- checked first
+    # in take_turn(), ahead of everything else, so it interrupts a
+    # conversation, a trip home, or even sleep. While ALERTED, every turn
+    # is spent stepping to whichever reachable tile keeps the most
+    # distance from the tracked threat, biased toward home only when that
+    # doesn't cost any of that distance -- see _flee_from_threat().
+    # ALERT_DURATION turns after the last threat sighted, fear wears off
+    # and the NPC drops back to WANDERING, letting the very next turn's
+    # ordinary schedule reconciliation sort out where it should actually
+    # be.
+
+    def _nearby_threat(self, game):
+        """
+        Nearest living, AGGRESSIVE Monster within ALERT_DETECT_RADIUS
+        tiles, or None if nothing qualifies right now. PASSIVE/NEUTRAL
+        monsters (e.g. a band spawned via WORLD_ENCOUNTER_DISPOSITIONS
+        that hasn't been provoked yet) are not a threat, same rule
+        game.py's opportunity-attack check already uses.
+
+        Monster/Disposition are imported here rather than at module
+        level -- entities/monster.py and entities/town_npcs.py both sit
+        deep in the entity import graph, and this project's established
+        pattern for that (see summons.py's deferred SummonedEntity
+        import) is a deferred import inside the one method that
+        actually needs it, rather than risking a circular import at
+        load time.
+        """
+        from entities.monster import Monster, Disposition
+
+        best, best_distance = None, self.ALERT_DETECT_RADIUS + 1
+        for entity in getattr(game, "entities", ()):
+            if not isinstance(entity, Monster):
+                continue
+            if not getattr(entity, "alive", False):
+                continue
+            if getattr(entity, "disposition", None) != Disposition.AGGRESSIVE:
+                continue
+            distance = self._chebyshev_distance(entity)
+            if distance <= self.ALERT_DETECT_RADIUS and distance < best_distance:
+                best, best_distance = entity, distance
+        return best
+
+    def _begin_alert(self, threat):
+        """
+        Enter (or refresh) ALERTED on `threat`. Cancels any conversation
+        in progress -- see _cancel_social()'s docstring for why that's
+        the right way to bail out of one uninvited -- and resets the
+        cached travel path, same as any other behavior_state change.
+        """
+        if self._social_partner is not None:
+            self._cancel_social()
+
+        self._alert_threat = threat
+        self._alert_turns_remaining = self.ALERT_DURATION
+
+        if self.behavior_state != NPCBehavior.ALERTED:
+            self.behavior_state = NPCBehavior.ALERTED
+            self._travel_path = None
+            self._debug_path = None
+
+    def _advance_alert_timer(self):
+        """
+        Called on a turn where _nearby_threat() found nothing in range
+        but we're still ALERTED from an earlier turn: count the fear
+        down by one, or drop it immediately if the monster we were
+        tracking has since died. Does not itself change behavior_state
+        away from ALERTED -- take_turn() re-checks that right after
+        calling this, so a duration that just hit 0 still gets to fall
+        through to _end_alert() in the same turn it expires rather than
+        taking one wasted extra turn to notice.
+        """
+        threat = self._alert_threat
+        if threat is None or not getattr(threat, "alive", False):
+            self._end_alert()
+            return
+
+        self._alert_turns_remaining -= 1
+        if self._alert_turns_remaining <= 0:
+            self._end_alert()
+
+    def _end_alert(self):
+        """Fear has worn off. Land back on WANDERING, same as
+        _end_social() -- the next take_turn() reconciles normally from
+        there, so whatever the schedule actually wants right now (back
+        AT_POST, home to SLEEP, ...) sorts itself out on its own."""
+        self._alert_threat = None
+        self._alert_turns_remaining = 0
+        self.behavior_state = NPCBehavior.WANDERING
+        self._travel_path = None
+        self._debug_path = None
+
+    def _flee_from_threat(self, game_map, game):
+        """
+        One ALERTED step: move to whichever reachable tile (including
+        staying put -- sometimes cornered is genuinely safest) puts the
+        most distance between us and the tracked threat, breaking ties
+        in favor of whichever of those tiles is closest to home.
+
+        "Stay away" always outranks "go home": home only ever decides
+        between two options that are *equally* safe. If the threat is
+        camped on or near our spawn point, no tile near home ties for
+        safest, so this drifts away from both the threat and home
+        together instead of walking back into danger -- the same
+        instinct a WoW-style fear has, just resolved fresh every turn
+        instead of picking one random direction and committing to it.
+
+        Deliberately ignores wander_bounds, unlike ordinary wandering --
+        an NPC fleeing for its life should be free to leave its usual
+        footprint if that's what safety actually requires.
+        """
+        threat = self._alert_threat
+        if threat is None:
+            return
+
+        def distance_from_threat(pos):
+            x, y = pos
+            return max(abs(threat.x - x), abs(threat.y - y))
+
+        def distance_from_home(pos):
+            x, y = pos
+            return max(abs(self.home[0] - x), abs(self.home[1] - y))
+
+        candidates = self._adjacent_walkable(game_map, game)
+        candidates.append((self.x, self.y))
+
+        self.x, self.y = max(
+            candidates, key=lambda pos: (distance_from_threat(pos), -distance_from_home(pos))
+        )
 
     # -- movement --------------------------------------------------------
 
