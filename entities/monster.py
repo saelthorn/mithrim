@@ -1,6 +1,7 @@
 import random
 from core.pathfinding import astar
-from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff, BlessingOfAgility, GuardBuff, ParryBuff
+from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff, BlessingOfAgility, GuardBuff, ParryBuff, Restrained, Frightened
+from entities.monster_abilities import Charge, Multiattack, Sweep, Knockback, Regeneration, Roar, CallToArms, Webbed
 from world.water_features import is_water_tile
 
 from items.items import (
@@ -305,6 +306,18 @@ class Monster:
         # (see Goblin below for an example). Monsters left empty still
         # get a generic fallback line from get_dialogue().
         self.dialogue_lines = []
+
+        # Autonomous monster-side abilities -- Charge, Multiattack, Sweep,
+        # Knockback, Regeneration, Roar, Call to Arms, Webbed (see
+        # entities/monster_abilities.py). Empty by default; individual
+        # subclasses below attach whichever abilities fit their concept,
+        # the same way Player subclasses populate self.abilities.
+        self.monster_abilities = []
+        # Set by take_damage() when fire/acid damage lands, and cleared
+        # at the top of take_turn() once this turn's Regeneration check
+        # has read it -- lets Regeneration (see monster_abilities.py)
+        # pause the turn immediately after a burn, same as a 5e Troll.
+        self.took_fire_or_acid_damage = False
 
             
 
@@ -734,9 +747,12 @@ class Monster:
 
 
     def attack(self, target, game, advantage=False, disadvantage=False):
-        """Updated attack with optional telegraph phase for bosses."""
+        """Updated attack with optional telegraph phase for bosses. Returns
+        True if the attack hit, False otherwise (including the telegraph-
+        priming turn and any early no-op) -- consulted by _perform_attack()
+        so on-hit MonsterAbilities only fire after an actual hit."""
         if target is None or not target.alive:
-            return
+            return False
 
         if getattr(self, 'footprint_size', 1) > 1:
             if self.attack_cooldown == 0:
@@ -751,8 +767,20 @@ class Monster:
                 self.telegraph_timer = 3
                 self.attack_cooldown = 5
                 game.message_log.add_message(f"The {self.name} prepares a devastating attack!", (255, 80, 80))
-                return
-    
+                return False
+
+        # Restrained targets are easy to hit; frightened attackers are
+        # rattled and strike less reliably -- see core/status_effects.py's
+        # Restrained/Frightened. Folded into the same advantage/
+        # disadvantage the caller may have already requested, exactly
+        # like the ParryBuff counter-riposte below reuses this signature
+        # rather than needing its own roll path.
+        if hasattr(target, 'active_status_effects'):
+            if any(isinstance(effect, Restrained) for effect in target.active_status_effects):
+                advantage = True
+        if any(isinstance(effect, Frightened) for effect in self.active_status_effects):
+            disadvantage = True
+
         roll1 = random.randint(1, 20)
         roll2 = random.randint(1, 20)
         final_d20_roll = roll1
@@ -862,6 +890,23 @@ class Monster:
                         game.handle_player_attack(self, game)
                         break
 
+        return hit_successful
+
+    def _perform_attack(self, target, game):
+        """
+        Wraps a normal melee attack() call so on-hit MonsterAbilities
+        (Multiattack, Sweep, Knockback, Webbed -- see
+        entities/monster_abilities.py) get a chance to react afterward.
+        take_turn()'s melee-attack call sites go through this instead of
+        calling self.attack() directly. Ranged attacks deliberately don't
+        route through here -- none of the current on-hit abilities are
+        meant to trigger off a ranged shot.
+        """
+        hit = self.attack(target, game)
+        if hit and target.alive:
+            for ability in self.monster_abilities:
+                ability.on_hit(self, target, game)
+        return hit
 
     def ranged_attack(self, target, game):
         """More powerful ranged attacks"""
@@ -1015,8 +1060,20 @@ class Monster:
                 "The rest of the group turns hostile!", (255, 100, 100)
             )
 
+    def heal(self, amount):
+        """Restore HP, capped at max_hp. Returns the actual amount healed
+        (e.g. for Regeneration's floating-text popup in monster_abilities.py)."""
+        if not self.alive or amount <= 0:
+            return 0
+        old_hp = self.hp
+        self.hp = min(self.max_hp, self.hp + amount)
+        return self.hp - old_hp
+
     def take_damage(self, amount, game_instance=None, damage_type=None):
         """Handle taking damage and return actual damage taken"""
+        if damage_type in ('fire', 'acid'):
+            self.took_fire_or_acid_damage = True
+
         # A sleeping monster that gets hit rouses its whole ambush group at
         # once - see Game._spawn_world_encounter_monsters() for how the group
         # is assembled and put to sleep in the first place.
@@ -1083,7 +1140,17 @@ class Monster:
             new_effect = AcidBurned(duration, source)
         elif effect_name == "Burning":
             new_effect = Burning(duration, source)
-        
+
+        elif effect_name == "Restrained":
+            # `source` is the MonsterAbility instance that applied this
+            # (see monster_abilities.py's Webbed), same convention as
+            # Player.add_status_effect() uses for "Guard"/"ParryBuff".
+            escape_dc = getattr(source, 'dc', 12)
+            new_effect = Restrained(duration, source=source, escape_dc=escape_dc)
+
+        elif effect_name == "Frightened":
+            new_effect = Frightened(duration, source=source)
+
         if new_effect:
             for existing_effect in self.active_status_effects:
                 if type(existing_effect) is type(new_effect):
@@ -1300,6 +1367,21 @@ class Monster:
         if not self.alive:
             return
 
+        # Tick every ability's cooldown once per turn, and let passive
+        # ones (currently just Regeneration) act immediately -- they
+        # don't compete for the turn's action, so they run unconditionally
+        # rather than through the should_trigger() check further below.
+        # took_fire_or_acid_damage still holds whatever last happened to
+        # this monster *before* this turn (set by take_damage(), possibly
+        # several player/ally turns ago); Regeneration reads it here, and
+        # it's cleared right after so a fresh hit is needed to suppress
+        # healing again next turn.
+        for ability in self.monster_abilities:
+            ability.tick_cooldown()
+            if ability.passive:
+                ability.use(self, None, game)
+        self.took_fire_or_acid_damage = False
+
         # PASSIVE/NEUTRAL monsters (see the Disposition docstring near the
         # top of this file) never detect, target, or chase anything on
         # their own -- they just stand/wander undisturbed until provoke()
@@ -1313,47 +1395,45 @@ class Monster:
         if self.disposition != Disposition.AGGRESSIVE:
             return
 
-        # Attack whichever valid target is actually nearest right now --
-        # a companion no longer automatically outranks the player just
-        # for existing; both are compared by the same distance metric,
-        # so a monster with a summon standing right next to it but the
-        # player five tiles closer through an open door goes for the
-        # player instead. Companion candidates come from
-        # game._owned_blocking_entities, refreshed once per player
-        # action (see Game._refresh_owned_blocking_entities_cache())
-        # instead of every monster re-scanning the full entity list here
-        # -- this used to run unconditionally on every active monster's
-        # turn, attack turns included, which made it the dominant
-        # per-turn cost in a crowded fight even after movement-triggered
-        # FOV recomputes were fixed. .alive is still re-checked per
-        # candidate below, so a summon that died earlier in this same
-        # batch (to another monster's attack) is simply skipped rather
-        # than trusted from the snapshot.
+        # Attack whoever is actually nearest -- the player or any of
+        # their summoned companions -- rather than always preferring a
+        # summon regardless of how much closer the player might be.
+        # Summon candidates come from game._owned_blocking_entities,
+        # refreshed once per player action (see Game._refresh_owned_
+        # blocking_entities_cache()) instead of every monster re-scanning
+        # the full entity list here -- this used to run unconditionally
+        # on every active monster's turn, attack turns included, which
+        # made it the dominant per-turn cost in a crowded fight even
+        # after movement-triggered FOV recomputes were fixed. .alive is
+        # still re-checked per candidate below, so a summon that died
+        # earlier in this same batch (to another monster's attack) is
+        # simply skipped rather than trusted from the snapshot.
         target_entity = None
         target_distance = float('inf')
 
-        for entity in getattr(game, '_owned_blocking_entities', None) or []:
-            if entity.alive:
-                dist = self.distance_to(entity.x, entity.y)
-                if dist < target_distance:
-                    target_distance = dist
-                    target_entity = entity
+        candidates = [player]
+        candidates.extend(getattr(game, '_owned_blocking_entities', None) or [])
 
-        player_distance = self.distance_to(player.x, player.y)
-        if player_distance < target_distance:
-            target_distance = player_distance
-            target_entity = player
+        # Fighting-back guards (see GuardVictim in entities/dungeon_npcs.py)
+        # compete on the same "nearest" footing as the player/summons above,
+        # rather than only being considered when nothing else is around.
+        from entities.dungeon_npcs import GuardVictim
+        candidates.extend(
+            entity for entity in game.entities
+            if isinstance(entity, GuardVictim) and entity.alive
+        )
 
-        # No summons around - fighting-back guards (see GuardVictim in
-        # entities/dungeon_npcs.py) are the next priority, ahead of the player.
+        for entity in candidates:
+            if not entity.alive:
+                continue
+            dist = self.distance_to(entity.x, entity.y)
+            if dist < target_distance:
+                target_distance = dist
+                target_entity = entity
+
         if target_entity is None:
-            from entities.dungeon_npcs import GuardVictim
-            for entity in game.entities:
-                if isinstance(entity, GuardVictim) and entity.alive:
-                    dist = self.distance_to(entity.x, entity.y)
-                    if dist < target_distance:
-                        target_distance = dist
-                        target_entity = entity
+            target_entity = player
+            target_distance = self.distance_to(player.x, player.y)
 
         # Decrement timers
         if self.attack_cooldown > 0:
@@ -1384,6 +1464,22 @@ class Monster:
 
         if not player_detected and self.is_intelligent:
             self.check_torchlight_in_range(game)
+
+        # Give turn-level abilities (Charge, Roar, Call to Arms -- see
+        # entities/monster_abilities.py) a chance to pre-empt the normal
+        # move-or-attack decision below, same idea as the telegraph
+        # pre-empt above but opt-in per monster via self.monster_abilities.
+        # On-hit abilities (Multiattack/Sweep/Knockback/Webbed) and the
+        # passive Regeneration tick both skip should_trigger() entirely
+        # (see their should_trigger()/passive definitions), so this loop
+        # only ever considers the turn-competing kind.
+        if player_detected and self.monster_abilities:
+            for ability in self.monster_abilities:
+                if ability.passive:
+                    continue
+                if ability.should_trigger(self, target_entity, target_distance, game):
+                    if ability.use(self, target_entity, game):
+                        return
 
         # --- IMPROVED: AI STATE MANAGEMENT FOR INTELLIGENT MONSTERS ---
         if self.is_intelligent and player_detected:
@@ -1480,7 +1576,7 @@ class Monster:
                     self.ranged_attack(target_entity, game)
                     return
                 elif self.is_adjacent_to(target_entity):
-                    self.attack(target_entity, game)
+                    self._perform_attack(target_entity, game)
                     return
                 else:
                     # Charge toward target aggressively. A capped
@@ -1533,7 +1629,7 @@ class Monster:
                     return
 
                 if self.is_adjacent_to(target_entity):
-                    self.attack(target_entity, game)
+                    self._perform_attack(target_entity, game)
                     return
 
                 target_pos = (target_entity.x, target_entity.y) if game.check_line_of_sight(self.x, self.y, target_entity.x, target_entity.y) else self.last_known_player_position
@@ -1633,7 +1729,7 @@ class Monster:
                     self.ranged_attack(target_entity, game)
                     return
                 elif self.is_adjacent_to(target_entity):
-                    self.attack(target_entity, game)
+                    self._perform_attack(target_entity, game)
                     return
                 else:
                     self.move_towards(target_entity.x, target_entity.y, game_map, game)
@@ -1990,6 +2086,11 @@ class Goblin(Monster):
         self.is_intelligent = True
         self.can_poison = True
 
+        # A lone goblin shrieking for backup is a classic dungeon-room
+        # beat -- once it spots the player, every goblin (or anything
+        # else) within radius wakes and converges too.
+        self.monster_abilities = [CallToArms(radius=8, cooldown=40)]
+
         self.loot_table = [
             (iron_dagger, 0.8)
         ]
@@ -2115,6 +2216,10 @@ class Orc(Monster):
         self.num_damage_dice = 1
         self.is_intelligent = True
 
+        # Orcs get a second swing in a single Aggressive assault, same
+        # as their 5e statblock.
+        self.monster_abilities = [Multiattack(extra_attacks=1)]
+
         self.loot_table = [
             (steel_battle_axe, 0.75)
         ]
@@ -2227,6 +2332,11 @@ class Troll(Monster):
         
         self.footprint_size = 2
 
+        # Trolls regenerate wounds every turn unless recently burned,
+        # and its maul is wide enough to catch more than one target
+        # standing next to it -- both straight out of 5e.
+        self.monster_abilities = [Regeneration(heal_amount=10), Sweep(cooldown=3)]
+
         self.loot_table = [
             (steel_maul, 0.85),
         ]
@@ -2328,6 +2438,7 @@ class GiantSpider(Monster):
         self.poison_duration = 3
         self.poison_damage_per_turn = 4
         self.web_restrain = True
+        self.monster_abilities = [Webbed(dc=self.poison_dc, duration=3)]
         self.is_intelligent = False
 
         self.saving_throw_proficiencies = {
@@ -2397,6 +2508,10 @@ class LargeOoze(Monster):
         self.split_on_slash = True
         self.is_intelligent = False
 
+        # A huge, engulfing body -- anything standing next to it when it
+        # lashes out gets caught in the same strike.
+        self.monster_abilities = [Sweep(cooldown=2)]
+
         self.loot_table = [
             (bronze_short_sword, 0.30),
             (round_shield, 0.25)
@@ -2441,6 +2556,10 @@ class RedDragon(Monster):
         self.burn_damage_per_turn = 6
         self.burn_duration = 4
 
+        # A dragon's roar is as much a weapon as its claws -- frighten
+        # whoever's nearby before closing in with its breath/bite.
+        self.monster_abilities = [Roar(dc=16, duration=3, use_range=8, cooldown=12)]
+
         self.saving_throw_proficiencies = {
             "STR": False,
             "DEX": True,
@@ -2468,6 +2587,10 @@ class Owlbear(Monster):
         self.detection_range = 5
         self.num_damage_dice = 2
         self.is_intelligent = False
+
+        # Claws-then-beak: a second swing follows the first, and a
+        # solid hit sends whatever it's mauling stumbling backward.
+        self.monster_abilities = [Multiattack(extra_attacks=1), Knockback(distance=1, cooldown=3)]
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -2520,6 +2643,9 @@ class AlphaGrick(Monster):
         self.detection_range = 10
         self.num_damage_dice = 2
         self.is_intelligent = False
+
+        # A powerful tentacle strike shoves whatever it hits backward.
+        self.monster_abilities = [Knockback(distance=2, cooldown=2)]
 
         self.loot_table = [
             (meat, 0.25)
@@ -2642,6 +2768,10 @@ class Minotaur(Monster):
         self.detection_range = 6
         self.num_damage_dice = 2
         self.is_intelligent = True
+
+        # Lowers its horns and charges from a distance -- the whole
+        # reason for the "testing the air" ambient line above.
+        self.monster_abilities = [Charge(min_range=3, max_tiles=5, bonus_damage=5, cooldown=6)]
 
         self.loot_table = [
             (steel_battle_axe, 0.75),

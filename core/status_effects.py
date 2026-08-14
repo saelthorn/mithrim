@@ -43,8 +43,62 @@ class Poisoned(StatusEffect):
 
 
 class Restrained(StatusEffect):
+    """
+    Bound in place -- webbing, vines, a grapple. A restrained creature
+    cannot move (see Player/Monster movement call sites, which should
+    check `target.has_status_effect(Restrained)` before allowing a
+    step) and attacks against it should be rolled with advantage while
+    its own attacks suffer disadvantage (see Monster.attack()'s target-AC
+    loop and game.py's handle_player_attack()'s advantage/disadvantage
+    setup, both of which already loop `active_status_effects` the same
+    way for EvasionBuff/BlessingOfAgility).
+
+    Each turn this effect is active, the bound creature gets an
+    automatic chance to struggle free (a STR save against `escape_dc`)
+    -- if it succeeds, the effect ends immediately that same turn
+    rather than running out its full duration, mirroring 5e's "you can
+    use your action to escape" but automated since this codebase has
+    no separate action economy to spend that action from.
+    """
+
+    def __init__(self, duration, source=None, escape_dc=12):
+        super().__init__("Restrained", duration, source)
+        self.escape_dc = escape_dc
+
+    def apply_effect(self, target, game_instance):
+        if self.turns_left <= 0:
+            return
+
+        if self.turns_left == self.duration:
+            game_instance.message_log.add_message(f"{target.name} is restrained!", (200, 200, 100))
+
+        if hasattr(target, "make_saving_throw") and target.make_saving_throw("STR", self.escape_dc, game_instance):
+            game_instance.message_log.add_message(f"{target.name} breaks free!", (0, 255, 0))
+            self.turns_left = 0  # ends this same processing pass, see Monster/Player.process_status_effects
+
+    def on_end(self, target, game_instance):
+        super().on_end(target, game_instance)
+
+
+class Frightened(StatusEffect):
+    """
+    Shaken by fear (see monster_abilities.py's Roar). While active, the
+    frightened creature's own attacks are rolled with disadvantage --
+    same integration point as Restrained above: Monster.attack() and
+    game.py's handle_player_attack() should check for this effect on
+    the *attacker* (not the target) when deciding disadvantage.
+    """
+
     def __init__(self, duration, source=None):
-        super().__init__("Restrained", duration, source)            
+        super().__init__("Frightened", duration, source)
+
+    def apply_effect(self, target, game_instance):
+        if self.turns_left == self.duration:
+            game_instance.message_log.add_message(f"{target.name} is frightened!", (200, 100, 255))
+
+    def on_end(self, target, game_instance):
+        super().on_end(target, game_instance)
+        game_instance.message_log.add_message(f"{target.name} is no longer frightened.", (150, 150, 150))
 
 
 class Burning(StatusEffect):

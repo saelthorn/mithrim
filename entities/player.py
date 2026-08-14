@@ -45,7 +45,7 @@ from core.status_effects import (
     BlessingOfBloodlust, BlessingOfFortitude, CurseOfRot, ParryBuff, StatusEffect, DivineStrikeBuff, Poisoned, 
     AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, 
     CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff, PreciseStrikeBuff, Prepared, 
-    FleetFooted, AppliedToxins, SpotTrapsEffect, DetectMagicEffect, HunterMarkBuff
+    FleetFooted, AppliedToxins, SpotTrapsEffect, DetectMagicEffect, HunterMarkBuff, Restrained, Frightened
 )
 
 from items.items import ( 
@@ -1937,6 +1937,17 @@ class Player: # This is our base class for playable characters
 
         elif effect_name == "DetectMagicEffect":
             new_effect = DetectMagicEffect(duration)
+
+        elif effect_name == "Restrained":
+            # `source` is the MonsterAbility instance that applied this
+            # (see monster_abilities.py's Webbed), same convention as
+            # "Guard"/"ParryBuff" above reading their bonus straight off
+            # the ability object rather than needing a dedicated param.
+            escape_dc = getattr(source, 'dc', 12)
+            new_effect = Restrained(duration, source=source, escape_dc=escape_dc)
+
+        elif effect_name == "Frightened":
+            new_effect = Frightened(duration, source=source)
 
         if new_effect:
             for existing_effect in self.active_status_effects:

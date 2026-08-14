@@ -408,7 +408,7 @@ from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, 
 from core.message_log import MessageBox
 from core.status_effects import (
     ParryBuff, PowerAttackBuff, DivineStrikeBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness, 
-    PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins
+    PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins, Restrained, Frightened
 )
 from items.items import (
     Potion, Weapon, Armor, OffHand, Chest, LockedChest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
@@ -7974,6 +7974,15 @@ class Game:
               
             advantage = True       
 
+        # Restrained targets (see entities/monster_abilities.py's Webbed)
+        # are easy to hit; a frightened player (Roar) swings less
+        # reliably. Same rule Monster.attack() applies symmetrically to
+        # monster-on-player attacks.
+        if hasattr(target, 'active_status_effects'):
+            if any(isinstance(effect, Restrained) for effect in target.active_status_effects):
+                advantage = True
+        if any(isinstance(effect, Frightened) for effect in self.player.active_status_effects):
+            disadvantage = True
 
         if advantage and disadvantage: # They cancel each other out
             self.message_log.add_message("Advantage and Disadvantage cancel out.", (150, 150, 150))
