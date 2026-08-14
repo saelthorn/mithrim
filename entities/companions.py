@@ -716,7 +716,7 @@ class CombatCompanion(SummonedEntity):
         # Same +2-at-1/+1-per-4-levels progression Player's proficiency
         # bonus follows -- kept local rather than imported for the same
         # "no dependency on player.py" reasoning as the formulas below.
-        self.proficiency_bonus = 2 + max(0, (self.level - 1) // 4)
+        self.proficiency_bonus = 1 + max(0, (self.level - 1) // 4)
 
         # HP/AC/attack derived below, once ability scores are final.
         self._recalculate_stats()
@@ -949,7 +949,7 @@ class CombatCompanion(SummonedEntity):
             return
 
         self.level += 1
-        self.proficiency_bonus = 2 + max(0, (self.level - 1) // 4)
+        self.proficiency_bonus = 1 + max(0, (self.level - 1) // 4)
 
         # HP/AC/attack all derive from level via proficiency_bonus and
         # the hit-die progression in _recalculate_stats() -- recomputing
