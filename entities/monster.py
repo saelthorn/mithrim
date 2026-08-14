@@ -1313,16 +1313,22 @@ class Monster:
         if self.disposition != Disposition.AGGRESSIVE:
             return
 
-        # Check for player's summoned entities and prioritize attacking them.
-        # Candidates come from game._owned_blocking_entities, refreshed once
-        # per player action (see Game._refresh_owned_blocking_entities_cache())
-        # instead of every monster re-scanning the full entity list here --
-        # this used to run unconditionally on every active monster's turn,
-        # attack turns included, which made it the dominant per-turn cost in
-        # a crowded fight even after movement-triggered FOV recomputes were
-        # fixed. .alive is still re-checked per candidate below, so a summon
-        # that died earlier in this same batch (to another monster's attack)
-        # is simply skipped rather than trusted from the snapshot.
+        # Attack whichever valid target is actually nearest right now --
+        # a companion no longer automatically outranks the player just
+        # for existing; both are compared by the same distance metric,
+        # so a monster with a summon standing right next to it but the
+        # player five tiles closer through an open door goes for the
+        # player instead. Companion candidates come from
+        # game._owned_blocking_entities, refreshed once per player
+        # action (see Game._refresh_owned_blocking_entities_cache())
+        # instead of every monster re-scanning the full entity list here
+        # -- this used to run unconditionally on every active monster's
+        # turn, attack turns included, which made it the dominant
+        # per-turn cost in a crowded fight even after movement-triggered
+        # FOV recomputes were fixed. .alive is still re-checked per
+        # candidate below, so a summon that died earlier in this same
+        # batch (to another monster's attack) is simply skipped rather
+        # than trusted from the snapshot.
         target_entity = None
         target_distance = float('inf')
 
@@ -1333,10 +1339,10 @@ class Monster:
                     target_distance = dist
                     target_entity = entity
 
-
-        if target_entity is None:
+        player_distance = self.distance_to(player.x, player.y)
+        if player_distance < target_distance:
+            target_distance = player_distance
             target_entity = player
-            target_distance = self.distance_to(player.x, player.y)
 
         # No summons around - fighting-back guards (see GuardVictim in
         # entities/dungeon_npcs.py) are the next priority, ahead of the player.

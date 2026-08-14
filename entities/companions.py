@@ -418,7 +418,7 @@ WIZARD = CompanionClass(
         "intelligence": 16, "wisdom": 10, "charisma": 10,
     },
     primary_stat="intelligence",
-    combat_style="melee",
+    combat_style="ranged",
     weapon=oak_staff,
     armor=robes,
     boots=leather_boots,
@@ -430,8 +430,8 @@ WIZARD = CompanionClass(
     },
     weapon_proficiencies=["Quarterstaff", "Dagger"],
     armor_proficiencies=["Light"],
-    damage_type="bludgeoning",
-    attack_range=1,    
+    damage_type="magic",
+    attack_range=5,    
     abilities = {}
 )
 

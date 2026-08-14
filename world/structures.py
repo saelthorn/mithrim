@@ -96,6 +96,13 @@ def _spawn_tavern_patron(x, y):
     which already accepts a race + CompanionClass pair) can read back
     which race/class this patron's sprite represents, rather than the
     choice only existing as a char/color pair that gets thrown away.
+
+    They also get modest combat stats (`attack_power`, `proficiency_
+    bonus`, `armor_class`) that a plain villager never needs -- looking
+    like an adventurer is also what TownNPC._is_adventurer() checks to
+    decide that this patron fights back (see town_npcs.py's "-- alert /
+    fear --" section) instead of fleeing when a monster wanders into
+    town, and TownNPC.attack() needs those fields to actually swing.
     """
     patron = Townsfolk(x, y)
 
@@ -109,6 +116,14 @@ def _spawn_tavern_patron(x, y):
     patron.color = color
     patron.visual_race = race
     patron.visual_class = class_name
+
+    # A journeyman-level fighter, not a hero -- enough to hold their own
+    # against a single stray monster, not to solo a warband. Deliberately
+    # not scaled to the player's own level: a tavern patron's toughness
+    # shouldn't quietly track the player's progression.
+    patron.attack_power = 1
+    patron.proficiency_bonus = 1
+    patron.armor_class = 13
     return patron
 
 

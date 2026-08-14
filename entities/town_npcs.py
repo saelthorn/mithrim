@@ -310,7 +310,10 @@ class TownNPC(NPC):
             self._advance_alert_timer()
 
         if self.behavior_state == NPCBehavior.ALERTED:
-            self._flee_from_threat(game_map, game)
+            if self._is_adventurer():
+                self._engage_threat(game_map, game)
+            else:
+                self._flee_from_threat(game_map, game)
             return
 
         if self.behavior_state == NPCBehavior.SOCIALIZING:
@@ -600,14 +603,16 @@ class TownNPC(NPC):
     # A living, AGGRESSIVE Monster (see Disposition in entities/monster.py)
     # within ALERT_DETECT_RADIUS puts an NPC into ALERTED -- checked first
     # in take_turn(), ahead of everything else, so it interrupts a
-    # conversation, a trip home, or even sleep. While ALERTED, every turn
-    # is spent stepping to whichever reachable tile keeps the most
-    # distance from the tracked threat, biased toward home only when that
-    # doesn't cost any of that distance -- see _flee_from_threat().
-    # ALERT_DURATION turns after the last threat sighted, fear wears off
-    # and the NPC drops back to WANDERING, letting the very next turn's
-    # ordinary schedule reconciliation sort out where it should actually
-    # be.
+    # conversation, a trip home, or even sleep. While ALERTED, most
+    # patrons spend every turn stepping to whichever reachable tile keeps
+    # the most distance from the tracked threat, biased toward home only
+    # when that doesn't cost any of that distance -- see
+    # _flee_from_threat(). The exception is an adventurer-marked patron
+    # (see _is_adventurer()): they close in and fight instead -- see
+    # _engage_threat(). Either way, ALERT_DURATION turns after the last
+    # threat sighted, fear wears off and the NPC drops back to WANDERING,
+    # letting the very next turn's ordinary schedule reconciliation sort
+    # out where it should actually be.
 
     def _nearby_threat(self, game):
         """
@@ -726,6 +731,86 @@ class TownNPC(NPC):
         self.x, self.y = max(
             candidates, key=lambda pos: (distance_from_threat(pos), -distance_from_home(pos))
         )
+
+    def _is_adventurer(self):
+        """
+        Whether this patron is one of structures.py's
+        _spawn_tavern_patron() race+class rolls (TAVERN_PATRON_ADVENTURER_
+        CHANCE odds) rather than a plain villager -- `visual_race`/
+        `visual_class` are only ever set on that roll, so their presence
+        alone is the marker. This is the one thing that decides ALERTED's
+        engage-vs-flee split in take_turn(); plain villagers (Innkeeper,
+        Shopkeeper, Blacksmith, Priest, and undressed Townsfolk) always
+        answer False here and keep fleeing.
+        """
+        return getattr(self, "visual_race", None) is not None
+
+    def _engage_threat(self, game_map, game):
+        """
+        One ALERTED step for an adventurer-marked patron (see
+        _is_adventurer()): close in on the tracked threat and, once
+        adjacent, attack it -- instead of fleeing like every other
+        patron does in _flee_from_threat(). The sprite _spawn_tavern_
+        patron() gives them ("someone worth recruiting") carries over to
+        how they actually behave once a fight breaks out nearby.
+
+        Reuses _advance_along_path()'s cached-astar()-route machinery to
+        close the distance, the same way TRAVELING chases down home/post.
+        Unlike that fixed-tile case, the target here is a moving monster,
+        so the cached route goes stale most turns and gets silently
+        replanned -- expected and cheap enough at the handful of patrons
+        ever ALERTED at once.
+        """
+        threat = self._alert_threat
+        if threat is None or not getattr(threat, "alive", False):
+            return
+
+        if self._chebyshev_distance(threat) <= 1:
+            self.attack(threat, game)
+            return
+
+        self._advance_along_path(game_map, game, (threat.x, threat.y))
+
+    def attack(self, target, game):
+        """
+        A single melee swing at `target`, thrown only from
+        _engage_threat() once an adventurer-marked patron has closed to
+        melee range. Mirrors summons.py's Imp.attack_enemy(): a d20
+        attack roll against the target's AC, then a weapon damage roll
+        plus attack_power on a hit -- kept as its own small, self-
+        contained roll rather than reusing Monster.attack(), which
+        expects monster-only fields (num_damage_dice, monster_die_type)
+        this NPC doesn't have.
+        """
+        d20_roll = random.randint(1, 20)
+        attack_bonus = self.attack_power + self.proficiency_bonus
+        attack_total = d20_roll + attack_bonus
+        target_ac = getattr(target, "armor_class", 10)
+
+        game.message_log.add_message(
+            f"{self.name} rolls a d20: [{d20_roll}] + [{attack_bonus}] (Attack Bonus) = {attack_total} vs AC {target_ac}!",
+            (200, 200, 255),
+        )
+
+        if attack_total < target_ac:
+            game.message_log.add_message(f"{self.name}'s strike misses {target.name}!", (150, 150, 150))
+            game.floating_texts.append(FloatingText(target.x, target.y, "MISS!", (150, 150, 150)))
+            return
+
+        damage_roll = random.randint(1, 6)
+        damage_dealt = target.take_damage(damage_roll + self.attack_power, game, damage_type="slashing")
+
+        game.message_log.add_message(
+            f"{self.name} rolls a 1d6: [{damage_roll}] + [{self.attack_power}] (Attack Power) = {damage_dealt} damage!",
+            (200, 200, 255),
+        )
+        game.message_log.add_message(f"{self.name} strikes {target.name} for {damage_dealt} damage!", (200, 200, 255))
+
+        game.floating_texts.append(FloatingText(target.x, target.y, "HIT!", (255, 255, 0)))
+        game.floating_texts.append(FloatingText(target.x, target.y - 0.5, str(damage_dealt), (255, 0, 0)))
+
+        if not target.alive:
+            game.message_log.add_message(f"{target.name} has been slain by {self.name}!", (200, 0, 0))
 
     # -- movement --------------------------------------------------------
 
