@@ -1334,13 +1334,13 @@ class CombatCompanion(SummonedEntity):
                 # kill landed by a companion, exactly as they do for one
                 # landed by the player. `killer=self.owner` (the player)
                 # keeps that attribution identical to every other kill
-                # site in the game; the companion's own reward is
-                # tracked separately via gain_xp() below.
+                # site in the game. XP itself goes through game.py's
+                # award_shared_xp() -- the whole party (player +
+                # every active CombatCompanion, this one included)
+                # gains XP from a kill regardless of which of them
+                # actually landed it, not just this companion.
                 xp_gained = target.die(game_instance, killer=self.owner)
-                self.gain_xp(xp_gained, game_instance)
-                game_instance.message_log.add_message(
-                    f"{self.name} gains {xp_gained} XP!", self.color
-                )
+                game_instance.award_shared_xp(xp_gained)
                 game_instance._notify_monster_killed(target, killer=self.owner)
         else:
             miss_line = random.choice(flavor["misses"]).format(name=self.name, target=target.name)

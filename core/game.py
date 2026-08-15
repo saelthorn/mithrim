@@ -5940,7 +5940,7 @@ class Game:
                     # Award XP if the fire kills a monster
                     if not entity.alive and isinstance(entity, Monster):
                         xp_gained = entity.die(self, killer=self.player)
-                        self.player.gain_xp(xp_gained, self)
+                        self.award_shared_xp(xp_gained)
                         self._notify_monster_killed(entity, killer=self.player)
 
             # Advance the fire tile's duration counter
@@ -5990,6 +5990,16 @@ class Game:
             return
         entity._fire_kill_reported = True
         self.stories.fire_kill(entity, instigator=killer or self.player, group_id=getattr(entity, "group_id", None))
+
+    def award_shared_xp(self, xp_gained):
+        self.player.gain_xp(xp_gained, self)
+        self.message_log.add_message(f"You gain {xp_gained} XP!", (100, 255, 100))
+
+        for companion in self.combat_companions:
+            if not getattr(companion, "alive", True):
+                continue
+            companion.gain_xp(xp_gained, self)
+            self.message_log.add_message(f"{companion.name} gains {xp_gained} XP!", companion.color)
 
     def cleanup_entities(self):
         """Remove dead or expired entities/items from the game world."""
@@ -8208,8 +8218,7 @@ class Game:
     
             if not target.alive:
                 xp_gained = target.die(game_instance, killer=self.player)
-                self.player.gain_xp(xp_gained, game_instance)  # Use 'self' (player) here
-                self.message_log.add_message(f"You gain {xp_gained} XP!", (100, 255, 100))  # Log the XP gained
+                self.award_shared_xp(xp_gained)
                 self._notify_monster_killed(target, killer=self.player)
                 if target.name == 'Arasta' and self.current_level == 20:
                     self.handle_victory()
