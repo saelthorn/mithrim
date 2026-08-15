@@ -3547,6 +3547,36 @@ class Game:
     # story or a freed PrisonerNPC could call recruit_companion() the same
     # way without any changes here.
 
+    def _remove_entity_from_world(self, entity):
+        """
+        Strips `entity` out of self.entities/turn_order for the current
+        turn AND out of whichever overworld chunk's persistent
+        "population" list still holds that same reference.
+
+        generate_overworld_map() rebuilds self.entities fresh from
+        chunk["population"] every time a chunk is (re-)entered (see that
+        method) -- self.entities.remove() alone only affects the live
+        copy for this visit, so a recruited tavern patron (part of that
+        chunk's population since create_town_npcs()) would silently
+        reappear, un-recruited, the next time the player walked back
+        into that chunk. Removing it from the chunk's own list here
+        makes the recruit permanent, the same way a dead monster or a
+        story-spawned NPC's removal already is.
+
+        Used by both recruit_companion() and recruit_combat_companion()
+        so any future recruitment path gets this for free.
+        """
+        if entity in self.entities:
+            self.entities.remove(entity)
+        if entity in self.turn_order:
+            self.turn_order.remove(entity)
+
+        for chunk in self.overworld_chunks.values():
+            population = chunk.get("population")
+            if population and entity in population:
+                population.remove(entity)
+                break
+
     def recruit_companion(self, source_entity, escort_id=None, reward_consequences=None, escort_hours=0, dialogue=None):
         """
         Turns a live NPC entity already in self.entities into a
@@ -3575,10 +3605,7 @@ class Game:
         _resolve_world_encounter_aftermath_choice()) without triggering
         that fallback.
         """
-        if source_entity in self.entities:
-            self.entities.remove(source_entity)
-        if source_entity in self.turn_order:
-            self.turn_order.remove(source_entity)
+        self._remove_entity_from_world(source_entity)
 
         companion = EscortCompanion(
             source_entity.x, source_entity.y,
@@ -3744,10 +3771,7 @@ class Game:
         if isinstance(companion_class, str):
             companion_class = self.COMPANION_CLASSES[companion_class]
 
-        if source_entity in self.entities:
-            self.entities.remove(source_entity)
-        if source_entity in self.turn_order:
-            self.turn_order.remove(source_entity)
+        self._remove_entity_from_world(source_entity)
 
         companion = CombatCompanion(
             source_entity.x, source_entity.y,
