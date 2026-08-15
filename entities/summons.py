@@ -2,7 +2,7 @@ import random
 from entities.base_entity import NPC # Reusing NPC as a base for simplicity
 from entities.monster import Monster
 from entities.dungeon_npcs import DungeonHealer, DungeonMerchant
-from core.status_effects import Poisoned, AcidBurned, Burning, Restrained, Frightened
+from core.status_effects import Poisoned, AcidBurned, Burning, Restrained, Frightened, is_restrained
 from core.pathfinding import astar
 from core import game
 from core.floating_text import FloatingText
@@ -509,6 +509,9 @@ class Imp(SummonedEntity):
             self.attack_enemy(target, game_instance)
             return
 
+        if is_restrained(self):
+            return  # speed 0 -- see core/status_effects.py's Restrained; can still attack (above), just not chase or follow
+
         # Priority 2: Find enemies within 8 tiles and pathfind toward the nearest one
         enemies_in_range = []
         for entity in game_instance.entities:
@@ -724,6 +727,9 @@ class Celestial(SummonedEntity):
             self.attack_enemy(target, game_instance)
             return             
 
+        if is_restrained(self):
+            return  # speed 0 -- see core/status_effects.py's Restrained; can still attack (above), just not chase or follow
+
         # Priority 2: Find enemies within 8 tiles and pathfind toward the nearest one
         enemies_in_range = []
         for entity in game_instance.entities:
@@ -933,6 +939,9 @@ class SpiritualWeaponEntity(SummonedEntity):
             target = min(adjacent_enemies, key=lambda e: abs(self.x - e.x) + abs(self.y - e.y))
             self.attack_enemy(target, game_instance)
             return
+
+        if is_restrained(self):
+            return  # speed 0 -- see core/status_effects.py's Restrained; can still attack (above), just not chase or follow
 
         enemies_in_range = []
         for entity in game_instance.entities:
@@ -1146,6 +1155,9 @@ class AnimalCompanion(SummonedEntity):
             target = min(adjacent_enemies, key=lambda e: abs(self.x - e.x) + abs(self.y - e.y))
             self.attack_enemy(target, game_instance)
             return
+
+        if is_restrained(self):
+            return  # speed 0 -- see core/status_effects.py's Restrained; can still attack (above), just not chase or follow
 
         # Priority 2: Find enemies within 8 tiles and pathfind toward the nearest one
         enemies_in_range = []

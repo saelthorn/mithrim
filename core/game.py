@@ -408,7 +408,7 @@ from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, 
 from core.message_log import MessageBox
 from core.status_effects import (
     ParryBuff, PowerAttackBuff, DivineStrikeBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness, 
-    PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins, Restrained, Frightened
+    PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins, Restrained, Frightened, is_restrained
 )
 from items.items import (
     Potion, Weapon, Armor, OffHand, Chest, LockedChest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
@@ -7516,6 +7516,22 @@ class Game:
             return False
 
         elif self.game_state == GameState.DUNGEON or self.game_state == GameState.OVERWORLD:
+            # A restrained player (see core/status_effects.py's Restrained,
+            # applied by things like a Giant Spider's web) has a speed of
+            # 0 -- every branch below this point changes the player's
+            # position one way or another (stepping onto an empty tile,
+            # crossing a chunk edge, descending stairs, swapping places
+            # with a companion/NPC, digging through a destructible wall),
+            # so all of them are blocked here in one place. Bump-attacking
+            # an adjacent monster is deliberately still allowed -- being
+            # restrained stops you from moving, not from fighting back.
+            if is_restrained(self.player) and not any(
+                isinstance(entity, Monster) and entity.alive and entity.x == new_x and entity.y == new_y
+                for entity in self.entities
+            ):
+                self.message_log.add_message("You're restrained and can't move!", (200, 200, 100))
+                return False
+
             if self.game_state == GameState.OVERWORLD:
                 if not (0 <= new_x < self.game_map.width and 0 <= new_y < self.game_map.height):
                     # Walked off the edge of this chunk — step into whichever neighboring

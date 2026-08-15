@@ -45,13 +45,12 @@ class Poisoned(StatusEffect):
 class Restrained(StatusEffect):
     """
     Bound in place -- webbing, vines, a grapple. A restrained creature
-    cannot move (see Player/Monster movement call sites, which should
-    check `target.has_status_effect(Restrained)` before allowing a
-    step) and attacks against it should be rolled with advantage while
-    its own attacks suffer disadvantage (see Monster.attack()'s target-AC
-    loop and game.py's handle_player_attack()'s advantage/disadvantage
-    setup, both of which already loop `active_status_effects` the same
-    way for EvasionBuff/BlessingOfAgility).
+    cannot move (see is_restrained() below, and the movement call sites
+    that gate on it) and attacks against it should be rolled with
+    advantage while its own attacks suffer disadvantage (see
+    Monster.attack()'s target-AC loop and game.py's handle_player_
+    attack()'s advantage/disadvantage setup, both of which already loop
+    `active_status_effects` the same way for EvasionBuff/BlessingOfAgility).
 
     Each turn this effect is active, the bound creature gets an
     automatic chance to struggle free (a STR save against `escape_dc`)
@@ -78,6 +77,24 @@ class Restrained(StatusEffect):
 
     def on_end(self, target, game_instance):
         super().on_end(target, game_instance)
+
+
+def is_restrained(entity):
+    """
+    True if `entity` currently carries a Restrained effect -- the one
+    check every movement call site should gate on before letting an
+    entity change position: game.py's handle_player_action() (the
+    player's own movement), Monster.move_towards()/patrol()/kite()/
+    flee() and Charge's tile-stepping in monster_abilities.py, and the
+    follow/chase movement in companions.py's CombatCompanion and
+    summons.py's Imp/Celestial/AnimalCompanion/EscortCompanion.
+
+    A plain module-level function rather than a method on each of those
+    classes, since Restrained can land on any of them and this way
+    every call site imports the same single check instead of five
+    near-identical isinstance loops drifting out of sync with each other.
+    """
+    return any(isinstance(effect, Restrained) for effect in getattr(entity, 'active_status_effects', ()))
 
 
 class Frightened(StatusEffect):

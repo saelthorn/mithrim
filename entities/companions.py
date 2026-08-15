@@ -13,7 +13,7 @@ from core.status_effects import (
     BlessingOfBloodlust, BlessingOfFortitude, CurseOfRot, ParryBuff, StatusEffect, DivineStrikeBuff, Poisoned, 
     AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, 
     CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff, PreciseStrikeBuff, Prepared, 
-    FleetFooted, AppliedToxins, SpotTrapsEffect, DetectMagicEffect, HunterMarkBuff, Restrained, Frightened
+    FleetFooted, AppliedToxins, SpotTrapsEffect, DetectMagicEffect, HunterMarkBuff, Restrained, Frightened, is_restrained
 )
 
 # ---------------------------------------------------------------------------
@@ -84,7 +84,7 @@ COMPANION_AMBIENT_COOLDOWN_TURNS = 12
 #: Rolled once per companion, per turn, only once the shared cooldown
 #: above has cleared -- keeps chatter sounding occasional and organic
 #: rather than firing like clockwork the instant the cooldown hits zero.
-COMPANION_AMBIENT_CHANCE = 0.05
+COMPANION_AMBIENT_CHANCE = 0.02
 
 
 # ---------------------------------------------------------------------------
@@ -703,7 +703,7 @@ class CombatCompanion(SummonedEntity):
 
     #: How far (in tiles) a companion will voluntarily leave its owner
     #: to chase down a target -- mirrors Imp/Celestial's hardcoded 8.
-    DETECTION_RADIUS = 4
+    DETECTION_RADIUS = 6
 
     _ability_name_map = {
         "STR": "strength",
@@ -1180,6 +1180,9 @@ class CombatCompanion(SummonedEntity):
         """Cheap, search-free steering step toward (target_x, target_y),
         diagonal-first. Returns True if it moved. See
         EscortCompanion._step_toward() -- same algorithm."""
+        if is_restrained(self):
+            return False  # speed 0 -- see core/status_effects.py's Restrained
+
         dx = target_x - self.x
         dy = target_y - self.y
         step_x = (dx > 0) - (dx < 0)
@@ -1211,6 +1214,9 @@ class CombatCompanion(SummonedEntity):
         SUMMON_PATHFINDING_MAX_EXPANSIONS like every other summon's
         search (see that constant's docstring in summons.py). Returns
         True if it moved."""
+        if is_restrained(self):
+            return False  # speed 0 -- see core/status_effects.py's Restrained
+
         path = astar(
             game_map, (self.x, self.y), (target_x, target_y),
             entities=game_instance.entities, moving_entity=self,

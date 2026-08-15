@@ -1,39 +1,9 @@
-"""
-monster_abilities.py
-
-Monster-side counterpart to core/abilities.py's Ability class.
-
-Where Ability is built around the *player* choosing when to use a skill
-(a keypress -> can_use()/use()), MonsterAbility is built around the
-monster's own AI deciding on its behalf, every turn, whether an ability
-wants to act. Monster.take_turn() (see entities/monster.py) consults
-each ability in self.monster_abilities before falling back to its
-normal move-or-attack decision; Monster._perform_attack() gives on-hit
-abilities a chance to react after a normal attack lands.
-
-Three kinds of ability, distinguished by which hook they override:
-
-  - Passive (self.passive = True): ticks every turn regardless of
-    anything else, via execute(). Only Regeneration right now.
-  - Turn-level: competes with the monster's normal action via
-    should_trigger()/execute(), called from take_turn() before the
-    usual AI-state branching. Charge, Roar, Call to Arms.
-  - On-hit: reacts after a normal melee attack() lands, via on_hit(),
-    called from Monster._perform_attack(). Multiattack, Sweep,
-    Knockback, Webbed.
-
-This module deliberately never imports entities.monster at module
-level -- monster.py imports ability classes from here to attach them to
-specific monster subclasses (Troll, GiantSpider, ...), so a top-level
-import back into entities.monster would be circular. Any ability that
-needs the Monster class itself (e.g. Sweep's isinstance check, Call to
-Arms' rally) imports it locally inside the method that needs it,
-exactly the same trick monster.py already uses for
-entities.dungeon_npcs.GuardVictim in take_turn().
-"""
 
 from core.pathfinding import astar
 from core.floating_text import FloatingText
+from core.status_effects import is_restrained
+
+
 
 # Mirrors entities.monster.MONSTER_PATHFINDING_MAX_EXPANSIONS. Kept as
 # its own constant instead of imported, to avoid the circular import
@@ -137,7 +107,10 @@ class Charge(MonsterAbility):
         self.bonus_damage = bonus_damage
 
     def should_trigger(self, monster, target, distance, game):
-        return self.is_ready() and distance >= self.min_range
+        # Speed 0 while restrained (see core/status_effects.py's
+        # Restrained) -- there's no gap left to close, so step aside and
+        # let the normal attack-if-adjacent decision handle it instead.
+        return self.is_ready() and distance >= self.min_range and not is_restrained(monster)
 
     def execute(self, monster, target, game):
         game_map = game.game_map

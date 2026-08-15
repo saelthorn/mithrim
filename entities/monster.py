@@ -1,6 +1,6 @@
 import random
 from core.pathfinding import astar
-from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff, BlessingOfAgility, GuardBuff, ParryBuff, Restrained, Frightened
+from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff, BlessingOfAgility, GuardBuff, ParryBuff, Restrained, Frightened, is_restrained
 from entities.monster_abilities import Charge, Multiattack, Sweep, Knockback, Regeneration, Roar, CallToArms, Webbed
 from world.water_features import is_water_tile
 
@@ -464,8 +464,13 @@ class Monster:
         # Idle monsters occasionally bark/mutter/growl to themselves --
         # see speak_ambient() and the AMBIENT_MESSAGES_* pools above.
         # Only while actually patrolling (never mid-chase/combat), so
-        # this stays background flavor rather than combat noise.
+        # this stays background flavor rather than combat noise. Still
+        # allowed while restrained (see is_restrained() below) -- only
+        # the actual wandering movement is blocked.
         self.speak_ambient(game)
+
+        if is_restrained(self):
+            return
 
         possible_moves = []
         for dx in [-1, 0, 1]:
@@ -519,6 +524,9 @@ class Monster:
         Moves the monster one step towards the target using A* pathfinding.
         Handles footprint and destructible tiles.
         """
+        if is_restrained(self):
+            return  # speed 0 -- see core/status_effects.py's Restrained
+
         other_entities = [e for e in game.entities if e != self]
 
         # If the destination is a live, blocking entity's own tile (e.g.
@@ -578,6 +586,13 @@ class Monster:
         Attempts to move the monster directly away from the player.
         Returns tuple: (success: bool, is_cornered: bool)
         """
+        if is_restrained(self):
+            # Speed 0 -- see core/status_effects.py's Restrained. Treated
+            # as maximally cornered so take_turn()'s "give up fleeing and
+            # fight back" branches trigger the same way a genuinely
+            # trapped monster's would, rather than quietly stalling.
+            return (False, True)
+
         dx = self.x - player.x
         dy = self.y - player.y
     
@@ -651,7 +666,15 @@ class Monster:
         if distance <= self.range and game.check_line_of_sight(self.x, self.y, target.x, target.y):
             self.ranged_attack(target, game)
             return True
-        
+
+        if is_restrained(self):
+            # Speed 0 (see core/status_effects.py's Restrained) -- neither
+            # retreating nor closing distance nor strafing is possible;
+            # flee()/move_towards() below would already no-op on their
+            # own, but the strafe branch further down moves self.x/self.y
+            # directly, so it needs its own guard here too.
+            return False
+
         if distance > self.kiting_retreat_distance:
             self.move_towards(target.x, target.y, game_map, game)
             return True
