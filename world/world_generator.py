@@ -413,18 +413,24 @@ class ForestGenerator(TerrainGenerator):
 
                 if (x, y) in river_tiles:
                     game_map.tiles[y][x] = river
-                elif h > 0.80 and _chance(x, y, 5, 0.55):
+                elif m > 0.72 and h < 0.50:
+                    game_map.tiles[y][x] = lake
+                elif m > 0.42 and h < 0.12:
+                    game_map.tiles[y][x] = flower_field                    
+                elif m > 0.60 and _chance(x, y, 5, 0.55):
                     # Was an unconditional `tree`, which made every hilltop a
                     # solid, gap-free block of forest. Thinning it here lets
                     # roughly half of it fall through to the tall_grass band
                     # below instead, breaking the canopy up with clearings.
                     game_map.tiles[y][x] = tree
-                elif h > 0.66:
+                elif m > 0.66:
                     game_map.tiles[y][x] = tall_grass
-                elif m > 0.62 and _chance(x, y, 3, 1 / 19):
+                elif m > 0.32 and _chance(x, y, 3, 1 / 19):
                     game_map.tiles[y][x] = tree
-                else:
+                elif m > 0.40:
                     game_map.tiles[y][x] = clearing
+                else:
+                    game_map.tiles[y][x] = ground
 
         self.decorate(game_map, heightmap, moisture, river_positions)
         return self.place_landmarks(game_map, heightmap, moisture, river_positions)
@@ -444,14 +450,14 @@ class ForestGenerator(TerrainGenerator):
                 if tile not in {grass, tall_grass, ground, tree, clearing}:
                     continue
 
-                if m > 0.44 and h < 0.40 and _chance(x, y, 1, 1 / 13):
+                if m > 0.44 and h < 0.40 and _chance(x, y, 1, 1 / 10):
                     game_map.tiles[y][x] = tree
-                elif tile is tree and _chance(x, y, 2, 1 / 17):
+                elif tile is tree and _chance(x, y, 2, 1 / 8):
                     game_map.tiles[y][x] = giant_tree
-                elif m > 0.52 and _chance(x, y, 3, 1 / 19):
+                elif m > 0.52 and _chance(x, y, 3, 1 / 5):
                     game_map.tiles[y][x] = flower_field
                 elif h < 0.65 and _chance(x, y, 4, 1 / 23):
-                    game_map.tiles[y][x] = clearing
+                    game_map.tiles[y][x] = dead_forest
 
     def place_landmarks(self, game_map, heightmap, moisture, river_positions):
         candidates = []
