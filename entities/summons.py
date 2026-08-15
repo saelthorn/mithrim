@@ -2,7 +2,7 @@ import random
 from entities.base_entity import NPC # Reusing NPC as a base for simplicity
 from entities.monster import Monster
 from entities.dungeon_npcs import DungeonHealer, DungeonMerchant
-from core.status_effects import Poisoned, AcidBurned, Burning
+from core.status_effects import Poisoned, AcidBurned, Burning, Restrained, Frightened
 from core.pathfinding import astar
 from core import game
 from core.floating_text import FloatingText
@@ -366,6 +366,15 @@ class MageHandEntity(SummonedEntity):
             new_effect = AcidBurned(duration, source)
         elif effect_name == "Burning":
             new_effect = Burning(duration, source) 
+
+        elif effect_name == "Restrained":
+            # `source` is the MonsterAbility instance that applied this
+            # (see monster_abilities.py's Webbed), same convention as
+            # Player.add_status_effect() uses for "Guard"/"ParryBuff".
+            escape_dc = getattr(source, 'dc', 12)
+            new_effect = Restrained(duration, source=source, escape_dc=escape_dc)
+        elif effect_name == "Frightened":
+            new_effect = Frightened(duration, source=source)
         
         if new_effect:
             for existing_effect in self.active_status_effects:
@@ -433,6 +442,15 @@ class Imp(SummonedEntity):
             new_effect = AcidBurned(duration, source)
         elif effect_name == "Burning":
             new_effect = Burning(duration, source) 
+
+        elif effect_name == "Restrained":
+            # `source` is the MonsterAbility instance that applied this
+            # (see monster_abilities.py's Webbed), same convention as
+            # Player.add_status_effect() uses for "Guard"/"ParryBuff".
+            escape_dc = getattr(source, 'dc', 12)
+            new_effect = Restrained(duration, source=source, escape_dc=escape_dc)
+        elif effect_name == "Frightened":
+            new_effect = Frightened(duration, source=source)
         
         if new_effect:
             for existing_effect in self.active_status_effects:
@@ -642,6 +660,15 @@ class Celestial(SummonedEntity):
             new_effect = AcidBurned(duration, source)
         elif effect_name == "Burning":
             new_effect = Burning(duration, source) 
+
+        elif effect_name == "Restrained":
+            # `source` is the MonsterAbility instance that applied this
+            # (see monster_abilities.py's Webbed), same convention as
+            # Player.add_status_effect() uses for "Guard"/"ParryBuff".
+            escape_dc = getattr(source, 'dc', 12)
+            new_effect = Restrained(duration, source=source, escape_dc=escape_dc)
+        elif effect_name == "Frightened":
+            new_effect = Frightened(duration, source=source)
         
         if new_effect:
             for existing_effect in self.active_status_effects:
@@ -845,6 +872,15 @@ class SpiritualWeaponEntity(SummonedEntity):
             new_effect = AcidBurned(duration, source)
         elif effect_name == "Burning":
             new_effect = Burning(duration, source) 
+
+        elif effect_name == "Restrained":
+            # `source` is the MonsterAbility instance that applied this
+            # (see monster_abilities.py's Webbed), same convention as
+            # Player.add_status_effect() uses for "Guard"/"ParryBuff".
+            escape_dc = getattr(source, 'dc', 12)
+            new_effect = Restrained(duration, source=source, escape_dc=escape_dc)
+        elif effect_name == "Frightened":
+            new_effect = Frightened(duration, source=source)
         
         if new_effect:
             for existing_effect in self.active_status_effects:
@@ -1046,6 +1082,15 @@ class AnimalCompanion(SummonedEntity):
             new_effect = AcidBurned(duration, source)
         elif effect_name == "Burning":
             new_effect = Burning(duration, source)
+
+        elif effect_name == "Restrained":
+            # `source` is the MonsterAbility instance that applied this
+            # (see monster_abilities.py's Webbed), same convention as
+            # Player.add_status_effect() uses for "Guard"/"ParryBuff".
+            escape_dc = getattr(source, 'dc', 12)
+            new_effect = Restrained(duration, source=source, escape_dc=escape_dc)
+        elif effect_name == "Frightened":
+            new_effect = Frightened(duration, source=source)
 
         if new_effect:
             for existing_effect in self.active_status_effects:

@@ -13,7 +13,7 @@ from core.status_effects import (
     BlessingOfBloodlust, BlessingOfFortitude, CurseOfRot, ParryBuff, StatusEffect, DivineStrikeBuff, Poisoned, 
     AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, 
     CurseOfWeakness, CurseOfBlindness, BlessingOfAgility, BlessingOfStrength, GuardBuff, PreciseStrikeBuff, Prepared, 
-    FleetFooted, AppliedToxins, SpotTrapsEffect, DetectMagicEffect, HunterMarkBuff
+    FleetFooted, AppliedToxins, SpotTrapsEffect, DetectMagicEffect, HunterMarkBuff, Restrained, Frightened
 )
 
 # ---------------------------------------------------------------------------
@@ -84,7 +84,7 @@ COMPANION_AMBIENT_COOLDOWN_TURNS = 12
 #: Rolled once per companion, per turn, only once the shared cooldown
 #: above has cleared -- keeps chatter sounding occasional and organic
 #: rather than firing like clockwork the instant the cooldown hits zero.
-COMPANION_AMBIENT_CHANCE = 0.02
+COMPANION_AMBIENT_CHANCE = 0.05
 
 
 # ---------------------------------------------------------------------------
@@ -703,7 +703,7 @@ class CombatCompanion(SummonedEntity):
 
     #: How far (in tiles) a companion will voluntarily leave its owner
     #: to chase down a target -- mirrors Imp/Celestial's hardcoded 8.
-    DETECTION_RADIUS = 6
+    DETECTION_RADIUS = 4
 
     _ability_name_map = {
         "STR": "strength",
@@ -953,6 +953,17 @@ class CombatCompanion(SummonedEntity):
 
         elif effect_name == "DetectMagicEffect":
             new_effect = DetectMagicEffect(duration)
+
+        elif effect_name == "Restrained":
+            # `source` is the MonsterAbility instance that applied this
+            # (see monster_abilities.py's Webbed), same convention as
+            # "Guard"/"ParryBuff" above reading their bonus straight off
+            # the ability object.
+            escape_dc = getattr(source, 'dc', 12)
+            new_effect = Restrained(duration, source=source, escape_dc=escape_dc)
+
+        elif effect_name == "Frightened":
+            new_effect = Frightened(duration, source=source)
 
         if new_effect:
             for existing_effect in self.active_status_effects:

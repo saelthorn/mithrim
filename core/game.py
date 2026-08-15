@@ -6537,9 +6537,25 @@ class Game:
                             if isinstance(merchant, DungeonMerchant) and self.interaction_mode == InteractionMode.DIALOGUE:
                                 merchant.offer_trade(self.player, self)  # Call the trade method for the Merchant
                                 return True  # Consume event
+                            elif isinstance(merchant, DungeonHealer) and self.interaction_mode == InteractionMode.DIALOGUE:
+                                # F-key equivalent of walking into the healer (see
+                                # the bump-move handler for DungeonHealer below) --
+                                # lets the player rest without needing to step onto
+                                # their tile, same as trading with the merchant above.
+                                merchant.offer_rest(self.player, self)
+                                return True
                             elif isinstance(merchant, PrisonerNPC) and merchant.has_been_freed:
                                 # Give the reward first (only fires once), then show dialogue.
                                 merchant.give_reward(self.player, self)
+                                self.message_log.add_message(
+                                    f'{merchant.name}: "{merchant.get_dialogue()}"', (220, 200, 140)
+                                )
+                                self.stories.fire_talk(merchant, instigator=self.player)
+                                return True
+                            elif isinstance(merchant, PrisonerNPC) and self.interaction_mode == InteractionMode.DIALOGUE:
+                                # Not yet freed -- show their plea rather than doing
+                                # nothing, mirroring check_overworld_npc_interaction()'s
+                                # generic `elif npc:` dialogue fallback further above.
                                 self.message_log.add_message(
                                     f'{merchant.name}: "{merchant.get_dialogue()}"', (220, 200, 140)
                                 )
