@@ -2185,10 +2185,20 @@ class Game:
         encounter from spawning its own monster group right on top of
         something the player can already see -- see
         WORLD_ENCOUNTER_MIN_ENTITY_DISTANCE.
+
+        CombatCompanions are exempt: they're recruited specifically to
+        stick close to the player at melee/short range, so they'd sit
+        inside `radius` on essentially every step and permanently
+        suppress world encounters for anyone traveling with one.
+        Excluding them here just means their own proximity doesn't
+        count against the roll -- an unrelated monster or NPC still
+        blocks it normally.
         """
         px, py = self.player.x, self.player.y
         for entity in self.entities:
             if entity is self.player or not getattr(entity, "alive", True):
+                continue
+            if isinstance(entity, CombatCompanion):
                 continue
             if max(abs(entity.x - px), abs(entity.y - py)) <= radius:
                 return True
