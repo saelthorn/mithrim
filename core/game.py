@@ -7518,11 +7518,24 @@ class Game:
         return spawned_count
 
     def get_adjacent_target(self):
+        """
+        Find whatever's adjacent to the player for the SPACE-bar
+        interact/attack action. A Monster always wins over anything else
+        adjacent (a companion, an NPC, ...) regardless of which
+        direction happens to be checked first below, so standing next to
+        both a companion and a monster always attacks the monster
+        instead of bumping into whoever's fixed-order tile came first.
+        """
+        fallback = None
         for dx, dy in [(0,1),(1,0),(0,-1),(-1,0),(-1,-1),(1,-1),(-1,1),(1,1)]:
             target = self.get_target_at(self.player.x + dx, self.player.y + dy)
-            if target:
+            if target is None:
+                continue
+            if isinstance(target, Monster):
                 return target
-        return None
+            if fallback is None:
+                fallback = target
+        return fallback
 
     def handle_player_action(self, dx, dy):
         new_x = self.player.x + dx
