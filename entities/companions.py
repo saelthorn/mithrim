@@ -1114,13 +1114,20 @@ class CombatCompanion(SummonedEntity):
 
     # -- turn AI: targeting -------------------------------------------------
 
-    def _gather_enemies(self, game_instance, max_distance):
+    def _gather_enemies(self, game_instance, max_distance, require_los=False):
         """
         Every living Monster within `max_distance` tiles (Chebyshev,
         same as Imp/Celestial). Combat companions -- like every other
         combat summon in summons.py -- only ever fight Monster
         instances, never NPCs (shopkeepers, escort companions, other
         combat companions, ...), even if one happens to block movement.
+
+        `require_los=True` additionally drops anything not in direct
+        line of sight (see game.check_line_of_sight()) -- used wherever
+        this list feeds into chasing/approaching, so a companion never
+        beelines for an enemy it can detect through a wall but can't
+        actually see, which is what left them pacing into the wall
+        instead of routing around it.
         """
         enemies = []
         for entity in game_instance.entities:
@@ -1130,8 +1137,11 @@ class CombatCompanion(SummonedEntity):
                 continue
             if not getattr(entity, 'blocks_movement', False):
                 continue
-            if _chebyshev_distance(self.x, self.y, entity.x, entity.y) <= max_distance:
-                enemies.append(entity)
+            if _chebyshev_distance(self.x, self.y, entity.x, entity.y) > max_distance:
+                continue
+            if require_los and not game_instance.check_line_of_sight(self.x, self.y, entity.x, entity.y):
+                continue
+            enemies.append(entity)
         return enemies
 
     def _select_target(self, candidates):
@@ -1462,7 +1472,7 @@ class CombatCompanion(SummonedEntity):
             self.attack_enemy(self._select_target(adjacent), game_instance)
             return True
 
-        nearby = self._gather_enemies(game_instance, max_distance=self.DETECTION_RADIUS)
+        nearby = self._gather_enemies(game_instance, max_distance=self.DETECTION_RADIUS, require_los=True)
         if nearby:
             target = self._select_target(nearby)
             return self._approach(game_map, game_instance, target.x, target.y)
@@ -1496,7 +1506,7 @@ class CombatCompanion(SummonedEntity):
             self.melee_scuffle(threat, game_instance)
             return True
 
-        nearby = self._gather_enemies(game_instance, max_distance=self.DETECTION_RADIUS)
+        nearby = self._gather_enemies(game_instance, max_distance=self.DETECTION_RADIUS, require_los=True)
         if nearby:
             target = self._select_target(nearby)
             return self._approach(game_map, game_instance, target.x, target.y)

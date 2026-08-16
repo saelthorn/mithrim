@@ -415,7 +415,7 @@ class ForestGenerator(TerrainGenerator):
                     game_map.tiles[y][x] = river
                 elif m > 0.72 and h < 0.50:
                     game_map.tiles[y][x] = lake
-                elif m > 0.42 and h < 0.12:
+                elif m > 0.42:
                     game_map.tiles[y][x] = flower_field                    
                 elif m > 0.60 and _chance(x, y, 5, 0.55):
                     # Was an unconditional `tree`, which made every hilltop a
