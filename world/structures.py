@@ -75,6 +75,15 @@ def _spawn_priest(x, y):
 #: a recruitable adventurer only turning up in it every so often.
 TAVERN_PATRON_ADVENTURER_CHANCE = 0.5
 
+#: Level a rolled adventurer patron is treated as, both for their own
+#: pre-recruit HP (below) and for the CombatCompanion they become on
+#: recruiting (see game.py's recruit_combat_companion(), which now reads
+#: this same `.level` back off the patron instead of defaulting to 6) --
+#: a "journeyman, not a hero" only holds if the patron's toughness in
+#: the tavern and once hired are actually the same level, not two
+#: unrelated numbers that happen to both sound low.
+TAVERN_PATRON_LEVEL = 6
+
 #: class name -> CompanionClass, the same pairing game.py's own
 #: COMPANION_CLASSES dict uses -- kept as a local copy here rather than
 #: importing that dict, since it lives on the Game class and would pull
@@ -136,19 +145,27 @@ def _spawn_tavern_patron(x, y):
     patron.attack_power = 1
     patron.proficiency_bonus = 1
     patron.armor_class = 13
+    patron.level = TAVERN_PATRON_LEVEL
 
     # HP drawn from the same class data a recruited companion uses (see
     # CombatCompanion._recalculate_stats() in entities/companions.py),
-    # at its level-1 value -- hit_die + constitution modifier -- rather
-    # than NPC's own bare-villager hp default, so an adventurer patron
-    # can actually take a hit or two before _is_adventurer() sends them
-    # into melee. Falls back to the plain villager default if this
-    # class/race pairing has no matching CompanionClass yet (see
-    # RACE_CLASS_VISUALS' docstring on Ranger's own entry).
+    # computed at TAVERN_PATRON_LEVEL with that exact formula (hit_die +
+    # constitution modifier, plus one average-roll-and-modifier step per
+    # level past 1) rather than NPC's own bare-villager hp default --
+    # so an adventurer patron can actually take a hit or two before
+    # _is_adventurer() sends them into melee, and so their HP matches
+    # what they'll have the instant they're recruited at this same
+    # level. Falls back to the plain villager default if this class/race
+    # pairing has no matching CompanionClass yet (see RACE_CLASS_VISUALS'
+    # docstring on Ranger's own entry).
     companion_class = _ADVENTURER_CLASSES_BY_NAME.get(class_name)
     if companion_class is not None:
         con_modifier = (companion_class.ability_scores["constitution"] - 10) // 2
-        patron.max_hp = max(1, companion_class.hit_die + con_modifier)
+        average_roll = (companion_class.hit_die // 2) + 1
+        max_hp = companion_class.hit_die + con_modifier
+        if TAVERN_PATRON_LEVEL > 1:
+            max_hp += (TAVERN_PATRON_LEVEL - 1) * (average_roll + con_modifier)
+        patron.max_hp = max(1, max_hp)
         patron.hp = patron.max_hp
 
     return patron

@@ -1021,7 +1021,7 @@ class Game:
     # shares one interval instead of spamming a line per goblin, while a
     # Wolf spotted in that same batch of turns still gets its own line
     # right away instead of being silently swallowed by the goblins' cooldown.
-    MONSTER_AMBIENT_COOLDOWN_TURNS = 1
+    MONSTER_AMBIENT_COOLDOWN_TURNS = 8
 
     # Default player-level band for a scenario that declares neither
     # "min_level" nor "max_level" -- wide open, so every encounter authored
@@ -1074,7 +1074,7 @@ class Game:
     # WORLD_ENCOUNTER_CHANCE above, so the reveal lands a handful of steps
     # past the floor rather than on the exact same step every time. See
     # _maybe_advance_world_encounter_stage().
-    WORLD_ENCOUNTER_STAGE_ADVANCE_MIN_STEPS = 12
+    WORLD_ENCOUNTER_STAGE_ADVANCE_MIN_STEPS = 8
     WORLD_ENCOUNTER_STAGE_ADVANCE_CHANCE = 0.20
 
     WORLD_ENCOUNTER_HOOKS = [
@@ -3759,6 +3759,15 @@ class Game:
         callers wiring this up to a menu/dialogue choice rather than
         importing entities/companions.py themselves.
 
+        Recruited at `source_entity.level` when it has one (tavern
+        patrons stash TAVERN_PATRON_LEVEL there -- see world/structures.py's
+        _spawn_tavern_patron()), so a patron becomes a companion at the
+        exact same level they were as an adventurer in the tavern rather
+        than jumping to CombatCompanion's own level=6 default -- a
+        "journeyman, not a hero" patron shouldn't turn into a hero the
+        instant they're hired. Falls back to that default for any future
+        caller with no meaningful level of its own to carry over.
+
         Unlike recruit_companion(), this list -- self.combat_companions
         -- never blocks dungeon descent (see that list's own comment in
         __init__) and the companion is never "delivered" anywhere; it
@@ -3778,6 +3787,7 @@ class Game:
             owner=self.player,
             race=race,
             companion_class=companion_class,
+            level=getattr(source_entity, "level", 6),
         )
         # Racial bonuses/resistances/darkvision -- see CombatCompanion.
         # apply_race()'s docstring for why this is a separate call from
