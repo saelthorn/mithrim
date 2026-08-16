@@ -1453,6 +1453,20 @@ class Monster:
             if isinstance(entity, GuardVictim) and entity.alive
         )
 
+        # Same idea for adventurer-visual TownNPCs (see world/structures.py's
+        # _spawn_tavern_patron()) that fight back rather than flee -- see
+        # TownNPC._is_adventurer() in entities/town_npcs.py. Without this a
+        # monster would beeline straight past a patron actively swinging at
+        # it to reach the player instead, no matter how much closer the
+        # patron was. Recruited or not doesn't matter here: a recruited one
+        # is already a CombatCompanion, not a TownNPC, so this only ever
+        # matches the unrecruited kind still standing around town.
+        from entities.town_npcs import TownNPC
+        candidates.extend(
+            entity for entity in game.entities
+            if isinstance(entity, TownNPC) and entity.alive and entity._is_adventurer()
+        )
+
         for entity in candidates:
             if not entity.alive:
                 continue

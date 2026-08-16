@@ -1021,7 +1021,7 @@ class Game:
     # shares one interval instead of spamming a line per goblin, while a
     # Wolf spotted in that same batch of turns still gets its own line
     # right away instead of being silently swallowed by the goblins' cooldown.
-    MONSTER_AMBIENT_COOLDOWN_TURNS = 8
+    MONSTER_AMBIENT_COOLDOWN_TURNS = 1
 
     # Default player-level band for a scenario that declares neither
     # "min_level" nor "max_level" -- wide open, so every encounter authored
@@ -1074,7 +1074,7 @@ class Game:
     # WORLD_ENCOUNTER_CHANCE above, so the reveal lands a handful of steps
     # past the floor rather than on the exact same step every time. See
     # _maybe_advance_world_encounter_stage().
-    WORLD_ENCOUNTER_STAGE_ADVANCE_MIN_STEPS = 5
+    WORLD_ENCOUNTER_STAGE_ADVANCE_MIN_STEPS = 12
     WORLD_ENCOUNTER_STAGE_ADVANCE_CHANCE = 0.20
 
     WORLD_ENCOUNTER_HOOKS = [
@@ -2593,8 +2593,23 @@ class Game:
                 continue  # no clear footprint nearby -- leave the rest of the cluster unaffected
 
             previous_anchor = (structure_anchor_x, structure_anchor_y, width, height)
-            self.entities.extend(npcs_for_placement(structure_id, placed_tiles))
-            self.entities.extend(monsters_for_placement(structure_id, placed_tiles))
+            spawned = npcs_for_placement(structure_id, placed_tiles) + monsters_for_placement(structure_id, placed_tiles)
+            self.entities.extend(spawned)
+
+            # Appending to self.entities alone isn't enough: take_turn() is
+            # only ever called on entities actually in turn_order, so
+            # without this these NPCs/monsters would sit on the map fully
+            # rendered and visible but never act -- see
+            # _spawn_player_in_starting_tavern()'s equivalent fix. Uses
+            # _resort_turn_order_preserving_current() rather than that
+            # method's plain sort, since a world encounter cluster can be
+            # placed mid-exploration, after turn processing has already
+            # started, unlike the starting tavern which is placed during
+            # initial game setup.
+            for entity in spawned:
+                entity.roll_initiative()
+                self.turn_order.append(entity)
+            self._resort_turn_order_preserving_current()
 
     def _world_encounter_next_cluster_anchor(self, previous_anchor, width, height):
         """

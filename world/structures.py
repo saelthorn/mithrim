@@ -4,7 +4,7 @@ import random
 from entities.base_entity import NPC
 from entities.town_npcs import TownNPC, Innkeeper, Shopkeeper, Townsfolk, Blacksmith, Priest
 from entities.monster import GiantRat, Goblin, Skeleton, Wolf, Orc
-from entities.companions import RACE_CLASS_VISUALS
+from entities.companions import RACE_CLASS_VISUALS, FIGHTER, RANGER, ROGUE, WIZARD, CLERIC
 
 from world.tile import (
     ground, grass, road, tall_grass, wall, tavern_floor, floor, bar_counter_two, bar_counter_three, bar_counter_four, 
@@ -75,6 +75,17 @@ def _spawn_priest(x, y):
 #: a recruitable adventurer only turning up in it every so often.
 TAVERN_PATRON_ADVENTURER_CHANCE = 0.5
 
+#: class name -> CompanionClass, the same pairing game.py's own
+#: COMPANION_CLASSES dict uses -- kept as a local copy here rather than
+#: importing that dict, since it lives on the Game class and would pull
+#: in all of game.py just to look up a hit_die. Used by
+#: _spawn_tavern_patron() to give a rolled adventurer real HP instead of
+#: whatever NPC's own bare-villager default is.
+_ADVENTURER_CLASSES_BY_NAME = {
+    companion_class.name: companion_class
+    for companion_class in (FIGHTER, RANGER, ROGUE, WIZARD, CLERIC)
+}
+
 
 def _spawn_tavern_patron(x, y):
     """
@@ -98,11 +109,12 @@ def _spawn_tavern_patron(x, y):
     choice only existing as a char/color pair that gets thrown away.
 
     They also get modest combat stats (`attack_power`, `proficiency_
-    bonus`, `armor_class`) that a plain villager never needs -- looking
-    like an adventurer is also what TownNPC._is_adventurer() checks to
-    decide that this patron fights back (see town_npcs.py's "-- alert /
-    fear --" section) instead of fleeing when a monster wanders into
-    town, and TownNPC.attack() needs those fields to actually swing.
+    bonus`, `armor_class`, `hp`/`max_hp`) that a plain villager never
+    needs -- looking like an adventurer is also what TownNPC.
+    _is_adventurer() checks to decide that this patron fights back (see
+    town_npcs.py's "-- alert / fear --" section) instead of fleeing when
+    a monster wanders into town, and TownNPC.attack() needs those fields
+    to actually swing.
     """
     patron = Townsfolk(x, y)
 
@@ -124,6 +136,21 @@ def _spawn_tavern_patron(x, y):
     patron.attack_power = 1
     patron.proficiency_bonus = 1
     patron.armor_class = 13
+
+    # HP drawn from the same class data a recruited companion uses (see
+    # CombatCompanion._recalculate_stats() in entities/companions.py),
+    # at its level-1 value -- hit_die + constitution modifier -- rather
+    # than NPC's own bare-villager hp default, so an adventurer patron
+    # can actually take a hit or two before _is_adventurer() sends them
+    # into melee. Falls back to the plain villager default if this
+    # class/race pairing has no matching CompanionClass yet (see
+    # RACE_CLASS_VISUALS' docstring on Ranger's own entry).
+    companion_class = _ADVENTURER_CLASSES_BY_NAME.get(class_name)
+    if companion_class is not None:
+        con_modifier = (companion_class.ability_scores["constitution"] - 10) // 2
+        patron.max_hp = max(1, companion_class.hit_die + con_modifier)
+        patron.hp = patron.max_hp
+
     return patron
 
 
