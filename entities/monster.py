@@ -418,7 +418,10 @@ class Monster:
         measure of that per monster (a GiantRat's 4 tiles vs. a Wolf's 8),
         rather than reusing the wider WAKE_RADIUS that only decides
         whether a monster is active at all (see game.py's
-        refresh_monster_wake_state()).
+        refresh_monster_wake_state()). On top of that, the monster must
+        actually be in the player's line of sight (game.fov) -- a
+        creature within range but around a corner or behind a wall
+        shouldn't pipe up, since the player couldn't have noticed it.
 
         The popup itself is cooldown-gated on the Game side, not here --
         with several monsters patrolling/spotted in the same batch of
@@ -433,6 +436,10 @@ class Monster:
             return
         player = getattr(game, "player", None)
         if player is not None and self.distance_to(player.x, player.y) > self.detection_range:
+            return
+
+        fov = getattr(game, "fov", None)
+        if fov is not None and fov.get_visibility_type(self.x, self.y) not in ('player', 'torch', 'darkvision'):
             return
 
         roll_chance = self.ambient_bark_chance if chance is None else chance
@@ -2241,7 +2248,7 @@ class Orc(Monster):
 
         # Orcs get a second swing in a single Aggressive assault, same
         # as their 5e statblock.
-        self.monster_abilities = [Multiattack(extra_attacks=1), Charge(min_range=3, max_tiles=5, bonus_damage=5, cooldown=6) ]
+        self.monster_abilities = [Multiattack(extra_attacks=1), Knockback(distance=1, cooldown=3) ]
 
         self.loot_table = [
             (steel_battle_axe, 0.75)
