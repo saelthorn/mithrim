@@ -2241,7 +2241,7 @@ class Orc(Monster):
 
         # Orcs get a second swing in a single Aggressive assault, same
         # as their 5e statblock.
-        self.monster_abilities = [Multiattack(extra_attacks=1)]
+        self.monster_abilities = [Multiattack(extra_attacks=1), Charge(min_range=3, max_tiles=5, bonus_damage=5, cooldown=6) ]
 
         self.loot_table = [
             (steel_battle_axe, 0.75)

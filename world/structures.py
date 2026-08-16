@@ -3,7 +3,7 @@ import random
 
 from entities.base_entity import NPC
 from entities.town_npcs import TownNPC, Innkeeper, Shopkeeper, Townsfolk, Blacksmith, Priest
-from entities.monster import GiantRat, Goblin, Skeleton, Wolf
+from entities.monster import GiantRat, Goblin, Skeleton, Wolf, Orc
 from entities.companions import RACE_CLASS_VISUALS
 
 from world.tile import (
@@ -140,6 +140,8 @@ def _spawn_giant_rat(x, y):
 def _spawn_goblin(x, y):
     return Goblin(x, y)
 
+def _spawn_orc(x, y):
+    return Orc(x, y)
 
 def _spawn_skeleton(x, y):
     return Skeleton(x, y)
@@ -245,18 +247,18 @@ STRUCTURE_BLUEPRINTS = {
         [
             "            ",
             "  ######### ",
-            "  +..sh...# ",
+            "  +..sh..o# ",
             " ##k....7.# ",
-            " #p..g..|A# ",
+            " #p.....|A# ",
             " #t..t..|.# ",
             " #p..pk.|c# ",
             " ######+### ",
             "            ",
         ],
-        {"#": wall, ".": tavern_floor, "s": shelf, "h": shelf_two, "g": tavern_floor, "c": tavern_crate, "b": tavern_barrel, "p": tavern_floor, "A": tavern_floor, "k": tavern_barrel_two, "I": bar_counter_two, "|": bar_counter_three, "7": bar_counter_four, "t": table, "+": door},
-        walkable_chars={".", "p", "A", "g", "+"},
+        {"#": wall, ".": tavern_floor, "s": shelf, "h": shelf_two, "o": tavern_floor, "c": tavern_crate, "b": tavern_barrel, "p": tavern_floor, "A": tavern_floor, "k": tavern_barrel_two, "I": bar_counter_two, "|": bar_counter_three, "7": bar_counter_four, "t": table, "+": door},
+        walkable_chars={".", "p", "A", "o", "+"},
         description="A rowdy wayside tavern.",
-        npc_map={"A": _spawn_innkeeper, "p": _spawn_tavern_patron, "g": _spawn_goblin},
+        npc_map={"A": _spawn_innkeeper, "p": _spawn_tavern_patron, "g": _spawn_goblin, "o": _spawn_orc},
     ),
 
     "blacksmith": build_blueprint(

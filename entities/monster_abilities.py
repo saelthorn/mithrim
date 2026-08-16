@@ -1,4 +1,3 @@
-
 from core.pathfinding import astar
 from core.floating_text import FloatingText
 from core.status_effects import is_restrained
@@ -245,6 +244,7 @@ class Multiattack(MonsterAbility):
         self.extra_attacks = extra_attacks
 
     def on_hit(self, monster, target, game):
+        game.message_log.add_message(f"The {monster.name} swings again!", (255, 150, 0))
         for _ in range(self.extra_attacks):
             if not target.alive:
                 break
@@ -367,6 +367,7 @@ class Webbed(MonsterAbility):
             game.message_log.add_message(f"{target.name} slips free of the webbing!", (150, 150, 150))
         else:
             target.add_status_effect("Restrained", self.duration, game, source=self)
+            game.message_log.add_message(f"{target.name} is bound in {monster.name}'s webbing!", (200, 200, 255))
 
         self.current_cooldown = self.cooldown
 
