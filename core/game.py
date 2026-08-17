@@ -5715,6 +5715,28 @@ class Game:
         # Existing monster activation logic...
         self.refresh_monster_wake_state()
 
+    def is_within_message_radius(self, x, y):
+        """
+        Whether (x, y) is close enough to the player to be worth reporting
+        in the message log -- reuses the player's current vision radius
+        (same value update_fov() sights from) as a radius of awareness.
+        Keeps the log free of events the player can't perceive, e.g. a
+        tavern brawl or a guard fighting a monster elsewhere in town.
+        """
+        if self.player is None:
+            return True
+        radius = getattr(self.player, 'vision_radius', 4)
+        return self.fov.is_within_chebyshev_distance(self.player.x, self.player.y, x, y, radius)
+
+    def log_message_at(self, x, y, text, color=None):
+        """Add a message to the log only if (x, y) is within the player's
+        message radius (see is_within_message_radius) -- the position-
+        aware counterpart to message_log.add_message() for events caused
+        by entities other than the player."""
+        if self.message_log is None or not self.is_within_message_radius(x, y):
+            return
+        self.message_log.add_message(text, color)
+
     def _refresh_owned_blocking_entities_cache(self):
         """
         Recompute self._owned_blocking_entities: every alive, blocking

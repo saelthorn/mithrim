@@ -787,30 +787,37 @@ class TownNPC(NPC):
         attack_total = d20_roll + attack_bonus
         target_ac = getattr(target, "armor_class", 10)
 
-        game.message_log.add_message(
+        # Uses log_message_at() rather than message_log.add_message()
+        # directly -- this attack may be happening well outside the
+        # player's awareness (a tavern patron or guard fighting a monster
+        # elsewhere in town), and only events within the player's message
+        # radius should actually show up in the log.
+        game.log_message_at(
+            self.x, self.y,
             f"{self.name} rolls a d20: [{d20_roll}] + [{attack_bonus}] (Attack Bonus) = {attack_total} vs AC {target_ac}!",
             (200, 200, 255),
         )
 
         if attack_total < target_ac:
-            game.message_log.add_message(f"{self.name}'s strike misses {target.name}!", (150, 150, 150))
+            game.log_message_at(self.x, self.y, f"{self.name}'s strike misses {target.name}!", (150, 150, 150))
             game.floating_texts.append(FloatingText(target.x, target.y, "MISS!", (150, 150, 150)))
             return
 
         damage_roll = random.randint(1, 6)
         damage_dealt = target.take_damage(damage_roll + self.attack_power, game, damage_type="slashing")
 
-        game.message_log.add_message(
+        game.log_message_at(
+            self.x, self.y,
             f"{self.name} rolls a 1d6: [{damage_roll}] + [{self.attack_power}] (Attack Power) = {damage_dealt} damage!",
             (200, 200, 255),
         )
-        game.message_log.add_message(f"{self.name} strikes {target.name} for {damage_dealt} damage!", (200, 200, 255))
+        game.log_message_at(self.x, self.y, f"{self.name} strikes {target.name} for {damage_dealt} damage!", (200, 200, 255))
 
         game.floating_texts.append(FloatingText(target.x, target.y, "HIT!", (255, 255, 0)))
         game.floating_texts.append(FloatingText(target.x, target.y - 0.5, str(damage_dealt), (255, 0, 0)))
 
         if not target.alive:
-            game.message_log.add_message(f"{target.name} has been slain by {self.name}!", (200, 0, 0))
+            game.log_message_at(self.x, self.y, f"{target.name} has been slain by {self.name}!", (200, 0, 0))
 
     # -- movement --------------------------------------------------------
 
