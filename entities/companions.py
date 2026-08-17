@@ -1,7 +1,7 @@
 import random
 
 from entities.summons import SummonedEntity, _chebyshev_distance, SUMMON_PATHFINDING_MAX_EXPANSIONS
-from entities.monster import Monster
+from entities.monster import Monster, Disposition
 from core.pathfinding import astar
 from core.floating_text import FloatingText
 from items.items import (
@@ -1122,6 +1122,11 @@ class CombatCompanion(SummonedEntity):
         instances, never NPCs (shopkeepers, escort companions, other
         combat companions, ...), even if one happens to block movement.
 
+        Still-PASSIVE monsters (see monster.py's Disposition) are excluded
+        -- a companion won't pick a fight with something that hasn't
+        turned hostile yet. Once a monster provokes (or its group does),
+        its disposition flips to AGGRESSIVE and it becomes fair game here.
+
         `require_los=True` additionally drops anything not in direct
         line of sight (see game.check_line_of_sight()) -- used wherever
         this list feeds into chasing/approaching, so a companion never
@@ -1134,6 +1139,8 @@ class CombatCompanion(SummonedEntity):
             if entity is self or entity is self.owner or not getattr(entity, 'alive', False):
                 continue
             if not isinstance(entity, Monster):
+                continue
+            if entity.disposition != Disposition.AGGRESSIVE:
                 continue
             if not getattr(entity, 'blocks_movement', False):
                 continue
