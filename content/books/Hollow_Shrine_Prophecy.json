@@ -1,0 +1,12 @@
+{
+  "id": "hollow_shrine_prophecy",
+  "name": "Prophecy of the Hollow Shrine",
+  "char": "bk",
+  "color": [180, 60, 200],
+  "description": "A cracked stone tablet, its warning carved deep.",
+  "price": 0,
+  "paragraphs": [
+    "When the last light leaves the hollow, the sleeper below will wake.",
+    "No blade forged by mortal hands will hold it. Only what was buried with it can put it back to rest."
+  ]
+}

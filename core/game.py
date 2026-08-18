@@ -34,6 +34,7 @@ class GameState:
     WORLD_ENCOUNTER_DISCOVERY = "world_encounter_discovery"  # A stage's/aftermath's "discovery" text, shown alone with a "Continue" prompt before its choice menu opens
     DEATH_SAVE_MENU = "death_save_menu"  # Player unconscious at 0 hp, rolling death saving throws (see Player.roll_death_save())
     MONSTER_AMBIENT_MENU = "monster_ambient_menu"  # A monster's ambient flavor line, shown as a "[1] Continue" popup -- see Game.show_monster_ambient_popup()
+    READING_BOOK = "reading_book"  # A Book item's text on screen, paged -- see Game.open_book()
 
 
 class InteractionMode:
@@ -411,7 +412,7 @@ from core.status_effects import (
     PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins, Restrained, Frightened, is_restrained
 )
 from items.items import (
-    Potion, Weapon, Armor, OffHand, Chest, LockedChest, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
+    Potion, Weapon, Armor, OffHand, Chest, LockedChest, Book, BOOK_LOAD_ERRORS, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
     bread, mushroom, CampfireKit, torch, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, 
     iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, 
     apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail, 
@@ -647,6 +648,13 @@ class Game:
         )
         self._recalculate_dimensions()
 
+        # content/books/*.json is loaded once, at items.py import time (see
+        # items.load_books()) -- flush any problems it hit into the message
+        # log now that one exists, same "don't crash, just report" spirit
+        # as _load_world_encounter_scenarios().
+        for error in BOOK_LOAD_ERRORS:
+            self.message_log.add_message(f"Book load error: {error}", (255, 100, 100))
+
         self.ability_in_use = None
         self._chest_menu_target = None  # Locked chest awaiting player's choice
         self._innkeeper_menu_target = None  # Innkeeper awaiting player's Buy Food / Rest / Leave choice
@@ -676,6 +684,10 @@ class Game:
         self._monster_ambient_return_state = GameState.OVERWORLD  # GameState to restore once the popup is dismissed
         self._monster_ambient_cooldowns = {}  # monster type name -> player turns left before that type's next ambient popup can show, see show_monster_ambient_popup()
         self._companion_ambient_cooldown = 0  # player turns left before any companion can chime in again, see CombatCompanion.speak_ambient() (companions.py)
+        self._reading_book = None          # Book instance currently open, see open_book()
+        self._reading_book_pages = []      # Pre-wrapped pages of the open book's text
+        self._reading_book_page_index = 0  # Page currently on screen
+        self._reading_book_return_state = GameState.INVENTORY  # GameState to restore once the book is closed
         self._shop_menu_merchant = None   # Active merchant for shop overlay
         self._shop_selected_index = 0     # Highlighted item index in shop
         self._shop_mode = "buy"           # "buy" or "sell"
@@ -2759,6 +2771,48 @@ class Game:
         _continue_past_world_encounter_discovery()."""
         self.game_state = self._monster_ambient_return_state
         self._monster_ambient_text = ""
+
+    READING_BOOK_LINES_PER_PAGE = 14
+
+    def open_book(self, book):
+        """Open a Book item's text in the reading screen, paginated so
+        long entries don't overflow the popup. Paragraphs are separated
+        by a blank line in `book.text` via "\n\n"."""
+        try:
+            font_body = pygame.font.SysFont("consolas", 14)
+        except Exception:
+            font_body = pygame.font.Font(None, 16)
+        text_w = 440 - 14 * 2
+
+        lines = []
+        paragraphs = book.text.split("\n\n")
+        for i, paragraph in enumerate(paragraphs):
+            lines.extend(self._wrap_text(paragraph, font_body, text_w))
+            if i < len(paragraphs) - 1:
+                lines.append("")
+
+        per_page = self.READING_BOOK_LINES_PER_PAGE
+        pages = [lines[i:i + per_page] for i in range(0, len(lines), per_page)] or [[""]]
+
+        self._reading_book = book
+        self._reading_book_pages = pages
+        self._reading_book_page_index = 0
+        self._reading_book_return_state = self.game_state
+        self.game_state = GameState.READING_BOOK
+
+    def _turn_book_page(self, delta):
+        """Advance/retreat one page; delta is +1 or -1. No-op past either end."""
+        new_index = self._reading_book_page_index + delta
+        if 0 <= new_index < len(self._reading_book_pages):
+            self._reading_book_page_index = new_index
+
+    def _close_book(self):
+        """Dismiss the reading screen and return to whichever state opened
+        it (usually the inventory). Doesn't cost the player a turn."""
+        self.game_state = self._reading_book_return_state
+        self._reading_book = None
+        self._reading_book_pages = []
+        self._reading_book_page_index = 0
 
     def _current_world_encounter_stage(self):
         """The stage dict currently on screen -- see
@@ -6331,6 +6385,19 @@ class Game:
                         self._continue_past_monster_ambient()
                     return True  # Consume all input while the popup is open
 
+                # --- Reading a Book ---
+                elif self.game_state == GameState.READING_BOOK:
+                    if event.key in (pygame.K_RIGHT, pygame.K_SPACE, pygame.K_RETURN, pygame.K_KP_ENTER):
+                        if self._reading_book_page_index >= len(self._reading_book_pages) - 1:
+                            self._close_book()
+                        else:
+                            self._turn_book_page(1)
+                    elif event.key == pygame.K_LEFT:
+                        self._turn_book_page(-1)
+                    elif event.key == pygame.K_ESCAPE:
+                        self._close_book()
+                    return True  # Consume all input while the book is open
+
                 # --- World Encounter Menu ---
                 elif self.game_state == GameState.WORLD_ENCOUNTER_MENU:
                     stage = self._current_world_encounter_stage()
@@ -7406,6 +7473,14 @@ class Game:
                     # Close the inventory menu
                     self.selected_inventory_item = None  # Reset selected item
                     # Optionally, you can log a message here if needed                         
+            elif isinstance(self.selected_inventory_item, Book):
+                # Reading a book opens its own screen instead of consuming
+                # a turn -- don't fall through to next_turn() below.
+                book = self.selected_inventory_item
+                self.selected_inventory_item = None
+                self.game_state = GameState.INVENTORY
+                book.use(self.player, self)
+                return
             else:
                 # Use the item normally
                 if self.player.use_item(self.selected_inventory_item, self):
@@ -8885,6 +8960,11 @@ class Game:
         if self.game_state == GameState.MONSTER_AMBIENT_MENU and self._monster_ambient_text:
             self.render_monster_ambient_menu()
 
+        # Reading screen — a Book item's text, paged, drawn over whichever
+        # state opened it (usually the inventory)
+        if self.game_state == GameState.READING_BOOK and self._reading_book:
+            self.render_book_menu()
+
         # World encounter menu — drawn over the overworld, under nothing else
         if self.game_state == GameState.WORLD_ENCOUNTER_MENU and self._world_encounter_target:
             self.render_world_encounter_menu()
@@ -9483,6 +9563,57 @@ class Game:
 
         prompt_surf = font_title.render("[1] Continue", True, (200, 190, 230))
         self.screen.blit(prompt_surf, (sx + PAD, y))
+
+    def render_book_menu(self):
+        """
+        Draws the currently open Book's title and the current page of its
+        text, with a page indicator and a footer of navigation hints. Same
+        box/border styling as the other text popups.
+        """
+        try:
+            font_title = pygame.font.SysFont("consolas", 16, bold=True)
+            font_body  = pygame.font.SysFont("consolas", 14)
+            font_small = pygame.font.SysFont("consolas", 12)
+        except Exception:
+            font_title = pygame.font.Font(None, 18)
+            font_body  = pygame.font.Font(None, 16)
+            font_small = pygame.font.Font(None, 14)
+
+        PAD      = 14
+        W        = 440
+        LINE_H   = font_body.get_linesize()
+        TITLE_H  = font_title.get_linesize()
+        FOOTER_H = font_small.get_linesize()
+        GAP      = PAD // 2
+
+        page = self._reading_book_pages[self._reading_book_page_index]
+        H  = PAD + TITLE_H + GAP + LINE_H * self.READING_BOOK_LINES_PER_PAGE + GAP + FOOTER_H + PAD
+        sx = (config.GAME_AREA_WIDTH - W) // 2
+        sy = (config.SCREEN_HEIGHT   - H) // 2
+
+        bg = pygame.Surface((W, H), pygame.SRCALPHA)
+        bg.fill((10, 8, 14, 220))
+        self.screen.blit(bg, (sx, sy))
+        pygame.draw.rect(self.screen, self._reading_book.color, (sx, sy, W, H), 2, border_radius=4)
+
+        y = sy + PAD
+        title_surf = font_title.render(self._reading_book.title, True, (230, 220, 255))
+        self.screen.blit(title_surf, (sx + PAD, y))
+        y += TITLE_H + GAP
+
+        for line in page:
+            line_surf = font_body.render(line, True, (220, 210, 240))
+            self.screen.blit(line_surf, (sx + PAD, y))
+            y += LINE_H
+
+        y = sy + H - PAD - FOOTER_H
+        pygame.draw.line(self.screen, (60, 60, 75), (sx + PAD, y - GAP), (sx + W - PAD, y - GAP))
+
+        page_label = f"Page {self._reading_book_page_index + 1}/{len(self._reading_book_pages)}"
+        hint = "[<-]/[->] Page   [Esc] Close" if len(self._reading_book_pages) > 1 else "[Enter] Close"
+        self.screen.blit(font_small.render(page_label, True, (150, 140, 180)), (sx + PAD, y))
+        hint_surf = font_small.render(hint, True, (150, 140, 180))
+        self.screen.blit(hint_surf, (sx + W - PAD - hint_surf.get_width(), y))
 
     def render_world_encounter_menu(self):
         """

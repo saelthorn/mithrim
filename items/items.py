@@ -1,5 +1,7 @@
 import copy
+import json
 import random
+from pathlib import Path
 
 from core.game import GameState
 
@@ -211,6 +213,102 @@ class Junk(Item):
     """A useless piece of wood."""
     def __init__(self, name, char, color, description="", price=0):
         super().__init__(name, char, color, description, price)
+
+
+class Book(Item):
+    """A readable item -- using it opens the text in a reading screen
+    instead of consuming/equipping it. `text` is the book's full content;
+    "\\n\\n" marks a paragraph break. `book_id` identifies it in BOOKS
+    (see load_books()) for lookup by content that wants a specific book
+    rather than a random one off a loot tier."""
+    def __init__(self, name, char, color, description, text, price=0, book_id=None):
+        super().__init__(name, char, color, description, price)
+        self.title = name
+        self.text = text
+        self.book_id = book_id
+
+    def use(self, user, game_instance):
+        game_instance.open_book(self)
+        return True
+
+
+# ── Books (content/books/*.json) ─────────────────────────────────────────
+# Books live as data, not Python, so writing a new one is just dropping a
+# JSON file under BOOKS_CONTENT_ROOT -- organize them into subfolders
+# (content/books/lore/, content/books/journals/, ...) however you like;
+# the loader recurses and doesn't care where a file sits.
+#
+# Schema, one book per file:
+#   {
+#     "id": "tattered_journal",       # required, unique -- see get_book()
+#     "name": "Tattered Journal",
+#     "char": "bk",
+#     "color": [150, 120, 80],
+#     "description": "...",
+#     "price": 20,                     # copper, optional (default 0)
+#     "paragraphs": ["...", "..."],    # joined with a blank line between
+#     "loot_tiers": ["tier_1"]         # optional -- auto-add to loot tier(s)
+#   }
+# "text" (a single string, "\n\n" for paragraph breaks) works in place of
+# "paragraphs" too, whichever reads more naturally for a given book.
+BOOKS_CONTENT_ROOT = "content/books"
+BOOKS = {}           # book_id -> Book template
+BOOK_LOAD_ERRORS = []  # "source: message" strings, flushed to the message log by game.py at startup
+
+
+def _book_from_dict(data, source):
+    book_id = data.get("id")
+    if not book_id:
+        raise ValueError("missing required field 'id'")
+    text = data["text"] if "text" in data else "\n\n".join(data.get("paragraphs", []))
+    return Book(
+        name=data["name"],
+        char=data.get("char", "bk"),
+        color=tuple(data.get("color", (150, 130, 90))),
+        description=data.get("description", ""),
+        text=text,
+        price=data.get("price", 0),
+        book_id=book_id,
+    )
+
+
+def load_books(root=BOOKS_CONTENT_ROOT):
+    """Load every *.json file under `root` into BOOKS, keyed by id.
+    Recurses into subfolders. Malformed files are skipped, with the
+    problem recorded in BOOK_LOAD_ERRORS rather than crashing.
+
+    Returns a dict of loot_tier name -> list of Book templates, for the
+    Loot Tables section below to fold into _LOOT_TIER_1/2/3.
+    """
+    books_by_tier = {}
+    path_root = Path(root)
+    for path in sorted(path_root.rglob("*.json")):
+        source = str(path.relative_to(path_root))
+        try:
+            data = json.loads(path.read_text())
+            book = _book_from_dict(data, source)
+        except (OSError, json.JSONDecodeError, KeyError, ValueError) as exc:
+            BOOK_LOAD_ERRORS.append(f"{source}: {exc}")
+            continue
+
+        if book.book_id in BOOKS:
+            BOOK_LOAD_ERRORS.append(f"{source}: duplicate book id {book.book_id!r}")
+            continue
+
+        BOOKS[book.book_id] = book
+        for tier in data.get("loot_tiers", []):
+            books_by_tier.setdefault(tier, []).append(book)
+    return books_by_tier
+
+
+def get_book(book_id):
+    """Look up a loaded book template by id -- for placing a specific
+    book in a chest/reward rather than a random one off a loot tier.
+    Returns None if no book with that id was loaded."""
+    return BOOKS.get(book_id)
+
+
+_BOOKS_BY_TIER = load_books()
 
 
 # --- NEW CHEST CLASS ---
@@ -1184,6 +1282,14 @@ _LOOT_TIER_3 = [
     boots_of_speed, dwarven_stompers,
     spell_book, holy_symbol,
 ]
+
+# Fold in any books (content/books/*.json) that declared themselves into
+# a loot tier via "loot_tiers" -- see load_books(). Books with no
+# "loot_tiers" entry are still reachable via get_book(book_id), just not
+# handed out by random loot.
+_LOOT_TIER_1.extend(_BOOKS_BY_TIER.get("tier_1", []))
+_LOOT_TIER_2.extend(_BOOKS_BY_TIER.get("tier_2", []))
+_LOOT_TIER_3.extend(_BOOKS_BY_TIER.get("tier_3", []))
 
 
 def _copy_item(template):

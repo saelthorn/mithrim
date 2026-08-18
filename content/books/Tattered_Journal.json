@@ -1,0 +1,13 @@
+{
+  "id": "tattered_journal",
+  "name": "Tattered Journal",
+  "char": "bk",
+  "color": [150, 120, 80],
+  "description": "A traveler's journal, water-stained and half-legible.",
+  "price": 20,
+  "paragraphs": [
+    "Day 3 -- The trail markers stopped an hour back. I should have turned around then.",
+    "Day 5 -- Found an old campsite, cold ashes. Someone else came this way not long ago. I don't like how quiet the woods have gone."
+  ],
+  "loot_tiers": ["tier_1"]
+}
