@@ -1371,5 +1371,11 @@ class Shopkeeper(TownNPC):
 
 
 TOWNSFOLK_NAMES = [
-    "Mara", "Edrin", "Tess", "Borin", "Lysa", "Corren", "Nessa", "Tobin"
+    "Mara", "Edrin", "Tess", "Borin", "Lysa", "Corren", "Nessa", "Tobin",
+    "Alden", "Brina", "Cale", "Dessa", "Emrik", "Fara", "Garrin", "Hessa",
+    "Jorin", "Kella", "Merrin", "Orla", "Perrin", "Ressa", "Soren", "Talia",
+    "Venn", "Willa", "Arlen", "Bessa", "Doran", "Elric", "Fenna", "Galen",
+    "Harin", "Ilya", "Jessa", "Korin", "Lenn", "Mira", "Noren", "Oren",
+    "Pella", "Renn", "Sella", "Torin", "Vara", "Wren", "Ansel", "Bram",
+    "Cora", "Davin", "Elsa", "Finn", "Gerta", "Hobin", "Iven", "Jora"
 ]

@@ -917,83 +917,112 @@ class Player: # This is our base class for playable characters
                     game_instance.message_log.add_message(random.choice(rest_block_msgs), (255, 0, 0))
                     return False
 
-        # Advance world time via the canonical story path so scheduled
-        # world events see the rest exactly like any other time passage.
-        if hasattr(game_instance, "stories") and hasattr(game_instance.stories, "fire_rest"):
-            game_instance.stories.fire_rest(hours, instigator=self)
+        # A rest menu choice of 8+ hours is a long rest (see game.py's
+        # handle_rest_menu_input: hours=1 for short, hours=8 for long).
+        is_long_rest = hours >= 8
 
-        # Check if the Campfire Kit is on the ground
+        # Check if the player is adjacent to a Campfire Kit on the ground.
+        # A campfire doubles recovery at either rest length: short rest
+        # heals half max HP (a quarter without one), long rest fully
+        # heals (half without one) -- assuming the rest isn't interrupted.
         campfire_kit = next((item for item in game_instance.game_map.items_on_ground if isinstance(item, CampfireKit)), None)
+        has_campfire = campfire_kit is not None and self.is_adjacent_to(campfire_kit)
 
-        # Check if the player is adjacent to the Campfire Kit
-        if campfire_kit and self.is_adjacent_to(campfire_kit):
-            # Fully recover HP and remove status effects
+        if has_campfire:
+            full_fraction = 1.0 if is_long_rest else 0.5
+        else:
+            full_fraction = 0.5 if is_long_rest else 0.25
+
+        # Roll for ambush before applying any recovery, since an ambush
+        # cuts the rest short: the player only got however many of the
+        # planned hours passed before being disturbed, and heals only
+        # that fraction of what a full, uninterrupted rest would give.
+        ambush_chance = 0.3 if has_campfire else 0.6
+        ambushed = random.random() < ambush_chance
+        actual_hours = random.randint(1, hours - 1) if (ambushed and hours > 1) else hours
+        heal_fraction = full_fraction * (actual_hours / hours)
+
+        # Advance world time via the canonical story path so scheduled
+        # world events see the rest exactly like any other time passage --
+        # only for the hours actually rested, not the hours planned.
+        if hasattr(game_instance, "stories") and hasattr(game_instance.stories, "fire_rest"):
+            game_instance.stories.fire_rest(actual_hours, instigator=self)
+
+        if heal_fraction >= 1.0:
             self.hp = self.max_hp
-            self.sanity = self.max_sanity  # Campfire rest fully restores sanity
-            for effect in list(self.active_status_effects):
-                effect.on_end(self, game_instance)
+            self.sanity = self.max_sanity
+        else:
+            self.hp = min(self.max_hp, self.hp + int(self.max_hp * heal_fraction))
+            self.sanity = min(self.max_sanity, self.sanity + int(self.max_sanity * heal_fraction))
+
+        for effect in list(self.active_status_effects):
+            effect.on_end(self, game_instance)
+
+        if has_campfire:
             self.active_status_effects.clear()  # Remove all status effects after processing on_end
-            campfire_msgs = [
-                f"{self.name} rests by the campfire, the flames chasing away the dungeon's chill...",
-                f"The warmth of the campfire eases {self.name}'s wounds and weary spirit...",
-                f"{self.name} finds brief peace by the fire, recovering strength and clarity...",
-                f"As the fire crackles, {self.name}'s body mends and their mind steadies...",
-                f"The campfire glows softly, restoring {self.name} to full vigor..."
-            ]
+
+            if is_long_rest:
+                campfire_msgs = [
+                    f"{self.name} rests by the campfire, the flames chasing away the dungeon's chill...",
+                    f"The warmth of the campfire eases {self.name}'s wounds and weary spirit...",
+                    f"{self.name} finds deep peace by the fire, recovering strength and clarity...",
+                    f"As the fire crackles, {self.name}'s body mends and their mind steadies...",
+                    f"The campfire glows softly, restoring {self.name} to full vigor..."
+                ]
+            else:
+                campfire_msgs = [
+                    f"{self.name} takes a short rest by the campfire, wounds easing a little...",
+                    f"The warmth of the campfire takes the edge off {self.name}'s weariness...",
+                    f"{self.name} catches their breath by the fire, partly recovered...",
+                ]
             game_instance.message_log.add_message(random.choice(campfire_msgs), (0, 255, 0))
-        
+
             # Reset ability cooldowns
             for ability in self.abilities.values():
                 ability.current_cooldown = 0  # Reset cooldown for each ability
-
-            # A campfire rest is a full recovery for the party, not just the
-            # player -- heal every companion fully too, same as self.hp above.
-            self._heal_companions(game_instance, full=True)
-        
-            # Increase ambush chance (e.g., from 20% to 50%)
-            if random.random() < 0.3:  # 30% chance for ambush
-                ambush_msgs = [
-                    "The fire flickers... shadows shift — an ambush!",
-                    "Rustling breaks the quiet — danger approaches!",
-                    "The dungeon is never safe... creatures lunge from the dark!",
-                    "Eyes glint beyond the firelight — you've been found!",
-                    "Your moment of respite shatters as enemies close in!"
-                ]
-                game_instance.message_log.add_message(random.choice(ambush_msgs), (255, 0, 0))
-                self.trigger_ambush(game_instance)
-                return True  # Resting was interrupted by ambush
         else:
-            self.hp = min(self.max_hp, self.hp + self.max_hp // 3)  # Recover half max HP
-            self.sanity = min(self.max_sanity, self.sanity + 20)     # Partial sanity recovery
-            for effect in list(self.active_status_effects):
-                effect.on_end(self, game_instance)
-            campfire_msgs = [
-                f"{self.name} rests, but without a campfire, only half their strength returns...",
-                f"The chill of the dungeon seeps in, and {self.name} can only recover partially...",
-                f"Without the warmth of a fire, {self.name} regains only half their vitality...",
-                f"{self.name} tries to rest, but the darkness and cold limit their recovery...",
-            ]
+            if is_long_rest:
+                campfire_msgs = [
+                    f"{self.name} rests, but without a campfire, only half their strength returns...",
+                    f"The chill of the dungeon seeps in, and {self.name} can only recover partially...",
+                    f"Without the warmth of a fire, {self.name} regains only half their vitality...",
+                ]
+            else:
+                campfire_msgs = [
+                    f"{self.name} tries to rest, but the darkness and cold limit their recovery...",
+                    f"Without a campfire, {self.name}'s short rest brings little relief...",
+                ]
             game_instance.message_log.add_message(random.choice(campfire_msgs), (255, 255, 0))
 
-            # Same partial recovery (a third of max HP) extended to the
-            # player's companions, matching self.hp's recovery just above.
-            self._heal_companions(game_instance, full=False)
+        # Extend the same recovery fraction to the player's companions.
+        self._heal_companions(game_instance, heal_fraction)
 
-            if random.random() < 0.6:  # 60% chance for ambush even without a campfire
-                ambush_msgs = [
-                    "The dungeon's shadows are restless... an ambush!",
-                    "A sudden noise! Enemies have found you in the dark!",
-                    "The quiet is broken by a sinister presence — prepare for battle!",
-                    "You feel eyes on you... and then, the attack comes!",
-                    "The darkness conceals many threats, and one has chosen this moment!"
-                ]
-                game_instance.message_log.add_message(random.choice(ambush_msgs), (255, 0, 0))
-                self.trigger_ambush(game_instance)
-                return True  # Resting was interrupted by ambush
+        if ambushed:
+            if actual_hours < hours:
+                hour_word = "hour" if actual_hours == 1 else "hours"
+                game_instance.message_log.add_message(
+                    f"{self.name}'s rest is cut short after {actual_hours} {hour_word}...", (255, 180, 0)
+                )
+            ambush_msgs = [
+                "The fire flickers... shadows shift — an ambush!",
+                "Rustling breaks the quiet — danger approaches!",
+                "The dungeon is never safe... creatures lunge from the dark!",
+                "Eyes glint beyond the firelight — you've been found!",
+                "Your moment of respite shatters as enemies close in!"
+            ] if has_campfire else [
+                "The dungeon's shadows are restless... an ambush!",
+                "A sudden noise! Enemies have found you in the dark!",
+                "The quiet is broken by a sinister presence — prepare for battle!",
+                "You feel eyes on you... and then, the attack comes!",
+                "The darkness conceals many threats, and one has chosen this moment!"
+            ]
+            game_instance.message_log.add_message(random.choice(ambush_msgs), (255, 0, 0))
+            self.trigger_ambush(game_instance)
+            return True  # Resting was interrupted by ambush
 
         return True
 
-    def _heal_companions(self, game_instance, full):
+    def _heal_companions(self, game_instance, heal_fraction):
         """
         Extend the player's own rest recovery (above) to every companion
         following them -- combat companions, escort companions, animal
@@ -1003,16 +1032,17 @@ class Player: # This is our base class for playable characters
         sit at a sliver of HP indefinitely even while the player fully
         recovered at the very same campfire.
 
-        `full=True` mirrors self.hp's campfire recovery (heal to max,
-        clear status effects); `full=False` mirrors the no-campfire
-        branch (recover a third of max HP, still clear status effects --
-        status effects don't get a "partial" cure any more than the
-        player's own do above).
+        `heal_fraction` mirrors self.hp's own recovery just above (1.0
+        heals to max and clears status effects; anything less recovers
+        that fraction of max HP, still processing on_end for active
+        effects but without clearing them).
 
         Deferred import to avoid a circular import: entities/summons.py
         pulls in core/game.py, which in turn imports this module.
         """
         from entities.summons import SummonedEntity
+
+        full = heal_fraction >= 1.0
 
         for entity in game_instance.entities:
             if entity is self or not isinstance(entity, SummonedEntity):
@@ -1023,7 +1053,7 @@ class Player: # This is our base class for playable characters
             if full:
                 entity.hp = entity.max_hp
             else:
-                entity.hp = min(entity.max_hp, entity.hp + entity.max_hp // 3)
+                entity.hp = min(entity.max_hp, entity.hp + int(entity.max_hp * heal_fraction))
 
             for effect in list(entity.active_status_effects):
                 effect.on_end(entity, game_instance)
