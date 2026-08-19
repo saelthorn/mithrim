@@ -2484,9 +2484,10 @@ class Game:
         amount"'s min/max (see _normalize_world_encounter_range(), which
         defaults a missing/int value to exactly one tile -- unchanged
         prior behavior), capped to however many open positions actually
-        exist. Placed nearest-to-player first, so a multi-tile stage
-        reads as one cluster of wreckage/barricade/stones rather than
-        scattering randomly across the whole spawn radius.
+        exist. Placed at random positions drawn from across the whole
+        spawn radius (rather than nearest-to-player first), so a
+        multi-tile stage scatters believably around the player instead
+        of always clustering just outside their immediate footprint.
 
         Pops each chosen position out of `spawn_candidates` in place, so
         anything spawned from the same pool right after this (a later
@@ -2502,8 +2503,7 @@ class Game:
         min_amount, max_amount = stage["landmark_tile_amount"]
         amount = min(random.randint(min_amount, max_amount), len(spawn_candidates))
 
-        anchor_x, anchor_y = self.player.x, self.player.y
-        spawn_candidates.sort(key=lambda pos: (pos[0] - anchor_x) ** 2 + (pos[1] - anchor_y) ** 2)
+        random.shuffle(spawn_candidates)
 
         for _ in range(amount):
             tile_template = self.WORLD_ENCOUNTER_TILE_TYPES.get(random.choice(tile_pool))
