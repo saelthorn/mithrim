@@ -2581,6 +2581,7 @@ class Game:
         """
         from world.structures import (
             get_structure_blueprint,
+            items_for_placement,
             monsters_for_placement,
             npcs_for_placement,
             place_structure_at_anchor,
@@ -2605,6 +2606,7 @@ class Game:
                 continue  # no clear footprint nearby -- leave the rest of the cluster unaffected
 
             previous_anchor = (structure_anchor_x, structure_anchor_y, width, height)
+            self.game_map.items_on_ground.extend(items_for_placement(structure_id, placed_tiles))
             spawned = npcs_for_placement(structure_id, placed_tiles) + monsters_for_placement(structure_id, placed_tiles)
             self.entities.extend(spawned)
 
@@ -4118,6 +4120,7 @@ class Game:
         from world.structures import (
             place_structure_at_anchor,
             npcs_for_placement,
+            items_for_placement,
             assign_npc_schedule_anchors,
             bounding_box_for_footprints,
         )
@@ -4127,6 +4130,13 @@ class Game:
         tavern_tile = self._tavern_entrance_tile(placed_tiles) if placed_tiles else None
 
         if placed_tiles:
+            # This tavern is placed directly rather than through
+            # create_town_npcs(), so -- like its NPCs below -- any chests
+            # its blueprint's item_map declares (structures.py's "c" ->
+            # _spawn_chest) have to be spawned here too, or they'd simply
+            # never appear for the player's starting tavern.
+            self.game_map.items_on_ground.extend(items_for_placement("tavern", placed_tiles))
+
             tavern_npcs = npcs_for_placement("tavern", placed_tiles)
             # Same schedule-anchor treatment create_town_npcs() gives every
             # other town's population -- a wander_bounds around this one

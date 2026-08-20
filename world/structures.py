@@ -5,6 +5,7 @@ from entities.base_entity import NPC
 from entities.town_npcs import TownNPC, Innkeeper, Shopkeeper, Townsfolk, Blacksmith, Priest
 from entities.monster import GiantRat, Goblin, Skeleton, Wolf, Orc
 from entities.companions import RACE_CLASS_VISUALS, FIGHTER, RANGER, ROGUE, WIZARD, CLERIC
+from items.items import Chest, LockedChest, generate_random_loot, generate_locked_loot
 
 from world.tile import (
     ground, grass, road, tall_grass, wall, tavern_floor, floor, bar_counter_two, bar_counter_three, bar_counter_four, 
@@ -33,9 +34,16 @@ class StructureBlueprint:
     # being spawned separately by whatever encounter/room system placed
     # the building.
     monster_map: dict[str, object] = field(default_factory=dict)
+    # Maps a tile_map char to an Item factory `(x, y) -> Item`, the item
+    # equivalent of npc_map/monster_map above. Currently only used for
+    # chests (see _spawn_chest()/_spawn_locked_chest() below), letting a
+    # blueprint bake a stash directly into its ASCII art (e.g. 'c' for a
+    # chest tucked in a watchtower storeroom) instead of chests being
+    # placed separately by whatever system placed the building.
+    item_map: dict[str, object] = field(default_factory=dict)
 
 
-def build_blueprint(key, name, tile_map, char_map, default_tile=ground, walkable_chars=None, description="", npc_map=None, monster_map=None):
+def build_blueprint(key, name, tile_map, char_map, default_tile=ground, walkable_chars=None, description="", npc_map=None, monster_map=None, item_map=None):
     return StructureBlueprint(
         key=key,
         name=name,
@@ -46,6 +54,7 @@ def build_blueprint(key, name, tile_map, char_map, default_tile=ground, walkable
         description=description,
         npc_map=dict(npc_map or {}),
         monster_map=dict(monster_map or {}),
+        item_map=dict(item_map or {}),
     )
 
 
@@ -195,6 +204,38 @@ def _spawn_wolf(x, y):
     return Wolf(x, y)
 
 
+#: level_number handed to items.py's generate_random_loot()/
+#: generate_locked_loot() for chests placed via a blueprint's item_map.
+#: Overworld town/landmark structures have no dungeon "depth" to scale
+#: loot against, so this is a fixed, deliberately modest level -- these
+#: chests should read as a bit of stashed loot tucked in a building, not
+#: compete with what an actual dungeon floor hands out.
+OVERWORLD_CHEST_LOOT_LEVEL = 1
+
+
+# Item factories used by blueprint item_map entries below -- the item
+# equivalent of the NPC/monster factories above. Each takes (x, y) and
+# returns an Item instance, matching the same `(x, y) -> entity`
+# signature npc_map/monster_map factories use, so items_for_placement()
+# can share the exact same char-in-ASCII-art spawning logic
+# (_spawns_from_entity_map()) as npcs_for_placement()/
+# monsters_for_placement().
+def _spawn_chest(x, y):
+    """A plain, unlocked chest with tier-1-weighted loot -- see items.py's
+    generate_random_loot(). Reads as a bit of stashed gear rather than a
+    guaranteed reward: generate_random_loot() itself has a ~20% chance of
+    coming up empty."""
+    return Chest(x, y, contents=generate_random_loot(OVERWORLD_CHEST_LOOT_LEVEL))
+
+
+def _spawn_locked_chest(x, y):
+    """A locked chest -- see items.py's generate_locked_loot(), which never
+    rolls empty and leans toward better loot than a plain chest, rewarding
+    the Thieves' Tools + DC check (or a smashed-open gamble, see game.py's
+    _handle_smash_chest()) it takes to get into one."""
+    return LockedChest(x, y, contents=generate_locked_loot(OVERWORLD_CHEST_LOOT_LEVEL))
+
+
 STRUCTURE_BLUEPRINTS = {
     "witch_hut": build_blueprint(
         "witch_hut",
@@ -230,15 +271,16 @@ STRUCTURE_BLUEPRINTS = {
             "        ",
             " ###### ",
             " #bs.w# ",
-            " #.p.t# ",
+            " #cp.t# ",
             " #w.wp# ",
             " ###+## ",
             "        ",
         ],
-        {"#": wall, "w": tavern_cobweb, "p": wood_plank, ".": tavern_floor, "V": tavern_floor, "+": door, "b": bed, "t": table, "s": shelf},
-        walkable_chars={".", "V", "+"},
+        {"#": wall, "w": tavern_cobweb, "p": wood_plank, ".": tavern_floor, "V": tavern_floor, "c": tavern_floor, "+": door, "b": bed, "t": table, "s": shelf},
+        walkable_chars={".", "V", "c", "+"},
         description="A simple frontier cabin.",
         npc_map={"V": _spawn_villager},
+        item_map={"c": _spawn_chest},
     ),
     "watch_tower": build_blueprint(
         "watch_tower",
@@ -249,12 +291,13 @@ STRUCTURE_BLUEPRINTS = {
             " #p...l# ",
             " +..===# ",
             " #.wp.b# ",
-            " ##b.b## ",
+            " ##bcb## ",
             "  #####  ",
         ],
         {"#": wall, ".": tavern_floor, "l": ladder, "+": door, "b": bed, "t": table, "w": tavern_cobweb, "p": wood_plank, "c": tavern_crate, "b": tavern_barrel, "=": bar_counter},
-        walkable_chars={".", "+"},
+        walkable_chars={".", "c", "+"},
         description="A defensive tower on a hilltop.",
+        item_map={"c": _spawn_locked_chest},
     ),
     "shrine": build_blueprint(
         "shrine",
@@ -303,6 +346,7 @@ STRUCTURE_BLUEPRINTS = {
         walkable_chars={".", "p", "A", "o", "+"},
         description="A rowdy wayside tavern.",
         npc_map={"A": _spawn_innkeeper, "p": _spawn_tavern_patron, "g": _spawn_goblin, "o": _spawn_orc},
+        item_map={"c": _spawn_chest},
     ),
 
     "blacksmith": build_blueprint(
@@ -550,6 +594,23 @@ def monsters_for_placement(structure_id, placed_tiles):
     return _spawns_from_entity_map(blueprint.monster_map, blueprint, placed_tiles) if blueprint else []
 
 
+def items_for_placement(structure_id, placed_tiles):
+    """
+    Instantiate the Items (currently: chests) a structure's blueprint
+    declares in its item_map, given the placed_tiles returned by
+    place_structure()/place_structure_at_anchor() -- the item equivalent
+    of npcs_for_placement()/monsters_for_placement() above.
+
+    Unlike NPCs and monsters, these don't belong in a turn-order entity
+    list -- a caller should extend game_map.items_on_ground with the
+    result instead (see create_town_npcs() below, and game.py's
+    get_chest_at()/handle_item_pickup(), which already expect chests to
+    live there).
+    """
+    blueprint = get_structure_blueprint(structure_id)
+    return _spawns_from_entity_map(blueprint.item_map, blueprint, placed_tiles) if blueprint else []
+
+
 def _spawns_from_entity_map(entity_map, blueprint, placed_tiles):
     """
     Shared by npcs_for_placement()/monsters_for_placement(): instantiate
@@ -655,6 +716,15 @@ def create_town_npcs(game_map, town_buildings):
 
     for structure_id, placed_tiles in town_buildings:
         blueprint = get_structure_blueprint(structure_id)
+
+        # Chests aren't turn-taking entities, so unlike npc_map/monster_map
+        # below they go straight onto the map's item list rather than into
+        # `npcs` -- and this runs unconditionally (not folded into the
+        # npc_map/monster_map branch's `continue`) so a blueprint can have
+        # an item_map with no population at all.
+        if blueprint and blueprint.item_map:
+            game_map.items_on_ground.extend(items_for_placement(structure_id, placed_tiles))
+
         if blueprint and (blueprint.npc_map or blueprint.monster_map):
             spawned = npcs_for_placement(structure_id, placed_tiles) + monsters_for_placement(structure_id, placed_tiles)
             assign_npc_schedule_anchors(spawned, wander_bounds)
