@@ -346,7 +346,7 @@ STRUCTURE_BLUEPRINTS = {
         walkable_chars={".", "p", "A", "o", "+"},
         description="A rowdy wayside tavern.",
         npc_map={"A": _spawn_innkeeper, "p": _spawn_tavern_patron, "g": _spawn_goblin, "o": _spawn_orc},
-        item_map={"c": _spawn_chest},
+        item_map={"c": _spawn_locked_chest},
     ),
 
     "blacksmith": build_blueprint(

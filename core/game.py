@@ -6993,26 +6993,29 @@ class Game:
                                 else:
                                     # If no altar, check for adjacent interactables
                                     target = self.get_adjacent_target()
-                                    # If no adjacent entity, check for chests at player's position
-                                    chest_at_pos = self.get_chest_at(self.player.x, self.player.y)                                    
-                                    if target:
-                                        if isinstance(target, Mimic): # Mimics are entities, but also interactable
-                                            target.reveal(self)
-                                            action_taken = True
-                                        elif isinstance(target, Monster): # If it's a monster, attack it
-                                            self.handle_player_attack(target, self)
-                                            action_taken = True
-                                        elif chest_at_pos:
-                                            if isinstance(chest_at_pos, LockedChest) and chest_at_pos.is_locked:
-                                                # Show the interaction choice menu instead of opening directly
-                                                self._chest_menu_target = chest_at_pos
-                                                self._previous_game_state = self.game_state
-                                                self.game_state = GameState.CHEST_MENU
-                                            else:
-                                                chest_at_pos.open(self.player, self)
-                                            action_taken = True
+                                    # Independent of target -- a chest with no adjacent
+                                    # NPC/monster next to it (the normal overworld case)
+                                    # used to be unreachable here, since this used to be
+                                    # nested as an elif *inside* `if target:` and so was
+                                    # never even checked when target was None.
+                                    chest_at_pos = self.get_chest_at(self.player.x, self.player.y)
+                                    if target and isinstance(target, Mimic): # Mimics are entities, but also interactable
+                                        target.reveal(self)
+                                        action_taken = True
+                                    elif target and isinstance(target, Monster): # If it's a monster, attack it
+                                        self.handle_player_attack(target, self)
+                                        action_taken = True
+                                    elif chest_at_pos:
+                                        if isinstance(chest_at_pos, LockedChest) and chest_at_pos.is_locked:
+                                            # Show the interaction choice menu instead of opening directly
+                                            self._chest_menu_target = chest_at_pos
+                                            self._previous_game_state = self.game_state
+                                            self.game_state = GameState.CHEST_MENU
                                         else:
-                                            self.message_log.add_message("Nothing to interact with here.", (150, 150, 150))
+                                            chest_at_pos.open(self.player, self)
+                                        action_taken = True
+                                    else:
+                                        self.message_log.add_message("Nothing to interact with here.", (150, 150, 150))
                             # --- MODIFIED END ---
                             
                             # --- Prison door interaction ---
