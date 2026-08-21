@@ -220,6 +220,11 @@ def setup_tile_mapping():
         'LC':  (4 * CELL_DIM, 5 * CELL_DIM),  # Locked Chest (closed)
         'olc': (5 * CELL_DIM, 5 * CELL_DIM),  # Locked Chest (opened)
         'LM':  (5 * CELL_DIM, 6 * CELL_DIM),  # Locked Chest Mimic (revealed)
+
+        'IC': (4 * CELL_DIM, 6 * CELL_DIM),   # Indoor Chest Overworld (closed)
+        'ICO': (5 * CELL_DIM, 6 * CELL_DIM),   # Indoor Chest Overworld (opened)
+        'OC': (7 * CELL_DIM, 6 * CELL_DIM),   # Outdoor Chest Overworld (closed)
+        'OCO': (8 * CELL_DIM, 6 * CELL_DIM),   # Outdoor Chest Overworld (opened)
         
         
         'c': (3 * CELL_DIM, 3 * CELL_DIM),    # Chair (Tavern)

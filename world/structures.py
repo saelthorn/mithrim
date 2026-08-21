@@ -5,7 +5,7 @@ from entities.base_entity import NPC
 from entities.town_npcs import TownNPC, Innkeeper, Shopkeeper, Townsfolk, Blacksmith, Priest
 from entities.monster import GiantRat, Goblin, Skeleton, Wolf, Orc
 from entities.companions import RACE_CLASS_VISUALS, FIGHTER, RANGER, ROGUE, WIZARD, CLERIC
-from items.items import Chest, LockedChest, generate_random_loot, generate_locked_loot
+from items.items import Chest, IndoorChest, OutdoorChest, LockedChest, generate_random_loot, generate_locked_loot
 
 from world.tile import (
     ground, grass, road, tall_grass, wall, tavern_floor, floor, bar_counter_two, bar_counter_three, bar_counter_four, 
@@ -220,13 +220,19 @@ OVERWORLD_CHEST_LOOT_LEVEL = 1
 # can share the exact same char-in-ASCII-art spawning logic
 # (_spawns_from_entity_map()) as npcs_for_placement()/
 # monsters_for_placement().
-def _spawn_chest(x, y):
+def _spawn_indoor_chest(x, y):
     """A plain, unlocked chest with tier-1-weighted loot -- see items.py's
     generate_random_loot(). Reads as a bit of stashed gear rather than a
     guaranteed reward: generate_random_loot() itself has a ~20% chance of
     coming up empty."""
-    return Chest(x, y, contents=generate_random_loot(OVERWORLD_CHEST_LOOT_LEVEL))
+    return IndoorChest(x, y, contents=generate_random_loot(OVERWORLD_CHEST_LOOT_LEVEL))
 
+def _spawn_outdoor_chest(x, y):
+    """A plain, unlocked chest with tier-1-weighted loot -- see items.py's
+    generate_random_loot(). Reads as a bit of stashed gear rather than a
+    guaranteed reward: generate_random_loot() itself has a ~20% chance of
+    coming up empty."""
+    return OutdoorChest(x, y, contents=generate_random_loot(OVERWORLD_CHEST_LOOT_LEVEL))
 
 def _spawn_locked_chest(x, y):
     """A locked chest -- see items.py's generate_locked_loot(), which never
@@ -280,7 +286,7 @@ STRUCTURE_BLUEPRINTS = {
         walkable_chars={".", "V", "c", "+"},
         description="A simple frontier cabin.",
         npc_map={"V": _spawn_villager},
-        item_map={"c": _spawn_chest},
+        item_map={"c": _spawn_indoor_chest},
     ),
     "watch_tower": build_blueprint(
         "watch_tower",
@@ -297,7 +303,7 @@ STRUCTURE_BLUEPRINTS = {
         {"#": wall, ".": tavern_floor, "l": ladder, "+": door, "b": bed, "t": table, "w": tavern_cobweb, "p": wood_plank, "c": tavern_crate, "b": tavern_barrel, "=": bar_counter},
         walkable_chars={".", "c", "+"},
         description="A defensive tower on a hilltop.",
-        item_map={"c": _spawn_locked_chest},
+        item_map={"c": _spawn_indoor_chest},
     ),
     "shrine": build_blueprint(
         "shrine",
@@ -346,7 +352,7 @@ STRUCTURE_BLUEPRINTS = {
         walkable_chars={".", "p", "A", "o", "+"},
         description="A rowdy wayside tavern.",
         npc_map={"A": _spawn_innkeeper, "p": _spawn_tavern_patron, "g": _spawn_goblin, "o": _spawn_orc},
-        item_map={"c": _spawn_locked_chest},
+        item_map={"c": _spawn_indoor_chest},
     ),
 
     "blacksmith": build_blueprint(

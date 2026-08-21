@@ -578,11 +578,11 @@ class MountainGenerator(TerrainGenerator):
 
                 if (x, y) in river_tiles:
                     game_map.tiles[y][x] = river
-                elif h > 0.70: # % of the highest elevations are mountains
+                elif h > 0.60: # % of the highest elevations are mountains
                     game_map.tiles[y][x] = mountain
-                elif h > 0.68: # % of the next highest elevations are scree
+                elif h > 0.56: # % of the next highest elevations are scree
                     game_map.tiles[y][x] = scree
-                elif m > 0.80 and _chance(x, y, 5, 0.25):
+                elif m > 0.40 and _chance(x, y, 5, 0.25):
                     # Was an unconditional `tree`, which made every hilltop a
                     # solid, gap-free block of forest. Thinning it here lets
                     # roughly half of it fall through to the tall_grass band

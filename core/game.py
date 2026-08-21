@@ -412,7 +412,8 @@ from core.status_effects import (
     PreciseStrikeBuff, Prepared, FleetFooted, AppliedToxins, Restrained, Frightened, is_restrained
 )
 from items.items import (
-    Potion, Weapon, Armor, OffHand, Chest, LockedChest, Book, BOOK_LOAD_ERRORS, lesser_healing_potion, greater_healing_potion, wood_plank, meat, green_apple, fromage, 
+    Potion, Weapon, Armor, OffHand, Chest, IndoorChest, OutdoorChest, LockedChest, Book, BOOK_LOAD_ERRORS, lesser_healing_potion, 
+    greater_healing_potion, wood_plank, meat, green_apple, fromage, 
     bread, mushroom, CampfireKit, torch, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, 
     iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, 
     apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail, 
@@ -7392,6 +7393,10 @@ class Game:
         for item in self.game_map.items_on_ground:
             if isinstance(item, Chest) and item.x == x and item.y == y:
                 return item
+            if isinstance(item, IndoorChest) and item.x == x and item.y == y:
+                return item
+            if isinstance(item, OutdoorChest) and item.x == x and item.y == y:
+                return item            
         return None
 
     def get_altar_at(self, x, y):
