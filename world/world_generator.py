@@ -415,7 +415,7 @@ class ForestGenerator(TerrainGenerator):
                     game_map.tiles[y][x] = river
                 elif m > 0.72 and h < 0.50:
                     game_map.tiles[y][x] = lake
-                elif m > 0.42:
+                elif m > 0.92:
                     game_map.tiles[y][x] = flower_field                    
                 elif m > 0.60 and _chance(x, y, 5, 0.55):
                     # Was an unconditional `tree`, which made every hilltop a
@@ -578,14 +578,20 @@ class MountainGenerator(TerrainGenerator):
 
                 if (x, y) in river_tiles:
                     game_map.tiles[y][x] = river
-                elif h > 0.80: # % of the highest elevations are mountains
+                elif h > 0.70: # % of the highest elevations are mountains
                     game_map.tiles[y][x] = mountain
                 elif h > 0.68: # % of the next highest elevations are scree
                     game_map.tiles[y][x] = scree
-                elif h > 0.55 and m > 0.50: #
+                elif m > 0.80 and _chance(x, y, 5, 0.25):
+                    # Was an unconditional `tree`, which made every hilltop a
+                    # solid, gap-free block of forest. Thinning it here lets
+                    # roughly half of it fall through to the tall_grass band
+                    # below instead, breaking the canopy up with clearings.
                     game_map.tiles[y][x] = tree
                 elif h > 0.40 and m > 0.35:
                     game_map.tiles[y][x] = clearing
+                elif m > 0.52 and _chance(x, y, 3, 1 / 16):
+                    game_map.tiles[y][x] = rock_formation
                 else:
                     game_map.tiles[y][x] = ground
 
