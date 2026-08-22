@@ -1181,7 +1181,7 @@ class Innkeeper(TownNPC):
         # campfire -- extend that same full recovery to the player's
         # companions (combat/escort/animal) so they don't stay stuck at
         # whatever HP they had when the player walked in.
-        player._heal_companions(game, full=True)
+        player._heal_companions(game, 1.0)
 
         # Some classes track further per-rest resources (spell slots,
         # ability charges, ...) behind their own long_rest() hook; restore
