@@ -420,7 +420,7 @@ from items.items import (
     Helmet, Boots, FocusItem,
     leather_cap, iron_helmet, steel_helmet, great_helm, mages_circlet, hood_of_shadows,
     leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,
-    format_price, GOLD, clone_item,
+    format_price, GOLD,
 )
 
 from core.pathfinding import astar
@@ -5283,7 +5283,13 @@ class Game:
                     
 
                     chosen_template = random.choice(item_templates)
-                    item_to_add = clone_item(chosen_template)
+                    item_to_add = chosen_template.__class__(
+                        name=chosen_template.name,
+                        char=chosen_template.char,
+                        color=chosen_template.color,
+                        description=chosen_template.description,
+                        **{k: v for k, v in chosen_template.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
+                    )
 
                     item_to_add.x = item_x
                     item_to_add.y = item_y
@@ -10024,12 +10030,27 @@ class Game:
         # tint only the cursor tile itself.
         if self.game_state == GameState.TARGETING:
             cx, cy = self.targeting_cursor_x, self.targeting_cursor_y
-            aoe_radius = getattr(self.ability_in_use, 'radius', 0)
+            ability_color = (180, 40, 40, 20)
+            if self.ability_in_use is not None and hasattr(self.ability_in_use, 'get_highlight_color'):
+                ability_color = self.ability_in_use.get_highlight_color()
             cursor_overlay = pygame.Surface((config.TILE_SIZE, config.TILE_SIZE), pygame.SRCALPHA)
-            cursor_overlay.fill((180, 40, 40, 20))
+            cursor_overlay.fill(ability_color)
 
-            if aoe_radius > 0:
-                # Tint all tiles within the AoE radius of the cursor
+            shaped_tiles = None
+            if self.ability_in_use is not None and hasattr(self.ability_in_use, 'get_highlight_tiles'):
+                shaped_tiles = self.ability_in_use.get_highlight_tiles(self.player, cx, cy)
+
+            aoe_radius = getattr(self.ability_in_use, 'radius', 0)
+
+            if shaped_tiles:
+                # Cone/line abilities: tint whatever tiles the ability itself reports
+                for hx, hy in shaped_tiles:
+                    if not self.camera.is_in_viewport(hx, hy):
+                        continue
+                    sx, sy = self.camera.world_to_screen(hx, hy)
+                    self.internal_surface.blit(cursor_overlay, (int(sx * config.TILE_SIZE), int(sy * config.TILE_SIZE)))
+            elif aoe_radius > 0:
+                # Circular AoE: tint all tiles within the radius of the cursor
                 for hy in range(cy - aoe_radius, cy + aoe_radius + 1):
                     for hx in range(cx - aoe_radius, cx + aoe_radius + 1):
                         if (hx - cx) ** 2 + (hy - cy) ** 2 > aoe_radius ** 2:

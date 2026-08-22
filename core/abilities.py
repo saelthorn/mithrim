@@ -1,3 +1,4 @@
+import math
 import random
 from world.tile import floor, MimicTile, TrapTile, PrisonDoorTile
 
@@ -57,6 +58,19 @@ class Ability:
         """Decrements the cooldown each turn."""
         if self.current_cooldown > 0:
             self.current_cooldown -= 1
+
+    def get_highlight_tiles(self, user, target_x, target_y):
+        """Extra tiles to tint while targeting this ability, for shapes
+        the renderer can't infer from a plain 'radius' (e.g. a cone or
+        line breath weapon). None means the renderer falls back to its
+        default radius/single-tile highlighting -- see game.py's
+        render_tile_highlights()."""
+        return None
+
+    def get_highlight_color(self):
+        """RGBA tint used for targeting highlights. Override for an
+        ability-specific color; defaults to the game's usual AoE tint."""
+        return (180, 40, 40, 20)
 
 
     def execute_on_target(self, user, game_instance, target_x, target_y):
@@ -2124,6 +2138,176 @@ class RayOfFrost(Ability):
         additional_dice = (player_level - 1) // 5 # One extra die every 4 levels
         self.damage_dice = 1 + additional_dice
  
+
+
+class DragonBreath(Ability):
+    """
+    Dragonborn racial breath weapon. `shape` ("cone" or "line") and
+    `damage_type" ("fire", "poison", "lightning") are supplied by the
+    granting Dragonborn subclass in races.py, so one class covers every
+    lineage instead of four near-identical copies.
+    """
+
+    DAMAGE_DIE = 6
+    HALF_ANGLE_DEGREES = 45  # cone spans 90 degrees, centered on the aimed direction
+    SAVE_DC = 15
+
+    HIGHLIGHT_COLORS = {
+        "fire": (255, 90, 20, 90),
+        "poison": (60, 200, 60, 90),
+        "lightning": (90, 170, 255, 90),
+    }
+
+    def __init__(self, shape, damage_type):
+        self.shape = shape
+        self.damage_type = damage_type
+        shape_label = "cone" if shape == "cone" else "line"
+        name = f"{damage_type.capitalize()} Breath"
+        description = f"Exhale a {shape_label} of {damage_type}, damaging everything caught in it."
+        super().__init__(name, description, cost=0, cooldown=10)
+        self.range = 5
+        self.damage_dice = 2
+
+    def use(self, user, game_instance):
+        if not super().use(user, game_instance):
+            return False
+
+        def is_entity_visible(ent):
+            return game_instance.fov.get_visibility_type(ent.x, ent.y) in ['player', 'torch', 'darkvision']
+
+        monster_targets = [
+            entity for entity in game_instance.entities
+            if isinstance(entity, Monster) and entity.alive
+            and user.distance_to(entity.x, entity.y) <= self.range
+            and is_entity_visible(entity)
+        ]
+
+        game_instance.game_state = GameState.TARGETING
+        game_instance.ability_in_use = self
+        game_instance.targeting_ability_range = self.range
+
+        if monster_targets:
+            target = min(monster_targets, key=lambda m: user.distance_to(m.x, m.y))
+            game_instance.targeting_cursor_x = target.x
+            game_instance.targeting_cursor_y = target.y
+        else:
+            move_dx = getattr(game_instance, "last_move_dx", 0)
+            move_dy = getattr(game_instance, "last_move_dy", 0)
+            if move_dx == 0 and move_dy == 0:
+                move_dy = 1
+            game_instance.targeting_cursor_x = user.x + move_dx
+            game_instance.targeting_cursor_y = user.y + move_dy
+
+        game_instance.message_log.add_message(
+            f"{user.name} draws breath, preparing {self.name}!", (200, 150, 80)
+        )
+        return True
+
+    def _breath_tiles(self, user, target_x, target_y):
+        """Tiles the breath covers, aimed from `user` towards
+        (target_x, target_y): a 1-tile-wide ray out to self.range for
+        "line", or a 90-degree arc out to self.range for "cone"."""
+        dx, dy = target_x - user.x, target_y - user.y
+        if dx == 0 and dy == 0:
+            dx, dy = 0, 1
+        length = math.hypot(dx, dy)
+
+        if self.shape == "line":
+            ux, uy = dx / length, dy / length
+            tiles, seen = [], set()
+            for step in range(1, self.range + 1):
+                tile = (user.x + round(ux * step), user.y + round(uy * step))
+                if tile not in seen:
+                    seen.add(tile)
+                    tiles.append(tile)
+            return tiles
+
+        cone_cosine = math.cos(math.radians(self.HALF_ANGLE_DEGREES))
+        tiles = []
+        for oy in range(-self.range, self.range + 1):
+            for ox in range(-self.range, self.range + 1):
+                if ox == 0 and oy == 0:
+                    continue
+                distance = math.hypot(ox, oy)
+                if distance > self.range:
+                    continue
+                dot = ox * dx + oy * dy
+                if dot > 0 and dot >= length * distance * cone_cosine:
+                    tiles.append((user.x + ox, user.y + oy))
+        return tiles
+
+    def execute_on_target(self, user, game_instance, target_x, target_y):
+        from entities.player import Player
+
+        if game_instance.fov.get_visibility_type(target_x, target_y) not in ['player', 'torch', 'darkvision']:
+            game_instance.message_log.add_message(
+                f"You cannot breathe towards {target_x}, {target_y} because it is out of sight!", (255, 0, 0)
+            )
+            return False
+
+        damage_rolls = [random.randint(1, self.DAMAGE_DIE) for _ in range(self.damage_dice)]
+        total_damage = sum(damage_rolls)
+
+        game_instance.message_log.add_message(
+            f"{user.name} unleashes {self.name}! Rolls {self.damage_dice}d{self.DAMAGE_DIE} {damage_rolls} = {total_damage}.",
+            (200, 150, 80),
+        )
+
+        tiles = set(self._breath_tiles(user, target_x, target_y))
+        hit_anyone = False
+
+        for entity in list(game_instance.entities):
+            if not entity.alive or entity is user or not isinstance(entity, (Monster, Player)):
+                continue
+            if (entity.x, entity.y) not in tiles:
+                continue
+
+            hit_anyone = True
+            dex_save = entity.get_saving_throw_bonus("DEX")
+            d20_roll = random.randint(1, 20)
+            save_total = d20_roll + dex_save
+
+            game_instance.message_log.add_message(
+                f"{entity.name} rolls a d20: {d20_roll} + {dex_save} = {save_total} (DC {self.SAVE_DC})",
+                (200, 200, 255),
+            )
+
+            if save_total >= self.SAVE_DC:
+                damage_dealt_amount = total_damage // 2
+                game_instance.message_log.add_message(
+                    f"{entity.name} succeeds on the saving throw and takes {damage_dealt_amount} {self.damage_type} damage!",
+                    (100, 255, 100),
+                )
+            else:
+                damage_dealt_amount = total_damage
+                game_instance.message_log.add_message(
+                    f"{entity.name} fails the saving throw and takes {damage_dealt_amount} {self.damage_type} damage!",
+                    (255, 100, 100),
+                )
+
+            damage_dealt = entity.take_damage(damage_dealt_amount, game_instance, damage_type=self.damage_type)
+            game_instance.floating_texts.append(FloatingText(entity.x, entity.y - 0.5, str(damage_dealt), (255, 0, 0)))
+
+            if not entity.alive and isinstance(entity, Monster):
+                xp_gained = entity.die(game_instance, killer=user)
+                user.gain_xp(xp_gained, game_instance)
+                game_instance.message_log.add_message(f"You gain {xp_gained} XP!", (100, 255, 100))
+                game_instance.stories.fire_kill(entity, instigator=user, group_id=getattr(entity, "group_id", None))
+
+        if not hit_anyone:
+            game_instance.message_log.add_message("The breath weapon scorches empty ground.", (200, 150, 80))
+
+        return True
+
+    def scale_with_level(self, player_level):
+        """One extra d6 every 4 levels (base 2d6 at level 1)."""
+        self.damage_dice = 2 + (player_level - 1) // 4
+
+    def get_highlight_tiles(self, user, target_x, target_y):
+        return self._breath_tiles(user, target_x, target_y)
+
+    def get_highlight_color(self):
+        return self.HIGHLIGHT_COLORS.get(self.damage_type, (180, 40, 40, 90))
 
 
 class ActionSurge(Ability):

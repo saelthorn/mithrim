@@ -577,11 +577,28 @@ class Dragonborn(Race):
             (200, 150, 80),
         )
 
+    def _grant_dragon_breath(self, player, game):
+        """Grant this lineage's breath weapon (shape from BREATH_SHAPE,
+        damage type from DAMAGE_TYPE) — same "only if not already known,
+        scale on grant" pattern HighElf/MephistophelesTiefling use for
+        their cantrips."""
+        from core.abilities import DragonBreath
+        breath_name = f"{self.DAMAGE_TYPE.capitalize()} Breath"
+        if breath_name not in player.abilities:
+            ability = DragonBreath(shape=self.BREATH_SHAPE, damage_type=self.DAMAGE_TYPE.lower())
+            ability.scale_with_level(player.level)
+            player.abilities[breath_name] = ability
+            game.message_log.add_message(
+                f"{player.name} can unleash a {self.BREATH_SHAPE} of {self.DAMAGE_TYPE.lower()}.",
+                (200, 150, 80),
+            )
+
 
 class RedDragonborn(Dragonborn):
-    """Fire lineage. Bold, aggressive. +1 STR (+3 total). Resists: Fire."""
-    ELEMENT     = "Fire"
-    DAMAGE_TYPE = "Fire"
+    """Fire lineage. Bold, aggressive. +1 STR (+3 total). Resists: Fire. Breath: Fire cone."""
+    ELEMENT      = "Fire"
+    DAMAGE_TYPE  = "Fire"
+    BREATH_SHAPE = "cone"
 
     def __init__(self):
         super().__init__(
@@ -596,12 +613,14 @@ class RedDragonborn(Dragonborn):
     def apply_traits(self, player, game):
         super().apply_traits(player, game)
         self._grant_ability_scores(player, game, strength=1)
+        self._grant_dragon_breath(player, game)
 
 
 class BlueDragonborn(Dragonborn):
-    """Lightning lineage. Calculating, proud. +1 INT. Resists: Lightning."""
-    ELEMENT     = "Lightning"
-    DAMAGE_TYPE = "Lightning"
+    """Lightning lineage. Calculating, proud. +1 INT. Resists: Lightning. Breath: Lightning line."""
+    ELEMENT      = "Lightning"
+    DAMAGE_TYPE  = "Lightning"
+    BREATH_SHAPE = "line"
 
     def __init__(self):
         super().__init__(
@@ -616,12 +635,14 @@ class BlueDragonborn(Dragonborn):
     def apply_traits(self, player, game):
         super().apply_traits(player, game)
         self._grant_ability_scores(player, game, intelligence=1)
+        self._grant_dragon_breath(player, game)
 
 
 class GoldDragonborn(Dragonborn):
-    """Fire lineage. Wise, honourable. +1 WIS. Resists: Fire."""
-    ELEMENT     = "Fire"
-    DAMAGE_TYPE = "Fire"
+    """Fire lineage. Wise, honourable. +1 WIS. Resists: Fire. Breath: Fire cone."""
+    ELEMENT      = "Fire"
+    DAMAGE_TYPE  = "Fire"
+    BREATH_SHAPE = "cone"
 
     def __init__(self):
         super().__init__(
@@ -636,12 +657,14 @@ class GoldDragonborn(Dragonborn):
     def apply_traits(self, player, game):
         super().apply_traits(player, game)
         self._grant_ability_scores(player, game, wisdom=1)
+        self._grant_dragon_breath(player, game)
 
 
 class GreenDragonborn(Dragonborn):
-    """Poison lineage. Cunning, manipulative. +1 CHA (+2 total). Resists: Poison."""
-    ELEMENT     = "Poison"
-    DAMAGE_TYPE = "Poison"
+    """Poison lineage. Cunning, manipulative. +1 CHA (+2 total). Resists: Poison. Breath: Poison cone."""
+    ELEMENT      = "Poison"
+    DAMAGE_TYPE  = "Poison"
+    BREATH_SHAPE = "cone"
 
     def __init__(self):
         super().__init__(
@@ -656,6 +679,7 @@ class GreenDragonborn(Dragonborn):
     def apply_traits(self, player, game):
         super().apply_traits(player, game)
         self._grant_ability_scores(player, game, charisma=1)
+        self._grant_dragon_breath(player, game)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
