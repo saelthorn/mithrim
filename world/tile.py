@@ -14,6 +14,7 @@ class Tile:
 # Dungeon tile templates
 floor = Tile(blocked=False, char='.', color=(97, 95, 88), name="Floor")
 wall  = Tile(blocked=True, char='#', color=(65, 61, 46), name="Wall")
+window = Tile(blocked=True, char='w', color=(65, 61, 46), block_sight=False, name="Window")
 stairs_down = Tile(blocked=False, char='>', color=(230, 192, 0), name="Stairs Down")
 stairs_up = Tile(blocked=False, char='<', color=(230, 192, 0), name="Stairs Up")
 dungeon_door = Tile(blocked=False, char='dd', color=(139, 69, 19), name="Dungeon Door")

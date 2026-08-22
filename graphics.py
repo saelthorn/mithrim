@@ -163,6 +163,7 @@ def setup_tile_mapping():
         '.5': (12 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Five 
         '.6': (13 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Six 
         '.4': (14 * CELL_DIM, 4 * CELL_DIM), # Dungeon Floor Four
+        'w': (15 * CELL_DIM, 4 * CELL_DIM),  # Window
         '`2': (10 * CELL_DIM, 4 * CELL_DIM), # Dungeon Grass Two
         'tm': (7 * CELL_DIM, 5 * CELL_DIM),  # Tomb 
         'otm': (8 * CELL_DIM, 5 * CELL_DIM), # Open Tomb
