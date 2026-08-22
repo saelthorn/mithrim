@@ -674,6 +674,9 @@ torch = OffHand(
     price=10 * SILVER,
     remaining_duration=350
 )
+# Torches share an inventory slot, like other stackable consumables.
+torch.stackable = True
+torch.max_stack = 10
 
 throwing_knife = OffHand(
     name="Throwing Knife",

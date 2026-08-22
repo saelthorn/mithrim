@@ -420,7 +420,7 @@ from items.items import (
     Helmet, Boots, FocusItem,
     leather_cap, iron_helmet, steel_helmet, great_helm, mages_circlet, hood_of_shadows,
     leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,
-    format_price, GOLD,
+    format_price, GOLD, clone_item,
 )
 
 from core.pathfinding import astar
@@ -5283,13 +5283,7 @@ class Game:
                     
 
                     chosen_template = random.choice(item_templates)
-                    item_to_add = chosen_template.__class__(
-                        name=chosen_template.name,
-                        char=chosen_template.char,
-                        color=chosen_template.color,
-                        description=chosen_template.description,
-                        **{k: v for k, v in chosen_template.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
-                    )
+                    item_to_add = clone_item(chosen_template)
 
                     item_to_add.x = item_x
                     item_to_add.y = item_y

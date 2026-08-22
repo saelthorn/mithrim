@@ -298,19 +298,7 @@ class PrisonerNPC(NPC):
 
     def _make_reward(self):
         template = random.choice(_PRISONER_LOOT)
-        try:
-            init_vars = {
-                k: v for k, v in vars(template).items()
-                if k not in ('owner', 'x', 'y')
-            }
-            item = template.__class__(**init_vars)
-        except Exception:
-            item = template.__class__(
-                name=template.name,
-                char=template.char,
-                color=template.color,
-                description=getattr(template, 'description', ''),
-            )
+        item = clone_item(template)
         item.x = self.x
         item.y = self.y
         return item
@@ -780,18 +768,9 @@ def _resolve_reward_pool(pool_ref):
 def _make_reward_item(template, x, y):
     """
     Clones an item template into a standalone instance for handing to the
-    player - same approach as PrisonerNPC._make_reward() above.
+    player.
     """
-    try:
-        init_vars = {k: v for k, v in vars(template).items() if k not in ('owner', 'x', 'y')}
-        item = template.__class__(**init_vars)
-    except Exception:
-        item = template.__class__(
-            name=template.name,
-            char=template.char,
-            color=template.color,
-            description=getattr(template, 'description', ''),
-        )
+    item = clone_item(template)
     item.x = x
     item.y = y
     return item

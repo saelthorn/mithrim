@@ -2,6 +2,7 @@ import random
 from world.tile import TombTile, DisturbedTombTile, floor, wall
 from world.water_features import is_water_tile
 from core.floating_text import FloatingText
+from items.items import clone_item
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -176,14 +177,7 @@ def handle_tomb_interaction(player, game_instance):
                         break
 
                 # Create item instance
-                new_item = chosen_template.__class__(
-                    name=chosen_template.name,
-                    char=chosen_template.char,
-                    color=chosen_template.color,
-                    description=chosen_template.description,
-                    **{k: v for k, v in chosen_template.__dict__.items() 
-                       if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
-                )
+                new_item = clone_item(chosen_template)
                 new_item.x = neighbour_col
                 new_item.y = neighbour_row
                 game_map.items_on_ground.append(new_item)
