@@ -2855,14 +2855,14 @@ class Game:
         is walkable/clear (e.g. hemmed in by water/impassable terrain)
         rather than failing to anchor the structure at all.
 
-        Prefers anchoring straight out along the player's last movement
+        Prefers anchoring somewhere ahead of the player's last movement
         input (self.last_move_dx/dy, see __init__) when one has been
-        registered and lands on clear ground -- see
-        _world_encounter_structure_directional_anchor() -- so a
-        structure discovered mid-walk reads as "just ahead" rather than
+        registered -- see _world_encounter_structure_directional_candidates()
+        -- so a structure discovered mid-walk reads as "just ahead"
+        (e.g. to the player's right after pressing D) rather than
         appearing in a random direction, including behind the player.
-        Falls back to the undirected ring search below whenever no
-        directional anchor is available.
+        Falls back to the full, undirected candidate pool whenever no
+        directional candidate is available.
         """
         min_distance = (
             self.WORLD_ENCOUNTER_STRUCTURE_CLUSTER_MIN_DISTANCE
@@ -2870,51 +2870,51 @@ class Game:
             else self.WORLD_ENCOUNTER_STRUCTURE_MIN_DISTANCE
         )
 
-        directional_anchor = self._world_encounter_structure_directional_anchor(min_distance)
-        if directional_anchor is not None:
-            return directional_anchor
-
         candidates = self._world_encounter_structure_anchor_candidates(min_distance)
         if not candidates:
             return self.player.x, self.player.y
+
+        directional_candidates = self._world_encounter_structure_directional_candidates(candidates)
+        if directional_candidates:
+            return random.choice(directional_candidates)
+
         return random.choice(candidates)
 
-    def _world_encounter_structure_directional_anchor(self, min_distance):
+    def _world_encounter_structure_directional_candidates(self, candidates):
         """
-        Anchor point straight out along the player's last movement input,
-        `min_distance + 1` tiles away -- one tile past the minimum
-        clearance, so e.g. a last input of (dx=-1, dy=0) (walked left)
-        anchors the structure at (player.x - (min_distance + 1), player.y),
-        directly to the player's left, rather than the undirected ring
-        search picking an arbitrary point around them.
+        Narrow `candidates` (see _world_encounter_structure_anchor_
+        candidates()) down to those roughly ahead of the player's last
+        movement input (self.last_move_dx/dy, see __init__) -- e.g.
+        after pressing D (dx=1, dy=0), only tiles to the player's right
+        pass. "Ahead" is a 90-degree cone centered on that direction
+        (cosine similarity >= cos(45 deg)) rather than a single exact
+        point, so a structure still lands somewhere plausible even when
+        the tile directly in that direction is blocked, instead of
+        discarding the direction entirely and falling back to fully
+        random placement.
 
-        Returns None (letting _world_encounter_structure_anchor() fall
-        back to that ring search) if:
-          - no movement has been registered yet (last_move_dx/dy both 0,
-            e.g. right at the start of a session), or
-          - the computed point itself isn't clear ground -- off the map,
-            unwalkable, water, or occupied -- mirroring the same checks
-            _world_encounter_structure_anchor_candidates() applies to
-            every point on the ring, so a directional anchor is never
-            allowed to place a structure somewhere the undirected search
-            would have rejected.
+        Returns an empty list (letting _world_encounter_structure_
+        anchor() fall back to the full, undirected candidate pool) if no
+        movement has been registered yet (last_move_dx/dy both 0) or
+        nothing in `candidates` falls within the cone.
         """
-        dx, dy = self.last_move_dx, self.last_move_dy
-        if dx == 0 and dy == 0:
-            return None
+        move_dx, move_dy = self.last_move_dx, self.last_move_dy
+        if move_dx == 0 and move_dy == 0:
+            return []
 
-        distance = min_distance + 1
-        x = self.player.x + dx * distance
-        y = self.player.y + dy * distance
+        anchor_x, anchor_y = self.player.x, self.player.y
+        move_length = math.hypot(move_dx, move_dy)
+        cone_cosine = math.cos(math.radians(45))
 
-        if not (0 <= x < self.game_map.width and 0 <= y < self.game_map.height):
-            return None
-        if not self.game_map.is_walkable(x, y) or is_water_tile(self.game_map.tiles[y][x]):
-            return None
-        if any(e.x == x and e.y == y and getattr(e, "alive", True) for e in self.entities):
-            return None
-
-        return x, y
+        ahead = []
+        for x, y in candidates:
+            offset_x, offset_y = x - anchor_x, y - anchor_y
+            dot = offset_x * move_dx + offset_y * move_dy
+            if dot <= 0:
+                continue  # behind or perpendicular to the walked direction
+            if dot >= move_length * math.hypot(offset_x, offset_y) * cone_cosine:
+                ahead.append((x, y))
+        return ahead
 
     def _world_encounter_structure_anchor_candidates(self, min_distance):
         """
