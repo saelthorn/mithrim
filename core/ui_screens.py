@@ -184,6 +184,8 @@ def _item_stats(item):
         rows += [("Hunger", f"+{item.healing_value}")]
     if hasattr(item, "price") and item.price:
         rows.append(("Price", format_price(item.price)))
+    if getattr(item, "count", 1) > 1:
+        rows.insert(0, ("Quantity", item.count))
     return rows
 
 
@@ -218,6 +220,16 @@ def _draw_slot(surf, item, x, y, selected=False, size=SLOT_SIZE):
 
     # rarity corner dot — just use item color
     pygame.draw.circle(surf, item.color, (x + size - 5, y + 5), 3)
+
+    # stack count badge, bottom-right — only shown once there's more than one
+    if getattr(item, "count", 1) > 1:
+        fCount = _f(11, bold=True)
+        cs = fCount.render(str(item.count), True, _TEXT_BRIGHT)
+        badge_w, badge_h = cs.get_width() + 6, cs.get_height() + 2
+        badge_x, badge_y = x + size - badge_w - 2, y + size - badge_h - 2
+        pygame.draw.rect(surf, _BG_PANEL, (badge_x, badge_y, badge_w, badge_h), border_radius=3)
+        pygame.draw.rect(surf, _BORDER_LT, (badge_x, badge_y, badge_w, badge_h), 1, border_radius=3)
+        surf.blit(cs, (badge_x + 3, badge_y + 1))
 
 
 # ── Draw an equipment slot (labeled, fixed position) ─────────────────────────
@@ -557,9 +569,10 @@ def render_inventory_menu_popup(game):
     # sprite + name
     sp = _get_sprite(item.char, 32)
     popup.blit(sp, (PW // 2 - 16, 10))
-    ns = fSec.render(item.name, True, item.color)
+    name_text = item.name if item.count <= 1 else f"{item.name} x{item.count}"
+    ns = fSec.render(name_text, True, item.color)
     if ns.get_width() > PW - 16:
-        ns = _f(11, bold=True).render(item.name, True, item.color)
+        ns = _f(11, bold=True).render(name_text, True, item.color)
     popup.blit(ns, (PW // 2 - ns.get_width() // 2, 46))
 
     tc = _item_type_color(item)

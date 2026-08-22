@@ -42,6 +42,13 @@ def format_price(copper_amount):
 
 class Item:
     """Base class for all items."""
+    # Stackable items merge into one inventory slot (up to max_stack) instead
+    # of taking a slot each -- see Inventory.add_item(). Non-stackable by
+    # default; consumables (Potion/Food/Junk) and stackable ammunition
+    # (see the `arrow` item below) turn it on.
+    stackable = False
+    max_stack = 1
+
     def __init__(self, name, char, color, description="", price=10 * SILVER):
         self.name = name
         self.char = char
@@ -51,9 +58,23 @@ class Item:
         self.owner = None # The entity that owns this item
         self.x = -1 # Default invalid position
         self.y = -1 # Default invalid position
+        self.count = 1 # How many units this stack represents
 
     def __str__(self):
         return self.name
+
+    def can_stack_with(self, other):
+        """Whether `other` can merge into this item's stack."""
+        return (
+            self.stackable and other.stackable
+            and type(self) is type(other)
+            and self.name == other.name
+        )
+
+    def use_one(self):
+        """Consume one unit from this stack. Returns True if any remain."""
+        self.count = max(0, self.count - 1)
+        return self.count > 0
 
     def on_pickup(self, picker, game_instance):
         """Handle the logic for picking up the item."""
@@ -87,6 +108,9 @@ class Item:
 
 class Potion(Item):
     """A consumable item that provides an effect."""
+    stackable = True
+    max_stack = 10
+
     def __init__(self, name, char, color, description, effect_type, effect_value, price):
         super().__init__(name, char, color, description, price)
         self.effect_type = effect_type
@@ -98,13 +122,17 @@ class Potion(Item):
             amount_healed = user.heal(self.effect_value)
             game_instance.message_log.add_message(f"You drink the {self.name} and heal for {amount_healed} HP!", (0, 255, 0))
         # Add other effect types here (e.g., "strength_boost", "poison_cure")
-        
-        user.inventory.remove_item(self) # Remove after use
+
+        if not self.use_one():
+            user.inventory.remove_item(self) # Stack is empty -- drop the slot
         game_instance.message_log.add_message(f"The {self.name} is consumed.", (150, 150, 150))
         return True
 
 
 class Food(Item):
+    stackable = True
+    max_stack = 10
+
     def __init__(self, name, char, color, description, healing_value, price=0):
         super().__init__(name, char, color, description, price)
         self.healing_value = healing_value # Amount of hunger restored
@@ -211,6 +239,9 @@ class Tools(Item):
 
 class Junk(Item):
     """A useless piece of wood."""
+    stackable = True
+    max_stack = 10
+
     def __init__(self, name, char, color, description="", price=0):
         super().__init__(name, char, color, description, price)
 
@@ -364,7 +395,7 @@ class IndoorChest(Item):
             return
         game_instance.message_log.add_message("You open the chest...", (255, 215, 0))
         self.opened = True
-        self.char = 'ICO' # <--- CHANGE THIS LINE to the new character for open chest
+        self.char = 'O' # <--- CHANGE THIS LINE to the new character for open chest
         if not self.contents:
             game_instance.message_log.add_message("It's empty!", (150, 150, 150))
             return
@@ -401,7 +432,7 @@ class OutdoorChest(Item):
             return
         game_instance.message_log.add_message("You open the chest...", (255, 215, 0))
         self.opened = True
-        self.char = 'OCO' # <--- CHANGE THIS LINE to the new character for open chest
+        self.char = 'O' # <--- CHANGE THIS LINE to the new character for open chest
         if not self.contents:
             game_instance.message_log.add_message("It's empty!", (150, 150, 150))
             return
@@ -739,6 +770,9 @@ arrow = OffHand(
     price = 1 * SILVER,
     category="Ammunition"
 )
+# Ammunition stacks like any other consumable, unlike other OffHand items.
+arrow.stackable = True
+arrow.max_stack = 10
 
 long_bow = Weapon(
     name="Long Bow",
@@ -1366,17 +1400,23 @@ _LOOT_TIER_2.extend(_BOOKS_BY_TIER.get("tier_2", []))
 _LOOT_TIER_3.extend(_BOOKS_BY_TIER.get("tier_3", []))
 
 
-def _copy_item(template):
-    """Return a clean deep copy of an item template.
+def clone_item(template, count=1):
+    """Return a clean deep copy of an item template, with its own `count`.
 
-    Loot tier lists reuse the same module-level item objects that players
-    start out equipped with (e.g. iron_short_sword, torch). If one of those
-    templates is ever picked up off the ground, on_pickup() sets its
-    `owner` to the picking Player directly on the shared template — so the
-    template can end up permanently pointing at a live Player/game_instance
-    (which holds pygame Font/Surface objects copy.deepcopy can't handle).
-    Detach `owner` before copying and restore it right after, so we only
-    ever copy the item's own data, never whoever happens to be holding it.
+    Item templates are shared module-level objects (e.g. iron_short_sword,
+    torch, meat) reused everywhere a fresh instance is needed -- loot
+    tables, shops, starting equipment. If one of those templates is ever
+    picked up off the ground, on_pickup() sets its `owner` to the picking
+    Player directly on the shared template — so the template can end up
+    permanently pointing at a live Player/game_instance (which holds
+    pygame Font/Surface objects copy.deepcopy can't handle). Detach `owner`
+    before copying and restore it right after, so we only ever copy the
+    item's own data, never whoever happens to be holding it.
+
+    Always clone a stackable template (Potion/Food/Junk/ammunition) before
+    handing out more than one -- adding the same shared object to an
+    inventory repeatedly would mutate the template's own `count` instead
+    of creating independent stacks.
     """
     original_owner = template.owner
     template.owner = None
@@ -1388,6 +1428,7 @@ def _copy_item(template):
     item.owner = None
     item.x = -1
     item.y = -1
+    item.count = count
     return item
 
 
@@ -1401,7 +1442,7 @@ def _pick_from_tiers(level_number):
         weights = [15, 35, 50]
 
     tier = random.choices([_LOOT_TIER_1, _LOOT_TIER_2, _LOOT_TIER_3], weights=weights, k=1)[0]
-    return _copy_item(random.choice(tier))
+    return clone_item(random.choice(tier))
 
 
 def generate_random_loot(level_number):

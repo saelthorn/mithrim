@@ -9,7 +9,7 @@ from items.items import (
     bread, mushroom, CampfireKit, torch, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, 
     iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, 
     apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail, 
-    round_shield, kite_shield, tower_shield
+    round_shield, kite_shield, tower_shield, clone_item
     )
 
 from world.tile import floor
@@ -1147,13 +1147,7 @@ class Monster:
 
         for item_template, drop_chance in self.loot_table:
             if random.random() < drop_chance:
-                item_vars = {k: v for k, v in vars(item_template).items() if not k.startswith('_')}
-                
-                item_vars.pop('owner', None)
-                item_vars.pop('x', None)
-                item_vars.pop('y', None)
-
-                new_item = item_template.__class__(**item_vars)
+                new_item = clone_item(item_template)
                 new_item.x = self.x
                 new_item.y = self.y
                 game_instance.game_map.items_on_ground.append(new_item)
@@ -1301,76 +1295,36 @@ class Monster:
                     if tile.name in ["Crate", "Barrel"]:
                         import random
                         if random.random() < 0.70:
-                            new_junk = wood_plank.__class__(
-                                name=wood_plank.name,
-                                char=wood_plank.char,
-                                color=wood_plank.color,
-                                description=wood_plank.description
-                            )
+                            new_junk = clone_item(wood_plank)
                             new_junk.x = ax
                             new_junk.y = ay
                             game_map.items_on_ground.append(new_junk)
                         elif random.random() < 0.20:
-                            new_food = meat.__class__(
-                                name=meat.name,
-                                char=meat.char,
-                                color=meat.color,
-                                description=meat.description,
-                                healing_value=meat.healing_value,
-                                price=meat.price
-                            )
+                            new_food = clone_item(meat)
                             new_food.x = ax
                             new_food.y = ay
                             game_map.items_on_ground.append(new_food)
                             game.message_log.add_message(f"A {new_food.name} drops from the {tile.name}!", new_food.color)
                         elif random.random() < 0.35:
-                            new_food = green_apple.__class__(
-                                name=green_apple.name,
-                                char=green_apple.char,
-                                color=green_apple.color,
-                                description=green_apple.description,
-                                healing_value=green_apple.healing_value,
-                                price=green_apple.price
-                            )
+                            new_food = clone_item(green_apple)
                             new_food.x = ax
                             new_food.y = ay
                             game_map.items_on_ground.append(new_food)
                             game.message_log.add_message(f"A {new_food.name} drops from the {tile.name}!", new_food.color)
                         elif random.random() < 0.25:
-                            new_food = fromage.__class__(
-                                name=fromage.name,
-                                char=fromage.char,
-                                color=fromage.color,
-                                description=fromage.description,
-                                healing_value=fromage.healing_value,
-                                price=fromage.price
-                            )
+                            new_food = clone_item(fromage)
                             new_food.x = ax
                             new_food.y = ay
                             game_map.items_on_ground.append(new_food)
                             game.message_log.add_message(f"A {new_food.name} drops from the {tile.name}!", new_food.color)
                         elif random.random() < 0.30:
-                            new_food = bread.__class__(
-                                name=bread.name,
-                                char=bread.char,
-                                color=bread.color,
-                                description=bread.description,
-                                healing_value=bread.healing_value,
-                                price=bread.price
-                            )
+                            new_food = clone_item(bread)
                             new_food.x = ax
                             new_food.y = ay
                             game_map.items_on_ground.append(new_food)
                             game.message_log.add_message(f"A {new_food.name} drops from the {tile.name}!", new_food.color)
                         elif random.random() < 0.40:
-                            new_food = mushroom.__class__(
-                                name=mushroom.name,
-                                char=mushroom.char,
-                                color=mushroom.color,
-                                description=mushroom.description,
-                                healing_value=mushroom.healing_value,
-                                price=mushroom.price
-                            )
+                            new_food = clone_item(mushroom)
                             new_food.x = ax
                             new_food.y = ay
                             game_map.items_on_ground.append(new_food)

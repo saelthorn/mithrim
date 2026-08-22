@@ -10,8 +10,20 @@ from core.floating_text import FloatingText
 
 from items.items import ( 
     Potion, Food, OffHand, lesser_healing_potion, greater_healing_potion, meat, green_apple, fromage, bread, mushroom, 
-    torch, wood_plank, throwing_knife # NEW: Import for potion drop
+    torch, wood_plank, throwing_knife, clone_item # NEW: Import for potion drop
 )
+
+
+def _take_one_from_stack(user, item):
+    """Split one unit off an inventory stack (arrows, ...), returning a
+    standalone item to actually shoot/place on the ground while leaving
+    any remaining units in the inventory. Non-stackable items (count
+    always 1) are just removed outright, same as before stacking existed."""
+    if item.stackable and item.count > 1:
+        item.use_one()
+        return clone_item(item, count=1)
+    user.inventory.remove_item(item)
+    return item
 
 class Ability:
     def __init__(self, name, description, cost=0, cooldown=0):
@@ -434,9 +446,8 @@ class ArrowShot(Ability):
         else:
             for item in user.inventory.items:
                 if item.name.lower() == "arrow":
-                    arrow_to_shoot = item
-                    attack_modifier += getattr(item, "attack_bonus", 0)
-                    user.inventory.remove_item(item)
+                    arrow_to_shoot = _take_one_from_stack(user, item)
+                    attack_modifier += getattr(arrow_to_shoot, "attack_bonus", 0)
                     user.update_arrow_shot_ability()
                     game_instance.message_log.add_message(f"You shoot an {arrow_to_shoot.name} from your inventory!", (100, 255, 100))
                     break
@@ -675,9 +686,8 @@ class Multishot(Ability):
         else:
             for item in user.inventory.items:
                 if item.name.lower() == "arrow":
-                    arrow_to_shoot = item
-                    attack_modifier += getattr(item, "attack_bonus", 0)
-                    user.inventory.remove_item(item)
+                    arrow_to_shoot = _take_one_from_stack(user, item)
+                    attack_modifier += getattr(arrow_to_shoot, "attack_bonus", 0)
                     user.update_arrow_shot_ability()
                     break
 

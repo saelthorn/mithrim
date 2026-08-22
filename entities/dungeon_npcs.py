@@ -11,7 +11,7 @@ from items.items import (
     duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, scale_mail_armor, 
     sturdy_quarterstaff, leather_cap, iron_helmet, steel_helmet, hood_of_shadows, great_helm, mages_circlet, leather_boots, 
     iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers, silver_dagger, round_shield, iron_short_sword,
-    CampfireKit, Food, Weapon, Helmet, Armor, Boots, OffHand, FocusItem, format_price
+    CampfireKit, Food, Weapon, Helmet, Armor, Boots, OffHand, FocusItem, format_price, clone_item
 )
 
 
@@ -111,30 +111,12 @@ class DungeonMerchant(NPC):
        
         # Add default items
         for item in default_items:
-            if isinstance(item, CampfireKit):
-                self.items_for_sale.append(CampfireKit()) # Create a new instance directly
-            else:
-                # Create a new instance for other items
-                new_item = item.__class__(
-                    name=item.name,
-                    char=item.char,
-                    color=item.color,
-                    description=item.description,
-                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
-                )
-                self.items_for_sale.append(new_item)
-    
+            self.items_for_sale.append(clone_item(item))
+
         # Add chance-based items
         for item, chance in chance_items_with_chance:
             if random.random() < chance:
-                new_item = item.__class__(
-                    name=item.name,
-                    char=item.char,
-                    color=item.color,
-                    description=item.description,
-                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
-                )
-                self.items_for_sale.append(new_item)
+                self.items_for_sale.append(clone_item(item))
 
     def offer_trade(self, player, game):
         """Open the shop menu overlay instead of the legacy text-input trade flow."""
@@ -158,13 +140,7 @@ class DungeonMerchant(NPC):
                 if player.money < item.price:
                     continue
 
-                new_item = item.__class__(
-                    name=item.name,
-                    char=item.char,
-                    color=item.color,
-                    description=item.description,
-                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
-                )
+                new_item = clone_item(item)
 
                 if player.inventory.add_item(new_item):
                     player.money -= item.price
@@ -536,30 +512,12 @@ class Trader(EncounterVictim):
        
         # Add default items
         for item in default_items:
-            if isinstance(item, CampfireKit):
-                self.items_for_sale.append(CampfireKit()) # Create a new instance directly
-            else:
-                # Create a new instance for other items
-                new_item = item.__class__(
-                    name=item.name,
-                    char=item.char,
-                    color=item.color,
-                    description=item.description,
-                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
-                )
-                self.items_for_sale.append(new_item)
-    
+            self.items_for_sale.append(clone_item(item))
+
         # Add chance-based items
         for item, chance in chance_items_with_chance:
             if random.random() < chance:
-                new_item = item.__class__(
-                    name=item.name,
-                    char=item.char,
-                    color=item.color,
-                    description=item.description,
-                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
-                )
-                self.items_for_sale.append(new_item)
+                self.items_for_sale.append(clone_item(item))
 
     def offer_trade(self, player, game):
         """Open the shop menu overlay instead of the legacy text-input trade flow."""
@@ -583,13 +541,7 @@ class Trader(EncounterVictim):
                 if player.money < item.price:
                     continue
 
-                new_item = item.__class__(
-                    name=item.name,
-                    char=item.char,
-                    color=item.color,
-                    description=item.description,
-                    **{k: v for k, v in item.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
-                )
+                new_item = clone_item(item)
 
                 if player.inventory.add_item(new_item):
                     player.money -= item.price

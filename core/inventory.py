@@ -5,18 +5,40 @@ class Inventory:
         self.game_instance = None  # Set by the game after player creation
 
     def add_item(self, item):
+        """Add an item to the inventory. Stackable items (Potion, Food,
+        Junk, ammunition) merge into an existing compatible stack if one
+        has room, rather than always taking a fresh slot."""
+        if item.stackable:
+            target = next(
+                (existing for existing in self.items
+                 if existing is not item and existing.can_stack_with(item)
+                 and existing.count < existing.max_stack),
+                None,
+            )
+            if target is not None:
+                transferable = min(item.count, target.max_stack - target.count)
+                target.count += transferable
+                item.count -= transferable
+                if item.count <= 0:
+                    self._refill_quick_bar()
+                    return True
+                # Remainder didn't fit in that stack -- falls through to
+                # claim its own slot below.
+
         if len(self.items) >= self.capacity:
             return False  # Inventory is full
         self.items.append(item)
         item.owner = self.owner  # Set the item's owner (e.g., the player)
 
-        # After adding, auto-fill any empty quick bar slots that match this item
+        self._refill_quick_bar()
+        return True
+
+    def _refill_quick_bar(self):
+        """After adding an item, auto-fill any empty quick bar slots that match it."""
         if self.game_instance and hasattr(self.owner, 'quick_bar'):
             for slot_key, slot_item in self.owner.quick_bar.items():
                 if slot_item is None:
                     self.owner._auto_refill_quick_bar_slot(slot_key, self.game_instance)
-
-        return True
 
     def remove_item(self, item):
         if item in self.items:

@@ -57,7 +57,7 @@ from items.items import (
     mages_circlet, leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers, meat,
     long_bow, hand_crossbow, arrow, short_bow,
     Item, CampfireKit, Weapon, Armor, OffHand, Accessory,
-    Helmet, Boots, FocusItem, WEAPON_CATEGORIES, ARMOR_CATEGORIES, 
+    Helmet, Boots, FocusItem, WEAPON_CATEGORIES, ARMOR_CATEGORIES, clone_item,
 )
 
 from entities.monster import Goblin, GoblinArcher, GiantRat, Monster
@@ -384,8 +384,9 @@ class Player: # This is our base class for playable characters
         if item:
             # Try to use the item (consume or activate)
             if self.use_item(item, game_instance):
-                # If item was consumed (Potion or Food), clear the slot then refill from inventory
-                if isinstance(item, (Potion, Food)):
+                # If the stack is now empty, clear the slot then refill from inventory.
+                # A stack with units left (e.g. 4 potions remaining) just stays put.
+                if isinstance(item, (Potion, Food)) and item.count <= 0:
                     self.quick_bar[slot_key] = None
                     game_instance.message_log.add_message(f"{item.name} consumed from Quick Bar slot '{slot_key}'.", (100, 255, 100))
                     self._auto_refill_quick_bar_slot(slot_key, game_instance)
@@ -476,8 +477,9 @@ class Player: # This is our base class for playable characters
             f"With a grateful bite, {self.name} finishes the {food_item.name} and feels renewed."
         ]
         game_instance.message_log.add_message(random.choice(eat_msgs), (0, 255, 0))
-    
-        self.inventory.remove_item(food_item)  # Remove food after consumption
+
+        if not food_item.use_one():
+            self.inventory.remove_item(food_item)  # Stack is empty -- drop the slot
         return True
     
 
@@ -2095,20 +2097,8 @@ class Fighter(Player):
         # Set starting equipment
         self.inventory.add_item(CampfireKit())  
         self.inventory.add_item(throwing_knife)
-        self.inventory.add_item(meat)
-        self.inventory.add_item(meat)
-        self.inventory.add_item(meat)
-        self.inventory.add_item(meat)
-        self.inventory.add_item(meat)
-        self.inventory.add_item(meat)
-        self.inventory.add_item(meat)
-        self.inventory.add_item(meat)
-        self.inventory.add_item(meat)
-        self.inventory.add_item(meat)
-        self.inventory.add_item(meat)
-        self.inventory.add_item(meat)
-        self.inventory.add_item(meat)
-        self.inventory.add_item(lesser_healing_potion)
+        self.inventory.add_item(clone_item(meat, count=13))
+        self.inventory.add_item(clone_item(lesser_healing_potion))
         self.inventory.add_item(torch)
 
         self.equipped_weapon = iron_short_sword
@@ -2170,15 +2160,10 @@ class Rogue(Player):
         self.inventory.add_item(thieves_tools)
         self.inventory.add_item(hand_crossbow)
         self.inventory.add_item(iron_dagger)
-        self.inventory.add_item(arrow)
-        self.inventory.add_item(arrow)
-        self.inventory.add_item(arrow)
-        self.inventory.add_item(arrow)
-        self.inventory.add_item(arrow)
-        self.inventory.add_item(bread)
-        self.inventory.add_item(bread)
+        self.inventory.add_item(clone_item(arrow, count=5))
+        self.inventory.add_item(clone_item(bread, count=2))
         self.inventory.add_item(throwing_knife)
-        self.inventory.add_item(lesser_healing_potion)
+        self.inventory.add_item(clone_item(lesser_healing_potion))
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
         self.inventory.add_item(dwarven_stompers)
         self.inventory.add_item(great_helm)
@@ -2239,9 +2224,8 @@ class Wizard(Player):
         self.primary_stat = 'intelligence'  # Set primary stat for Fighter 
 
         # Set starting equipment
-        self.inventory.add_item(bread)
-        self.inventory.add_item(bread)
-        self.inventory.add_item(lesser_healing_potion)
+        self.inventory.add_item(clone_item(bread, count=2))
+        self.inventory.add_item(clone_item(lesser_healing_potion))
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
         self.inventory.add_item(torch)
         self.inventory.add_item(spell_book)
@@ -2307,9 +2291,8 @@ class Cleric(Player):
         self.primary_stat = 'wisdom'  # Set primary stat for Cleric 
 
         # Set starting equipment
-        self.inventory.add_item(bread)
-        self.inventory.add_item(bread)
-        self.inventory.add_item(lesser_healing_potion)
+        self.inventory.add_item(clone_item(bread, count=2))
+        self.inventory.add_item(clone_item(lesser_healing_potion))
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
         self.inventory.add_item(torch)
 
@@ -2373,14 +2356,9 @@ class Ranger(Player):
         self.primary_stat = 'dexterity'  # Set primary stat for Ranger 
 
         # Set starting equipment
-        self.inventory.add_item(arrow)
-        self.inventory.add_item(arrow)
-        self.inventory.add_item(arrow)
-        self.inventory.add_item(arrow)
-        self.inventory.add_item(arrow)
-        self.inventory.add_item(bread)
-        self.inventory.add_item(bread)
-        self.inventory.add_item(lesser_healing_potion)
+        self.inventory.add_item(clone_item(arrow, count=5))
+        self.inventory.add_item(clone_item(bread, count=2))
+        self.inventory.add_item(clone_item(lesser_healing_potion))
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
         self.inventory.add_item(torch)
 
@@ -2447,9 +2425,8 @@ class Sorcerer(Player):
         self.primary_stat = 'charisma'  # Set primary stat for Sorcerer 
 
         # Set starting equipment
-        self.inventory.add_item(bread)
-        self.inventory.add_item(bread)
-        self.inventory.add_item(lesser_healing_potion)
+        self.inventory.add_item(clone_item(bread, count=2))
+        self.inventory.add_item(clone_item(lesser_healing_potion))
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
         self.inventory.add_item(torch)
 
