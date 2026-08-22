@@ -395,7 +395,7 @@ class IndoorChest(Item):
             return
         game_instance.message_log.add_message("You open the chest...", (255, 215, 0))
         self.opened = True
-        self.char = 'O' # <--- CHANGE THIS LINE to the new character for open chest
+        self.char = 'ICO' # <--- CHANGE THIS LINE to the new character for open chest
         if not self.contents:
             game_instance.message_log.add_message("It's empty!", (150, 150, 150))
             return
@@ -432,7 +432,7 @@ class OutdoorChest(Item):
             return
         game_instance.message_log.add_message("You open the chest...", (255, 215, 0))
         self.opened = True
-        self.char = 'O' # <--- CHANGE THIS LINE to the new character for open chest
+        self.char = 'OCO' # <--- CHANGE THIS LINE to the new character for open chest
         if not self.contents:
             game_instance.message_log.add_message("It's empty!", (150, 150, 150))
             return

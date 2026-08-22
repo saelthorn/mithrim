@@ -221,15 +221,18 @@ def _draw_slot(surf, item, x, y, selected=False, size=SLOT_SIZE):
     # rarity corner dot — just use item color
     pygame.draw.circle(surf, item.color, (x + size - 5, y + 5), 3)
 
-    # stack count badge, bottom-right — only shown once there's more than one
+    # stack count — bold, high-contrast, bottom-right — the badge index
+    # numbers used to occupy so it reads at a glance without a legend.
     if getattr(item, "count", 1) > 1:
-        fCount = _f(11, bold=True)
-        cs = fCount.render(str(item.count), True, _TEXT_BRIGHT)
-        badge_w, badge_h = cs.get_width() + 6, cs.get_height() + 2
-        badge_x, badge_y = x + size - badge_w - 2, y + size - badge_h - 2
-        pygame.draw.rect(surf, _BG_PANEL, (badge_x, badge_y, badge_w, badge_h), border_radius=3)
-        pygame.draw.rect(surf, _BORDER_LT, (badge_x, badge_y, badge_w, badge_h), 1, border_radius=3)
-        surf.blit(cs, (badge_x + 3, badge_y + 1))
+        fCount = _f(max(13, size // 4), bold=True)
+        count_text = f"x{item.count}"
+        shadow = fCount.render(count_text, True, (0, 0, 0))
+        label  = fCount.render(count_text, True, _GOLD)
+        tx = x + size - label.get_width() - 3
+        ty = y + size - label.get_height() - 2
+        for ox, oy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            surf.blit(shadow, (tx + ox, ty + oy))
+        surf.blit(label, (tx, ty))
 
 
 # ── Draw an equipment slot (labeled, fixed position) ─────────────────────────
@@ -392,11 +395,6 @@ def render_inventory_screen(game):
         cy   = y   + row * cell
         _draw_slot(surf, item, cx, cy, selected=(i == sel_idx), size=slot_size)
         game._inventory_slot_rects[i] = pygame.Rect(cx, cy, slot_size, slot_size)
-
-        # slot number (bottom-right corner)
-        badge = fXs.render(str((i + 1) % 10), True, _TEXT_DIM)
-        surf.blit(badge, (cx + slot_size - badge.get_width() - 2,
-                           cy + slot_size - badge.get_height() - 1))
 
     # hints at bottom of grid
     hints = ["WASD / arrows  navigate", "Left-click  equip", "Right-click  options"]

@@ -2380,7 +2380,7 @@ class Lizardfolk(Monster):
             "CHA": False,
         }        
 
-        self.disposition = Disposition.PASSIVE
+        self.disposition = Disposition.AGGRESSIVE
 
 class LizardfolkArcher(Monster):
     def __init__(self, x, y):
@@ -2416,7 +2416,7 @@ class LizardfolkArcher(Monster):
             "CHA": False,
         }
 
-        self.disposition = Disposition.PASSIVE
+        self.disposition = Disposition.AGGRESSIVE
                 
 
 class GiantSpider(Monster):
