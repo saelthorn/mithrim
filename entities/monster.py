@@ -2601,7 +2601,7 @@ class Owlbear(Monster):
 
 class Demogorgon(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'DG', 'Demogorgon', (72, 61, 139))
+        super().__init__(x, y, 'DMG', 'Demogorgon', (72, 61, 139))
         self.ambient_messages = [
             "{name}'s two heads hiss at each other in some fell language...",
             "{name}'s tentacles writhe restlessly against the ground...",

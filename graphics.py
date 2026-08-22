@@ -52,38 +52,45 @@ def setup_tile_mapping():
         'HR':  (1 * CELL_DIM,  0 * CELL_DIM),  # Human Rogue
         'HW':  (2 * CELL_DIM,  0 * CELL_DIM),  # Human Wizard
         'HC':  (3 * CELL_DIM,  0 * CELL_DIM),  # Human Cleric
+        'HG':  (0 * CELL_DIM,  21 * CELL_DIM),  # Human Ranger
 
         # Row 1 — Dwarf (Hill Dwarf uses the base dwarf row)
         'DF':  (0 * CELL_DIM,  1 * CELL_DIM),  # Hill Dwarf Fighter
         'DR':  (1 * CELL_DIM,  1 * CELL_DIM),  # Hill Dwarf Rogue
         'DW':  (2 * CELL_DIM,  1 * CELL_DIM),  # Hill Dwarf Wizard
         'DC':  (3 * CELL_DIM,  1 * CELL_DIM),  # Hill Dwarf Cleric
+        'DG':  (0 * CELL_DIM, 22 * CELL_DIM),  # Hill Dwarf Ranger
         # Mountain Dwarf — shares the Hill Dwarf row (same sprite set)
         'MDF': (4 * CELL_DIM,  1 * CELL_DIM),  # Mountain Dwarf Fighter
         'MDR': (5 * CELL_DIM,  1 * CELL_DIM),  # Mountain Dwarf Rogue
         'MDW': (6 * CELL_DIM,  1 * CELL_DIM),  # Mountain Dwarf Wizard
         'MDC': (7 * CELL_DIM,  1 * CELL_DIM),  # Mountain Dwarf Cleric
+        'MDG': (4 * CELL_DIM, 22 * CELL_DIM),  # Mountain Dwarf Ranger
         # Duergar — shares the Hill Dwarf row until a dedicated row exists
         'DGF': (8 * CELL_DIM,  1 * CELL_DIM),   # Duergar Fighter
         'DGR': (9 * CELL_DIM,  1 * CELL_DIM),   # Duergar Rogue
         'DGW': (10 * CELL_DIM,  1 * CELL_DIM),  # Duergar Wizard
         'DGC': (11 * CELL_DIM,  1 * CELL_DIM),  # Duergar Cleric
+        'DGG': (8 * CELL_DIM, 22 * CELL_DIM),  # Duergar Ranger
 
         # Row 2 — Elf (Drow uses the base elf row)
         'EF':  (0 * CELL_DIM,  2 * CELL_DIM),  # Drow Fighter
         'ER':  (1 * CELL_DIM,  2 * CELL_DIM),  # Drow Rogue
         'EW':  (2 * CELL_DIM,  2 * CELL_DIM),  # Drow Wizard
         'EC':  (3 * CELL_DIM,  2 * CELL_DIM),  # Drow Cleric
+        'EG':  (0 * CELL_DIM, 23 * CELL_DIM),  # Drow Cleric
         # High Elf — shares the Drow elf row until a dedicated row exists
         'HEF': (4 * CELL_DIM,  2 * CELL_DIM),  # High Elf Fighter
         'HER': (5 * CELL_DIM,  2 * CELL_DIM),  # High Elf Rogue
         'HEW': (6 * CELL_DIM,  2 * CELL_DIM),  # High Elf Wizard
         'HEC': (7 * CELL_DIM,  2 * CELL_DIM),  # High Elf Cleric
+        'HEG': (4 * CELL_DIM, 23 * CELL_DIM),  # High Elf Cleric
         # Wood Elf — shares the Drow elf row until a dedicated row exists
         'WEF': (8 * CELL_DIM,  2 * CELL_DIM),   # Wood Elf Fighter
         'WER': (9 * CELL_DIM,  2 * CELL_DIM),   # Wood Elf Rogue
         'WEW': (10 * CELL_DIM,  2 * CELL_DIM),  # Wood Elf Wizard
         'WEC': (11 * CELL_DIM,  2 * CELL_DIM),  # Wood Elf Cleric
+        'WEG': (8 * CELL_DIM,  23 * CELL_DIM),  # Wood Elf Cleric
 
         # Row 10 — Tiefling (all patron lineages share the base tiefling row)
         'TF':  (0 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Fighter   (legacy key, kept for safety)
@@ -292,7 +299,7 @@ def setup_tile_mapping():
         'BH': (6 * CELL_DIM, 7 * CELL_DIM),  # Beholder
 
         'OB': (1 * CELL_DIM, 9 * CELL_DIM),  # Owlbear
-        'DG': (2 * CELL_DIM, 9 * CELL_DIM),  # Demogorgon
+        'DMG': (2 * CELL_DIM, 9 * CELL_DIM),  # Demogorgon
         'GK': (3 * CELL_DIM, 9 * CELL_DIM),  # Grick
         'GM': (4 * CELL_DIM, 9 * CELL_DIM),  # Gibbering Mouther
         'MF': (5 * CELL_DIM, 9 * CELL_DIM),  # Mind Flayer

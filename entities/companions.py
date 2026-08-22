@@ -494,34 +494,45 @@ RACE_CLASS_VISUALS = {
     ("Human",           "Rogue"):   ("HR",  (255, 255,   0)),
     ("Human",           "Wizard"):  ("HW",  (  0, 200, 255)),
     ("Human",           "Cleric"):  ("HC",  (255, 215,   0)),
+    ("Human",           "Ranger"):  ("HG",  (  0, 215,   0)),
 
     # ── Elf lineages ───────────────────────────────────────────────
     ("Drow Elf",        "Fighter"): ("EF",  (100,   0, 130)),
     ("Drow Elf",        "Rogue"):   ("ER",  (150,   0, 180)),
     ("Drow Elf",        "Wizard"):  ("EW",  (200,   0, 220)),
     ("Drow Elf",        "Cleric"):  ("EC",  (255, 255,   0)),
+    ("Drow Elf",        "Ranger"):  ("EG",  (  5, 255,   0)),
+
     ("High Elf",        "Fighter"): ("HEF", (180, 220, 180)),
     ("High Elf",        "Rogue"):   ("HER", (130, 190, 130)),
     ("High Elf",        "Wizard"):  ("HEW", ( 80, 150, 255)),
     ("High Elf",        "Cleric"):  ("HEC", (255, 255, 180)),
+    ("High Elf",        "Ranger"):  ("HEG", (  5, 255, 180)),
+
     ("Wood Elf",        "Fighter"): ("WEF", ( 80, 140,  60)),
     ("Wood Elf",        "Rogue"):   ("WER", ( 60, 120,  40)),
     ("Wood Elf",        "Wizard"):  ("WEW", ( 40, 160,  80)),
     ("Wood Elf",        "Cleric"):  ("WEC", (200, 220, 120)),
+    ("Wood Elf",        "Ranger"):  ("WEG", (  0, 220, 120)),
 
     # ── Dwarf lineages ─────────────────────────────────────────────
     ("Hill Dwarf",      "Fighter"): ("DF",  (180, 120,  60)),
     ("Hill Dwarf",      "Rogue"):   ("DR",  (200, 150,   0)),
     ("Hill Dwarf",      "Wizard"):  ("DW",  (100, 150, 255)),
     ("Hill Dwarf",      "Cleric"):  ("DC",  (255, 215,   0)),
+    ("Hill Dwarf",      "Ranger"):  ("DG",  (  0, 215,   0)),
+
     ("Mountain Dwarf",  "Fighter"): ("MDF", (160, 100,  50)),
     ("Mountain Dwarf",  "Rogue"):   ("MDR", (130,  80,  40)),
     ("Mountain Dwarf",  "Wizard"):  ("MDW", ( 90, 110, 200)),
     ("Mountain Dwarf",  "Cleric"):  ("MDC", (220, 190,  80)),
+    ("Mountain Dwarf",  "Ranger"):  ("MDG", (  0, 190,  80)),
+
     ("Duergar",         "Fighter"): ("DGF", (100,  90,  90)),
     ("Duergar",         "Rogue"):   ("DGR", ( 80,  70,  70)),
     ("Duergar",         "Wizard"):  ("DGW", ( 70,  80, 130)),
     ("Duergar",         "Cleric"):  ("DGC", (180, 170, 140)),
+    ("Duergar",         "Ranger"):  ("DGG", (  0, 170, 140)),
 
     # ── Tiefling lineages ──────────────────────────────────────────
     # Zariel — ember orange (martial fury)
@@ -571,11 +582,11 @@ RACE_CLASS_VISUALS = {
 # they're designed; every consumer just does
 # RACE_CLASS_VISUALS.get((race, class_name)), so nothing else needs to
 # change when that happens -- this block can simply be deleted.
-RACE_CLASS_VISUALS.update({
-    (race, "Ranger"): visual
-    for (race, class_name), visual in list(RACE_CLASS_VISUALS.items())
-    if class_name == "Rogue"
-})
+# RACE_CLASS_VISUALS.update({
+#     (race, "Ranger"): visual
+#     for (race, class_name), visual in list(RACE_CLASS_VISUALS.items())
+#     if class_name == "Rogue"
+# })
 
 
 # ---------------------------------------------------------------------------

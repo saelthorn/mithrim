@@ -420,7 +420,7 @@ from items.items import (
     Helmet, Boots, FocusItem,
     leather_cap, iron_helmet, steel_helmet, great_helm, mages_circlet, hood_of_shadows,
     leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,
-    format_price, GOLD,
+    format_price, GOLD, clone_item,
 )
 
 from core.pathfinding import astar
@@ -5283,13 +5283,7 @@ class Game:
                     
 
                     chosen_template = random.choice(item_templates)
-                    item_to_add = chosen_template.__class__(
-                        name=chosen_template.name,
-                        char=chosen_template.char,
-                        color=chosen_template.color,
-                        description=chosen_template.description,
-                        **{k: v for k, v in chosen_template.__dict__.items() if k not in ['name', 'char', 'color', 'description', 'owner', 'x', 'y']}
-                    )
+                    item_to_add = clone_item(chosen_template)
 
                     item_to_add.x = item_x
                     item_to_add.y = item_y
@@ -8103,6 +8097,34 @@ class Game:
 
     
 
+    def _check_player_opportunity_attack(self, monster, was_adjacent):
+        """
+        Mirrors the monster-side "Opportunity Attack Check" in
+        move_player_or_attack(), in the opposite direction: if an
+        AGGRESSIVE monster was adjacent to the player at the start of
+        its turn and ends its turn no longer adjacent (fleeing, kiting
+        away, retreating), the player gets a free swing at its exposed
+        flank on the way out.
+        """
+        if not was_adjacent or not monster.alive or not self.player.alive:
+            return
+        if monster.disposition != Disposition.AGGRESSIVE:
+            return
+
+        still_adjacent = max(abs(self.player.x - monster.x), abs(self.player.y - monster.y)) <= 1
+        if still_adjacent:
+            return
+
+        oa_msgs = [
+            f"You lash out as the {monster.name} pulls away!",
+            f"You catch the {monster.name} with a parting strike as it retreats!",
+            f"The {monster.name} turns to flee — you seize the opening!",
+            f"You strike the {monster.name}'s exposed flank as it withdraws!",
+            f"A swift blow catches the {monster.name} as it breaks away!",
+        ]
+        self.message_log.add_message(random.choice(oa_msgs), (100, 255, 150))
+        self.handle_player_attack(monster, self)
+
     def handle_player_attack(self, target, game_instance, advantage=False, disadvantage=False):
         if not target.alive:
             return
@@ -8588,8 +8610,16 @@ class Game:
                             # Skip inactive monsters
                             self.next_turn()
                             continue
+                    was_adjacent_to_player = (
+                        isinstance(current_entity, Monster)
+                        and max(abs(current_entity.x - self.player.x), abs(current_entity.y - self.player.y)) <= 1
+                    )
+
                     # Call take_turn for any entity that has it
                     current_entity.take_turn(self.player, self.game_map, self)
+
+                    if isinstance(current_entity, Monster):
+                        self._check_player_opportunity_attack(current_entity, was_adjacent_to_player)
 
                     if not self.player.alive:
                         # That attack (or its death-save fallout -- see
@@ -8645,7 +8675,13 @@ class Game:
             dist_x = abs(current.x - self.player.x)
             dist_y = abs(current.y - self.player.y)
             if max(dist_x, dist_y) <= 10:
+                was_adjacent_to_player = (
+                    isinstance(current, Monster)
+                    and max(dist_x, dist_y) <= 1
+                )
                 current.take_turn(self.player, self.game_map, self)
+                if isinstance(current, Monster):
+                    self._check_player_opportunity_attack(current, was_adjacent_to_player)
             # Even if it skipped acting, advance the turn to avoid stalling
             self.next_turn()
         else:
