@@ -2,6 +2,7 @@ import random
 
 from entities.summons import SummonedEntity, _chebyshev_distance, SUMMON_PATHFINDING_MAX_EXPANSIONS
 from entities.monster import Monster, Disposition
+from entities.town_npcs import TownNPC, NPCBehavior, DEFAULT_SCHEDULE, _behavior_for_hour
 from core.pathfinding import astar
 from core.floating_text import FloatingText
 from items.items import (
@@ -716,6 +717,11 @@ class CombatCompanion(SummonedEntity):
     #: to chase down a target -- mirrors Imp/Celestial's hardcoded 8.
     DETECTION_RADIUS = 6
 
+    #: Turns to idle between wander steps once dismissed -- reuses
+    #: TownNPC's own pacing (see _take_dismissed_turn()) rather than
+    #: picking a separate value.
+    WANDER_INTERVAL = TownNPC.WANDER_INTERVAL
+
     _ability_name_map = {
         "STR": "strength",
         "DEX": "dexterity",
@@ -775,9 +781,20 @@ class CombatCompanion(SummonedEntity):
 
         # Set by dismiss() -- a dismissed companion stays in the world
         # (see dismiss()/_leave_party()) but is no longer part of the
-        # party, so combat/follow AI and the companion menu should treat
-        # it like any other bystander NPC from then on.
+        # party, so combat AI and the companion menu treat it like any
+        # other bystander from then on; take_turn() instead runs it
+        # through an NPCBehavior schedule (see _take_dismissed_turn()).
         self.dismissed = False
+        self.post = None
+        self.home = None
+        self.wander_bounds = None
+        self.schedule = DEFAULT_SCHEDULE
+        self.behavior_state = NPCBehavior.WANDERING
+        self._travel_target = None
+        self._travel_path = None
+        self._travel_path_target = None
+        self._debug_path = None
+        self._wander_cooldown = 0
 
         # -- Ability scores (base values; apply_race() below adds racial bonuses) --
         self.strength = companion_class.ability_scores["strength"]
@@ -1438,9 +1455,17 @@ class CombatCompanion(SummonedEntity):
         targeting (_select_target) and movement (_approach/_follow_owner)
         helpers above; they differ only in when they're willing to
         attack and what they do when they can't yet.
+
+        Once dismissed (see dismiss()), this hands off entirely to
+        _take_dismissed_turn() instead -- a former companion follows an
+        NPCBehavior schedule, not combat orders.
         """
         self.tick_duration(game_instance)
         if not self.alive:
+            return
+
+        if self.dismissed:
+            self._take_dismissed_turn(game_map, game_instance)
             return
 
         if self.stance != CompanionStance.PASSIVE:
@@ -1456,6 +1481,40 @@ class CombatCompanion(SummonedEntity):
         # above already returned early if there was a fight to attack or
         # close distance on) -- ambient flavor, not a battle bark.
         self.speak_ambient(game_instance)
+
+    def _take_dismissed_turn(self, game_map, game_instance):
+        """
+        Runs a dismissed companion through the same day/night NPCBehavior
+        schedule as any other TownNPC (entities/town_npcs.py): sleeping
+        at night, wandering by day, and otherwise keeping to `self.post`
+        -- set to wherever it was let go (see _settle_in_world()).
+
+        Reuses TownNPC's own schedule/movement methods (bound onto this
+        class just below it -- see the comment there) rather than
+        duplicating them. Socializing/alert-and-flee are left out for
+        simplicity; a dismissed companion just keeps its schedule.
+        """
+        hour = self._current_hour(game_instance)
+        if hour is None:
+            return
+
+        desired = _behavior_for_hour(self.schedule, hour)
+        self._reconcile_behavior(desired)
+
+        if self.behavior_state == NPCBehavior.TRAVELING:
+            self._advance_along_path(game_map, game_instance, self._travel_target)
+            if (self.x, self.y) == self._travel_target:
+                self.behavior_state = desired
+        elif self.behavior_state == NPCBehavior.WANDERING:
+            self._travel_path = None
+            self._debug_path = None
+            self._wander(game_map, game_instance)
+        elif self.behavior_state == NPCBehavior.AT_POST:
+            self._advance_along_path(game_map, game_instance, self.post)
+        else:
+            # SLEEPING: idle at home, nothing to do.
+            self._travel_path = None
+            self._debug_path = None
 
     def speak_ambient(self, game_instance):
         """
@@ -1564,35 +1623,42 @@ class CombatCompanion(SummonedEntity):
         self._leave_party(game_instance)
 
     def _leave_party(self, game_instance):
-        """Shared turn_order/combat_companions cleanup for both dismiss()
-        and die() -- see game.py's self.combat_companions (the
-        CombatCompanion-only counterpart to self.companions, which stays
-        reserved for EscortCompanion escort deliverables). Only removes
-        the entity from the world outright if it's dead (die() already
-        set self.alive = False before calling this); a dismissed
-        companion stays alive and in self.entities."""
-        if self in game_instance.turn_order:
-            game_instance.turn_order.remove(self)
+        """Shared combat_companions cleanup for both dismiss() and die()
+        -- see game.py's self.combat_companions (the CombatCompanion-only
+        counterpart to self.companions, which stays reserved for
+        EscortCompanion escort deliverables). A dead companion is also
+        pulled out of turn_order/entities outright; a dismissed one stays
+        in both -- it keeps taking turns, just as an NPCBehavior-driven
+        bystander instead of a party member (see _take_dismissed_turn())."""
         if self in getattr(game_instance, 'combat_companions', []):
             game_instance.combat_companions.remove(self)
-        if not self.alive and self in game_instance.entities:
-            game_instance.entities.remove(self)
+        if not self.alive:
+            if self in game_instance.turn_order:
+                game_instance.turn_order.remove(self)
+            if self in game_instance.entities:
+                game_instance.entities.remove(self)
         game_instance.update_fov()
 
     def _settle_in_world(self, game_instance):
         """
-        Registers a dismissed companion with whichever overworld chunk
-        it was let go in, the same way any other persistent NPC survives
-        a chunk change (see game.py's chunk["population"] handling in
-        generate_overworld_map()) -- without this, the companion would
-        still render right now but silently disappear the next time the
-        player left and re-entered this chunk, since self.entities gets
-        rebuilt from chunk["population"] on every chunk load.
+        Anchors a dismissed companion to wherever it was let go (its new
+        `post`/`home`, same fields TownNPC uses) and registers it with
+        that overworld chunk, the same way any other persistent NPC
+        survives a chunk change (see game.py's chunk["population"]
+        handling in generate_overworld_map()) -- without this, the
+        companion would still render right now but silently disappear
+        the next time the player left and re-entered this chunk, since
+        self.entities gets rebuilt from chunk["population"] on every
+        chunk load.
 
         No dungeon equivalent is needed: _snapshot_dungeon_level() already
         keeps anything not in self.combat_companions with the level it
         was left on, and this companion was just removed from that list.
         """
+        self.post = (self.x, self.y)
+        self.home = (self.x, self.y)
+        self.behavior_state = NPCBehavior.WANDERING
+
         if getattr(game_instance, 'game_state', None) != 'overworld':
             return
         chunk = game_instance.overworld_chunks.get(game_instance.overworld_chunk_coord)
@@ -1605,3 +1671,16 @@ class CombatCompanion(SummonedEntity):
             f"personality={self.personality.id}, "
             f"hp={self.hp}/{self.max_hp}, stance={self.stance})"
         )
+
+
+# Borrowed directly from TownNPC for _take_dismissed_turn() above: these
+# methods only ever touch self.x/self.y and duck-typed game/game_map
+# state, so binding them onto CombatCompanion lets a dismissed companion
+# run the exact same schedule/movement logic as any other TownNPC without
+# copying it, and without the inheritance headache of CombatCompanion
+# extending both SummonedEntity and TownNPC.
+for _method_name in (
+    "_current_hour", "_reconcile_behavior", "_advance_along_path", "_wander",
+    "_adjacent_walkable", "_can_occupy", "_tile_walkable", "_is_free_of_entities",
+):
+    setattr(CombatCompanion, _method_name, getattr(TownNPC, _method_name))
