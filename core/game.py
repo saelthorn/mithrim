@@ -2212,13 +2212,15 @@ class Game:
         suppress world encounters for anyone traveling with one.
         Excluding them here just means their own proximity doesn't
         count against the roll -- an unrelated monster or NPC still
-        blocks it normally.
+        blocks it normally. A dismissed companion (see CombatCompanion.
+        dismiss()) is no longer part of the party, so it counts like
+        any other NPC standing nearby.
         """
         px, py = self.player.x, self.player.y
         for entity in self.entities:
             if entity is self.player or not getattr(entity, "alive", True):
                 continue
-            if isinstance(entity, CombatCompanion):
+            if isinstance(entity, CombatCompanion) and not entity.dismissed:
                 continue
             if max(abs(entity.x - px), abs(entity.y - py)) <= radius:
                 return True
@@ -3894,7 +3896,8 @@ class Game:
         [1]-[5] set the companion's combat stance (see CompanionStance)
             and close the menu immediately, same as CHEST_MENU's choices
             resolving in one step.
-        [6] Dismiss -- the companion leaves the party for good.
+        [6] Dismiss -- the companion leaves the party for good, staying
+            behind as an ordinary bystander rather than disappearing.
         [7] / ESC / F -- leave, no change.
         """
         companion = self._companion_menu_target
@@ -6605,7 +6608,7 @@ class Game:
                             # covers that case the same way the DIALOGUE-mode branch
                             # further below does.
                             info_target = npc if npc is not None else self.check_dungeon_npc_interaction()
-                            if isinstance(info_target, CombatCompanion):
+                            if isinstance(info_target, CombatCompanion) and not info_target.dismissed:
                                 self.open_companion_menu(info_target)
                                 return True
                             # Location-based, not NPC-based, so this doesn't need
@@ -6713,13 +6716,15 @@ class Game:
                                 )
                                 self.stories.fire_talk(merchant, instigator=self.player)
                                 return True
-                            elif isinstance(merchant, CombatCompanion) and self.interaction_mode == InteractionMode.INFO:
+                            elif isinstance(merchant, CombatCompanion) and not merchant.dismissed and self.interaction_mode == InteractionMode.INFO:
                                 # Without this branch a recruited companion standing
                                 # adjacent to the player in a dungeon matched none of
                                 # the isinstance checks above and fell all the way
                                 # through to check_adjacent_monster_interaction()
                                 # below, which a companion is not, so pressing F did
                                 # nothing -- open_companion_menu() never triggered.
+                                # Dismissed companions skip this branch -- they're
+                                # no longer party members with orders to give.
                                 self.open_companion_menu(merchant)
                                 return True
 

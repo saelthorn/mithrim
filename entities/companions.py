@@ -773,6 +773,12 @@ class CombatCompanion(SummonedEntity):
         # already does until the player changes it via COMPANION_MENU.
         self.stance = CompanionStance.NEAREST
 
+        # Set by dismiss() -- a dismissed companion stays in the world
+        # (see dismiss()/_leave_party()) but is no longer part of the
+        # party, so combat/follow AI and the companion menu should treat
+        # it like any other bystander NPC from then on.
+        self.dismissed = False
+
         # -- Ability scores (base values; apply_race() below adds racial bonuses) --
         self.strength = companion_class.ability_scores["strength"]
         self.dexterity = companion_class.ability_scores["dexterity"]
@@ -1537,12 +1543,15 @@ class CombatCompanion(SummonedEntity):
         """
         Player-initiated leave, via the companion menu's Dismiss option
         -- distinct from die(): no death message, no combat implications,
-        just parting ways. Mirrors die()'s entities/turn_order cleanup
-        without the "fallen" flavor.
+        and unlike the old behavior, the companion doesn't vanish. They
+        stay right where they were let go, still alive and visible, just
+        no longer following or fighting -- an ordinary bystander again
+        (see _leave_party()/_settle_in_world()).
         """
-        self.alive = False
-        game_instance.message_log.add_message(f"{self.name} nods and departs.", self.color)
+        self.dismissed = True
+        game_instance.message_log.add_message(f"{self.name} nods and steps aside.", self.color)
         self._leave_party(game_instance)
+        self._settle_in_world(game_instance)
 
     def die(self, game_instance):
         """Handles the companion falling in battle."""
@@ -1555,17 +1564,40 @@ class CombatCompanion(SummonedEntity):
         self._leave_party(game_instance)
 
     def _leave_party(self, game_instance):
-        """Shared entities/turn_order/combat_companions cleanup for both
-        dismiss() and die() -- see game.py's self.combat_companions
-        (the CombatCompanion-only counterpart to self.companions, which
-        stays reserved for EscortCompanion escort deliverables)."""
-        if self in game_instance.entities:
-            game_instance.entities.remove(self)
+        """Shared turn_order/combat_companions cleanup for both dismiss()
+        and die() -- see game.py's self.combat_companions (the
+        CombatCompanion-only counterpart to self.companions, which stays
+        reserved for EscortCompanion escort deliverables). Only removes
+        the entity from the world outright if it's dead (die() already
+        set self.alive = False before calling this); a dismissed
+        companion stays alive and in self.entities."""
         if self in game_instance.turn_order:
             game_instance.turn_order.remove(self)
         if self in getattr(game_instance, 'combat_companions', []):
             game_instance.combat_companions.remove(self)
+        if not self.alive and self in game_instance.entities:
+            game_instance.entities.remove(self)
         game_instance.update_fov()
+
+    def _settle_in_world(self, game_instance):
+        """
+        Registers a dismissed companion with whichever overworld chunk
+        it was let go in, the same way any other persistent NPC survives
+        a chunk change (see game.py's chunk["population"] handling in
+        generate_overworld_map()) -- without this, the companion would
+        still render right now but silently disappear the next time the
+        player left and re-entered this chunk, since self.entities gets
+        rebuilt from chunk["population"] on every chunk load.
+
+        No dungeon equivalent is needed: _snapshot_dungeon_level() already
+        keeps anything not in self.combat_companions with the level it
+        was left on, and this companion was just removed from that list.
+        """
+        if getattr(game_instance, 'game_state', None) != 'overworld':
+            return
+        chunk = game_instance.overworld_chunks.get(game_instance.overworld_chunk_coord)
+        if chunk is not None:
+            chunk.setdefault('population', []).append(self)
 
     def __repr__(self):
         return (
