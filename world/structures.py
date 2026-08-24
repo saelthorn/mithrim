@@ -42,9 +42,14 @@ class StructureBlueprint:
     # chest tucked in a watchtower storeroom) instead of chests being
     # placed separately by whatever system placed the building.
     item_map: dict[str, object] = field(default_factory=dict)
+    # Tile a destructible tile in this structure's footprint turns into
+    # once destroyed (e.g. tavern_cobweb -> tavern_floor), instead of
+    # game.py's destroy_tile() falling back to the bare overworld/dungeon
+    # default (ground/floor). None keeps that fallback behavior.
+    destroyed_tile: object = None
 
 
-def build_blueprint(key, name, tile_map, char_map, default_tile=ground, walkable_chars=None, description="", npc_map=None, monster_map=None, item_map=None):
+def build_blueprint(key, name, tile_map, char_map, default_tile=ground, walkable_chars=None, description="", npc_map=None, monster_map=None, item_map=None, destroyed_tile=None):
     return StructureBlueprint(
         key=key,
         name=name,
@@ -56,6 +61,7 @@ def build_blueprint(key, name, tile_map, char_map, default_tile=ground, walkable
         npc_map=dict(npc_map or {}),
         monster_map=dict(monster_map or {}),
         item_map=dict(item_map or {}),
+        destroyed_tile=destroyed_tile,
     )
 
 
@@ -291,6 +297,7 @@ STRUCTURE_BLUEPRINTS = {
         description="A simple frontier cabin.",
         npc_map={"V": _spawn_villager},
         item_map={"c": _spawn_indoor_chest},
+        destroyed_tile=tavern_floor,
     ),
     "watch_tower": build_blueprint(
         "watch_tower",
@@ -308,6 +315,7 @@ STRUCTURE_BLUEPRINTS = {
         walkable_chars={".", "c", "+"},
         description="A defensive tower on a hilltop.",
         item_map={"c": _spawn_indoor_chest},
+        destroyed_tile=tavern_floor,
     ),
     "shrine": build_blueprint(
         "shrine",
@@ -319,6 +327,24 @@ STRUCTURE_BLUEPRINTS = {
         {"#": wall, ".": floor, "&": altar},
         walkable_chars={"."},
         description="A simple stone shrine.",
+    ),
+    "empty_shop": build_blueprint(
+        "empty_shop",
+        "Empty Shop",
+        [
+            "          ",
+            " #+##ww## ",
+            " #..*.*b# ",
+            " w*=====w ",
+            " #...*.c# ",
+            " ##w#+w## ",
+            "          ",
+        ],
+        {"#": wall, "w": window, "*": tavern_cobweb, ".": tavern_floor, "b": tavern_barrel, "c": tavern_crate, "S": tavern_floor, "+": door, "s": shelf, "t": shelf_two, "=": bar_counter},
+        walkable_chars={".", "S", "+"},
+        description="A traveling merchant's storefront.",
+        npc_map={"S": _spawn_shopkeeper},
+        destroyed_tile=tavern_floor,
     ),
     "shop": build_blueprint(
         "shop",
@@ -344,7 +370,7 @@ STRUCTURE_BLUEPRINTS = {
         [
             "            ",
             "  ##w##w### ",
-            "  +r.sh..o# ",
+            "  +r*sh..o# ",
             " ##k....7.# ",
             " #p.....|Aw ",
             " wt..t..|.# ",
@@ -352,11 +378,12 @@ STRUCTURE_BLUEPRINTS = {
             " ##ww##+#w# ",
             "            ",
         ],
-        {"#": wall, "w": window, ".": tavern_floor, "s": shelf, "h": shelf_two, "o": tavern_floor, "r": tavern_floor, "c": tavern_crate, "b": tavern_barrel, "p": tavern_floor, "A": tavern_floor, "k": tavern_barrel_two, "I": bar_counter_two, "|": bar_counter_three, "7": bar_counter_four, "t": table, "+": door},
+        {"#": wall, "w": window, ".": tavern_floor, "*": tavern_cobweb, "s": shelf, "h": shelf_two, "o": tavern_floor, "r": tavern_floor, "c": tavern_crate, "b": tavern_barrel, "p": tavern_floor, "A": tavern_floor, "k": tavern_barrel_two, "I": bar_counter_two, "|": bar_counter_three, "7": bar_counter_four, "t": table, "+": door},
         walkable_chars={".", "p", "A", "o", "+"},
         description="A rowdy wayside tavern.",
         npc_map={"A": _spawn_innkeeper, "p": _spawn_tavern_patron, "g": _spawn_goblin, "o": _spawn_orc, "r": _spawn_goblin_archer},
         item_map={"c": _spawn_indoor_chest},
+        destroyed_tile=tavern_floor,
     ),
 
     "blacksmith": build_blueprint(
@@ -445,6 +472,19 @@ def get_structure_blueprint(structure_id):
     return STRUCTURE_BLUEPRINTS.get(structure_id)
 
 
+def _remember_destroyed_tile(game_map, position, replacement):
+    """Record what (x, y) should become if its tile is ever destroyed,
+    so game.py's destroy_tile() can restore the structure's own floor
+    (e.g. tavern_floor) instead of the bare overworld/dungeon default.
+    Stored directly on game_map (lazily, via getattr/setattr) since Tile
+    instances are shared singletons and can't carry this per-position."""
+    replacements = getattr(game_map, "destructible_replacements", None)
+    if replacements is None:
+        replacements = {}
+        game_map.destructible_replacements = replacements
+    replacements[position] = replacement
+
+
 def place_structure(game_map, structure_id, origin_x, origin_y, tile_overrides=None):
     blueprint = get_structure_blueprint(structure_id)
     if blueprint is None:
@@ -471,6 +511,8 @@ def place_structure(game_map, structure_id, origin_x, origin_y, tile_overrides=N
                 continue
             game_map.tiles[gy][gx] = tile
             placed.append((gx, gy, tile))
+            if blueprint.destroyed_tile is not None and getattr(tile, "destructible", False):
+                _remember_destroyed_tile(game_map, (gx, gy), blueprint.destroyed_tile)
 
     return placed
 

@@ -7984,10 +7984,14 @@ class Game:
         
         if skill_check_total >= destruction_dc:
             self.message_log.add_message(f"You successfully smash the {target_tile.name}!", (0, 255, 0))
-            if self.game_state == GameState.OVERWORLD:
-                self.game_map.tiles[y][x] = ground
-            elif self.game_state == GameState.DUNGEON:
-                self.game_map.tiles[y][x] = floor
+            replacements = getattr(self.game_map, "destructible_replacements", None)
+            replacement = replacements.pop((x, y), None) if replacements else None
+            if replacement is None:
+                if self.game_state == GameState.OVERWORLD:
+                    replacement = ground
+                elif self.game_state == GameState.DUNGEON:
+                    replacement = floor
+            self.game_map.tiles[y][x] = replacement
             self.minimap_needs_redraw = True # Map changed, redraw minimap
             
             # --- NEW: 10% chance to drop a Lesser Healing Potion ---
