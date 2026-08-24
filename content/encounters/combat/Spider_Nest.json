@@ -67,8 +67,8 @@
         "overworld_cobweb"
       ],
       "landmark_tile_amount": [
-        3,
-        5
+        5,
+        8
       ],
       "monster_pool": [
         "GiantSpider",

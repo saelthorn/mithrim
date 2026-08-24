@@ -1,7 +1,7 @@
 {
   "id": "history_of_mithrim",
   "name": "A History of Mithrim",
-  "char": "bk",
+  "char": "spb",
   "color": [90, 90, 140],
   "description": "A dense scholarly tome on the founding of the realm.",
   "price": 150,

@@ -6,7 +6,7 @@
   "stages": [
     {
       "discovery": "A handful of buildings cluster together off the road - a general store flanked by two modest houses, the closest thing to a hamlet this stretch of country has. Doors stand open. Nothing is burned, nothing is broken. It's simply empty, the way a room feels when everyone in it left mid-conversation.",
-      "landmark_structure": ["shop", "house", "house"],
+      "landmark_structure": ["empty_shop", "empty_house", "small_cabin"],
       "choices": [
         {
           "key": 1,

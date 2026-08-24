@@ -5,13 +5,13 @@ from entities.base_entity import NPC
 from entities.town_npcs import TownNPC, Innkeeper, Shopkeeper, Townsfolk, Blacksmith, Priest
 from entities.monster import GiantRat, Goblin, Skeleton, Wolf, Orc, GoblinArcher
 from entities.companions import RACE_CLASS_VISUALS, FIGHTER, RANGER, ROGUE, WIZARD, CLERIC
-from items.items import Chest, IndoorChest, OutdoorChest, LockedChest, generate_random_loot, generate_locked_loot
+from items.items import Chest, Book, IndoorChest, OutdoorChest, LockedChest, BOOKS_CONTENT_ROOT, generate_random_loot, generate_locked_loot, get_book, clone_item
 
 from world.tile import (
     ground, grass, road, tall_grass, wall, tavern_floor, floor, bar_counter_two, bar_counter_three, bar_counter_four, 
     table, crate, tavern_barrel_two, altar, door, forge, anvil, shelf, bed, hay, bar_counter, bar_counter_five, bar_counter_six,
     shelf_three, bar_counter, shelf_two, tavern_barrel, tavern_crate, cob_web, wood_plank, tavern_floor, ladder, tavern_cobweb,
-    window
+    window, flower_field
 )
 
 
@@ -36,11 +36,12 @@ class StructureBlueprint:
     # the building.
     monster_map: dict[str, object] = field(default_factory=dict)
     # Maps a tile_map char to an Item factory `(x, y) -> Item`, the item
-    # equivalent of npc_map/monster_map above. Currently only used for
-    # chests (see _spawn_chest()/_spawn_locked_chest() below), letting a
-    # blueprint bake a stash directly into its ASCII art (e.g. 'c' for a
-    # chest tucked in a watchtower storeroom) instead of chests being
-    # placed separately by whatever system placed the building.
+    # equivalent of npc_map/monster_map above. Used for chests (see
+    # _spawn_indoor_chest()/_spawn_locked_chest() below) and for placing a
+    # specific book (see _spawn_book() below), letting a blueprint bake a
+    # stash -- or a book on a shelf -- directly into its ASCII art (e.g.
+    # 'c' for a chest tucked in a watchtower storeroom) instead of items
+    # being placed separately by whatever system placed the building.
     item_map: dict[str, object] = field(default_factory=dict)
     # Tile a destructible tile in this structure's footprint turns into
     # once destroyed (e.g. tavern_cobweb -> tavern_floor), instead of
@@ -252,6 +253,25 @@ def _spawn_locked_chest(x, y):
     return LockedChest(x, y, contents=generate_locked_loot(OVERWORLD_CHEST_LOOT_LEVEL))
 
 
+def _spawn_book(book_id):
+    """Build an item_map factory that places a clone of a specific loaded
+    book (see items.py's get_book()/load_books()) at that char's spot in a
+    blueprint's ASCII art -- the book equivalent of _spawn_indoor_chest()/
+    _spawn_locked_chest() above. Usage: item_map={"j": _spawn_book("some_book_id")}.
+
+    Returns None if `book_id` isn't a loaded book, which
+    _spawns_from_entity_map() below skips -- a typo'd id shouldn't crash
+    structure placement."""
+    def spawn(x, y):
+        template = get_book(book_id)
+        if template is None:
+            return None
+        book = clone_item(template)
+        book.x, book.y = x, y
+        return book
+    return spawn
+
+
 STRUCTURE_BLUEPRINTS = {
     "witch_hut": build_blueprint(
         "witch_hut",
@@ -266,6 +286,7 @@ STRUCTURE_BLUEPRINTS = {
         walkable_chars={".", "+"},
         description="A crooked hut for swamp witches.",
     ),
+
     "windmill": build_blueprint(
         "windmill",
         "Windmill",
@@ -280,6 +301,7 @@ STRUCTURE_BLUEPRINTS = {
         walkable_chars={".", "+"},
         description="A windmill for grinding grain.",
     ),
+
     "small_cabin": build_blueprint(
         "small_cabin",
         "Cabin",
@@ -296,9 +318,12 @@ STRUCTURE_BLUEPRINTS = {
         walkable_chars={".", "V", "c", "+"},
         description="A simple frontier cabin.",
         npc_map={"V": _spawn_villager},
-        item_map={"c": _spawn_indoor_chest},
+        # "s" (shelf) also places a book -- swap "cabin_journal" for a real
+        # content/books/*.json id; see _spawn_book() above.
+        item_map={"c": _spawn_indoor_chest, "s": _spawn_book("cabin_journal")},
         destroyed_tile=tavern_floor,
     ),
+    
     "watch_tower": build_blueprint(
         "watch_tower",
         "Watchtower",
@@ -317,28 +342,33 @@ STRUCTURE_BLUEPRINTS = {
         item_map={"c": _spawn_indoor_chest},
         destroyed_tile=tavern_floor,
     ),
+
     "shrine": build_blueprint(
         "shrine",
         "Shrine",
         [
-            "  ###  ",
-            " # & # ",
+            "     ",
+            " ### ",
+            " #&# ",
+            " ### ",
+            "     ",
         ],
-        {"#": wall, ".": floor, "&": altar},
+        {"#": flower_field, ".": floor, "&": altar},
         walkable_chars={"."},
         description="A simple stone shrine.",
     ),
+
     "empty_shop": build_blueprint(
         "empty_shop",
         "Empty Shop",
         [
-            "          ",
-            " #+##ww## ",
-            " #..*.*b# ",
-            " w*=====w ",
-            " #...*.c# ",
-            " ##w#+w## ",
-            "          ",
+            "         ",
+            " #+#ww## ",
+            " #.*.*b# ",
+            " w*====w ",
+            " #..*.c# ",
+            " #w#+#w# ",
+            "         ",
         ],
         {"#": wall, "w": window, "*": tavern_cobweb, ".": tavern_floor, "b": tavern_barrel, "c": tavern_crate, "S": tavern_floor, "+": door, "s": shelf, "t": shelf_two, "=": bar_counter},
         walkable_chars={".", "S", "+"},
@@ -346,6 +376,7 @@ STRUCTURE_BLUEPRINTS = {
         npc_map={"S": _spawn_shopkeeper},
         destroyed_tile=tavern_floor,
     ),
+
     "shop": build_blueprint(
         "shop",
         "Shop",
@@ -364,13 +395,14 @@ STRUCTURE_BLUEPRINTS = {
         description="A traveling merchant's storefront.",
         npc_map={"S": _spawn_shopkeeper},
     ),
+
     "tavern": build_blueprint(
         "tavern",
         "Tavern",
         [
             "            ",
             "  ##w##w### ",
-            "  +r*sh..o# ",
+            "  +rjsh..o# ",
             " ##k....7.# ",
             " #p.....|Aw ",
             " wt..t..|.# ",
@@ -378,12 +410,32 @@ STRUCTURE_BLUEPRINTS = {
             " ##ww##+#w# ",
             "            ",
         ],
-        {"#": wall, "w": window, ".": tavern_floor, "*": tavern_cobweb, "s": shelf, "h": shelf_two, "o": tavern_floor, "r": tavern_floor, "c": tavern_crate, "b": tavern_barrel, "p": tavern_floor, "A": tavern_floor, "k": tavern_barrel_two, "I": bar_counter_two, "|": bar_counter_three, "7": bar_counter_four, "t": table, "+": door},
+        {"#": wall, "w": window, ".": tavern_floor, "j": tavern_floor, "*": tavern_cobweb, "s": shelf, "h": shelf_two, "o": tavern_floor, "r": tavern_floor, "c": tavern_crate, "p": tavern_floor, "A": tavern_floor, "k": tavern_barrel_two, "I": bar_counter_two, "|": bar_counter_three, "7": bar_counter_four, "t": table, "+": door},
         walkable_chars={".", "p", "A", "o", "+"},
         description="A rowdy wayside tavern.",
         npc_map={"A": _spawn_innkeeper, "p": _spawn_tavern_patron, "g": _spawn_goblin, "o": _spawn_orc, "r": _spawn_goblin_archer},
-        item_map={"c": _spawn_indoor_chest},
+        item_map={"c": _spawn_indoor_chest, "j": _spawn_book("history_of_mithrim")},
         destroyed_tile=tavern_floor,
+    ),
+
+    "empty_blacksmith": build_blueprint(
+        # SQUARE + CHIMNEY: compact square with a stack poking out the roofline
+        "empty_blacksmith",
+        "Blacksmith",
+        [
+            "          ",
+            " #######  ",
+            " w.|F.s#  ",
+            " +.|.N.#  ",
+            " #.7.B.#  ",
+            " w.....#  ",
+            " ##w#w##  ",
+            "          ",
+        ],
+        {"#": wall, "w": window, ".": floor, "B": floor, "F": forge, "N": anvil, "s": shelf_three, "+": door, "|": bar_counter_five, "7": bar_counter_six},
+        walkable_chars={".", "B", "+"},
+        description="A soot-stained smithy, its chimney visible over the rooftops.",
+        npc_map={"B": _spawn_blacksmith},
     ),
 
     "blacksmith": build_blueprint(
@@ -406,22 +458,23 @@ STRUCTURE_BLUEPRINTS = {
         npc_map={"B": _spawn_blacksmith},
     ),
 
-    "general_store": build_blueprint(
-        # WIDE RECTANGLE: long, low shopfront -- unmistakably squat compared to everything else
-        "general_store",
-        "General Store",
+    "empty_house": build_blueprint(
+        # SMALL SQUARE: deliberately the plainest, smallest footprint -- reads as "just a house"
+        "house",
+        "House",
         [
-            "              ",
-            " ############ ",
-            " +..........# ",
-            " #.s..M..s..# ",
-            " #.s..K.p...# ",
-            " ######+##### ",
+            "        ",
+            " ###w## ",
+            " +.#bs# ",
+            " #.#..w ",
+            " w...t# ",
+            " ##ww## ",
+            "        ",
         ],
-        {"#": wall, ".": tavern_floor, "s": shelf, "M": bar_counter, "K": tavern_floor, "p": tavern_floor, "+": door},
-        walkable_chars={".", "K", "p", "+"},
-        description="A cramped general store selling a bit of everything.",
-        npc_map={"K": _spawn_shopkeeper, "p": _spawn_villager},
+        {"#": wall, "w": window, ".": tavern_floor, "b": bed, "t": table, "V": tavern_floor, "+": door, "s": shelf,},
+        walkable_chars={".", "V", "+"},
+        description="A modest villager's home.",
+        npc_map={"V": _spawn_villager},
     ),
 
     "house": build_blueprint(
@@ -689,8 +742,11 @@ def _spawns_from_entity_map(entity_map, blueprint, placed_tiles):
             if spawn_entity is None:
                 continue
             gx, gy = origin_x + dx, origin_y + dy
-            if (gx, gy) in placed_positions:
-                spawns.append(spawn_entity(gx, gy))
+            if (gx, gy) not in placed_positions:
+                continue
+            spawned = spawn_entity(gx, gy)
+            if spawned is not None:
+                spawns.append(spawned)
     return spawns
 
 

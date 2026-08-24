@@ -6,7 +6,7 @@
   "stages": [
     {
       "discovery": "A blacksmith's shop stands with its chimney cold and its forge unlit, tools still hung neat along the wall the way a careful smith leaves them at the end of a working day - not the way anyone leaves them for good. An unfinished blade sits clamped in the vice, half-shaped and never finished.",
-      "landmark_structure": "blacksmith",
+      "landmark_structure": "empty_blacksmith",
       "choices": [
         {
           "key": 1,
@@ -15,10 +15,11 @@
           "description": "The forge is cold, but the tools still work",
           "color": [255, 200, 140],
           "outcome": "You're no smith, but you know enough to knock the rough edges smooth and give the blade a working edge. It isn't fine work, but it isn't nothing either.",
+          "hour": 4,
           "consequences": [
             { 
                 "type": "give_item", 
-                "item_id": "iron_dagger", 
+                "item_id": "silver_dagger", 
                 "count": 1 
             },
             { 
