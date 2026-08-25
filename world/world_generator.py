@@ -327,7 +327,7 @@ class TerrainGenerator:
 
 class PlainsGenerator(TerrainGenerator):
     def terrain_tags(self):
-        return ("open_grass", "scattered_trees", "gentle_hills")
+        return ("open_grass", "wildflowers", "scattered_trees", "gentle_hills")
 
     def apply(self, game_map, heightmap, moisture, river_positions):
         river_tiles = set(river_positions or ())
@@ -348,6 +348,14 @@ class PlainsGenerator(TerrainGenerator):
                     game_map.tiles[y][x] = meadow
                 elif m > 0.72 and _chance(x, y, 3, 1 / 19):
                     game_map.tiles[y][x] = tree
+                elif m > 0.58 and _chance(x, y, 6, 0.22):
+                    game_map.tiles[y][x] = flower_field
+                elif h < 0.20 and m > 0.45:
+                    game_map.tiles[y][x] = valley
+                elif m > 0.45 and _chance(x, y, 7, 0.45):
+                    game_map.tiles[y][x] = tall_grass
+                elif m > 0.20 and _chance(x, y, 8, 0.60):
+                    game_map.tiles[y][x] = grass
                 else:
                     game_map.tiles[y][x] = ground
 
@@ -366,15 +374,19 @@ class PlainsGenerator(TerrainGenerator):
                 h = heightmap.get(x, y)
                 m = moisture.get(x, y)
 
-                if tile not in {ground, grass, tall_grass}:
+                if tile not in {ground, grass, tall_grass, meadow}:
                     continue
 
                 if h > 0.22 and _chance(x, y, 1, 1 / 11):
                     game_map.tiles[y][x] = ridge
                 elif m > 0.32 and _chance(x, y, 2, 1 / 15):
                     game_map.tiles[y][x] = meadow
+                elif h > 0.68 and m < 0.22 and _chance(x, y, 9, 1 / 21):
+                    game_map.tiles[y][x] = ground
                 elif h > 0.50 and _chance(x, y, 3, 1 / 19):
                     game_map.tiles[y][x] = rock_formation
+                elif m > 0.50 and _chance(x, y, 10, 1 / 24):
+                    game_map.tiles[y][x] = flower_field
 
     def place_landmarks(self, game_map, heightmap, moisture, river_positions):
         candidates = []
@@ -565,9 +577,93 @@ class SwampGenerator(TerrainGenerator):
         return [(x, y, landmark)]
 
 
+class HillsGenerator(TerrainGenerator):
+    def terrain_tags(self):
+        return ("rolling_grass", "rock_outcrops", "scattered_forest", "ridgelines")
+
+    def apply(self, game_map, heightmap, moisture, river_positions):
+        river_tiles = set(river_positions or ())
+        width, height = game_map.width, game_map.height
+
+        for y in range(height):
+            for x in range(width):
+                h = heightmap.get(x, y)
+                m = moisture.get(x, y)
+
+                if (x, y) in river_tiles:
+                    game_map.tiles[y][x] = river
+                elif m > 0.75 and h < 0.45:
+                    game_map.tiles[y][x] = lake
+                elif h > 0.74:
+                    game_map.tiles[y][x] = rock_formation
+                elif h > 0.62:
+                    game_map.tiles[y][x] = ridge
+                elif m > 0.55 and _chance(x, y, 5, 0.35):
+                    game_map.tiles[y][x] = tree
+                elif h < 0.20 and m > 0.45:
+                    game_map.tiles[y][x] = valley
+                elif m > 0.42:
+                    game_map.tiles[y][x] = meadow
+                elif m > 0.25 and _chance(x, y, 7, 0.55):
+                    game_map.tiles[y][x] = tall_grass
+                else:
+                    game_map.tiles[y][x] = ground
+
+        self.decorate(game_map, heightmap, moisture, river_positions)
+        return self.place_landmarks(game_map, heightmap, moisture, river_positions)
+
+    def decorate(self, game_map, heightmap, moisture, river_positions):
+        river_tiles = set(river_positions or ())
+        width, height = game_map.width, game_map.height
+
+        for y in range(height):
+            for x in range(width):
+                if (x, y) in river_tiles:
+                    continue
+                tile = game_map.tiles[y][x]
+                h = heightmap.get(x, y)
+                m = moisture.get(x, y)
+
+                if tile not in {grass, tall_grass, meadow, ground}:
+                    continue
+
+                if h > 0.50 and _chance(x, y, 1, 1 / 14):
+                    game_map.tiles[y][x] = ridge
+                elif h > 0.68 and m < 0.30 and _chance(x, y, 9, 1 / 22):
+                    game_map.tiles[y][x] = cliff
+                elif m > 0.35 and _chance(x, y, 2, 1 / 17):
+                    game_map.tiles[y][x] = rock_formation
+                elif m > 0.48 and _chance(x, y, 3, 1 / 18):
+                    game_map.tiles[y][x] = flower_field
+
+    def place_landmarks(self, game_map, heightmap, moisture, river_positions):
+        candidates = []
+        width, height = game_map.width, game_map.height
+        for y in range(1, height - 1):
+            for x in range(1, width - 1):
+                if (x, y) in set(river_positions or ()):
+                    continue
+                tile = game_map.tiles[y][x]
+                if tile not in {grass, tall_grass, meadow, ground}:
+                    continue
+                if (x * 11 + y * 2 + 3) % 27 == 0:
+                    candidates.append((x, y))
+
+        if not candidates:
+            return []
+
+        x, y = random.choice(candidates)
+        landmark = random.choice(["Old Watchtower", "Standing Stones", "Sheep Pasture", "Abandoned Quarry"])
+        structure_id = {"Old Watchtower": "watch_tower"}.get(landmark)
+        if structure_id is not None:
+            return [(x, y, landmark, structure_id)]
+        game_map.tiles[y][x] = ground
+        return [(x, y, landmark)]
+
+
 class MountainGenerator(TerrainGenerator):
     def terrain_tags(self):
-        return ("cliffs", "plateaus", "caves", "pine_forests")
+        return ("cliffs", "plateaus", "caves", "pine_forests", "scree_slopes")
 
     def apply(self, game_map, heightmap, moisture, river_positions):
         river_tiles = set(river_positions or ())
@@ -584,14 +680,20 @@ class MountainGenerator(TerrainGenerator):
                     game_map.tiles[y][x] = mountain
                 elif h > 0.56: # % of the next highest elevations are scree
                     game_map.tiles[y][x] = scree
+                elif h > 0.53 and m < 0.35:
+                    game_map.tiles[y][x] = cliff
                 elif m > 0.40 and _chance(x, y, 5, 0.25):
                     # Was an unconditional `tree`, which made every hilltop a
                     # solid, gap-free block of forest. Thinning it here lets
                     # roughly half of it fall through to the tall_grass band
                     # below instead, breaking the canopy up with clearings.
                     game_map.tiles[y][x] = tree
+                elif h > 0.44 and _chance(x, y, 11, 0.30):
+                    game_map.tiles[y][x] = ridge
                 elif h > 0.40 and m > 0.35:
                     game_map.tiles[y][x] = clearing
+                elif h < 0.22 and m > 0.45:
+                    game_map.tiles[y][x] = ground
                 elif m > 0.52 and _chance(x, y, 3, 1 / 16):
                     game_map.tiles[y][x] = rock_formation
                 else:
@@ -612,13 +714,15 @@ class MountainGenerator(TerrainGenerator):
                 h = heightmap.get(x, y)
                 m = moisture.get(x, y)
 
-                if tile not in {ground, grass, tree, mountain}:
+                if tile not in {ground, grass, tree, mountain, scree, ridge}:
                     continue
 
                 if h > 0.60 and _chance(x, y, 1, 1 / 18):
                     game_map.tiles[y][x] = mountain
                 elif h > 0.30 and _chance(x, y, 2, 1 / 17):
                     game_map.tiles[y][x] = tree
+                elif h > 0.55 and m < 0.30 and _chance(x, y, 12, 1 / 20):
+                    game_map.tiles[y][x] = cliff
                 elif h < 0.45 and _chance(x, y, 3, 1 / 19):
                     game_map.tiles[y][x] = rock_formation
                 elif h > 0.52 and m > 0.40 and _chance(x, y, 4, 1 / 23):
@@ -660,6 +764,8 @@ def get_terrain_generator(biome):
         return ForestGenerator
     if biome_value == ChunkBiome.SWAMP.value:
         return SwampGenerator
+    if biome_value == ChunkBiome.HILLS.value:
+        return HillsGenerator
     if biome_value == ChunkBiome.MOUNTAINS.value:
         return MountainGenerator
     if biome_value == ChunkBiome.PLAINS.value:

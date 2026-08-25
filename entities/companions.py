@@ -10,6 +10,7 @@ from items.items import (
     iron_dagger, oak_staff, steel_mace, studded_leather_armor,
     chainmail_armor, robes, round_shield, spell_book, holy_symbol,
 )
+from world.bloodstain import Bloodstain
 from core.status_effects import (
     BlessingOfBloodlust, BlessingOfFortitude, CurseOfRot, ParryBuff, StatusEffect, DivineStrikeBuff, Poisoned, 
     AcidBurned, PowerAttackBuff, CunningActionDashBuff, EvasionBuff, Burning, Torchlight, ActionSurgeEffect, Hidden, 
@@ -1615,6 +1616,8 @@ class CombatCompanion(SummonedEntity):
     def die(self, game_instance):
         """Handles the companion falling in battle."""
         self.alive = False
+        bloodstain = Bloodstain(self.x, self.y, game_instance)
+        game_instance.bloodstains.append(bloodstain)
         game_instance.message_log.add_message(f"{self.name} has fallen!", (255, 80, 80))
         if self.personality.death_line:
             game_instance.message_log.add_message(

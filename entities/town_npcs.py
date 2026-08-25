@@ -5,6 +5,7 @@ import config
 from core.pathfinding import astar
 from world.water_features import is_water_tile
 from core.floating_text import FloatingText
+from world.bloodstain import Bloodstain
 
 
 
@@ -271,6 +272,24 @@ class TownNPC(NPC):
         # ALERT_DETECT_RADIUS -- refreshed to ALERT_DURATION every turn
         # a threat is still in range.
         self._alert_turns_remaining = 0
+
+    # -- combat ----------------------------------------------------------
+
+    def take_damage(self, amount, game_instance, damage_type=None):
+        """
+        Wraps NPC.take_damage() so an adventurer-marked patron (or any
+        other TownNPC) leaves a bloodstain the moment it dies, same as
+        Monster.die()/CombatCompanion.die() already do -- whoever lands
+        the killing blow (a monster's melee/ranged attack, a fire tile,
+        ...) only ever calls take_damage(), never a TownNPC-specific
+        die(), so this is the one place guaranteed to see every death.
+        """
+        was_alive = self.alive
+        damage_taken = super().take_damage(amount, game_instance, damage_type=damage_type)
+        if was_alive and not self.alive:
+            bloodstain = Bloodstain(self.x, self.y, game_instance)
+            game_instance.bloodstains.append(bloodstain)
+        return damage_taken
 
     # -- schedule ------------------------------------------------------
 
@@ -818,6 +837,13 @@ class TownNPC(NPC):
 
         if not target.alive:
             game.log_message_at(self.x, self.y, f"{target.name} has been slain by {self.name}!", (200, 0, 0))
+            # target.die() (not just take_damage()'s alive=False) is what
+            # actually drops loot and leaves a bloodstain -- see monster.py's
+            # die(). Nothing else calls it for this NPC-vs-monster fight, so
+            # without this an adventurer's kill would otherwise vanish with
+            # no loot and no bloodstain, unlike every player/companion kill.
+            target.die(game, killer=self)
+            game._notify_monster_killed(target, killer=self)
 
     # -- movement --------------------------------------------------------
 
