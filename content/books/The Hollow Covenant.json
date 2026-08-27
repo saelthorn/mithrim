@@ -1,0 +1,14 @@
+{
+  "id": "the_hollow_covenant",
+  "name": "The Hollow Covenant",
+  "char": "bk",
+  "color": [120, 30, 140],
+  "description": "An ancient tome bound in iron clasps, warm to the touch despite the cold.",
+  "price": 400,
+  "paragraphs": [
+    "Before the mountains had names, something older than the clans made a bargain with what slept beneath them: the surface for the sun-folk, the depths for the sleeper, and a line neither would cross.",
+    "The line was the shrine. It was never a place of worship. It was a fence post.",
+    "I write this down not to be believed, but so that whoever finds this after me understands what they are truly guarding, should the shrine ever be disturbed. The bargain was never eternal. It was only ever a very, very long pause."
+  ],
+  "loot_tiers": ["tier_3"]
+}

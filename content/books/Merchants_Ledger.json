@@ -1,0 +1,13 @@
+{
+  "id": "merchants_ledger",
+  "name": "Merchant's Ledger",
+  "char": "bk",
+  "color": [160, 140, 70],
+  "description": "A dog-eared account book, more gossip than sums.",
+  "price": 8,
+  "paragraphs": [
+    "12 bolts of wool, sold to the tailor on Cooper's Row -- he still owes me for the last batch, the old skinflint.",
+    "Note to self: the road east of the mill is not safe after dark. Lost a whole cart of salted fish to something that left no footprints and no receipt."
+  ],
+  "loot_tiers": ["tier_1"]
+}

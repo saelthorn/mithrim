@@ -1,0 +1,14 @@
+{
+  "id": "on_the_nature_of_undeath",
+  "name": "On the Nature of Undeath",
+  "char": "bk",
+  "color": [70, 100, 70],
+  "description": "A forbidden text, its cover bound in something not quite leather.",
+  "price": 120,
+  "paragraphs": [
+    "Death is not a wall but a door, and doors -- as any locksmith will tell you -- can be forced. The necromancer does not create life where there was none; he merely refuses to let go of what remains.",
+    "The Church calls this an abomination. The Church has never had to watch someone it loved be taken by the plague. I do not ask forgiveness for my work. I ask only that it be remembered why it was begun.",
+    "Those who follow this path further than I did should know: the dead do not forget what was done to bring them back. Sooner or later, they ask why."
+  ],
+  "loot_tiers": ["tier_2"]
+}

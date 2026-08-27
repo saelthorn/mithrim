@@ -1,0 +1,13 @@
+{
+  "id": "prisoners_diary",
+  "name": "Prisoner's Diary",
+  "char": "bk",
+  "color": [80, 80, 90],
+  "description": "Pages torn from somewhere, filled with cramped, hurried writing.",
+  "price": 10,
+  "paragraphs": [
+    "They took my name on the first day. Told me I was 'Number Six' now, and that names were a luxury for people who hadn't broken the law.",
+    "I still remember it though. I say it to myself every night, quiet, so the guards don't hear. It's the only thing they haven't managed to take."
+  ],
+  "loot_tiers": ["tier_1"]
+}

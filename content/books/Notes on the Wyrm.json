@@ -1,0 +1,14 @@
+{
+  "id": "notes_on_the_wyrm",
+  "name": "Notes on the Wyrm",
+  "char": "bk",
+  "color": [90, 60, 30],
+  "description": "A naturalist's field notes, several pages scorched at the edges.",
+  "price": 75,
+  "paragraphs": [
+    "The wyrm does not breathe fire so much as exhale it -- a byproduct of whatever burns in its gut, not a weapon it aims with any real precision. Stand to the side of a wyrm, not in front of it, and you have already improved your odds considerably.",
+    "Its hide is thickest along the back and near-useless as armor along the belly. This is, I am told, why wyrm hunters spend so much of their careers lying on their backs.",
+    "I did not finish these notes in the field. I finished them afterward, from memory, because I no longer have the notebook I started with. Or the leg I was standing on when I started it."
+  ],
+  "loot_tiers": ["tier_2"]
+}

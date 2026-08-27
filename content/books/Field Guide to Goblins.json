@@ -1,0 +1,14 @@
+{
+  "id": "field_guide_to_goblins",
+  "name": "Field Guide to Goblins",
+  "char": "bk",
+  "color": [90, 130, 60],
+  "description": "A slim, well-worn pamphlet, clearly written by someone who survived a great many goblins.",
+  "price": 12,
+  "paragraphs": [
+    "Rule one: a lone goblin is a scout. There are more nearby, and they have already seen you.",
+    "Rule two: goblins do not fear death so much as they fear their warband finding out they ran first. Break their nerve as a group, not one at a time.",
+    "Rule three: never trust a goblin who offers to talk. It is either buying time for an ambush, or it genuinely wants to talk, and somehow that is worse, because now you have to listen to it."
+  ],
+  "loot_tiers": ["tier_1"]
+}

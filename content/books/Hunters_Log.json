@@ -1,0 +1,13 @@
+{
+  "id": "hunters_log",
+  "name": "Hunter's Log",
+  "char": "bk",
+  "color": [110, 90, 60],
+  "description": "A stained leather logbook, entries scratched in charcoal.",
+  "price": 15,
+  "paragraphs": [
+    "Snared two hares near the old bridge. Tracks nearby weren't hare, weren't wolf either. Wider stride than a wolf, and it walked upright for a stretch before dropping back to four legs.",
+    "Haven't slept right in three nights. Keep the fire high, keep it burning till dawn."
+  ],
+  "loot_tiers": ["tier_1"]
+}

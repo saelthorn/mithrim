@@ -1,0 +1,14 @@
+{
+  "id": "fall_of_the_first_king",
+  "name": "The Fall of the First King",
+  "char": "bk",
+  "color": [140, 40, 40],
+  "description": "A somber account of the kingdom's oldest tragedy.",
+  "price": 90,
+  "paragraphs": [
+    "He was not slain in battle, as the songs claim. He was slain at his own table, by the hand of the man he called brother, over a debt that could have been settled with a single word of forgiveness.",
+    "The songs prefer a villain with a sword. They have no verse for a friend with a grudge.",
+    "What followed -- the burning of the eastern holds, the long winter, the silence of the clans -- all of it traces back to that one table, that one word withheld."
+  ],
+  "loot_tiers": ["tier_2"]
+}

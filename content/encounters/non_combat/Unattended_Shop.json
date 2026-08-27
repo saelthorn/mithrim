@@ -6,7 +6,7 @@
   "stages": [
     {
       "discovery": "A traveling merchant's storefront has been set up just off the road, shutters open and stock arranged on the shelves - but no one's minding it. A ledger sits open on the counter, pen still resting in the crease, as if the shopkeeper stepped away mid-sentence and simply never came back.",
-      "landmark_structure": "shop",
+      "landmark_structure": "empty_shop",
       "choices": [
         {
           "key": 1,
