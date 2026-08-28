@@ -1613,7 +1613,9 @@ class CombatCompanion(SummonedEntity):
 
         # Everyone in the party is a fair heal target here -- the Cleric
         # itself included, so a hurt Cleric patches itself up rather than
-        # fighting on low HP with a heal sitting unused.
+        # fighting on low HP with a heal sitting unused. Any damage counts
+        # (not just badly hurt) -- a Cleric tops the party off rather than
+        # letting chip damage pile up between real emergencies.
         allies = [self, player] + list(getattr(game_instance, "combat_companions", []))
         hurt = [
             ally for ally in allies
@@ -1621,7 +1623,7 @@ class CombatCompanion(SummonedEntity):
             and not getattr(ally, "is_downed", False)
             and not getattr(ally, "is_dying", False)
             and not getattr(ally, "is_stable", False)
-            and ally.hp < ally.max_hp * 0.5
+            and ally.hp < ally.max_hp
         ]
         if hurt:
             nearest = min(hurt, key=lambda a: _chebyshev_distance(self.x, self.y, a.x, a.y))

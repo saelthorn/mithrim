@@ -1,5 +1,7 @@
 import random
 
+from core.status_effects import AcidBurned, Burning, Frightened, Poisoned, Restrained
+
 class NPC:
     def __init__(self, x, y, char, name, color, dialogue=None):
         self.x = x
@@ -27,6 +29,50 @@ class NPC:
 
     def roll_initiative(self):
         self.initiative = random.randint(1, 20)
+
+    def get_ability_modifier(self, score):
+        return (score - 10) // 2
+
+    def get_saving_throw_bonus(self, ability_name):
+        ability_name = ability_name.upper()
+        ability_score = getattr(self, ability_name.lower(), 10)
+        modifier = self.get_ability_modifier(ability_score)
+        if self.saving_throw_proficiencies.get(ability_name, False):
+            modifier += getattr(self, "proficiency_bonus", 0)
+        return modifier
+
+    def make_saving_throw(self, ability_name, dc, game_instance):
+        d20_roll = random.randint(1, 20)
+        save_bonus = self.get_saving_throw_bonus(ability_name)
+        save_total = d20_roll + save_bonus
+        game_instance.message_log.add_message(
+            f"The {self.name} rolls a {ability_name} saving throw: "
+            f"[{d20_roll}] + [{save_bonus}] = {save_total} vs DC {dc}",
+            (255, 150, 150),
+        )
+        return save_total >= dc
+
+    def add_status_effect(self, effect_name, duration, game_instance, source=None):
+        effect_types = {
+            "Poisoned": Poisoned,
+            "AcidBurned": AcidBurned,
+            "Burning": Burning,
+            "Frightened": Frightened,
+            "Restrained": Restrained,
+        }
+        effect_type = effect_types.get(effect_name)
+        if effect_type is None:
+            return
+
+        effect_kwargs = {"source": source}
+        if effect_name == "Restrained":
+            effect_kwargs["escape_dc"] = getattr(source, "dc", 12)
+        new_effect = effect_type(duration, **effect_kwargs)
+        for existing_effect in self.active_status_effects:
+            if type(existing_effect) is type(new_effect):
+                existing_effect.turns_left = new_effect.duration
+                return
+        self.active_status_effects.append(new_effect)
 
 
 
