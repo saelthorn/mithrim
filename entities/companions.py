@@ -88,6 +88,11 @@ COMPANION_AMBIENT_COOLDOWN_TURNS = 12
 #: rather than firing like clockwork the instant the cooldown hits zero.
 COMPANION_AMBIENT_CHANCE = 0.02
 
+#: Turns a Cleric must wait between cast_heal() casts (see
+#: CombatCompanion.heal_cooldown) -- stops a Cleric from spending every
+#: single turn topping off chip damage instead of ever swinging a mace.
+CLERIC_HEAL_COOLDOWN_TURNS = 3
+
 
 # ---------------------------------------------------------------------------
 # CompanionPersonality
@@ -789,6 +794,11 @@ class CombatCompanion(SummonedEntity):
         self.stabilized = False
         self.death_save_successes = 0
         self.death_save_failures = 0
+
+        # Cooldown (in turns) before this companion's next cast_heal() --
+        # set to HEAL_COOLDOWN_TURNS whenever a heal lands, ticked down in
+        # take_turn(), so a Cleric can't just spam heal every single turn.
+        self.heal_cooldown = 0
 
         # Set by dismiss() -- a dismissed companion stays in the world
         # (see dismiss()/_leave_party()) but is no longer part of the
@@ -1558,6 +1568,7 @@ class CombatCompanion(SummonedEntity):
 
         amount = self._roll_dice("2d8") + max(0, self.get_ability_modifier(self.wisdom))
         healed = self._apply_heal(target, amount)
+        self.heal_cooldown = CLERIC_HEAL_COOLDOWN_TURNS
 
         game_instance.message_log.add_message(
             f"{self.name} murmurs a prayer over {target_name} -- {healed} HP restored.", self.color
@@ -1594,7 +1605,13 @@ class CombatCompanion(SummonedEntity):
         whoever's hurt worst -- including the Cleric itself. Returns
         True if this handled the turn, False to fall through to
         _take_melee_turn()/_take_ranged_turn().
+
+        Gated on heal_cooldown: while on cooldown, healing is off the
+        table entirely and this falls straight through to combat.
         """
+        if self.heal_cooldown > 0:
+            return False
+
         player = self.owner
         player_incapacitated = getattr(player, "is_dying", False) or getattr(player, "is_stable", False)
         if player_incapacitated and getattr(player, "alive", True):
@@ -1660,6 +1677,9 @@ class CombatCompanion(SummonedEntity):
         self.tick_duration(game_instance)
         if not self.alive:
             return
+
+        if self.heal_cooldown > 0:
+            self.heal_cooldown -= 1
 
         if self.is_downed:
             self._take_downed_turn(game_instance)
