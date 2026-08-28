@@ -9351,8 +9351,10 @@ class Game:
         )
         self.screen.blit(title_surf, (sx + PAD, sy + PAD))
 
+        downed_tag = "   (DOWNED)" if getattr(companion, "is_downed", False) else ""
         hp_surf = font_body.render(
-            f"  HP {companion.hp}/{companion.max_hp}   AC {companion.armor_class}", True, (200, 200, 200)
+            f"  HP {companion.hp}/{companion.max_hp}   AC {companion.armor_class}{downed_tag}",
+            True, (255, 120, 120) if downed_tag else (200, 200, 200)
         )
         self.screen.blit(hp_surf, (sx + PAD, sy + PAD + 20))
 

@@ -780,6 +780,16 @@ class CombatCompanion(SummonedEntity):
         # already does until the player changes it via COMPANION_MENU.
         self.stance = CompanionStance.NEAREST
 
+        # Downed state -- a hit that would kill this companion drops
+        # them to 0 HP and unconscious instead (see take_damage()),
+        # mirroring Player.is_dying, so the party has a chance to
+        # revive them (a Cleric's cast_heal(), or their own death
+        # saves in _take_downed_turn()) before they're lost for good.
+        self.is_downed = False
+        self.stabilized = False
+        self.death_save_successes = 0
+        self.death_save_failures = 0
+
         # Set by dismiss() -- a dismissed companion stays in the world
         # (see dismiss()/_leave_party()) but is no longer part of the
         # party, so combat AI and the companion menu treat it like any
@@ -1448,6 +1458,186 @@ class CombatCompanion(SummonedEntity):
             "1d4", "bludgeoning", verb="throws a desperate punch",
         )
 
+    # -- downed state (unconscious at 0 HP) ----------------------------------
+
+    def take_damage(self, amount, game_instance=None, damage_type=None):
+        """
+        Override: a hit that would drop this companion to 0 HP downs
+        them instead of killing them outright, mirroring Player.is_dying
+        so the party gets a chance to revive them (see _go_down(),
+        _take_downed_turn(), and cast_heal() below) before they're lost
+        for good. A hit landed while already downed finishes them off --
+        no second chance at 0 HP once someone's already piling on.
+        """
+        if self.is_downed:
+            self.hp = 0
+            self.alive = False
+            return amount
+
+        self.hp -= amount
+        if self.hp <= 0:
+            self.hp = 0
+            self._go_down(game_instance)
+        return amount
+
+    def _go_down(self, game_instance):
+        self.is_downed = True
+        self.stabilized = False
+        self.death_save_successes = 0
+        self.death_save_failures = 0
+        if game_instance:
+            game_instance.message_log.add_message(f"{self.name} goes down!", (255, 80, 80))
+            game_instance.floating_texts.append(FloatingText(self.x, self.y, "DOWNED!", (255, 80, 80)))
+
+    def _take_downed_turn(self, game_instance):
+        """
+        An unconscious companion's turn: roll a death save, same shape
+        as a downed player's (d20 vs DC 10). Three successes and they
+        stabilize -- no longer at risk of dying, but still unconscious
+        until healed. Three failures and they die outright. A natural 1
+        counts as two failures; a natural 20 snaps them back up with 1 HP.
+        """
+        if self.stabilized:
+            return
+
+        roll = random.randint(1, 20)
+        if roll == 20:
+            self.hp = 1
+            self.is_downed = False
+            game_instance.message_log.add_message(
+                f"{self.name} sputters back to their feet!", (100, 255, 100)
+            )
+            return
+
+        if roll == 1:
+            self.death_save_failures += 2
+        elif roll >= 10:
+            self.death_save_successes += 1
+        else:
+            self.death_save_failures += 1
+
+        if self.death_save_successes >= 3:
+            self.stabilized = True
+            game_instance.message_log.add_message(
+                f"{self.name} stabilizes, but is still unconscious.", (200, 200, 255)
+            )
+        elif self.death_save_failures >= 3:
+            self.hp = 0
+            self.alive = False
+            game_instance.message_log.add_message(
+                f"{self.name} succumbs to their wounds...", (255, 80, 80)
+            )
+
+    def _apply_heal(self, target, amount):
+        """Restore HP to `target` (the player or a fellow companion),
+        capped at their max_hp. Uses target.heal() when available;
+        otherwise adjusts hp directly, so this works regardless of
+        whether Player defines its own heal() method."""
+        if amount <= 0:
+            return 0
+        if hasattr(target, "heal"):
+            return target.heal(amount)
+        old_hp = target.hp
+        target.hp = min(getattr(target, "max_hp", target.hp), target.hp + amount)
+        return target.hp - old_hp
+
+    def cast_heal(self, target, game_instance):
+        """
+        A Cleric's mace-and-prayer heal: restores HP to `target`,
+        reviving them from downed/dying if that's what they needed.
+        Amount scales with Wisdom -- CLERIC's primary stat -- the same
+        way every other stat bonus in this file ties back to
+        CompanionClass.primary_stat.
+        """
+        target_name = getattr(target, "name", "them")
+        was_incapacitated = (
+            getattr(target, "is_downed", False)
+            or getattr(target, "is_dying", False)
+            or getattr(target, "is_stable", False)
+        )
+
+        amount = self._roll_dice("2d8") + max(0, self.get_ability_modifier(self.wisdom))
+        healed = self._apply_heal(target, amount)
+
+        game_instance.message_log.add_message(
+            f"{self.name} murmurs a prayer over {target_name} -- {healed} HP restored.", self.color
+        )
+        game_instance.floating_texts.append(
+            FloatingText(target.x, target.y, f"+{healed}", (100, 255, 100))
+        )
+
+        if isinstance(target, CombatCompanion) and target.is_downed and target.hp > 0:
+            target.is_downed = False
+            target.stabilized = False
+            game_instance.message_log.add_message(
+                f"{target_name} stirs back to consciousness!", (100, 255, 100)
+            )
+        elif (
+            was_incapacitated and target.hp > 0
+            and not getattr(target, "is_dying", False)
+            and not getattr(target, "is_stable", False)
+        ):
+            # Player.heal() already clears is_dying/is_stable itself
+            # (see Player._wake_up()) -- this just adds the Cleric's own
+            # flavor line on top of whatever heal()'s own message logged.
+            game_instance.message_log.add_message(
+                f"{target_name} gasps back to consciousness!", (100, 255, 100)
+            )
+
+    # -- turn AI: cleric support ----------------------------------------------
+
+    def _take_cleric_support_turn(self, game_map, game_instance):
+        """
+        A Cleric's turn priority ahead of the normal stance-driven combat
+        AI: revive a downed/unconscious player first, then a downed
+        ally, then (only if not personally under threat) top off
+        whoever's hurt worst -- including the Cleric itself. Returns
+        True if this handled the turn, False to fall through to
+        _take_melee_turn()/_take_ranged_turn().
+        """
+        player = self.owner
+        player_incapacitated = getattr(player, "is_dying", False) or getattr(player, "is_stable", False)
+        if player_incapacitated and getattr(player, "alive", True):
+            return self._support_target(player, game_map, game_instance)
+
+        downed_allies = [
+            companion for companion in getattr(game_instance, "combat_companions", [])
+            if companion is not self and companion.alive and companion.is_downed
+        ]
+        if downed_allies:
+            nearest = min(downed_allies, key=lambda c: _chebyshev_distance(self.x, self.y, c.x, c.y))
+            return self._support_target(nearest, game_map, game_instance)
+
+        if self._gather_enemies(game_instance, max_distance=1):
+            return False  # under threat -- fight rather than heal
+
+        # Everyone in the party is a fair heal target here -- the Cleric
+        # itself included, so a hurt Cleric patches itself up rather than
+        # fighting on low HP with a heal sitting unused.
+        allies = [self, player] + list(getattr(game_instance, "combat_companions", []))
+        hurt = [
+            ally for ally in allies
+            if getattr(ally, "alive", True)
+            and not getattr(ally, "is_downed", False)
+            and not getattr(ally, "is_dying", False)
+            and not getattr(ally, "is_stable", False)
+            and ally.hp < ally.max_hp * 0.5
+        ]
+        if hurt:
+            nearest = min(hurt, key=lambda a: _chebyshev_distance(self.x, self.y, a.x, a.y))
+            return self._support_target(nearest, game_map, game_instance)
+
+        return False
+
+    def _support_target(self, target, game_map, game_instance):
+        """Heal `target` if already adjacent, otherwise close the
+        distance -- shared tail end of _take_cleric_support_turn()'s
+        three priorities."""
+        if _chebyshev_distance(self.x, self.y, target.x, target.y) <= 1:
+            self.cast_heal(target, game_instance)
+            return True
+        return self._approach(game_map, game_instance, target.x, target.y)
+
     # -- turn AI: top level -------------------------------------------------
 
     def take_turn(self, player, game_map, game_instance):
@@ -1460,9 +1650,17 @@ class CombatCompanion(SummonedEntity):
         Once dismissed (see dismiss()), this hands off entirely to
         _take_dismissed_turn() instead -- a former companion follows an
         NPCBehavior schedule, not combat orders.
+
+        A downed companion (see take_damage()) hands off to
+        _take_downed_turn() instead -- rolling a death save is the only
+        thing an unconscious party member does on their turn.
         """
         self.tick_duration(game_instance)
         if not self.alive:
+            return
+
+        if self.is_downed:
+            self._take_downed_turn(game_instance)
             return
 
         if self.dismissed:
@@ -1470,6 +1668,8 @@ class CombatCompanion(SummonedEntity):
             return
 
         if self.stance != CompanionStance.PASSIVE:
+            if self.companion_class.name == "Cleric" and self._take_cleric_support_turn(game_map, game_instance):
+                return
             if self.combat_style == "ranged":
                 if self._take_ranged_turn(game_map, game_instance):
                     return
