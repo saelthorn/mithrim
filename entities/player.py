@@ -1349,11 +1349,10 @@ class Player: # This is our base class for playable characters
         return False
 
     def has_bow_equipped(self):
-        """Return True if the player has a Bow equipped in the main hand."""
-        return (
-            self.equipped_weapon or self.equipped_off_hand is not None and
-            (getattr(self.equipped_weapon, 'category', None) or '').lower() == 'bow'
-        )
+        """Return True if the player has a Bow (or hand crossbow) equipped in either hand."""
+        main_hand_category = (getattr(self.equipped_weapon, 'category', None) or '').lower()
+        off_hand_category = (getattr(self.equipped_off_hand, 'category', None) or '').lower()
+        return main_hand_category == 'bow' or off_hand_category == 'bow'
 
 
     def has_arrows(self):

@@ -159,7 +159,7 @@ class DisarmTrapsAbility(Ability):
 
 class SecondWind(Ability):
     def __init__(self):
-        super().__init__("Second Wind", "Heal yourself for a small amount of HP.", cooldown=75) # 75 turns cooldown
+        super().__init__("Second Wind", "Heal yourself for a small amount of HP.", cooldown=50) # 50 turns cooldown
 
     def use(self, user, game_instance):
         # Call base class use to handle cooldown and initial checks.
@@ -581,7 +581,7 @@ class Multishot(Ability):
     """
 
     def __init__(self):
-        super().__init__("Multishot", "Fire arrows at up to 3 different foes in rapid succession.", cost=0, cooldown=6)
+        super().__init__("Multishot", "Fire arrows at up to 3 different foes in rapid succession.", cost=0, cooldown=8)
         self.range = 6  # Range in tiles, matches Arrow Shot
         self.damage_dice = 1  # 1d6 per shot (scales with level)
         self.number_of_shots = 3  # Distinct targets per use (scales with level)
@@ -2342,7 +2342,7 @@ class ActionSurge(Ability):
 
 class CunningActionHide(Ability):
     def __init__(self):
-        super().__init__("Cunning Action: Hide", "Use a bonus action to Hide.", cooldown=39)
+        super().__init__("Cunning Action: Hide", "Use a bonus action to Hide.", cooldown=29)
 
     def use(self, user, game_instance):
         if not super().use(user, game_instance):
@@ -2517,7 +2517,7 @@ class SummonAnimalCompanion(Ability):
 
 class CureWounds(Ability):
     def __init__(self):
-        super().__init__("Cure Wounds", "Heal yourself or an ally within 2 tiles for 1d8 HP.", cooldown=16) # 16 turns cooldown
+        super().__init__("Cure Wounds", "Heal yourself or an ally within 2 tiles for 1d8 HP.", cooldown=30) # 30 turns cooldown
         self.range = 2
         self.healing_dice = 1
 
@@ -2662,7 +2662,7 @@ class HealingWord(Ability):
 
 class SacredFlame(Ability):
     def __init__(self):
-        super().__init__("Sacred Flame", "Call down a radiant flame to damage an enemy within 6 tiles.", cost=0, cooldown=2)
+        super().__init__("Sacred Flame", "Call down a radiant flame to damage an enemy within 6 tiles.", cost=0, cooldown=6)
         self.range = 6
         self.damage_dice = 1
 

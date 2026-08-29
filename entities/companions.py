@@ -91,7 +91,7 @@ COMPANION_AMBIENT_CHANCE = 0.02
 #: Turns a Cleric must wait between cast_heal() casts (see
 #: CombatCompanion.heal_cooldown) -- stops a Cleric from spending every
 #: single turn topping off chip damage instead of ever swinging a mace.
-CLERIC_HEAL_COOLDOWN_TURNS = 3
+CLERIC_HEAL_COOLDOWN_TURNS = 16 # Same cooldown as HealingWord ability
 
 
 # ---------------------------------------------------------------------------

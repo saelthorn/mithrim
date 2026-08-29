@@ -650,7 +650,7 @@ mushroom = Food(
 
 WEAPON_CATEGORIES = {
     "Ammunition": ["Arrow"],
-    "Bow": ["Long Bow", "Short Bow"],
+    "Bow": ["Long Bow", "Short Bow", "Cross Bow", "Hand Crossbow"],
     "Dagger": ["Iron Dagger", "Silver Dagger"],
     "Orb": ["Glass Orb", "Orb of Chaos"],
     "Shortsword": ["Iron Short Sword", "Bronze Short Sword", "Flameheart Short Sword"],
