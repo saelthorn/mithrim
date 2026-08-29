@@ -11,7 +11,7 @@ from world.tile import (
     ground, grass, road, tall_grass, wall, tavern_floor, floor, bar_counter_two, bar_counter_three, bar_counter_four, 
     table, crate, tavern_barrel_two, altar, door, forge, anvil, shelf, bed, hay, bar_counter, bar_counter_five, bar_counter_six,
     shelf_three, bar_counter, shelf_two, tavern_barrel, tavern_crate, cob_web, wood_plank, tavern_floor, ladder, tavern_cobweb,
-    window, flower_field, meadow
+    window, flower_field, meadow, barrel
 )
 
 
@@ -439,7 +439,7 @@ STRUCTURE_BLUEPRINTS = {
             "        ",
         ],
         {
-            "#": wall, "w": window, ".": floor, "B": floor, "F": forge, "N": anvil, "s": shelf_three, "+": door, "|": bar_counter_five, "k": tavern_barrel_two, "7": bar_counter_six,
+            "#": wall, "w": window, ".": floor, "B": floor, "F": forge, "N": anvil, "s": shelf_three, "+": door, "|": bar_counter_five, "k": barrel, "7": bar_counter_six,
             "t": table,
         },
         walkable_chars={".", "B", "+"},

@@ -595,7 +595,7 @@ class HillsGenerator(TerrainGenerator):
                 elif m > 0.75 and h < 0.45:
                     game_map.tiles[y][x] = lake
                 elif h > 0.74:
-                    game_map.tiles[y][x] = rock_formation
+                    game_map.tiles[y][x] = clearing
                 elif h > 0.62:
                     game_map.tiles[y][x] = ridge
                 elif m > 0.55 and _chance(x, y, 5, 0.35):

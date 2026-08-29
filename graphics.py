@@ -208,6 +208,7 @@ def setup_tile_mapping():
 
         'amt': (13 * CELL_DIM, 18 * CELL_DIM),  # Ambush Tree (Landmark)
         'ocw': (14 * CELL_DIM, 18 * CELL_DIM),  # Overworld Cobweb (Landmark)
+        '`4':  (16 * CELL_DIM, 18 * CELL_DIM),  # Grass
         'gvs1':(0 * CELL_DIM,  19 * CELL_DIM),  # Gravestone One (Landmark)
         'gvs2':(1 * CELL_DIM,  19 * CELL_DIM),  # Gravestone Two (Landmark)
         'gvs3':(2 * CELL_DIM,  19 * CELL_DIM),  # Gravestone Three (Landmark)
