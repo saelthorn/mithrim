@@ -751,6 +751,14 @@ class TownNPC(NPC):
             candidates, key=lambda pos: (distance_from_threat(pos), -distance_from_home(pos))
         )
 
+    #: visual_class values (see _is_adventurer()) that fight at range
+    #: instead of closing to melee -- see _is_ranged_adventurer().
+    RANGED_ADVENTURER_CLASSES = {"Ranger", "Wizard"}
+    #: Chebyshev tiles a ranged adventurer will loose an arrow/cast a
+    #: spell from, mirroring CombatCompanion.attack_range's flavor
+    #: without needing that class's ammo/kiting machinery.
+    RANGED_ATTACK_RANGE = 6
+
     def _is_adventurer(self):
         """
         Whether this patron is one of structures.py's
@@ -764,14 +772,25 @@ class TownNPC(NPC):
         """
         return getattr(self, "visual_race", None) is not None
 
+    def _is_ranged_adventurer(self):
+        """Whether this adventurer-marked patron fights at range (a
+        Ranger's bow, a Wizard's spells) rather than closing to melee --
+        see RANGED_ADVENTURER_CLASSES and _engage_threat()."""
+        return self._is_adventurer() and getattr(self, "visual_class", None) in self.RANGED_ADVENTURER_CLASSES
+
     def _engage_threat(self, game_map, game):
         """
         One ALERTED step for an adventurer-marked patron (see
-        _is_adventurer()): close in on the tracked threat and, once
-        adjacent, attack it -- instead of fleeing like every other
-        patron does in _flee_from_threat(). The sprite _spawn_tavern_
-        patron() gives them ("someone worth recruiting") carries over to
-        how they actually behave once a fight breaks out nearby.
+        _is_adventurer()): close in on the tracked threat and attack it
+        -- instead of fleeing like every other patron does in
+        _flee_from_threat(). The sprite _spawn_tavern_patron() gives them
+        ("someone worth recruiting") carries over to how they actually
+        behave once a fight breaks out nearby.
+
+        A ranged adventurer (see _is_ranged_adventurer()) fires the
+        moment the threat is within RANGED_ATTACK_RANGE and in sight,
+        closing distance only when it isn't; a melee adventurer still
+        has to close all the way to an adjacent tile first.
 
         Reuses _advance_along_path()'s cached-astar()-route machinery to
         close the distance, the same way TRAVELING chases down home/post.
@@ -782,6 +801,14 @@ class TownNPC(NPC):
         """
         threat = self._alert_threat
         if threat is None or not getattr(threat, "alive", False):
+            return
+
+        if self._is_ranged_adventurer():
+            in_range = self._chebyshev_distance(threat) <= self.RANGED_ATTACK_RANGE
+            if in_range and game.check_line_of_sight(self.x, self.y, threat.x, threat.y):
+                self.ranged_attack(threat, game)
+                return
+            self._advance_along_path(game_map, game, (threat.x, threat.y))
             return
 
         if self._chebyshev_distance(threat) <= 1:
@@ -842,6 +869,62 @@ class TownNPC(NPC):
             # die(). Nothing else calls it for this NPC-vs-monster fight, so
             # without this an adventurer's kill would otherwise vanish with
             # no loot and no bloodstain, unlike every player/companion kill.
+            target.die(game, killer=self)
+            game._notify_monster_killed(target, killer=self)
+
+    #: visual_class -> (damage dice, damage_type, verb) for ranged_attack()
+    #: below. Ranger looses an arrow; Wizard hurls a bolt of force --
+    #: flavor only, same attack roll/damage shape either way.
+    RANGED_ATTACK_FLAVOR = {
+        "Ranger": ("1d8", "piercing", "looses an arrow at"),
+        "Wizard": ("1d10", "force", "hurls a bolt of force at"),
+    }
+
+    def ranged_attack(self, target, game):
+        """
+        A single ranged attack at `target`, thrown only from
+        _engage_threat() once a Ranger/Wizard adventurer-marked patron
+        (see _is_ranged_adventurer()) has the threat within
+        RANGED_ATTACK_RANGE and in sight. Same self-contained d20-vs-AC
+        shape as attack() above, just with class-flavored damage dice
+        and no need to close to melee range first.
+        """
+        dice, damage_type, verb = self.RANGED_ATTACK_FLAVOR.get(
+            getattr(self, "visual_class", None), ("1d6", "piercing", "attacks")
+        )
+
+        d20_roll = random.randint(1, 20)
+        attack_bonus = self.attack_power + self.proficiency_bonus
+        attack_total = d20_roll + attack_bonus
+        target_ac = getattr(target, "armor_class", 10)
+
+        game.log_message_at(
+            self.x, self.y,
+            f"{self.name} rolls a d20: [{d20_roll}] + [{attack_bonus}] (Attack Bonus) = {attack_total} vs AC {target_ac}!",
+            (200, 200, 255),
+        )
+
+        if attack_total < target_ac:
+            game.log_message_at(self.x, self.y, f"{self.name}'s attack misses {target.name}!", (150, 150, 150))
+            game.floating_texts.append(FloatingText(target.x, target.y, "MISS!", (150, 150, 150)))
+            return
+
+        sides = int(dice.split("d")[1])
+        damage_roll = random.randint(1, sides)
+        damage_dealt = target.take_damage(damage_roll + self.attack_power, game, damage_type=damage_type)
+
+        game.log_message_at(
+            self.x, self.y,
+            f"{self.name} rolls a {dice}: [{damage_roll}] + [{self.attack_power}] (Attack Power) = {damage_dealt} damage!",
+            (200, 200, 255),
+        )
+        game.log_message_at(self.x, self.y, f"{self.name} {verb} {target.name} for {damage_dealt} damage!", (200, 200, 255))
+
+        game.floating_texts.append(FloatingText(target.x, target.y, "HIT!", (255, 255, 0)))
+        game.floating_texts.append(FloatingText(target.x, target.y - 0.5, str(damage_dealt), (255, 0, 0)))
+
+        if not target.alive:
+            game.log_message_at(self.x, self.y, f"{target.name} has been slain by {self.name}!", (200, 0, 0))
             target.die(game, killer=self)
             game._notify_monster_killed(target, killer=self)
 

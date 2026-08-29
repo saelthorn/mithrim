@@ -1566,10 +1566,15 @@ class CombatCompanion(SummonedEntity):
             or getattr(target, "is_stable", False)
         )
 
-        amount = self._roll_dice("2d8") + max(0, self.get_ability_modifier(self.wisdom))
+        heal_modifier = max(0, self.get_ability_modifier(self.wisdom))
+        heal_rolls = [random.randint(1, 8)]
+        amount = sum(heal_rolls) + heal_modifier
         healed = self._apply_heal(target, amount)
         self.heal_cooldown = CLERIC_HEAL_COOLDOWN_TURNS
 
+        game_instance.message_log.add_message(
+            f"{self.name} rolls 1d8 for healing: {heal_rolls} + {heal_modifier} (Wisdom Modifier) = {amount}", (40, 200, 40)
+        )
         game_instance.message_log.add_message(
             f"{self.name} murmurs a prayer over {target_name} -- {healed} HP restored.", self.color
         )
