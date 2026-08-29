@@ -27,6 +27,7 @@ from world.tile import (
     marsh_pool,
     reeds,
     dead_forest,
+    door,
 )
 from world.water_features import river, lake, is_water_tile
 from world.structures import create_town_npcs, place_structure_at_anchor, get_structure_blueprint
@@ -935,7 +936,13 @@ def _nearest_tile(game_map, start, predicate, max_radius=20):
 
     return best
 
-def _find_path(game_map, heightmap, start, goal):
+def _find_path(game_map, heightmap, start, goal, neighbor_fn=None, blocked=None):
+    """A* from start to goal. `neighbor_fn` defaults to the 8-directional
+    _neighbors (used by rivers); roads pass _cardinal_neighbors instead so
+    paths never step diagonally. `blocked` is an optional set of (x, y)
+    tiles treated as impassable regardless of their terrain (used by roads
+    to route around structure footprints)."""
+    neighbor_fn = neighbor_fn or _neighbors
     open_set = []
     heapq.heappush(open_set, (0, start))
     came_from = {}
@@ -953,8 +960,8 @@ def _find_path(game_map, heightmap, start, goal):
             return path
         cx, cy = current
 
-        for nx, ny in _neighbors(cx, cy, heightmap.width, heightmap.height):
-            cost = _movement_cost(game_map, nx, ny)
+        for nx, ny in neighbor_fn(cx, cy, heightmap.width, heightmap.height):
+            cost = _movement_cost(game_map, nx, ny, blocked=blocked)
 
             if cost is None:
                 continue
@@ -1285,6 +1292,16 @@ def _neighbors(x, y, width, height):
 
             if 0 <= nx < width and 0 <= ny < height:
                 yield nx, ny
+
+
+def _cardinal_neighbors(x, y, width, height):
+    """Up/down/left/right only — no diagonals. Used for road pathfinding
+    so roads always step in a straight cardinal direction, never cut a
+    corner diagonally."""
+    for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+        nx, ny = x + dx, y + dy
+        if 0 <= nx < width and 0 <= ny < height:
+            yield nx, ny
 
 
 def _pick_downhill_neighbor(heightmap, x, y):
@@ -1860,11 +1877,15 @@ def _apply_river_moisture(moisture, river_positions, radius=6, boost=0.4):
 # Roads are laid down as a backbone network connecting each region to its
 # nearest neighboring region, using A* pathfinding (replacing the old biased
 # random walk) so they take sensible routes around water and rough terrain.
-# This runs *before* points of interest are placed so that POI placement can
-# take "is this near a road?" into account, and so newly-placed POIs have
-# something to connect a short spur road to (see _connect_to_road_network).
+# This runs *after* structures (towns, landmark buildings, dungeon entrances)
+# are placed, so `blocked` (every structure's footprint) can keep roads from
+# pathing or painting through a building, and so each structure has an
+# approach point (see _structure_road_approach) to spur a road to.
 # ---------------------------------------------------------------------------
-def _movement_cost(game_map, x, y):
+def _movement_cost(game_map, x, y, blocked=None):
+
+    if blocked is not None and (x, y) in blocked:
+        return None
 
     tile = game_map.tiles[y][x]
 
@@ -1886,14 +1907,18 @@ def _movement_cost(game_map, x, y):
     return 1
 
 
-def _paint_road_path(game_map, heightmap, start, goal):
-    """Pathfind from start to goal and paint the route as road, skipping water
-    and dungeon entrances (an entrance tile stays an entrance, not a road)."""
-    path = _find_path(game_map, heightmap, start, goal)
+def _paint_road_path(game_map, heightmap, start, goal, blocked=None):
+    """Pathfind from start to goal and paint the route as road, skipping water,
+    dungeon entrances, and any structure footprint tile (an entrance/door stays
+    what it is, not a road). Cardinal-only movement, so roads never cut a
+    diagonal corner."""
+    path = _find_path(game_map, heightmap, start, goal, neighbor_fn=_cardinal_neighbors, blocked=blocked)
     road_tiles = []
 
     for x, y in path:
         if is_water_tile(game_map.tiles[y][x]):
+            continue
+        if blocked is not None and (x, y) in blocked:
             continue
         if game_map.tiles[y][x] is not dungeon_entrance:
             game_map.tiles[y][x] = road
@@ -1902,12 +1927,12 @@ def _paint_road_path(game_map, heightmap, start, goal):
     return road_tiles
 
 
-def _generate_trunk_roads(game_map, heightmap, regions):
+def _generate_trunk_roads(game_map, heightmap, regions, blocked=None):
     """
     Lay down a backbone road network by connecting each region's center to
-    its nearest neighboring region's center. Runs before POIs are placed —
-    see the module-level comment above — so it only has region centers to
-    work from, not dungeon entrances.
+    its nearest neighboring region's center. Runs after structures are
+    placed — see the module-level comment above — so `blocked` can already
+    account for every building's footprint.
     """
     centers = [region.center for region in regions if region.center is not None]
     connected_pairs = set()
@@ -1927,12 +1952,12 @@ def _generate_trunk_roads(game_map, heightmap, regions):
             continue
         connected_pairs.add(pair)
 
-        road_tiles.extend(_paint_road_path(game_map, heightmap, center, nearest))
+        road_tiles.extend(_paint_road_path(game_map, heightmap, center, nearest, blocked=blocked))
 
     return road_tiles
 
 
-def _connect_to_road_network(game_map, heightmap, start, road_tiles):
+def _connect_to_road_network(game_map, heightmap, start, road_tiles, blocked=None):
     """
     Connect a point to the nearest existing road tile with a short spur,
     falling back to the map edge if no road exists yet (e.g. a region-sparse
@@ -1943,7 +1968,32 @@ def _connect_to_road_network(game_map, heightmap, start, road_tiles):
     if goal is None:
         goal = _nearest_edge_tile(start[0], start[1], game_map.width, game_map.height)
 
-    return _paint_road_path(game_map, heightmap, start, goal)
+    return _paint_road_path(game_map, heightmap, start, goal, blocked=blocked)
+
+
+def _structure_road_approach(game_map, placed_tiles, anchor, occupied):
+    """
+    Where a road spur to this structure should actually target: the walkable
+    tile just outside its door, not a tile inside the building itself (which
+    is now blocked from road pathing/painting — see `occupied`). Falls back
+    to the nearest non-occupied tile bordering the footprint if the blueprint
+    has no door (e.g. an open shrine), or to the anchor itself as a last
+    resort if the footprint doesn't block anything nearby.
+    """
+    width, height = game_map.width, game_map.height
+    doors = [(x, y) for x, y, tile in placed_tiles if tile is door]
+    footprint = doors or [(x, y) for x, y, _ in placed_tiles]
+
+    approaches = [
+        neighbor
+        for x, y in footprint
+        for neighbor in _cardinal_neighbors(x, y, width, height)
+        if neighbor not in occupied
+    ]
+    if approaches:
+        return min(approaches, key=lambda tile: _distance(tile, anchor))
+
+    return anchor
 
 
 # ---------------------------------------------------------------------------
@@ -2208,13 +2258,16 @@ def _place_town(game_map, chunk_coord, biome, world_seed):
     sometimes above the tavern instead of always to its right) from world
     to world, instead of every game placing an identical town in an
     identical layout for a given chunk.
+
+    Returns (town_buildings, tavern_anchor) -- tavern_anchor is None if no
+    town was placed here.
     """
     width, height = game_map.width, game_map.height
 
     if getattr(biome, "value", biome) == ChunkBiome.MOUNTAINS.value:
-        return []
+        return [], None
     if (chunk_coord[0] * 13 + chunk_coord[1] * 7) % TOWN_CHUNK_FREQUENCY != 0:
-        return []
+        return [], None
 
     # Keep the anchor away from the chunk's edges/corners, leaving enough
     # room for the tavern/shop/houses cluster (roughly two building-widths
@@ -2247,7 +2300,7 @@ def _place_town(game_map, chunk_coord, biome, world_seed):
 
     tavern = place_structure_at_anchor(game_map, "tavern", anchor_x, anchor_y)
     if not tavern:
-        return []
+        return [], None
     town_buildings.append(("tavern", tavern))
 
     blacksmith = place_structure_at_anchor(game_map, "blacksmith", anchor_x, anchor_y)
@@ -2304,7 +2357,10 @@ def _place_town(game_map, chunk_coord, biome, world_seed):
         if house:
             town_buildings.append(("house", house))
 
-    return town_buildings
+    # The tavern's own anchor (not its returned building object, whose
+    # shape belongs to structures.py) is the road network's hub for this
+    # town -- see generate_chunk_context's road-spur step.
+    return town_buildings, (anchor_x, anchor_y)
 
 
 def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_map=None, num_dungeon_entrances=None, debug_heightmap_path=None, ChunkBiome=None):
@@ -2386,38 +2442,23 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
         num_dungeon_entrances
     )
 
-    # 4. Infrastructure: roads and trails.
-    road_tiles = _generate_trunk_roads(game_map, heightmap, regions)
-    for entrance in dungeon_entrances:
-        road_tiles.extend(_connect_to_road_network(game_map, heightmap, entrance, road_tiles))
-
-    # 5. Population: reserved for creatures, NPC travelers, and encounters.
-    population = []
-
-    # 6. Flavor: biome, region name, and scene-level tags.
-    region_name = None
-    if world_map is not None:
-        region_name = world_map.region_name_at(chunk_coord)
-    if region_name is None:
-        region_name = f"{getattr(biome, 'value', str(biome)).title()} Region"
-
-    flavor = {
-        "biome": getattr(biome, "value", str(biome)),
-        "region_name": region_name,
-        "terrain_tags": list(terrain_generator.terrain_tags()),
-        "landmarks": landmarks,
-        "has_major_river": bool(world_map and world_map.river_edges_at(chunk_coord)),
-        "river_edges": list(world_map.river_edges_at(chunk_coord)) if world_map else [],
-    }
-
-    if world_map is not None:
-        world_map.set_region_name(chunk_coord, region_name)
-        world_map.set_flavor(chunk_coord, flavor)
-
+    # 4. Structures: landmark buildings, the town, and the biome fallback,
+    # all placed before roads so the road network below has real
+    # destinations (a town's tavern, a shrine, a watchtower) to connect to,
+    # not just region centers and dungeon mouths.
+    #
     # ridges = _generate_mountain_ridges(width, height)
     # for ridge in ridges:
     #     for x, y in ridge:
     #         game_map.tiles[y][x] = ground  # ridges are just a visual effect, not a separate tile type
+
+    # `structure_placements` is used to work out where each road spur should
+    # aim (see _structure_road_approach below); `all_footprints` is every
+    # placed tile from every structure, town buildings included, and is what
+    # actually blocks road pathing/painting -- a town's shop, blacksmith, and
+    # houses need to block roads even though only the tavern gets its own spur.
+    structure_placements = []
+    all_footprints = []
 
     for landmark in landmarks:
         if len(landmark) < 4:
@@ -2425,15 +2466,25 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
         anchor_x, anchor_y, _, structure_id = landmark
         if structure_id is None:
             continue
-        place_structure_at_anchor(game_map, structure_id, anchor_x, anchor_y)
+        placed = place_structure_at_anchor(game_map, structure_id, anchor_x, anchor_y)
+        if placed:
+            structure_placements.append((placed, (anchor_x, anchor_y)))
+            all_footprints.append(placed)
 
     # Towns are placed after the landmark structures above (and after the
     # mountain ridges) so ridges can't carve through a building, and so a
     # town has first pick of the map's central area before the single
     # biome_structure fallback below claims it.
-    town_buildings = _place_town(game_map, chunk_coord, biome, world_seed)
+    town_buildings, tavern_anchor = _place_town(game_map, chunk_coord, biome, world_seed)
     population = create_town_npcs(game_map, town_buildings)
-    flavor["has_town"] = bool(town_buildings)
+    all_footprints.extend(placed for _, placed in town_buildings)
+    if tavern_anchor is not None:
+        # The tavern anchors the town's layout (see _place_town), so it's
+        # the one building worth spurring a road to rather than every
+        # house individually -- but every other town building still blocks
+        # roads via all_footprints above.
+        _, tavern_placed = town_buildings[0]
+        structure_placements.append((tavern_placed, tavern_anchor))
 
     structure_names = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
     has_any_structure = any(
@@ -2458,7 +2509,55 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
         span_y = max(1, height - 2 * margin_y)
         anchor_x = margin_x + (chunk_coord[0] * 431 + chunk_coord[1] * 197) % span_x
         anchor_y = margin_y + (chunk_coord[1] * 431 + chunk_coord[0] * 197) % span_y
-        place_structure_at_anchor(game_map, biome_structure, anchor_x, anchor_y)
+        placed = place_structure_at_anchor(game_map, biome_structure, anchor_x, anchor_y)
+        if placed:
+            structure_placements.append((placed, (anchor_x, anchor_y)))
+            all_footprints.append(placed)
+
+    # Every structure's footprint is off-limits to road pathing/painting —
+    # see _movement_cost/_paint_road_path — so roads route around buildings
+    # instead of stomping through their walls.
+    occupied = {(x, y) for placed in all_footprints for x, y, _ in placed}
+    structure_anchors = [
+        _structure_road_approach(game_map, placed, anchor, occupied)
+        for placed, anchor in structure_placements
+    ]
+
+    # 5. Infrastructure: roads and trails. Trunk roads connect region
+    # centers to each other; every dungeon entrance and placed structure
+    # above then gets a spur to the nearest existing road, so the network
+    # actually leads somewhere instead of just linking empty region centers.
+    # `blocked=occupied` keeps every road, trunk or spur, from pathing or
+    # painting through a structure's footprint.
+    road_tiles = _generate_trunk_roads(game_map, heightmap, regions, blocked=occupied)
+    for entrance in dungeon_entrances:
+        road_tiles.extend(_connect_to_road_network(game_map, heightmap, entrance, road_tiles, blocked=occupied))
+    for anchor in structure_anchors:
+        road_tiles.extend(_connect_to_road_network(game_map, heightmap, anchor, road_tiles, blocked=occupied))
+
+    # 6. Population: reserved for creatures, NPC travelers, and encounters.
+    # (town NPCs already gathered into `population` above)
+
+    # 7. Flavor: biome, region name, and scene-level tags.
+    region_name = None
+    if world_map is not None:
+        region_name = world_map.region_name_at(chunk_coord)
+    if region_name is None:
+        region_name = f"{getattr(biome, 'value', str(biome)).title()} Region"
+
+    flavor = {
+        "biome": getattr(biome, "value", str(biome)),
+        "region_name": region_name,
+        "terrain_tags": list(terrain_generator.terrain_tags()),
+        "landmarks": landmarks,
+        "has_major_river": bool(world_map and world_map.river_edges_at(chunk_coord)),
+        "river_edges": list(world_map.river_edges_at(chunk_coord)) if world_map else [],
+        "has_town": bool(town_buildings),
+    }
+
+    if world_map is not None:
+        world_map.set_region_name(chunk_coord, region_name)
+        world_map.set_flavor(chunk_coord, flavor)
 
     return {
         "heightmap": heightmap,

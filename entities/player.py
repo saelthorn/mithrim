@@ -2161,7 +2161,7 @@ class Rogue(Player):
         self.inventory.add_item(iron_dagger)
         self.inventory.add_item(clone_item(arrow, count=5))
         self.inventory.add_item(clone_item(bread, count=2))
-        self.inventory.add_item(throwing_knife)
+        self.inventory.add_item(clone_item(throwing_knife, count=2))
         self.inventory.add_item(clone_item(lesser_healing_potion))
         self.inventory.add_item(CampfireKit())  # Add the Campfire Kit to the player's inventory
         self.inventory.add_item(dwarven_stompers)

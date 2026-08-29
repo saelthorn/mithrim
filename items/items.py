@@ -689,6 +689,9 @@ throwing_knife = OffHand(
     price = 10 * SILVER,
     category="Dagger"
 )
+# Torches share an inventory slot, like other stackable consumables.
+throwing_knife.stackable = True
+throwing_knife.max_stack = 5
 
 spell_book = FocusItem(
     name="Spell Book",
