@@ -1719,9 +1719,23 @@ class CombatCompanion(SummonedEntity):
 
         Reuses TownNPC's own schedule/movement methods (bound onto this
         class just below it -- see the comment there) rather than
-        duplicating them. Socializing/alert-and-flee are left out for
-        simplicity; a dismissed companion just keeps its schedule.
+        duplicating them. Socializing is left out for simplicity; a
+        dismissed companion just keeps its schedule.
+
+        Unlike a plain TownNPC, a dismissed companion doesn't flee an
+        aggressive monster -- it's still the same adventurer it was
+        recruited as, just no longer under orders (see
+        _settle_in_world()'s visual_race/visual_class), so it defends
+        itself with the exact same melee/ranged combat AI (_take_melee_
+        turn()/_take_ranged_turn()) it used as an active party member,
+        overriding the schedule for as long as a fight is on.
         """
+        if self.combat_style == "ranged":
+            if self._take_ranged_turn(game_map, game_instance):
+                return
+        elif self._take_melee_turn(game_map, game_instance):
+            return
+
         hour = self._current_hour(game_instance)
         if hour is None:
             return
@@ -1888,6 +1902,15 @@ class CombatCompanion(SummonedEntity):
         self.post = (self.x, self.y)
         self.home = (self.x, self.y)
         self.behavior_state = NPCBehavior.WANDERING
+
+        # Restore the visual_race/visual_class markers world/structures.py's
+        # _spawn_tavern_patron() originally stashed on this adventurer
+        # before recruit_combat_companion() replaced them with a
+        # CombatCompanion (see game.py's RACE_CLASS_VISUALS/_try_recruit_
+        # patron()) -- a dismissed companion goes back to looking, on
+        # paper, like the same tavern-patron adventurer they started as.
+        self.visual_race = getattr(self.race, "name", None)
+        self.visual_class = self.companion_class.name
 
         if getattr(game_instance, 'game_state', None) != 'overworld':
             return
