@@ -723,6 +723,12 @@ class CombatCompanion(SummonedEntity):
     #: to chase down a target -- mirrors Imp/Celestial's hardcoded 8.
     DETECTION_RADIUS = 6
 
+    #: Chebyshev distance from the owner beyond which the companion drops
+    #: whatever it's doing (fighting, healing, chasing) and heads straight
+    #: back -- a chase can drift a companion well past DETECTION_RADIUS
+    #: turn after turn even though each individual step looked reasonable.
+    LEASH_DISTANCE = 10
+
     #: Turns to idle between wander steps once dismissed -- reuses
     #: TownNPC's own pacing (see _take_dismissed_turn()) rather than
     #: picking a separate value.
@@ -1694,7 +1700,7 @@ class CombatCompanion(SummonedEntity):
             self._take_dismissed_turn(game_map, game_instance)
             return
 
-        if self.stance != CompanionStance.PASSIVE:
+        if self.stance != CompanionStance.PASSIVE and self._within_leash():
             if self.companion_class.name == "Cleric" and self._take_cleric_support_turn(game_map, game_instance):
                 return
             if self.combat_style == "ranged":
@@ -1709,6 +1715,12 @@ class CombatCompanion(SummonedEntity):
         # above already returned early if there was a fight to attack or
         # close distance on) -- ambient flavor, not a battle bark.
         self.speak_ambient(game_instance)
+
+    def _within_leash(self):
+        """Whether the companion is still close enough to the owner to
+        keep fighting/healing instead of being pulled back -- see
+        LEASH_DISTANCE."""
+        return _chebyshev_distance(self.x, self.y, self.owner.x, self.owner.y) <= self.LEASH_DISTANCE
 
     def _take_dismissed_turn(self, game_map, game_instance):
         """
