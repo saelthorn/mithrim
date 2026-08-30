@@ -1483,6 +1483,22 @@ class CombatCompanion(SummonedEntity):
             dice, self.companion_class.damage_type, style="melee",
         )
 
+    def _drop_spent_ammo(self, x, y, game_instance):
+        """
+        Leave one round of this companion's spent ammo on the ground at
+        the shot's target tile, same physical-arrow behavior as the
+        player's own ranged shots -- see items.py's Item.on_drop() for
+        the same x/y-then-items_on_ground placement pattern. No-op if
+        this ammo type has no known item template (AMMO_ITEM_TEMPLATES).
+        """
+        template = AMMO_ITEM_TEMPLATES.get(self.ammo_item_name)
+        if template is None:
+            return
+        spent = clone_item(template, count=1)
+        spent.x = x
+        spent.y = y
+        game_instance.game_map.items_on_ground.append(spent)
+
     def ranged_attack_enemy(self, target, game_instance):
         """Ranged attack against a target within attack_range and line
         of sight. Consumes one round of ammo from the owner's (the
@@ -1490,10 +1506,11 @@ class CombatCompanion(SummonedEntity):
         shared quiver -- callers (see _take_ranged_turn) are expected to
         have already checked self._has_ammo(). A companion with
         ammo_item_name None (a caster like Wizard, firing spells rather
-        than physical arrows) has nothing to consume or run out of, so
-        both steps are skipped for it."""
+        than physical arrows) has nothing to consume, drop, or run out
+        of, so all three steps are skipped for it."""
         note = ""
         remaining = None
+        target_x, target_y = target.x, target.y
         if self.ammo_item_name is not None:
             remaining = self._consume_ammo()
             note = f" ({remaining} {self.ammo_item_name.lower()}(s) left)"
@@ -1502,6 +1519,8 @@ class CombatCompanion(SummonedEntity):
             target, game_instance, self.attack_bonus, self.attack_power,
             dice, self.companion_class.damage_type, style="ranged", out_of_ammo_note=note,
         )
+        if self.ammo_item_name is not None:
+            self._drop_spent_ammo(target_x, target_y, game_instance)
         if remaining == 0:
             game_instance.message_log.add_message(f"{self.name} is out of ammunition!", (255, 150, 150))
 

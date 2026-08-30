@@ -17,7 +17,7 @@ from items.items import (
     carrot, spell_book, holy_symbol, full_plate_armor, robes_of_protection, adamantine_long_sword, staff_of_magi, 
     duelists_rapier, dwarven_battle_axe, dragonsbane_warhammer, flameheart_flail, flameheart_short_sword, scale_mail_armor, 
     sturdy_quarterstaff, leather_cap, iron_helmet, steel_helmet, hood_of_shadows, great_helm, mages_circlet, leather_boots, 
-    iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers, silver_dagger, round_shield, iron_short_sword,
+    iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers, silver_dagger, round_shield, iron_short_sword, arrow,
     CampfireKit, Food, Weapon, Helmet, Armor, Boots, OffHand, FocusItem, format_price, clone_item
 )
 
@@ -1331,6 +1331,7 @@ class Shopkeeper(TownNPC):
             meat,
             bread,
             carrot,
+            arrow,
             fromage,
             torch,
             throwing_knife,
@@ -1366,6 +1367,7 @@ class Shopkeeper(TownNPC):
             (green_apple, 0.3),
             (bread, 0.3),
             (meat, 0.3),
+            (arrow, 0.8),
         ]
 
         self.items_for_sale = []
