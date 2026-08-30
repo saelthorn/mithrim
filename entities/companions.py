@@ -9,6 +9,7 @@ from items.items import (
     iron_short_sword, leather_boots, padded_armor, short_bow,
     iron_dagger, oak_staff, steel_mace, studded_leather_armor,
     chainmail_armor, robes, round_shield, spell_book, holy_symbol,
+    arrow, clone_item,
 )
 from world.bloodstain import Bloodstain
 from core.status_effects import (
@@ -268,7 +269,7 @@ class CompanionClass:
         armor_proficiencies=None,
         damage_type="slashing",
         attack_range=1,
-        starting_ammo=None,
+        ammo_item_name=None,
         abilities=None,
     ):
         self.name = name
@@ -314,9 +315,11 @@ class CompanionClass:
         #: 1 for melee (adjacency); a real tile radius for ranged
         #: classes, to also be checked against game.check_line_of_sight().
         self.attack_range = attack_range
-        #: None for melee (unlimited attacks); a starting shot count for
-        #: ranged classes -- see CombatCompanion.ammo.
-        self.starting_ammo = starting_ammo
+        #: None for melee/unlimited casters; the item name (e.g. "Arrow")
+        #: a ranged class draws from the *player's* shared inventory
+        #: instead of carrying its own private ammo pool -- see
+        #: CombatCompanion._ammo_count()/_consume_ammo().
+        self.ammo_item_name = ammo_item_name
 
         self.abilities = {}
 
@@ -378,7 +381,7 @@ RANGER = CompanionClass(
     armor_proficiencies=["Light"],
     damage_type="piercing",
     attack_range=6,
-    starting_ammo=24,    
+    ammo_item_name="Arrow",
     abilities = {}
 )
 
@@ -473,6 +476,17 @@ CLERIC = CompanionClass(
     attack_range=1,    
     abilities = {}
 )
+
+
+#: CompanionClass.ammo_item_name -> the real items.py Item template it
+#: refers to, so a newly-recruited companion can be handed a starting
+#: stack of it (see CombatCompanion.grant_starting_ammo()) without this
+#: module hardcoding "arrow" outside the one place ammo types are
+#: declared. Add an entry here whenever a future CompanionClass names a
+#: new ammo_item_name.
+AMMO_ITEM_TEMPLATES = {
+    "Arrow": arrow,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -863,8 +877,12 @@ class CombatCompanion(SummonedEntity):
         # -- Combat style / ranged-specific state --
         self.combat_style = companion_class.combat_style
         self.attack_range = companion_class.attack_range
-        self.max_ammo = companion_class.starting_ammo  # None -- unlimited: no ammo to track (melee, or a ranged caster like Wizard firing spells instead of arrows)
-        self.ammo = self.max_ammo
+        #: None -- no ammo to track (melee, or a ranged caster like
+        #: Wizard firing spells instead of arrows). Otherwise the item
+        #: name drawn from the owner's (the player's) own inventory --
+        #: see _ammo_count()/_consume_ammo(). A companion keeps no
+        #: private ammo pool of its own.
+        self.ammo_item_name = companion_class.ammo_item_name
 
         self.saving_throw_proficiencies = companion_class.saving_throw_proficiencies
 
@@ -888,6 +906,26 @@ class CombatCompanion(SummonedEntity):
         """
         self.race.apply_traits(self, game_instance)
         self._recalculate_stats()
+
+    def grant_starting_ammo(self, game_instance):
+        """
+        Seed the owner's (the player's) shared inventory with a stack of
+        this companion's ammo type on recruitment, so a newly-joined
+        Ranger doesn't show up sharing a quiver that's already empty --
+        see _ammo_count()/_consume_ammo(). No-op for a companion that
+        doesn't use ammo, or for an ammo_item_name with no known item
+        template (AMMO_ITEM_TEMPLATES).
+        """
+        if self.ammo_item_name is None:
+            return
+        template = AMMO_ITEM_TEMPLATES.get(self.ammo_item_name)
+        inventory = getattr(self.owner, "inventory", None)
+        if template is None or inventory is None:
+            return
+        inventory.add_item(clone_item(template, count=template.max_stack))
+        game_instance.message_log.add_message(
+            f"{self.name} shares a stack of {self.ammo_item_name.lower()}s with you.", self.color
+        )
 
     # -- derived stats ---------------------------------------------------
     # Small local copies of player.py's formulas, kept independent of
@@ -1142,36 +1180,47 @@ class CombatCompanion(SummonedEntity):
             f"{self.name} readies to fight ({stance}).", self.color
         )
 
-    def restock_ammo(self, amount, game_instance):
+    def _ammo_count(self):
         """
-        Refill ammo, capped at max_ammo. Intended to be called from the
-        companion menu once the player is carrying arrows/bolts in
-        inventory -- that inventory wiring is a follow-up; the plumbing
-        lives here so the AI pass can call it as soon as it exists.
+        How many rounds of this companion's ammo type the owner (the
+        player) is currently carrying -- companions have no private
+        quiver of their own, they draw straight from the shared party
+        inventory. Returns None for a companion that doesn't use ammo
+        at all (melee, or a caster like Wizard firing spells).
         """
-        if self.max_ammo is None:
-            return
-        self.ammo = min(self.max_ammo, self.ammo + amount)
-        game_instance.message_log.add_message(
-            f"{self.name} restocks ammunition ({self.ammo}/{self.max_ammo}).", self.color
+        if self.ammo_item_name is None:
+            return None
+        inventory = getattr(self.owner, "inventory", None)
+        if inventory is None:
+            return 0
+        return sum(
+            item.count for item in inventory.items
+            if getattr(item, "name", "") == self.ammo_item_name
         )
+
+    def _consume_ammo(self):
+        """Remove one round of this companion's ammo from the owner's
+        inventory, mirroring the use_one()/remove_item() pattern items.py
+        already uses for stackables. Returns the remaining count."""
+        inventory = getattr(self.owner, "inventory", None)
+        if inventory is not None:
+            for item in inventory.items:
+                if getattr(item, "name", "") == self.ammo_item_name:
+                    if not item.use_one():
+                        inventory.remove_item(item)
+                    break
+        return self._ammo_count()
 
     def _has_ammo(self):
         """
         Whether this companion is currently able to fire a ranged
-        attack. `max_ammo is None` means "no ammo to track" -- a Wizard
-        loosing spells from a staff rather than physical arrows -- which
-        should always be able to shoot, not read as permanently out
-        (see ranged_attack_enemy()/_take_ranged_turn(), which both used
-        to check truthiness of `self.ammo` directly: for an unlimited
-        caster self.ammo is None, and `if self.ammo:` treats that the
-        same as an empty quiver, so a Wizard with combat_style="ranged"
-        and no starting_ammo could never actually take its ranged shot
-        and fell straight through to melee_scuffle()/kiting instead).
-        A finite-ammo companion (Ranger) is only able to fire while
-        self.ammo > 0.
+        attack. `ammo_item_name is None` means "no ammo to track" -- a
+        Wizard loosing spells from a staff rather than physical arrows --
+        which should always be able to shoot, not read as permanently
+        out. A companion with an ammo_item_name is only able to fire
+        while the player's inventory still holds at least one.
         """
-        return self.max_ammo is None or self.ammo > 0
+        return self.ammo_item_name is None or self._ammo_count() > 0
 
     # -- turn AI: targeting -------------------------------------------------
 
@@ -1436,22 +1485,24 @@ class CombatCompanion(SummonedEntity):
 
     def ranged_attack_enemy(self, target, game_instance):
         """Ranged attack against a target within attack_range and line
-        of sight. Consumes one shot of ammo whether it hits or misses,
-        same as a real quiver -- callers (see _take_ranged_turn) are
-        expected to have already checked self._has_ammo(). A companion
-        with max_ammo is None (a caster like Wizard, firing spells
-        rather than physical arrows) has nothing to consume or run out
-        of, so both steps are skipped for it."""
+        of sight. Consumes one round of ammo from the owner's (the
+        player's) inventory whether it hits or misses, same as a real
+        shared quiver -- callers (see _take_ranged_turn) are expected to
+        have already checked self._has_ammo(). A companion with
+        ammo_item_name None (a caster like Wizard, firing spells rather
+        than physical arrows) has nothing to consume or run out of, so
+        both steps are skipped for it."""
         note = ""
-        if self.max_ammo is not None:
-            self.ammo -= 1
-            note = f" ({self.ammo}/{self.max_ammo} ammo left)"
+        remaining = None
+        if self.ammo_item_name is not None:
+            remaining = self._consume_ammo()
+            note = f" ({remaining} {self.ammo_item_name.lower()}(s) left)"
         dice = self.equipped_weapon.damage_dice if self.equipped_weapon else "1d4"
         self._resolve_attack(
             target, game_instance, self.attack_bonus, self.attack_power,
             dice, self.companion_class.damage_type, style="ranged", out_of_ammo_note=note,
         )
-        if self.max_ammo is not None and self.ammo == 0:
+        if remaining == 0:
             game_instance.message_log.add_message(f"{self.name} is out of ammunition!", (255, 150, 150))
 
     def melee_scuffle(self, target, game_instance):

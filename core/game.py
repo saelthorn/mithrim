@@ -3859,6 +3859,12 @@ class Game:
         # apply_race()'s docstring for why this is a separate call from
         # __init__ rather than folded into it.
         companion.apply_race(self)
+        # A ranged companion (e.g. Ranger) shares the player's own ammo
+        # pool rather than carrying a private one -- see companions.py's
+        # _ammo_count()/_consume_ammo() -- so seed that shared inventory
+        # with a starting stack now, at recruitment, rather than have
+        # them join with nothing to fire.
+        companion.grant_starting_ammo(self)
 
         self.entities.append(companion)
         self.turn_order.append(companion)
