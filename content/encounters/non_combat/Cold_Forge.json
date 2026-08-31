@@ -24,7 +24,7 @@
             },
             { 
                 "type": "reward_xp", 
-                "amount": 12 
+                "amount": 100
             }
           ]
         },
@@ -45,14 +45,14 @@
               },
               { 
                   "type": "reward_xp", 
-                  "amount": 6 
+                  "amount": 40
               }
             ],
             "failure_outcome": "You go over the workshop but nothing stands out as anything other than what it looks like - a smith's ordinary tools, nothing hidden.",
             "failure_consequences": [
               { 
                   "type": "reward_xp", 
-                  "amount": 4 
+                  "amount": 20
               }
             ]
           }

@@ -6,7 +6,7 @@
   "stages": [
     {
       "discovery": "A single tent stands sagging off the trail, its guy-lines gone slack. The fire pit beside it is cold, ash gone gray and scattered by wind that's had days to work at it. Whoever pitched camp here didn't come back to break it down.",
-      "landmark_tile": "tent",
+      "landmark_structure": "abandoned_campsite",
       "choices": [
         {
           "key": 1,
@@ -26,14 +26,14 @@
               },
               { 
                   "type": "reward_xp", 
-                  "amount": 8 
+                  "amount": 80
               }
             ],
             "failure_outcome": "You dig through the sagging canvas but whatever's left in here has rotted past anything worth carrying.",
             "failure_consequences": [
               { 
                   "type": "reward_xp", 
-                  "amount": 3 
+                  "amount": 10
               }
             ]
           }
@@ -48,7 +48,7 @@
           "consequences": [
             { 
                 "type": "reward_xp", 
-                "amount": 12 
+                "amount": 20
             }
           ]
         },

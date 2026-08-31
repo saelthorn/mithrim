@@ -6,7 +6,7 @@
   "stages": [
     {
       "discovery": "Signs of a struggle litter this stretch of road - whatever happened here happened fast and wasn't survived by everyone involved. What's left standing changes with the telling, but the story underneath it never does: someone didn't make it past this point.",
-      "landmark_tile": ["caravan", "barricade", "ambush_tree"],
+      "landmark_tile": ["caravan", "barricade", "ambush_tree", "ambush_tree", "ambush_tree", "ambush_tree"],
       "choices": [
         {
           "key": 1,
@@ -50,14 +50,14 @@
             "success_consequences": [
               { 
                   "type": "reward_xp", 
-                  "amount": 14 
+                  "amount": 100
               }
             ],
             "failure_outcome": "Too many feet and hooves have churned the ground since - whatever story it told originally, it's been trampled past reading now.",
             "failure_consequences": [
               { 
                   "type": "reward_xp", 
-                  "amount": 5 
+                  "amount": 10
               }
             ]
           }

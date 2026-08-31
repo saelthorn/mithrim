@@ -5,13 +5,13 @@ from entities.base_entity import NPC
 from entities.town_npcs import TownNPC, Innkeeper, Shopkeeper, Townsfolk, Blacksmith, Priest
 from entities.monster import GiantRat, Goblin, Skeleton, Wolf, Orc, GoblinArcher
 from entities.companions import RACE_CLASS_VISUALS, FIGHTER, RANGER, ROGUE, WIZARD, CLERIC
-from items.items import Chest, Book, IndoorChest, OutdoorChest, LockedChest, BOOKS_CONTENT_ROOT, generate_random_loot, generate_locked_loot, get_book, clone_item
+from items.items import Chest, Book, IndoorChest, OutdoorChest, LockedChest, CampfireKit, BOOKS_CONTENT_ROOT, generate_random_loot, generate_locked_loot, get_book, clone_item
 
 from world.tile import (
     ground, grass, road, tall_grass, wall, tavern_floor, floor, bar_counter_two, bar_counter_three, bar_counter_four, 
     table, crate, tavern_barrel_two, altar, door, forge, anvil, shelf, bed, hay, bar_counter, bar_counter_five, bar_counter_six,
     shelf_three, bar_counter, shelf_two, tavern_barrel, tavern_crate, cob_web, wood_plank, tavern_floor, ladder, tavern_cobweb,
-    window, flower_field, meadow, barrel
+    window, flower_field, meadow, barrel, tent, campfire, giant_tree
 )
 
 
@@ -521,6 +521,28 @@ STRUCTURE_BLUEPRINTS = {
         description="A drafty stable smelling of hay and horses.",
         npc_map={},
     ),
+
+
+"""
+Encounters
+"""
+
+    "abandoned_campsite": build_blueprint(
+        "abandoned_campsite",
+        "Abandoned Campsite",
+        [
+            "    ",
+            " i  ",
+            "  t ",
+            " cp ",
+            "    ",
+        ],
+        {"t": tent, "c": campfire, "p": ground, "i": giant_tree},
+        walkable_chars={".", "p", "c",},
+        description="An abandoned campsite.",
+        item_map={"e": _spawn_indoor_chest, "p": _spawn_book("tattered_journal")},
+        destroyed_tile=ground,        
+    )
 
 }
 

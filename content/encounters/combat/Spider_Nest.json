@@ -1,6 +1,6 @@
 {
   "id": "world_encounter_spiders",
-  "min_level": 7,
+  "min_level": 6,
   "max_level": 9,
   "stages": [
     {

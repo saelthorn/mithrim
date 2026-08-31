@@ -54,7 +54,7 @@
                     "consequences": [
                         {
                             "type": "reward_xp",
-                            "amount": 10
+                            "amount": 20
                         },
                         {
                             "type": "remove_item",

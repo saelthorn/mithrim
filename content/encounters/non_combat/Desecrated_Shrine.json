@@ -23,7 +23,7 @@
             },
             { 
                 "type": "reward_xp", 
-                "amount": 12 
+                "amount": 80
             }
           ]
         },
@@ -45,14 +45,14 @@
               },
               { 
                   "type": "reward_xp", 
-                  "amount": 14 
+                  "amount": 40
               }
             ],
             "failure_outcome": "The gouges are too shallow and weathered to trace back to anything - deliberate damage, but nothing in it points anywhere in particular.",
             "failure_consequences": [
               { 
                   "type": "reward_xp", 
-                  "amount": 5 
+                  "amount": 20
               }
             ]
           }

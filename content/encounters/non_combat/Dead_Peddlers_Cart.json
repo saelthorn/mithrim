@@ -26,14 +26,14 @@
               },
               { 
                   "type": "reward_xp", 
-                  "amount": 10 
+                  "amount": 100
               }
             ],
             "failure_outcome": "You paw through the spilled stock but everything worth taking is either ruined or too well-hidden to find in the mud and failing light.",
             "failure_consequences": [
               { 
                   "type": "reward_xp", 
-                  "amount": 4 
+                  "amount": 20
               }
             ]
           }
@@ -48,7 +48,7 @@
           "consequences": [
             { 
                 "type": "reward_xp", 
-                "amount": 12 
+                "amount": 40
             }
           ]
         },
