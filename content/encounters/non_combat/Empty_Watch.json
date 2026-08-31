@@ -6,7 +6,7 @@
   "stages": [
     {
       "discovery": "A stretch of splintered barricade blocks half the road, the Kingdom's crest still legible on a warped shield nailed to the crossbeam. Nothing guards it now. A tally of hash marks is scratched into the wood beside a rota board - names, dates, and a gap where the last several days should be.",
-      "landmark_tile": "barricade",
+      "landmark_structure": "watch_tower",
       "choices": [
         {
           "key": 1,

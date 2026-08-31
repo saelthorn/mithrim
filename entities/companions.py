@@ -741,7 +741,7 @@ class CombatCompanion(SummonedEntity):
     #: whatever it's doing (fighting, healing, chasing) and heads straight
     #: back -- a chase can drift a companion well past DETECTION_RADIUS
     #: turn after turn even though each individual step looked reasonable.
-    LEASH_DISTANCE = 10
+    LEASH_DISTANCE = 8
 
     #: Turns to idle between wander steps once dismissed -- reuses
     #: TownNPC's own pacing (see _take_dismissed_turn()) rather than

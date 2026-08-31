@@ -6,7 +6,7 @@
   "stages": [
     {
       "discovery": "A cluster of leaning headstones breaks up the tall grass, most of them worn smooth by rain and time. One newer grave sits apart from the others, its marker still sharp-edged, a wilted wreath tied to it with twine that hasn't yet rotted through.",
-      "landmark_tile": "gravestone",
+      "landmark_tile": ["gravestone", "gravestone_two", "gravestone_three"],
       "landmark_tile_amount": [3, 5],
       "choices": [
         {
