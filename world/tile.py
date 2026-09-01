@@ -119,6 +119,7 @@ rock_formation = Tile(blocked=False, char='rk', color=(160, 160, 160), name="Roc
 marsh_pool = Tile(blocked=False, char='mp', color=(80, 150, 110), name="Marsh Pool")
 reeds = Tile(blocked=False, char='rds', color=(70, 140, 80), name="Reeds")
 dead_forest = Tile(blocked=False, char='ddf', color=(90, 100, 70), name="Dead Forest")
+fence = Tile(blocked=True, char='fnc', color=(90, 100, 70), name="Fence")
 
 
 class MimicTile(Tile):

@@ -1780,6 +1780,14 @@ class CombatCompanion(SummonedEntity):
                 if self._take_melee_turn(game_map, game_instance):
                     return
 
+        if is_restrained(self):
+            # Nothing adjacent to attack (that case already returned
+            # above) and speed 0 rules out closing distance or following
+            # -- try to break free instead of sitting idle for the rest
+            # of the effect's duration.
+            self._attempt_escape_restraint(game_instance)
+            return
+
         self._follow_owner(game_map, game_instance)
         # Only chime in on a quiet, non-combat turn (the two branches
         # above already returned early if there was a fight to attack or
@@ -1791,6 +1799,26 @@ class CombatCompanion(SummonedEntity):
         keep fighting/healing instead of being pulled back -- see
         LEASH_DISTANCE."""
         return _chebyshev_distance(self.x, self.y, self.owner.x, self.owner.y) <= self.LEASH_DISTANCE
+
+    def _attempt_escape_restraint(self, game_instance):
+        """
+        Spend this turn's action trying to break free of Restrained
+        (see core/status_effects.py's Restrained/escape_dc) instead of
+        just standing still for the rest of its duration -- speed 0
+        already stops _step_toward()/_pathfind_toward() from moving the
+        companion anywhere, so an escape attempt is the only useful
+        thing left to do on a restrained turn. A successful STR check
+        strips the effect immediately, freeing the companion to act
+        normally again next turn.
+        """
+        restraint = next(
+            (effect for effect in self.active_status_effects if isinstance(effect, Restrained)), None
+        )
+        if restraint is None:
+            return
+        if self.make_saving_throw("STR", restraint.escape_dc, game_instance):
+            self.active_status_effects.remove(restraint)
+            game_instance.message_log.add_message(f"{self.name} breaks free!", (100, 255, 100))
 
     def _take_dismissed_turn(self, game_map, game_instance):
         """
@@ -1816,6 +1844,10 @@ class CombatCompanion(SummonedEntity):
             if self._take_ranged_turn(game_map, game_instance):
                 return
         elif self._take_melee_turn(game_map, game_instance):
+            return
+
+        if is_restrained(self):
+            self._attempt_escape_restraint(game_instance)
             return
 
         hour = self._current_hour(game_instance)
