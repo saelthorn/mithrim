@@ -471,7 +471,7 @@ class ForestGenerator(TerrainGenerator):
                     game_map.tiles[y][x] = meadow
                 elif m > 0.52 and _chance(x, y, 4, 1 / 5):
                     game_map.tiles[y][x] = flower_field
-                elif h < 0.65 and _chance(x, y, 5, 1 / 23):
+                elif h < 0.65 and _chance(x, y, 5, 1 / 16):
                     game_map.tiles[y][x] = dead_forest
 
     def place_landmarks(self, game_map, heightmap, moisture, river_positions):

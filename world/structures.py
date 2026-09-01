@@ -11,7 +11,8 @@ from world.tile import (
     ground, grass, road, tall_grass, wall, tavern_floor, floor, bar_counter_two, bar_counter_three, bar_counter_four, 
     table, crate, tavern_barrel_two, altar, door, forge, anvil, shelf, bed, hay, bar_counter, bar_counter_five, bar_counter_six,
     shelf_three, bar_counter, shelf_two, tavern_barrel, tavern_crate, cob_web, wood_plank, tavern_floor, ladder, tavern_cobweb,
-    window, flower_field, meadow, barrel, tent, campfire, giant_tree
+    window, flower_field, meadow, barrel, tent, campfire, giant_tree, fence, fence_gate, banner, washed_boat, sail_left, sail, 
+    sail_right, overworld_cobweb,
 )
 
 
@@ -292,15 +293,15 @@ STRUCTURE_BLUEPRINTS = {
         "Windmill",
         [
             "         ",
-            "  #####  ",
-            "  #...#  ",
-            "  #...#  ",
-            "  #...#  ",
             "  ##+##  ",
+            "  #...#  ",
+            "  w...w  ",
+            "  #...#  ",
+            "  ##w##  ",
             " <sssss> ",
             "         ",
         ],
-        {"#": wall, ".": tavern_floor, "+": door},
+        {"#": wall, ".": tavern_floor, "+": door, "<": sail_left, "s": sail, ">": sail_right, "w": window},
         walkable_chars={".", "+"},
         description="A windmill for grinding grain.",
     ),
@@ -513,22 +514,20 @@ STRUCTURE_BLUEPRINTS = {
         [
             "         ",
             " ####### ",
-            " #     + ",
-            " #+#+#+# ",
-            " # # # # ",
+            " #   * + ",
+            " #*#+#+# ",
+            " # #*# # ",
             " ####### ",
             "         ",
         ],
-        {"#": wall, ".": floor, "h": hay, "+": door},
+        {"#": fence, ".": floor, "h": hay, "+": fence_gate, "*": overworld_cobweb},
         walkable_chars={".", "+"},
         description="A drafty stable smelling of hay and horses.",
         npc_map={},
     ),
 
 
-"""
-Encounters
-"""
+### Encounters
 
     "abandoned_campsite": build_blueprint(
         "abandoned_campsite",
@@ -545,7 +544,7 @@ Encounters
         description="An abandoned campsite.",
         item_map={"e": _spawn_indoor_chest, "p": _spawn_book("tattered_journal")},
         destroyed_tile=ground,        
-    )
+    ),
 
 }
 

@@ -208,7 +208,12 @@ def setup_tile_mapping():
 
         'amt': (13 * CELL_DIM, 18 * CELL_DIM),  # Ambush Tree (Landmark)
         'ocw': (14 * CELL_DIM, 18 * CELL_DIM),  # Overworld Cobweb (Landmark)
+        'bt':  (15 * CELL_DIM, 18 * CELL_DIM),  # Boat (Washed Ashore)
         '`4':  (16 * CELL_DIM, 18 * CELL_DIM),  # Grass
+        'fnc': (17 * CELL_DIM, 18 * CELL_DIM),  # Fence
+        'fng': (18 * CELL_DIM, 18 * CELL_DIM),  # Fence Gate
+        'bnr': (19 * CELL_DIM, 18 * CELL_DIM),  # Banner
+
         'gvs1':(0 * CELL_DIM,  19 * CELL_DIM),  # Gravestone One (Landmark)
         'gvs2':(1 * CELL_DIM,  19 * CELL_DIM),  # Gravestone Two (Landmark)
         'gvs3':(2 * CELL_DIM,  19 * CELL_DIM),  # Gravestone Three (Landmark)
@@ -216,6 +221,10 @@ def setup_tile_mapping():
         'ten': (4 * CELL_DIM,  19 * CELL_DIM),  # Tent (Landmark)
         'rtc': (6 * CELL_DIM,  19 * CELL_DIM),  # Ritual Circle (Landmark)
         'brc': (7 * CELL_DIM,  19 * CELL_DIM),  # Barricade (Landmark)
+
+        'sll': (0 * CELL_DIM,  20 * CELL_DIM),  # Sail Left
+        'slm': (1 * CELL_DIM,  20 * CELL_DIM),  # Sail Middle
+        'slr': (2 * CELL_DIM,  20 * CELL_DIM),  # Sail Right
 
 
         # Elemental Tiles
@@ -292,7 +301,7 @@ def setup_tile_mapping():
         'GA': (1 * CELL_DIM, 8 * CELL_DIM),  # Goblin Archer
         'SA': (2 * CELL_DIM, 8 * CELL_DIM),  # Skeleton Archer
         'CE': (3 * CELL_DIM, 7 * CELL_DIM),  # Centaur
-        'CA': (3 * CELL_DIM, 8 * CELL_DIM),  # Cebtaur Archer
+        'CA': (3 * CELL_DIM, 8 * CELL_DIM),  # Centaur Archer
         'LF': (4 * CELL_DIM, 7 * CELL_DIM),  # Lizardfolk
         'LA': (4 * CELL_DIM, 8 * CELL_DIM),  # Lizardfolk Archer
         'GS': (0 * CELL_DIM, 9 * CELL_DIM),  # Giant Spider
