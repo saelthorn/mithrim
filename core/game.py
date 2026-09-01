@@ -669,7 +669,7 @@ class Game:
         self._world_encounter_cooldown = 0     # Steps left before another encounter can roll
         self._world_encounter_aftermath = None # Scenario's "aftermath" block awaiting a post-combat choice
         self._world_encounter_target_victims = []  # Victims spawned for the current encounter, see recruit_companion()
-        self._world_encounter_last_id = None   # scenario["id"] last rolled, see _maybe_trigger_world_encounter()
+        self._world_encounter_recent_ids = []   # scenario["id"]s rolled recently, see WORLD_ENCOUNTER_REPEAT_COOLDOWN
         self._world_encounter_completed_one_time_ids = set()  # scenario["id"]s of "one_time" encounters already offered, see _roll_world_encounter_scenario()
         self._world_encounter_non_combat_streak = 0  # Non-combat scenarios rolled since the last combat one, see _roll_world_encounter_scenario()
         self._world_encounter_non_combat_target = random.randint(*self.WORLD_ENCOUNTER_NON_COMBAT_STREAK_RANGE)  # How many non-combat scenarios play before a combat one is forced, re-rolled after each combat scenario
@@ -1010,6 +1010,12 @@ class Game:
     # choices()) before finding out what's actually going on.
     WORLD_ENCOUNTER_CHANCE = 0.02           # Rolled once per step taken in the overworld
     WORLD_ENCOUNTER_COOLDOWN_STEPS = 60     # Minimum steps before another can trigger
+
+    # A scenario can't be rolled again until this many *other* encounters
+    # have played -- e.g. with the default of 5, Broken_Wagon.json won't
+    # reappear until 5 different encounters have fired since it last did.
+    # See _roll_world_encounter_scenario().
+    WORLD_ENCOUNTER_REPEAT_COOLDOWN = 5
     # How many non-combat scenarios (scenario["is_combat"] False -- see
     # _load_world_encounter_scenarios()) play in a row before the next
     # roll is forced to be combat instead. A fresh random value in this
@@ -2364,9 +2370,10 @@ class Game:
         case where literally every scenario is one_time and all of them
         have already fired.
 
-        Finally excludes whichever scenario was last rolled (self.
-        _world_encounter_last_id) so two ambushes in a row never repeat
-        the exact same flavor.
+        Finally excludes any scenario rolled within the last
+        WORLD_ENCOUNTER_REPEAT_COOLDOWN encounters (self._world_encounter_
+        recent_ids), so a given scenario can't reappear until that many
+        other encounters have played first.
 
         Every remaining narrowing step falls back gracefully rather than
         ever raising: if nothing in the full scenario list matches the
@@ -2374,8 +2381,9 @@ class Game:
         appropriate pool has no scenario of the combat/non-combat type
         the streak currently calls for (e.g. a level band with only
         non-combat content authored), that filter is dropped too rather
-        than leaving an empty pool; if what's left is exactly the
-        scenario just rolled, the last-id exclusion is dropped instead.
+        than leaving an empty pool; if what's left is empty because
+        everything remaining is on cooldown, the cooldown exclusion is
+        dropped instead.
         """
         not_yet_used_once = [
             scenario for scenario in self.world_encounter_scenarios
@@ -2393,10 +2401,11 @@ class Game:
         typed_pool = [scenario for scenario in pool if scenario["is_combat"] == want_combat]
         pool = typed_pool or pool
 
-        pool = [scenario for scenario in pool if scenario["id"] != self._world_encounter_last_id] or pool
+        pool = [scenario for scenario in pool if scenario["id"] not in self._world_encounter_recent_ids] or pool
 
         scenario = random.choice(pool)
-        self._world_encounter_last_id = scenario["id"]
+        self._world_encounter_recent_ids.append(scenario["id"])
+        del self._world_encounter_recent_ids[:-self.WORLD_ENCOUNTER_REPEAT_COOLDOWN]
         if scenario["one_time"]:
             self._world_encounter_completed_one_time_ids.add(scenario["id"])
 
