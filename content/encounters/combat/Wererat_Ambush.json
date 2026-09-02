@@ -9,8 +9,8 @@
         "ambush_tree"
       ],
       "landmark_tile_amount": [
-        1,
-        2
+        4,
+        6
       ],
       "choices": [
         {

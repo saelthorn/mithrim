@@ -7,8 +7,8 @@
       "discovery": "Paw prints crisscross the muddy trail ahead, too many to belong to one animal. Somewhere in the trees, branches snap under heavy weight, and a low growl rolls through the undergrowth.",
       "landmark_tile": "ambush_tree",
       "landmark_tile_amount": [
-        1,
-        2
+        4,
+        6
       ],
       "choices": [
         {

@@ -7,7 +7,7 @@
     {
       "discovery": "Thick webbing chokes the space between two trees, strung so dense it looks almost like cloth gone gray with dust. Locals call this stretch of road the Widow's Loom and swear by not walking it after dark - though whether that's superstition or the sort of caution that keeps people alive, you can't tell from here.",
       "landmark_tile": "overworld_cobweb",
-      "landmark_tile_amount": [5, 8],
+      "landmark_tile_amount": [8, 12],
       "choices": [
         {
           "key": 1,

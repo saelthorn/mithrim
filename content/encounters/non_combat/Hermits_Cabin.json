@@ -7,6 +7,8 @@
     {
       "discovery": "A small cabin sits back from the road, its chimney trailing a thin line of smoke into the gray sky. Traps hang drying along the porch rail, and neat rows of herbs have been staked out beside the door - someone lives here on purpose, not by accident.",
       "landmark_structure": "small_cabin",
+      "min_distance": 4,
+      "search_radius": 4,
       "choices": [
         {
           "key": 1,

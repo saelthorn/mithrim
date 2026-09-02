@@ -1079,6 +1079,12 @@ class Game:
     # still, since _world_encounter_next_cluster_anchor() spreads later
     # buildings outward from the first one in a random direction and
     # could otherwise drift a house back toward the player.
+    #
+    # These are only the defaults -- a stage can override them per-scenario
+    # via its own "min_distance"/"search_radius" fields (see
+    # _normalize_world_encounter_stage()), for a landmark that should read
+    # as closer or further away than the norm (e.g. a shrine right off the
+    # road vs. a watch tower spotted from further out).
     WORLD_ENCOUNTER_STRUCTURE_MIN_DISTANCE = 6
     WORLD_ENCOUNTER_STRUCTURE_CLUSTER_MIN_DISTANCE = 8
     WORLD_ENCOUNTER_STRUCTURE_SEARCH_RADIUS = 6
@@ -1350,6 +1356,7 @@ class Game:
     # staging existed keeps working completely unchanged.
     WORLD_ENCOUNTER_STAGE_FIELDS = (
         "discovery", "landmark_tile", "landmark_tile_amount", "landmark_structure",
+        "min_distance", "search_radius",
         "monster_pool", "monster_count", "disposition", "choices", "sneak_dc",
         "sneak_success", "sneak_fail", "ignore", "investigate_message",
     )
@@ -1651,6 +1658,14 @@ class Game:
             "landmark_structure": self._normalize_world_encounter_structure_list(
                 stage_data.get("landmark_structure")
             ),
+            # Per-stage overrides for how far off the player
+            # landmark_structure gets anchored (see
+            # _world_encounter_structure_anchor()). Left as None when the
+            # stage doesn't declare them, which tells that method to fall
+            # back to WORLD_ENCOUNTER_STRUCTURE_MIN_DISTANCE/_CLUSTER_MIN_
+            # DISTANCE/_SEARCH_RADIUS -- most scenarios never need these.
+            "min_distance": stage_data.get("min_distance"),
+            "search_radius": stage_data.get("search_radius"),
             "monster_pool": monster_pool,
             "monster_count": tuple(stage_data.get("monster_count", (0, 0))),
             # None (the default) leaves each spawned monster's own class
@@ -2555,7 +2570,11 @@ class Game:
         if not structure_ids:
             return
 
-        anchor_x, anchor_y = self._world_encounter_structure_anchor(cluster_size=len(structure_ids))
+        anchor_x, anchor_y = self._world_encounter_structure_anchor(
+            cluster_size=len(structure_ids),
+            min_distance=stage.get("min_distance"),
+            search_radius=stage.get("search_radius"),
+        )
         self._place_world_encounter_structure_cluster(structure_ids, anchor_x, anchor_y)
 
     def _place_world_encounter_structure_cluster(self, structure_ids, anchor_x, anchor_y):
@@ -2840,7 +2859,7 @@ class Game:
         _enter_world_encounter_stage()/self._world_encounter_stage_index."""
         return self._world_encounter_target["stages"][self._world_encounter_stage_index]
 
-    def _world_encounter_structure_anchor(self, cluster_size=1):
+    def _world_encounter_structure_anchor(self, cluster_size=1, min_distance=None, search_radius=None):
         """
         Pick a point well off the player's own position to anchor a
         landmark_structure's footprint search from -- at least
@@ -2848,6 +2867,10 @@ class Game:
         WORLD_ENCOUNTER_STRUCTURE_CLUSTER_MIN_DISTANCE when `cluster_size`
         names more than one structure (e.g. Undead_Siege.json's
         tavern-plus-houses -- see _spawn_world_encounter_landmark_structure()).
+
+        `min_distance`/`search_radius` are the stage's own "min_distance"/
+        "search_radius" overrides (see _normalize_world_encounter_stage()),
+        or None to fall back to the class defaults below.
 
         place_structure_at_anchor() only avoids blocked/unwalkable
         terrain when it searches outward for "the closest clear
@@ -2875,13 +2898,14 @@ class Game:
         Falls back to the full, undirected candidate pool whenever no
         directional candidate is available.
         """
-        min_distance = (
-            self.WORLD_ENCOUNTER_STRUCTURE_CLUSTER_MIN_DISTANCE
-            if cluster_size > 1
-            else self.WORLD_ENCOUNTER_STRUCTURE_MIN_DISTANCE
-        )
+        if min_distance is None:
+            min_distance = (
+                self.WORLD_ENCOUNTER_STRUCTURE_CLUSTER_MIN_DISTANCE
+                if cluster_size > 1
+                else self.WORLD_ENCOUNTER_STRUCTURE_MIN_DISTANCE
+            )
 
-        candidates = self._world_encounter_structure_anchor_candidates(min_distance)
+        candidates = self._world_encounter_structure_anchor_candidates(min_distance, search_radius)
         if not candidates:
             return self.player.x, self.player.y
 
@@ -2927,20 +2951,21 @@ class Game:
                 ahead.append((x, y))
         return ahead
 
-    def _world_encounter_structure_anchor_candidates(self, min_distance):
+    def _world_encounter_structure_anchor_candidates(self, min_distance, search_radius=None):
         """
         Walkable, unoccupied, non-water overworld tiles at least
         `min_distance` tiles (Chebyshev -- max(|dx|, |dy|), matching this
         project's diagonal-adjacency convention rather than Manhattan)
-        from the player, out to WORLD_ENCOUNTER_STRUCTURE_SEARCH_RADIUS.
-        This is the ring _world_encounter_structure_anchor() draws its
-        anchor from -- kept separate from _world_encounter_spawn_
-        candidates() since that pool has no minimum distance and only
-        reaches out to radius 5, too close for a structure that should
-        read as discovered rather than conjured underfoot.
+        from the player, out to `search_radius` (defaults to
+        WORLD_ENCOUNTER_STRUCTURE_SEARCH_RADIUS when None). This is the
+        ring _world_encounter_structure_anchor() draws its anchor from --
+        kept separate from _world_encounter_spawn_candidates() since that
+        pool has no minimum distance and only reaches out to radius 5, too
+        close for a structure that should read as discovered rather than
+        conjured underfoot.
         """
         anchor_x, anchor_y = self.player.x, self.player.y
-        radius = self.WORLD_ENCOUNTER_STRUCTURE_SEARCH_RADIUS
+        radius = search_radius if search_radius is not None else self.WORLD_ENCOUNTER_STRUCTURE_SEARCH_RADIUS
 
         candidates = []
         for dy in range(-radius, radius + 1):

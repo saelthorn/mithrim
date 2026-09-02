@@ -7,6 +7,8 @@
     {
       "discovery": "This roadside shrine has been broken open rather than worn down - the offering bowl smashed, the carved face of whatever was honored here scored out with something sharp. Dark, dripped stains have gone black across the stone. This wasn't neglect. Someone came here on purpose to ruin it.",
       "landmark_structure": "shrine",
+      "min_distance": 5,
+      "search_radius": 6,
       "choices": [
         {
           "key": 1,

@@ -7,6 +7,8 @@
     {
       "discovery": "A windmill stands alone against the skyline, its sails locked in place despite a wind steady enough to turn them. Whoever owned it either can't be bothered to free the brake or never got the chance to. Grain dust still hangs faint in the air around the base, old but not ancient.",
       "landmark_structure": "windmill",
+      "min_distance": 4,
+      "search_radius": 6,
       "choices": [
         {
           "key": 1,

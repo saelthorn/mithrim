@@ -7,6 +7,8 @@
     {
       "discovery": "A single tent stands sagging off the trail, its guy-lines gone slack. The fire pit beside it is cold, ash gone gray and scattered by wind that's had days to work at it. Whoever pitched camp here didn't come back to break it down.",
       "landmark_structure": "abandoned_campsite",
+      "min_distance": 4,
+      "search_radius": 6,
       "choices": [
         {
           "key": 1,

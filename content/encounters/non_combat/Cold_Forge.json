@@ -7,6 +7,8 @@
     {
       "discovery": "A blacksmith's shop stands with its chimney cold and its forge unlit, tools still hung neat along the wall the way a careful smith leaves them at the end of a working day - not the way anyone leaves them for good. An unfinished blade sits clamped in the vice, half-shaped and never finished.",
       "landmark_structure": "empty_blacksmith",
+      "min_distance": 6,
+      "search_radius": 6,
       "choices": [
         {
           "key": 1,

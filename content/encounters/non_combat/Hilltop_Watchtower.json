@@ -7,6 +7,8 @@
     {
       "discovery": "A stone watchtower crowns the rise ahead, built to see three roads at once and standing empty on all three counts. A signal brazier on the roof has gone cold, and a length of rope still hangs from the flag mount - no banner on it, not even a scrap of one.",
       "landmark_structure": "watch_tower",
+      "min_distance": 6,
+      "search_radius": 8,
       "choices": [
         {
           "key": 1,

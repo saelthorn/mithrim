@@ -7,6 +7,8 @@
     {
       "discovery": "A long stable sits open to the road, every stall empty and every gate left swinging. Fresh hay is still stacked along the back wall, unused, and the water troughs haven't gone stagnant yet - whoever kept horses here did it recently, and left in a hurry recently too.",
       "landmark_structure": "stable",
+      "min_distance": 6,
+      "search_radius": 7,
       "choices": [
         {
           "key": 1,
