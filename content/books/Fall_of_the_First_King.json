@@ -10,5 +10,6 @@
     "The songs prefer a villain with a sword. They have no verse for a friend with a grudge.",
     "What followed -- the burning of the eastern holds, the long winter, the silence of the clans -- all of it traces back to that one table, that one word withheld."
   ],
-  "loot_tiers": ["tier_2"]
+  "loot_tiers": ["tier_2"],
+  "reward_xp": 100
 }

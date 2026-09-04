@@ -251,12 +251,19 @@ class Book(Item):
     instead of consuming/equipping it. `text` is the book's full content;
     "\\n\\n" marks a paragraph break. `book_id` identifies it in BOOKS
     (see load_books()) for lookup by content that wants a specific book
-    rather than a random one off a loot tier."""
-    def __init__(self, name, char, color, description, text, price=0, book_id=None):
+    rather than a random one off a loot tier.
+
+    `reward_xp` is granted once, the first time this specific book
+    instance is opened -- `xp_awarded` tracks that per-instance (clone_item()
+    deep-copies each book off its template, so this never leaks between
+    instances of the same book)."""
+    def __init__(self, name, char, color, description, text, price=0, book_id=None, reward_xp=0):
         super().__init__(name, char, color, description, price)
         self.title = name
         self.text = text
         self.book_id = book_id
+        self.reward_xp = reward_xp
+        self.xp_awarded = False
 
     def use(self, user, game_instance):
         game_instance.open_book(self)
@@ -278,7 +285,8 @@ class Book(Item):
 #     "description": "...",
 #     "price": 20,                     # copper, optional (default 0)
 #     "paragraphs": ["...", "..."],    # joined with a blank line between
-#     "loot_tiers": ["tier_1"]         # optional -- auto-add to loot tier(s)
+#     "loot_tiers": ["tier_1"],        # optional -- auto-add to loot tier(s)
+#     "reward_xp": 10                  # optional -- granted once, on first read
 #   }
 # "text" (a single string, "\n\n" for paragraph breaks) works in place of
 # "paragraphs" too, whichever reads more naturally for a given book.
@@ -300,6 +308,7 @@ def _book_from_dict(data, source):
         text=text,
         price=data.get("price", 0),
         book_id=book_id,
+        reward_xp=data.get("reward_xp", 0),
     )
 
 

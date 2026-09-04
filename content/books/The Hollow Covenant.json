@@ -10,5 +10,6 @@
     "The line was the shrine. It was never a place of worship. It was a fence post.",
     "I write this down not to be believed, but so that whoever finds this after me understands what they are truly guarding, should the shrine ever be disturbed. The bargain was never eternal. It was only ever a very, very long pause."
   ],
-  "loot_tiers": ["tier_3"]
+  "loot_tiers": ["tier_3"],
+  "reward_xp": 200
 }

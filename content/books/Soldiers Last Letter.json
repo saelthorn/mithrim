@@ -10,5 +10,6 @@
     "Don't let them bury me in my armor. Sell it, it's good steel and you'll need the coin more than the ground will need the metal. Tell Wren I said the garden needs weeding, she'll know what that means.",
     "I'm not scared. I want you to know that. I'm just tired, and I think I'd like to rest now."
   ],
-  "loot_tiers": ["tier_1"]
+  "loot_tiers": ["tier_1"],
+  "reward_xp": 50
 }

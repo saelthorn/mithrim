@@ -9,5 +9,6 @@
     "12 bolts of wool, sold to the tailor on Cooper's Row -- he still owes me for the last batch, the old skinflint.",
     "Note to self: the road east of the mill is not safe after dark. Lost a whole cart of salted fish to something that left no footprints and no receipt."
   ],
-  "loot_tiers": ["tier_1"]
+  "loot_tiers": ["tier_1"],
+  "reward_xp": 50
 }

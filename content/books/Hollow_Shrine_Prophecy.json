@@ -8,5 +8,7 @@
   "paragraphs": [
     "When the last light leaves the hollow, the sleeper below will wake.",
     "No blade forged by mortal hands will hold it. Only what was buried with it can put it back to rest."
-  ]
+  ],
+  "loot_tiers": ["tier_1"],
+  "reward_xp": 50
 }

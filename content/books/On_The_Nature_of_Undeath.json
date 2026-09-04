@@ -10,5 +10,6 @@
     "The Church calls this an abomination. The Church has never had to watch someone it loved be taken by the plague. I do not ask forgiveness for my work. I ask only that it be remembered why it was begun.",
     "Those who follow this path further than I did should know: the dead do not forget what was done to bring them back. Sooner or later, they ask why."
   ],
-  "loot_tiers": ["tier_2"]
+  "loot_tiers": ["tier_2"],
+  "reward_xp": 100
 }

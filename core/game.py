@@ -2840,6 +2840,11 @@ class Game:
         self._reading_book_return_state = self.game_state
         self.game_state = GameState.READING_BOOK
 
+        if book.reward_xp and not book.xp_awarded:
+            book.xp_awarded = True
+            self.player.gain_xp(book.reward_xp, self)
+            self.message_log.add_message(f"You gain {book.reward_xp} XP from reading.", (100, 255, 100))
+
     def _turn_book_page(self, delta):
         """Advance/retreat one page; delta is +1 or -1. No-op past either end."""
         new_index = self._reading_book_page_index + delta

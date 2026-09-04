@@ -9,5 +9,6 @@
     "Snared two hares near the old bridge. Tracks nearby weren't hare, weren't wolf either. Wider stride than a wolf, and it walked upright for a stretch before dropping back to four legs.",
     "Haven't slept right in three nights. Keep the fire high, keep it burning till dawn."
   ],
-  "loot_tiers": ["tier_1"]
+  "loot_tiers": ["tier_1"],
+  "reward_xp": 50
 }

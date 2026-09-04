@@ -9,5 +9,6 @@
     "Long before the first stones of the capital were laid, these lands belonged to no crown. The old clans held the valleys by strength and by song, and it is said the mountains themselves remembered their names.",
     "When the first king came, he came not with an army, but with a promise -- and promises, as any scholar of Mithrim will tell you, have always been the realm's true currency."
   ],
-  "loot_tiers": ["tier_2"]
+  "loot_tiers": ["tier_2"],
+  "reward_xp": 100
 }

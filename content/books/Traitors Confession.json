@@ -10,5 +10,6 @@
     "They had my daughter. Three months, they had her, and I said nothing because I did not know if saying something would save her or kill her faster.",
     "I opened the east gate. I would do it again. I hope you never have to find out whether you would too."
   ],
-  "loot_tiers": ["tier_2"]
+  "loot_tiers": ["tier_2"],
+  "reward_xp": 100
 }

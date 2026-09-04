@@ -10,5 +10,6 @@
     "Rule two: goblins do not fear death so much as they fear their warband finding out they ran first. Break their nerve as a group, not one at a time.",
     "Rule three: never trust a goblin who offers to talk. It is either buying time for an ambush, or it genuinely wants to talk, and somehow that is worse, because now you have to listen to it."
   ],
-  "loot_tiers": ["tier_1"]
+  "loot_tiers": ["tier_1"],
+  "reward_xp": 50
 }

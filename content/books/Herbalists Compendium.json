@@ -9,5 +9,6 @@
     "Nightcap moss grows only where the sun never quite reaches -- cave mouths, the north side of old ruins. Brewed weak, it eases fever. Brewed strong, it does considerably more than that, and not kindly.",
     "Whitehorn thorns are said to ward off the small fey. I've never seen proof of this, but I've also never been troubled by them while carrying a sprig, so I keep carrying it."
   ],
-  "loot_tiers": ["tier_2"]
+  "loot_tiers": ["tier_2"],
+  "reward_xp": 100
 }

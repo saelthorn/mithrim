@@ -6,6 +6,8 @@
     {
       "discovery": "A leaning cabin sits back from the road, its door hanging ajar. A steady scratching and squeaking carries from inside - something has moved in since the last tenant left.",
       "landmark_structure": "small_cabin",
+      "min_distance": 4,
+      "search_radius": 6,
       "choices": [
         {
           "key": 1,

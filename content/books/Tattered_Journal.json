@@ -9,5 +9,6 @@
     "Day 3 -- The trail markers stopped an hour back. I should have turned around then.",
     "Day 5 -- Found an old campsite, cold ashes. Someone else came this way not long ago. I don't like how quiet the woods have gone."
   ],
-  "loot_tiers": ["tier_1"]
+  "loot_tiers": ["tier_1"],
+  "reward_xp": 50
 }
