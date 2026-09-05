@@ -1,0 +1,393 @@
+
+{
+  "id": "world_encounter_tomb_tapper",
+  "min_level": 5,
+  "max_level": 10,
+  "stages": [
+    {
+      "id": "disturbed_graves",
+      "discovery": "The trail passes through an old burial ground where several stone markers have been pushed aside. Fresh earth fills the spaces where graves once stood, and deep grooves score the surrounding stone. Something has been moving beneath the ground, but it hasn't been digging like a person - the disturbed earth forms a winding path between the tombs.",
+      "landmark_tile": "overworld_graveyard",
+      "landmark_tile_amount": [6, 10],
+      "choices": [
+        {
+          "key": 1,
+          "action": "advance",
+          "label": "Follow the Burrow",
+          "description": "Trace the creature's path beneath the graves - Survival check",
+          "color": [255, 180, 120],
+          "check": {
+            "skill": "survival",
+            "dc": 13,
+            "success_outcome": "The trail is unmistakable once you know what to look for. Something enormous has tunneled beneath the graveyard, occasionally breaking through old burial chambers before disappearing underground again. The trail leads toward the oldest tomb at the center of the cemetery.",
+            "success_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 60
+              }
+            ],
+            "failure_outcome": "You can follow the disturbed earth, but the trail branches beneath the cemetery often enough that you lose track of which tunnel is the creature's most recent path.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 15
+              }
+            ]
+          },
+          "next_stage": "sunken_tomb"
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Examine the Broken Tombstones",
+          "description": "Determine what happened to the graves - Investigation check",
+          "color": [160, 200, 255],
+          "check": {
+            "skill": "investigation",
+            "dc": 12,
+            "success_outcome": "The damage isn't random. The tombstones were pushed outward from below, while several stone burial slabs have been shattered from the underside. Whatever is beneath the cemetery isn't merely passing through - it has been searching the graves.",
+            "success_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 75
+              }
+            ],
+            "failure_outcome": "The graves have been thoroughly disturbed, but it's difficult to tell whether the damage came from something digging upward or simply collapsing the old burial chambers.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 15
+              }
+            ]
+          }
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Listen to the Ground",
+          "description": "Wait for movement beneath the cemetery - Perception check",
+          "color": [190, 180, 230],
+          "check": {
+            "skill": "perception",
+            "dc": 14,
+            "success_outcome": "You press an ear close to the earth. At first there is only silence. Then comes a distant scrape, followed by a heavy grinding sound. Something enormous is moving through the stone below you.",
+            "success_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 80
+              }
+            ],
+            "failure_outcome": "The cemetery is too quiet to make out anything useful beneath the earth. You hear only the wind moving through the grass.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 20
+              }
+            ]
+          }
+        },
+        {
+          "key": 4,
+          "action": "ignore",
+          "label": "Leave the Cemetery",
+          "description": "ESC also cancels - whatever is underground can stay there",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ],
+      "ignore": "You leave the disturbed cemetery behind. Whatever is beneath the graves continues its unseen work below the earth."
+    },
+    {
+      "id": "sunken_tomb",
+      "discovery": "The oldest tomb in the cemetery has partially collapsed into a broad sinkhole. Its stone doors have been torn from their hinges and lie several feet away. Inside, the burial chamber has been ripped open from below. Stone coffins are overturned, their contents scattered across the floor. At the far end of the chamber, a section of the wall has been completely consumed, leaving a dark tunnel leading deeper underground.",
+      "landmark_tile": [
+        "overworld_graveyard",
+        "overworld_rock"
+      ],
+      "landmark_tile_amount": [
+        3,
+        5
+      ],
+      "monster_pool": [
+        "TombTapper"
+      ],
+      "monster_count": [
+        1,
+        1
+      ],
+      "sneak_dc": 15,
+      "sneak_success": "You move through the ruined burial chamber without making a sound. Whatever opened the tunnel is no longer here, but the stone around the opening still vibrates faintly.",
+      "sneak_fail": "A loose stone rolls beneath your foot. The sound echoes through the chamber and disappears into the tunnel. Something far below answers with a deep scraping noise.",
+      "investigate_message": "You step into the ruined tomb and examine the enormous tunnel left through the stone.",
+      "choices": [
+        {
+          "key": 1,
+          "action": "investigate",
+          "label": "Enter the Tunnel",
+          "description": "Follow the passage carved through solid stone",
+          "color": [255, 170, 110]
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Study the Tunnel",
+          "description": "Determine how something could have carved through the stone - Investigation check",
+          "color": [160, 200, 255],
+          "check": {
+            "skill": "investigation",
+            "dc": 14,
+            "success_outcome": "The walls haven't been dug through. They've been chewed, scraped, and crushed. Deep parallel grooves run through the stone at regular intervals, each one wider than a person's arm. Whatever made this passage can move through solid rock as easily as a creature might move through soil.",
+            "success_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 90
+              }
+            ],
+            "failure_outcome": "The tunnel is unlike anything you've seen before. Its walls are rough and heavily damaged, but you can't determine exactly how the passage was made.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 20
+              }
+            ]
+          }
+        },
+        {
+          "key": 3,
+          "action": "search",
+          "label": "Search the Tomb",
+          "description": "Look through the disturbed burial chambers for anything the creature missed - Perception check",
+          "color": [190, 200, 150],
+          "check": {
+            "skill": "perception",
+            "dc": 13,
+            "success_outcome": "Most of the tomb's valuables have been scattered or crushed, but beneath a fallen burial slab you find a small sealed reliquary that the creature overlooked.",
+            "success_consequences": [
+              {
+                "type": "give_item",
+                "item_id": "ancient_reliquary",
+                "count": 1
+              },
+              {
+                "type": "reward_xp",
+                "amount": 100
+              }
+            ],
+            "failure_outcome": "The tomb has been thoroughly disturbed. Anything valuable has either been taken, buried, or crushed beneath the fallen stone.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 20
+              }
+            ]
+          }
+        },
+        {
+          "key": 4,
+          "action": "ignore",
+          "label": "Leave the Tomb",
+          "description": "ESC also cancels - you've seen enough",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ]
+    },
+    {
+      "id": "underground_chamber",
+      "discovery": "The tunnel opens into a vast chamber beneath the cemetery. Broken sarcophagi and chunks of ancient masonry cover the floor. At the center of the chamber sits an enormous creature, its body partially buried in the stone. A Tomb Tapper has been feeding on the walls and excavating the old ruins, but it isn't looking at you. Its attention is fixed on a sealed stone vault embedded in the far wall.",
+      "landmark_tile": "overworld_cave",
+      "landmark_tile_amount": [2, 4],
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Watch the Tomb Tapper",
+          "description": "Stay hidden and figure out what it wants - Stealth check",
+          "color": [160, 200, 255],
+          "check": {
+            "skill": "stealth",
+            "dc": 15,
+            "success_outcome": "You remain hidden as the Tomb Tapper begins clawing through the stone around the sealed vault. It isn't eating the stone at random. It's deliberately trying to reach whatever is hidden behind the door.",
+            "success_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 100
+              }
+            ],
+            "failure_outcome": "The Tomb Tapper pauses and slowly turns its head toward your hiding place. It hasn't attacked, but it knows something is there.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 25
+              }
+            ]
+          }
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Examine the Vault",
+          "description": "Search the sealed chamber for clues about what attracted the creature - History check",
+          "color": [210, 180, 230],
+          "check": {
+            "skill": "history",
+            "dc": 15,
+            "success_outcome": "The markings around the vault belong to an ancient funerary tradition. This wasn't merely a tomb - it was a containment chamber. The inscriptions repeatedly warn that what lies within was never meant to be disturbed.",
+            "success_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 125
+              }
+            ],
+            "failure_outcome": "The inscriptions are too worn to translate completely, but the repeated symbols and sealed doorway suggest this was an unusually important burial site.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 30
+              }
+            ]
+          }
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Offer the Tomb Tapper Food",
+          "description": "See whether the creature can be distracted from the vault - Animal Handling check",
+          "color": [170, 220, 170],
+          "check": {
+            "skill": "animal_handling",
+            "dc": 17,
+            "success_outcome": "The Tomb Tapper pauses as you place a substantial offering of food and stone fragments nearby. It cautiously approaches, sniffing at the offering before turning its attention away from the sealed vault. For the moment, you've convinced it that there's easier food elsewhere.",
+            "success_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 125
+              }
+            ],
+            "failure_outcome": "The Tomb Tapper investigates your offering but quickly loses interest. Whatever is behind the sealed vault seems far more important to it.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 25
+              }
+            ]
+          }
+        },
+        {
+          "key": 4,
+          "action": "resolve",
+          "label": "Approach the Creature",
+          "description": "Make your presence known without threatening it",
+          "color": [255, 190, 120],
+          "outcome": "The Tomb Tapper freezes. Its enormous claws scrape against the stone as it slowly turns toward you. For several long seconds neither you nor the creature moves. Then it turns back toward the sealed vault. Whatever it wants, it doesn't seem interested in fighting you unless you interfere.",
+          "consequences": [
+            {
+              "type": "reward_xp",
+              "amount": 75
+            }
+          ]
+        },
+        {
+          "key": 5,
+          "action": "ignore",
+          "label": "Retreat",
+          "description": "ESC also cancels - some ancient things are best left alone",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ]
+    }
+  ],
+  "victim": "ancient_tomb",
+  "victim_count": [
+    1,
+    1
+  ],
+  "victim_data": {
+    "char": "at",
+    "color": [
+      180,
+      180,
+      170
+    ],
+    "names": [
+      "Ancient Tomb"
+    ],
+    "dialogue": "The stone inscriptions have been worn almost smooth, but one warning remains clear: 'LET THE HUNGRY THING DIG.'",
+    "thanks": [
+      "Whatever was sealed here has remained undisturbed."
+    ],
+    "after": [
+      "The Tomb Tapper disappears into the stone, leaving the sealed vault untouched."
+    ]
+  },
+  "scar_tag": "world_encounter_tomb_tapper",
+  "reward_xp": 200,
+  "reward_gold": 15,
+  "reputation_faction": "northfield",
+  "reputation_delta": 3,
+  "ignored_reputation_delta": 0,
+  "aftermath": {
+    "discovery": "The cemetery has fallen quiet again. The enormous tunnels remain beneath the graves, but the Tomb Tapper itself has vanished somewhere into the earth.",
+    "choices": [
+      {
+        "key": 1,
+        "action": "seal",
+        "label": "Seal the Tomb",
+        "description": "Repair the damaged entrance and keep the sealed vault hidden",
+        "color": [255, 200, 140],
+        "outcome": "You reinforce the broken entrance and cover the worst of the damage. The sealed vault remains hidden beneath the cemetery, hopefully undisturbed for another generation.",
+        "consequences": [
+          {
+            "type": "reward_xp",
+            "amount": 100
+          },
+          {
+            "type": "modify_reputation",
+            "faction": "northfield",
+            "delta": 2
+          }
+        ]
+      },
+      {
+        "key": 2,
+        "action": "search",
+        "label": "Search the Ruins",
+        "description": "Look through the damage left behind by the Tomb Tapper - Investigation check",
+        "color": [160, 200, 255],
+        "check": {
+          "skill": "investigation",
+          "dc": 14,
+          "success_outcome": "The Tomb Tapper's excavation exposed several old burial niches. Most are empty, but one contains a handful of ancient coins that escaped the creature's attention.",
+          "success_consequences": [
+            {
+              "type": "reward_gold",
+              "amount": 12
+            },
+            {
+              "type": "reward_xp",
+              "amount": 75
+            }
+          ],
+          "failure_outcome": "You search the ruined chambers but find little beyond broken stone and ancient dust.",
+          "failure_consequences": [
+            {
+              "type": "reward_xp",
+              "amount": 20
+            }
+          ]
+        }
+      },
+      {
+        "key": 3,
+        "action": "leave",
+        "label": "Leave the Tomb Tapper Alone",
+        "description": "ESC also cancels - it's underground, and you're not",
+        "color": [150, 150, 150],
+        "is_cancel": true,
+        "outcome": "You leave the ruined tomb behind. Somewhere deep beneath your feet, stone grinds against stone as the Tomb Tapper continues its endless excavation.",
+        "consequences": []
+      }
+    ]
+  }
+}

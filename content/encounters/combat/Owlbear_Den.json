@@ -1,0 +1,353 @@
+
+{
+  "id": "world_encounter_owlbear_den",
+  "min_level": 3,
+  "max_level": 8,
+  "stages": [
+    {
+      "id": "forest_edge",
+      "discovery": "The trail narrows beneath a canopy of old pines, and the undergrowth ahead has been trampled flat. Feathers litter the ground - brown, white, and far too large to belong to any ordinary bird. A deep growl rolls through the trees, followed by a sharp, distressed hoot. Whatever made the sound is nearby, but it doesn't sound like it's hunting.",
+      "landmark_tile": "overworld_forest",
+      "landmark_tile_amount": [6, 10],
+      "choices": [
+        {
+          "key": 1,
+          "action": "advance",
+          "label": "Follow the Feathers",
+          "description": "Follow the trail toward whatever left them behind - Survival check",
+          "color": [255, 180, 120],
+          "check": {
+            "skill": "survival",
+            "dc": 12,
+            "success_outcome": "The feathers form a clear trail through the undergrowth. You spot enormous claw marks in the soil alongside them, but the tracks aren't moving toward you. They lead deeper into the forest, toward the source of the distressed hooting.",
+            "success_consequences": [],
+            "failure_outcome": "The trail is obvious enough to follow, though the overlapping tracks and scattered feathers make it difficult to tell exactly what happened here.",
+            "failure_consequences": []
+          },
+          "next_stage": "den_approach"
+        },
+        {
+          "key": 2,
+          "action": "advance",
+          "label": "Study the Tracks",
+          "description": "Figure out what kind of creature you're dealing with - Nature check",
+          "color": [160, 200, 255],
+          "check": {
+            "skill": "nature",
+            "dc": 11,
+            "success_outcome": "The tracks are unmistakable. An owlbear has been through here, and a large one at that. More interestingly, the tracks show it has been pacing back and forth over the same ground for some time. Something has it agitated.",
+            "success_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 45
+              }
+            ],
+            "failure_outcome": "The tracks are enormous and bear-like, but the talon marks make the creature difficult to identify with certainty. Whatever left them is definitely large.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 10
+              }
+            ]
+          },
+          "next_stage": "den_approach"
+        },
+        {
+          "key": 3,
+          "action": "sneak",
+          "label": "Approach Quietly",
+          "description": "Move through the trees without disturbing whatever is ahead - Stealth check",
+          "color": [170, 210, 255],
+          "sneak_dc": 14,
+          "sneak_success": "You move beneath the trees without snapping a branch or disturbing the brush. The distressed hooting grows louder ahead, but the creature hasn't noticed you.",
+          "sneak_fail": "A branch snaps beneath your foot. The forest goes silent for several seconds before a deep, warning growl answers from somewhere ahead.",
+          "next_stage": "den_approach"
+        },
+        {
+          "key": 4,
+          "action": "ignore",
+          "label": "Keep Walking",
+          "description": "ESC also cancels - whatever made those tracks isn't your problem",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ],
+      "ignore": "You leave the feathers and enormous tracks behind. The distressed hooting fades into the distance as you continue down the trail."
+    },
+    {
+      "id": "den_approach",
+      "discovery": "The trees open into a rocky clearing. An enormous owlbear stands near the mouth of a shallow cave, pacing anxiously between the entrance and a fallen tree. It notices you immediately but doesn't charge. Instead, it turns toward the cave and lets out a low, frustrated cry. Something inside answers with a much smaller hoot.",
+      "landmark_tile": [
+        "overworld_rock",
+        "overworld_forest"
+      ],
+      "landmark_tile_amount": [
+        3,
+        6
+      ],
+      "monster_pool": [
+        "Owlbear"
+      ],
+      "monster_count": [
+        1,
+        1
+      ],
+      "sneak_dc": 15,
+      "sneak_success": "You keep low and move along the edge of the clearing. From here you can see that the owlbear isn't guarding the cave against you - it seems to be trying to reach something inside.",
+      "sneak_fail": "The owlbear's head snaps toward you. It lowers itself defensively, feathers bristling, but it still doesn't attack. Its attention keeps returning to the cave.",
+      "investigate_message": "You step into the clearing, and the owlbear watches every movement with tense, intelligent eyes.",
+      "choices": [
+        {
+          "key": 1,
+          "action": "investigate",
+          "label": "Investigate the Cave",
+          "description": "Find out what the owlbear is trying to reach",
+          "color": [255, 180, 120]
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Calm the Owlbear",
+          "description": "Try to convince the creature you aren't a threat - Animal Handling check",
+          "color": [160, 220, 170],
+          "check": {
+            "skill": "animal_handling",
+            "dc": 14,
+            "success_outcome": "You lower your weapon and give the owlbear space. After a tense moment, it stops growling. Its eyes remain fixed on you, but its posture relaxes enough for you to notice what it keeps looking toward: the cave.",
+            "success_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 75
+              }
+            ],
+            "failure_outcome": "The owlbear isn't convinced. It stamps one enormous foot and lets out a warning roar. You don't get the impression it's eager to fight, but pushing closer would be a bad idea.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 15
+              }
+            ]
+          }
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Look for Another Entrance",
+          "description": "Circle the clearing and search the rocks for a way into the cave - Perception check",
+          "color": [160, 200, 255],
+          "check": {
+            "skill": "perception",
+            "dc": 13,
+            "success_outcome": "Behind a curtain of roots, you discover a narrow opening leading into the rear of the cave. It's cramped, but large enough for a person to squeeze through.",
+            "success_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 60
+              }
+            ],
+            "failure_outcome": "The cave is surrounded by tangled roots and loose stone. You can't find another way inside without disturbing the owlbear.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 10
+              }
+            ]
+          }
+        },
+        {
+          "key": 4,
+          "action": "ignore",
+          "label": "Back Away",
+          "description": "ESC also cancels - whatever is happening, you're not getting involved",
+          "color": [150, 150, 150],
+          "is_cancel": true
+        }
+      ]
+    },
+    {
+      "id": "den_inside",
+      "discovery": "The cave smells of feathers, damp earth, and old meat. A nest of branches and shredded hide fills the back of the chamber. Inside it, a young owlbear is tangled in a hunter's iron snare, one leg badly bruised from struggling against it. The adult owlbear stands outside the cave, watching you through the entrance. It could tear you apart, but instead it waits.",
+      "landmark_tile": "overworld_cave",
+      "landmark_tile_amount": [1, 1],
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Free the Cub",
+          "description": "Carefully release the young owlbear from the snare - Sleight of Hand check",
+          "color": [170, 220, 170],
+          "check": {
+            "skill": "sleight_of_hand",
+            "dc": 13,
+            "success_outcome": "You carefully work the iron jaws apart and free the cub without worsening its injury. The young owlbear scrambles back toward the mouth of the cave. The adult immediately nudges its cub with its beak, checking it over before looking back at you.",
+            "success_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 150
+              }
+            ],
+            "failure_outcome": "The snare is rusted and tightly wound around the cub's leg. You can't safely open it without risking further injury.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 30
+              }
+            ]
+          }
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Force the Snare Open",
+          "description": "Use brute strength to break the trap without getting too close - Athletics check",
+          "color": [255, 200, 140],
+          "check": {
+            "skill": "athletics",
+            "dc": 15,
+            "success_outcome": "You brace the trap against the cave floor and wrench the iron jaws apart. The cub pulls its leg free and retreats toward its mother. The broken trap clatters across the stone.",
+            "success_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 125
+              }
+            ],
+            "failure_outcome": "The trap refuses to give. Your attempt only makes the metal groan, and the cub cries out. You stop before making the injury worse.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 25
+              }
+            ]
+          }
+        },
+        {
+          "key": 3,
+          "action": "resolve",
+          "label": "Examine the Trap",
+          "description": "Determine who set it and whether there are more nearby - Investigation check",
+          "color": [190, 190, 240],
+          "check": {
+            "skill": "investigation",
+            "dc": 12,
+            "success_outcome": "The trap is a crude hunter's snare, but the workmanship is recent. You find a distinctive maker's mark stamped into the metal. Whoever set this trap may have placed others nearby.",
+            "success_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 90
+              }
+            ],
+            "failure_outcome": "The trap is too rusted and dirty to identify its maker. It looks like something a local hunter might have left behind.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 20
+              }
+            ]
+          }
+        },
+        {
+          "key": 4,
+          "action": "resolve",
+          "label": "Leave the Cub",
+          "description": "You don't want to risk approaching a wild owlbear cub",
+          "color": [150, 150, 150],
+          "outcome": "You decide the danger is too great. The adult owlbear watches you retreat, then turns its attention back to the trapped cub.",
+          "consequences": [
+            {
+              "type": "reward_xp",
+              "amount": 20
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "victim": "owlbear_cub",
+  "victim_count": [
+    1,
+    1
+  ],
+  "victim_data": {
+    "char": "obc",
+    "color": [
+      190,
+      175,
+      150
+    ],
+    "names": [
+      "Owlbear Cub"
+    ],
+    "dialogue": "A frightened, high-pitched hoot comes from the nest as the cub struggles against the iron snare.",
+    "thanks": [
+      "The cub limps back toward its mother, who watches you carefully but does not attack."
+    ],
+    "after": [
+      "The adult owlbear lowers its head to the cub. After a long moment, both disappear into the darkness of the den."
+    ]
+  },
+  "scar_tag": "world_encounter_owlbear_den",
+  "reward_xp": 150,
+  "reward_gold": 8,
+  "reputation_faction": "northfield",
+  "reputation_delta": 4,
+  "ignored_reputation_delta": -2,
+  "aftermath": {
+    "discovery": "The broken snare lies in the clearing, its rusted jaws twisted open. The owlbear and its cub remain somewhere inside the den, but the forest has gone quiet again.",
+    "choices": [
+      {
+        "key": 1,
+        "action": "search_traps",
+        "label": "Search for More Snares",
+        "description": "Make sure no other animals are caught nearby - Survival check",
+        "color": [255, 200, 140],
+        "check": {
+          "skill": "survival",
+          "dc": 13,
+          "success_outcome": "You find two more traps hidden along the trails leading to the den. You dismantle both before anything else can be caught in them.",
+          "success_consequences": [
+            {
+              "type": "reward_xp",
+              "amount": 80
+            },
+            {
+              "type": "modify_reputation",
+              "faction": "northfield",
+              "delta": 2
+            }
+          ],
+          "failure_outcome": "You search the surrounding trails but find no obvious traps. If there are more, they've been hidden well.",
+          "failure_consequences": [
+            {
+              "type": "reward_xp",
+              "amount": 20
+            }
+          ]
+        }
+      },
+      {
+        "key": 2,
+        "action": "investigate",
+        "label": "Study the Hunter's Mark",
+        "description": "Remember the trap's maker and look into who set it",
+        "color": [160, 200, 255],
+        "outcome": "You memorize the distinctive mark stamped into the iron. If another trap bearing the same mark turns up, you'll know who made it.",
+        "consequences": [
+          {
+            "type": "reward_xp",
+            "amount": 45
+          }
+        ]
+      },
+      {
+        "key": 3,
+        "action": "leave",
+        "label": "Leave the Owlbears in Peace",
+        "description": "ESC also cancels - the family is safe for now",
+        "color": [150, 150, 150],
+        "is_cancel": true,
+        "outcome": "You leave the den behind. From somewhere deep within the cave comes one final, quiet hoot before the forest falls silent.",
+        "consequences": []
+      }
+    ]
+  }
+}

@@ -1,0 +1,143 @@
+{
+  "id": "world_encounter_dragon_bones",
+  "min_level": 1,
+  "max_level": 10,
+  "stages": [
+    {
+      "discovery": "A massive skeleton lies half-buried beneath the earth ahead, its ribs rising from the ground like the frame of some ancient ruin. A long, horned skull rests among the stones, its empty jaws still pointed toward the sky. Most of the bones are weathered and cracked with age, but one section of the ribcage looks different - several enormous ribs have been shattered inward, as though something struck the dragon with tremendous force. Whatever killed the creature, it happened here.",
+      "landmark_structure": "dragon_bones",
+      "min_distance": 5,
+      "search_radius": 8,
+      "choices": [
+        {
+          "key": 1,
+          "action": "resolve",
+          "label": "Examine the Ribcage",
+          "description": "Study the damage to determine what killed the dragon - Investigation check",
+          "color": [230, 180, 120],
+          "check": {
+            "skill": "investigation",
+            "dc": 12,
+            "success_outcome": "The shattered ribs tell a grim story. The damage is concentrated around a single point, and the fractures radiate outward in a pattern consistent with one devastating impact. Whatever struck the dragon was heavy, blunt, and powerful enough to break through its armored hide and crush the bones beneath. Something is still lodged deeper inside the ribcage.",
+            "success_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 100
+              }
+            ],
+            "failure_outcome": "The ancient bones have suffered too much from weather and time to make out exactly what caused the damage. Still, several ribs appear to have been broken by a tremendous impact rather than ordinary decay.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 20
+              }
+            ]
+          }
+        },
+        {
+          "key": 2,
+          "action": "resolve",
+          "label": "Pull at the Buried Weapon",
+          "description": "Something metallic is wedged beneath the dragon's ribs - Athletics check",
+          "color": [210, 180, 160],
+          "check": {
+            "skill": "athletics",
+            "dc": 14,
+            "success_outcome": "With a hard pull, you wrench a battered warhammer free from beneath the dragon's ribs. The weapon is stained dark with age, but its head remains remarkably intact. A faint engraving along the haft reads: Dragonsbane. The hammer must have been driven into the dragon with enough force to shatter several ribs at once.",
+            "success_consequences": [
+              {
+                "type": "give_item",
+                "item_id": "dragonsbane_warhammer",
+                "count": 1
+              },
+              {
+                "type": "reward_xp",
+                "amount": 150
+              }
+            ],
+            "failure_outcome": "The weapon is firmly wedged beneath the ancient ribs. You manage to shift it slightly, but the bones groan dangerously and you decide not to risk bringing the whole skeleton down around you.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 30
+              }
+            ]
+          }
+        },
+        {
+          "key": 3,
+          "action": "Search the Dragon's Skull",
+          "description": "Look for clues about the creature and its final moments - Perception check",
+          "color": [160, 200, 255],
+          "check": {
+            "skill": "perception",
+            "dc": 13,
+            "success_outcome": "Among the teeth and fragments of bone, you find traces of old blackened residue. Whatever the dragon was fighting before its death left its mark, but there are no signs of another creature's remains nearby. The evidence suggests the dragon's killer stood beneath it, striking upward into its chest.",
+            "success_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 90
+              }
+            ],
+            "failure_outcome": "You find nothing among the skull that gives a clear answer. The dragon's final moments remain lost to time.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 20
+              }
+            ]
+          }
+        },
+        {
+          "key": 4,
+          "action": "resolve",
+          "label": "Search the Ground Around the Skeleton",
+          "description": "Look for signs of whoever fought the dragon - Survival check",
+          "color": [170, 220, 170],
+          "check": {
+            "skill": "survival",
+            "dc": 14,
+            "success_outcome": "Beneath years of soil and fallen leaves, you uncover the faint remains of a set of human-sized footprints surrounding the dragon's final resting place. They lead away from the skeleton and eventually disappear. Whoever killed the dragon survived the battle - and took nothing from the corpse except the weapon now buried between its ribs.",
+            "success_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 120
+              }
+            ],
+            "failure_outcome": "Whatever tracks were left here have been erased by decades of weather. You find no reliable trail leading away from the skeleton.",
+            "failure_consequences": [
+              {
+                "type": "reward_xp",
+                "amount": 25
+              }
+            ]
+          }
+        },
+        {
+          "key": 5,
+          "action": "resolve",
+          "label": "Pay Your Respects",
+          "description": "Leave the ancient remains undisturbed",
+          "color": [190, 170, 220],
+          "outcome": "You take a moment to acknowledge the creature that once ruled these lands. The dragon has been dead for generations, but its enormous bones still command a strange kind of respect.",
+          "consequences": [
+            {
+              "type": "reward_xp",
+              "amount": 50
+            }
+          ]
+        },
+        {
+          "key": 6,
+          "action": "resolve",
+          "label": "Leave the Bones Alone",
+          "description": "ESC also cancels - some remains are better left undisturbed",
+          "color": [150, 150, 150],
+          "is_cancel": true,
+          "outcome": "You leave the ancient skeleton where you found it, its bones slowly disappearing beneath the earth as they have for countless years.",
+          "consequences": []
+        }
+      ]
+    }
+  ]
+}
