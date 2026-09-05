@@ -39,6 +39,11 @@ class AI_State(Enum):
     DESPERATE_FIGHT = 3
     INVESTIGATE = 4
     KITING = 5
+    # Idle, undirected movement -- an AGGRESSIVE monster that hasn't
+    # detected the player yet, or a PASSIVE/NEUTRAL monster that never
+    # will on its own (see Disposition below), drifting around its own
+    # spawn point via Monster.patrol() instead of standing frozen.
+    WANDERING = 6
 
 
 class Disposition(Enum):
@@ -173,6 +178,10 @@ class Monster:
     def __init__(self, x, y, char, name, color):
         self.x = x
         self.y = y
+        # Anchor point patrol()/wandering leashes back to -- see
+        # patrol_radius below. Set once, at spawn; never moved afterward.
+        self.spawn_x = x
+        self.spawn_y = y
         self.char = char
         self.name = name
         self.color = color
@@ -217,6 +226,9 @@ class Monster:
         # group AGGRESSIVE at once, not just the monster actually struck.
         self.group_id = None
 
+        # How far patrol()'s idle wandering is allowed to drift from
+        # (spawn_x, spawn_y) before it starts steering back home instead
+        # of picking a further step.
         self.patrol_radius = 12
         self.investigate_turns_left = 4  # Turns left to investigate
         self.investigate_search_radius = 3  # Radius around last known position to search
@@ -480,13 +492,27 @@ class Monster:
             return
 
         possible_moves = []
+        homeward_moves = []
         for dx in [-1, 0, 1]:
             for dy in [-1, 0, 1]:
                 if dx == 0 and dy == 0:
                     continue
                 new_x, new_y = self.x + dx, self.y + dy
-                if self.can_occupy_position(new_x, new_y, game_map, game.entities, exclusions=[self]):
+                if not self.can_occupy_position(new_x, new_y, game_map, game.entities, exclusions=[self]):
+                    continue
+
+                home_distance = max(abs(new_x - self.spawn_x), abs(new_y - self.spawn_y))
+                if home_distance <= self.patrol_radius:
                     possible_moves.append((new_x, new_y))
+                else:
+                    homeward_moves.append((home_distance, (new_x, new_y)))
+
+        # Already at (or past) patrol_radius and every step forward would
+        # only wander further -- take whichever available step brings it
+        # back closest to spawn instead of standing still.
+        if not possible_moves and homeward_moves:
+            homeward_moves.sort(key=lambda entry: entry[0])
+            possible_moves = [homeward_moves[0][1]]
 
         if possible_moves:
             target_x, target_y = random.choice(possible_moves)
@@ -1368,15 +1394,20 @@ class Monster:
 
         # PASSIVE/NEUTRAL monsters (see the Disposition docstring near the
         # top of this file) never detect, target, or chase anything on
-        # their own -- they just stand/wander undisturbed until provoke()
-        # (called from take_damage() the instant they're hit) permanently
-        # flips them to AGGRESSIVE, at which point this check stops
-        # short-circuiting and every turn from then on runs the normal AI
-        # below exactly like any other monster. Status effects above still
-        # process regardless (a passive creature that wandered onto a fire
-        # tile still burns), since disposition only governs whether *this*
-        # monster initiates anything against the player.
+        # their own -- they just wander undisturbed (see AI_State.WANDERING/
+        # patrol()) until provoke() (called from take_damage() the instant
+        # they're hit) permanently flips them to AGGRESSIVE, at which point
+        # this check stops short-circuiting and every turn from then on
+        # runs the normal AI below exactly like any other monster. Status
+        # effects above still process regardless (a passive creature that
+        # wandered onto a fire tile still burns), since disposition only
+        # governs whether *this* monster initiates anything against the
+        # player. Only active monsters wander -- an inactive/asleep one
+        # (see is_active/encounter_group) stays put until woken.
         if self.disposition != Disposition.AGGRESSIVE:
+            if self.is_active:
+                self.ai_state = AI_State.WANDERING
+                self.patrol(game_map, game)
             return
 
         # Attack whoever is actually nearest -- the player or any of

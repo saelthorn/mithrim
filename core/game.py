@@ -1148,12 +1148,13 @@ class Game:
     # encounter_stage() and Disposition's own docstring. Lets a scenario
     # like Centaur_Crossing.json spawn its monster_pool PASSIVE/NEUTRAL
     # (territorial, not hostile on sight) instead of every world-encounter
-    # monster defaulting to AGGRESSIVE. A PASSIVE/NEUTRAL monster does
-    # nothing at all -- no chasing, no Opportunity Attack -- until the
-    # player actually attacks one, at which point Monster.provoke() makes
-    # that monster (and, via _alert_group(), every other living monster
-    # sharing its group_id) AGGRESSIVE, and the "Opportunity Attack Check"
-    # in try_move_player() starts applying to them from then on.
+    # monster defaulting to AGGRESSIVE. A PASSIVE/NEUTRAL monster only
+    # wanders (see AI_State.WANDERING/Monster.patrol()) -- no detection, no
+    # chasing, no Opportunity Attack -- until the player actually attacks
+    # one, at which point Monster.provoke() makes that monster (and, via
+    # _alert_group(), every other living monster sharing its group_id)
+    # AGGRESSIVE, and the "Opportunity Attack Check" in try_move_player()
+    # starts applying to them from then on.
     WORLD_ENCOUNTER_DISPOSITIONS = {
         "aggressive": Disposition.AGGRESSIVE,
         "passive": Disposition.PASSIVE,
@@ -7950,8 +7951,8 @@ class Game:
                 # Skip anything not currently AGGRESSIVE (see Disposition in
                 # entities/monster.py): a PASSIVE/NEUTRAL monster -- e.g. a
                 # Centaur_Crossing.json band spawned via WORLD_ENCOUNTER_
-                # DISPOSITIONS -- does nothing at all until the player
-                # actually attacks one of its members. Monster.provoke()
+                # DISPOSITIONS -- only wanders and never fights until the
+                # player actually attacks one of its members. Monster.provoke()
                 # flips the attacker's disposition to AGGRESSIVE (and, via
                 # _alert_group(), every other living monster sharing its
                 # group_id) the instant that happens, so the very next time
