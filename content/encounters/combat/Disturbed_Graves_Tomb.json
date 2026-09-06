@@ -154,7 +154,7 @@
         },
         {
           "key": 3,
-          "action": "search",
+          "action": "resolve",
           "label": "Search the Tomb",
           "description": "Look through the disturbed burial chambers for anything the creature missed - Perception check",
           "color": [190, 200, 150],
@@ -351,7 +351,7 @@
       },
       {
         "key": 2,
-        "action": "search",
+        "action": "advance",
         "label": "Search the Ruins",
         "description": "Look through the damage left behind by the Tomb Tapper - Investigation check",
         "color": [160, 200, 255],

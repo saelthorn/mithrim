@@ -44,6 +44,10 @@ class AI_State(Enum):
     # will on its own (see Disposition below), drifting around its own
     # spawn point via Monster.patrol() instead of standing frozen.
     WANDERING = 6
+    # PASSIVE-only (see Disposition.PASSIVE and the "-- socializing --"
+    # section near Monster.take_turn()): paused near another PASSIVE
+    # member of the same group_id for a short, purely cosmetic chat.
+    SOCIALIZING = 7
 
 
 class Disposition(Enum):
@@ -62,6 +66,8 @@ class Disposition(Enum):
         lands a hit (see Monster.provoke(), called from take_damage()).
         A myconid grove or centaur band the player can walk straight
         past, or straight up to, without a fight starting on its own.
+        The only disposition that ever socializes with its own kind --
+        see the "-- socializing --" section near Monster.take_turn().
       - NEUTRAL: behaves identically to PASSIVE for now (ignores the
         player until struck). Kept as its own value, rather than
         reusing PASSIVE, so content can label "wary but not fleeing"
@@ -175,6 +181,29 @@ DIALOGUE_FALLBACK_BESTIAL = [
 
 
 class Monster:
+    # -- socializing (PASSIVE disposition only -- see the "-- socializing
+    # --" section near take_turn()) --
+    #: Per-wander-step odds that a WANDERING, PASSIVE monster notices a
+    #: fellow PASSIVE group-mate to approach -- see _try_start_socializing().
+    SOCIALIZE_CHANCE = 0.12
+    #: How far away (Chebyshev tiles) a PASSIVE monster can notice a
+    #: group-mate worth approaching.
+    SOCIALIZE_RADIUS = 6
+    #: (min, max) turns a "conversation" lasts once both are together.
+    SOCIALIZE_DURATION = (5, 12)
+    #: (min, max) turns a monster waits after socializing before it will
+    #: start or accept another one, so the same pair doesn't immediately
+    #: re-pair the moment they part ways.
+    SOCIALIZE_COOLDOWN = (30, 60)
+    #: Give up on an unreachable/blocked partner after this many turns of
+    #: travel rather than chasing them forever.
+    SOCIALIZE_TRAVEL_TIMEOUT = 30
+    #: Purely cosmetic: how often (in turns) an ongoing "conversation"
+    #: re-spawns its "..." floating text.
+    CHAT_BUBBLE_INTERVAL = 5
+    CHAT_BUBBLE_TEXT = "..."
+    CHAT_BUBBLE_COLOR = (190, 190, 230)
+
     def __init__(self, x, y, char, name, color):
         self.x = x
         self.y = y
@@ -233,6 +262,26 @@ class Monster:
         self.investigate_turns_left = 4  # Turns left to investigate
         self.investigate_search_radius = 3  # Radius around last known position to search
         self.ai_state = AI_State.PATROLLING if hasattr(self, 'ai_state') else AI_State.CHASING  # Default state
+
+        # -- socializing (PASSIVE disposition only -- see the "--
+        # socializing --" section near take_turn()) --
+        # The other PASSIVE Monster we're currently approaching or
+        # "talking" with, or None if we're not involved right now.
+        self._social_partner = None
+        # "initiator" (the one who noticed the partner and set off) or
+        # "partner" (the one who got approached). Only the initiator
+        # drives the shared countdown in _advance_socializing().
+        self._social_role = None
+        # Turns left in the current conversation. Stays 0 for a
+        # "partner" who's been reserved but not yet joined.
+        self._social_turns_remaining = 0
+        # Turns spent approaching a partner so far, for
+        # SOCIALIZE_TRAVEL_TIMEOUT above.
+        self._social_travel_turns = 0
+        # Turns left before this monster will start or accept another
+        # conversation -- ticked down once per take_turn() regardless
+        # of ai_state.
+        self._social_cooldown = 0
 
         # Rendering/footprint attributes
         # footprint_size represents how many tiles on a side this entity occupies (1 = 1x1)
@@ -517,6 +566,222 @@ class Monster:
         if possible_moves:
             target_x, target_y = random.choice(possible_moves)
             self.move_towards(target_x, target_y, game_map, game)
+
+    # -- socializing (PASSIVE disposition only) --------------------------
+    #
+    #   WANDERING -> notice nearby PASSIVE group-mate -> decide to socialize
+    #       -> approach them -> SOCIALIZING -> conversation ends -> WANDERING
+    #
+    # Mirrors entities/town_npcs.py's TownNPC socializing flow, scaled down
+    # to fit take_turn()'s much simpler PASSIVE/NEUTRAL branch (no daily
+    # schedule to reconcile against -- just "wander" vs. "socialize").
+    # Deliberately gated on Disposition.PASSIVE specifically, never
+    # NEUTRAL or AGGRESSIVE: see the Disposition docstring near the top of
+    # this file. The initiator drives the whole thing (finds a partner,
+    # approaches, starts and ends the shared countdown); the partner is a
+    # passive participant that simply stops wandering and waits once
+    # invited, then resumes wandering the instant the initiator ends the
+    # conversation.
+
+    def _idle_undisturbed(self, game_map, game):
+        """
+        Called every turn from take_turn() for an active PASSIVE/NEUTRAL
+        monster: routes to whichever step its current socializing phase
+        (if any) needs, or falls back to ordinary patrol()-driven
+        wandering. Only Disposition.PASSIVE monsters ever reach the
+        socializing branches -- NEUTRAL always just patrols.
+        """
+        if self.ai_state == AI_State.SOCIALIZING:
+            self._advance_socializing(game)
+            return
+
+        if self._social_cooldown > 0:
+            self._social_cooldown -= 1
+
+        if self._social_partner is not None:
+            self._advance_social_travel(game_map, game)
+            return
+
+        self.ai_state = AI_State.WANDERING
+        if self.disposition != Disposition.PASSIVE or not self._try_start_socializing(game):
+            self.patrol(game_map, game)
+
+    def _try_start_socializing(self, game):
+        """
+        Called on a WANDERING, PASSIVE monster's turn, before it takes
+        its usual patrol() step. Occasionally notices a nearby, equally
+        free group-mate and sets off toward them instead. Returns True if
+        a conversation was just kicked off, so _idle_undisturbed() knows
+        to skip this turn's patrol() step.
+        """
+        if self._social_cooldown > 0:
+            return False
+        if random.random() > self.SOCIALIZE_CHANCE:
+            return False
+
+        partner = self._find_social_partner(game)
+        if partner is None:
+            return False
+
+        self._begin_social_travel(partner)
+        partner._accept_social_invite(self)
+        return True
+
+    def _find_social_partner(self, game):
+        """
+        Nearest other living, PASSIVE Monster sharing this one's
+        `group_id` (never None -- a lone spawn has no group-mates to
+        socialize with), currently WANDERING and not already tied up
+        with someone else, within SOCIALIZE_RADIUS tiles.
+        """
+        if not self.group_id:
+            return None
+
+        best, best_distance = None, self.SOCIALIZE_RADIUS + 1
+        for entity in getattr(game, "entities", ()):
+            if entity is self or not isinstance(entity, Monster):
+                continue
+            if (
+                not entity.alive
+                or entity.disposition != Disposition.PASSIVE
+                or entity.group_id != self.group_id
+                or entity.ai_state != AI_State.WANDERING
+                or entity._social_partner is not None
+                or entity._social_cooldown > 0
+            ):
+                continue
+            distance = self.distance_to(entity.x, entity.y)
+            if distance <= self.SOCIALIZE_RADIUS and distance < best_distance:
+                best, best_distance = entity, distance
+        return best
+
+    def _begin_social_travel(self, partner):
+        """Commit to approaching `partner` for a chat."""
+        self._social_partner = partner
+        self._social_role = "initiator"
+        self._social_travel_turns = 0
+
+    def _accept_social_invite(self, initiator):
+        """
+        Called directly by the initiator the moment they set off toward
+        us, so we stop wandering away from underneath them immediately
+        rather than one turn late. `_social_turns_remaining` stays 0 --
+        the conversation clock only starts once they physically arrive,
+        in _start_conversation().
+        """
+        self._social_partner = initiator
+        self._social_role = "partner"
+        self.ai_state = AI_State.SOCIALIZING
+        self._social_turns_remaining = 0
+
+    def _advance_social_travel(self, game_map, game):
+        """One step of approaching a partner we're not adjacent to yet."""
+        partner = self._social_partner
+        if partner is None or not partner.alive or partner._social_partner is not self:
+            self._cancel_social()
+            return
+
+        self._social_travel_turns += 1
+        if self._social_travel_turns > self.SOCIALIZE_TRAVEL_TIMEOUT:
+            self._cancel_social()
+            return
+
+        if self.distance_to(partner.x, partner.y) <= 1:
+            self._start_conversation(partner, game)
+            return
+
+        self.move_towards(partner.x, partner.y, game_map, game)
+
+    def _start_conversation(self, partner, game):
+        """We've arrived next to our partner -- both settle into
+        SOCIALIZING for the same randomly-rolled duration."""
+        low, high = self.SOCIALIZE_DURATION
+        duration = random.randint(low, high)
+
+        self.ai_state = AI_State.SOCIALIZING
+        self._social_turns_remaining = duration
+
+        partner.ai_state = AI_State.SOCIALIZING
+        partner._social_turns_remaining = duration
+
+        self._spawn_chat_bubble(game, partner)
+
+    def _advance_socializing(self, game):
+        """
+        One turn of an ongoing "conversation". Only the initiator counts
+        down and ends it -- the partner just waits for the initiator to
+        call `_end_social()` on it directly, so the two never drift a
+        turn apart if one of them got skipped a turn (e.g. game.py's
+        10-tile turn-processing radius check).
+        """
+        if self._social_role != "initiator":
+            partner = self._social_partner
+            if partner is None or not partner.alive or partner._social_partner is not self:
+                self._cancel_social()
+            return
+
+        self._social_turns_remaining -= 1
+        if self._social_turns_remaining <= 0:
+            partner = self._social_partner
+            self._end_social()
+            if partner is not None:
+                partner._end_social()
+            return
+
+        if self._social_turns_remaining % self.CHAT_BUBBLE_INTERVAL == 0:
+            self._spawn_chat_bubble(game, self._social_partner)
+
+    def _spawn_chat_bubble(self, game, partner):
+        """Purely cosmetic "..." over both participants so the player can
+        tell at a glance two monsters are mid-conversation."""
+        floating_texts = getattr(game, "floating_texts", None)
+        if floating_texts is None:
+            return
+        for participant in (self, partner):
+            if participant is None:
+                continue
+            floating_texts.append(
+                FloatingText(
+                    participant.x, participant.y - 0.5,
+                    self.CHAT_BUBBLE_TEXT, self.CHAT_BUBBLE_COLOR,
+                )
+            )
+
+    def _end_social(self):
+        """A conversation ran its full course. Land back on WANDERING and
+        start our post-chat cooldown."""
+        self._social_partner = None
+        self._social_role = None
+        self._social_turns_remaining = 0
+        self._social_travel_turns = 0
+        self._social_cooldown = random.randint(*self.SOCIALIZE_COOLDOWN)
+        self.ai_state = AI_State.WANDERING
+
+    def _cancel_social(self):
+        """
+        Abandon an in-progress invite/approach -- our partner died,
+        wandered out of reach, got claimed by someone else, or either of
+        us just got provoked into AGGRESSIVE (see provoke()/_alert_group()).
+        Unlike _end_social(), this skips SOCIALIZE_COOLDOWN: we never
+        actually talked, so there's no reason to make either of us wait
+        before trying again. Also unwinds the other side of the invite,
+        if they still think they're paired with us.
+        """
+        partner = self._social_partner
+        self._social_partner = None
+        self._social_role = None
+        self._social_turns_remaining = 0
+        self._social_travel_turns = 0
+        if self.ai_state == AI_State.SOCIALIZING:
+            self.ai_state = AI_State.WANDERING
+
+        if partner is not None and partner._social_partner is self:
+            partner._social_partner = None
+            partner._social_role = None
+            partner._social_turns_remaining = 0
+            partner._social_travel_turns = 0
+            if partner.ai_state == AI_State.SOCIALIZING:
+                partner.ai_state = AI_State.WANDERING
 
     def _approach_tile_near(self, target_entity, game_map, game):
         """
@@ -1079,9 +1344,11 @@ class Monster:
         was_provoked = self.disposition != Disposition.AGGRESSIVE
         self.disposition = Disposition.AGGRESSIVE
         self.is_active = True
-        if was_provoked and game_instance:
-            game_instance.message_log.add_message(f"The {self.name} turns on you!", (255, 100, 100))
-            self._alert_group(game_instance)
+        if was_provoked:
+            self._cancel_social()
+            if game_instance:
+                game_instance.message_log.add_message(f"The {self.name} turns on you!", (255, 100, 100))
+                self._alert_group(game_instance)
 
     def _alert_group(self, game_instance):
         """
@@ -1107,6 +1374,7 @@ class Monster:
 
             entity.disposition = Disposition.AGGRESSIVE
             entity.is_active = True
+            entity._cancel_social()
             entity.last_known_player_position = self.last_known_player_position
             entity.ai_state = AI_State.CHASING
             alerted_any = True
@@ -1406,8 +1674,7 @@ class Monster:
         # (see is_active/encounter_group) stays put until woken.
         if self.disposition != Disposition.AGGRESSIVE:
             if self.is_active:
-                self.ai_state = AI_State.WANDERING
-                self.patrol(game_map, game)
+                self._idle_undisturbed(game_map, game)
             return
 
         # Attack whoever is actually nearest -- the player or any of

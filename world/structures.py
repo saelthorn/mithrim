@@ -12,7 +12,7 @@ from world.tile import (
     table, crate, tavern_barrel_two, altar, door, forge, anvil, shelf, bed, hay, bar_counter, bar_counter_five, bar_counter_six,
     shelf_three, bar_counter, shelf_two, tavern_barrel, tavern_crate, cob_web, wood_plank, tavern_floor, ladder, tavern_cobweb,
     window, flower_field, meadow, barrel, tent, campfire, giant_tree, fence, fence_gate, banner, washed_boat, sail_left, sail, 
-    sail_right, overworld_cobweb,
+    sail_right, overworld_cobweb, dragon_skull, dragon_skeleton, dragon_tail, tree, mountain
 )
 
 
@@ -514,7 +514,7 @@ STRUCTURE_BLUEPRINTS = {
         [
             "         ",
             " ####### ",
-            " #   * + ",
+            " #   *   ",
             " #*#+#+# ",
             " # #*# # ",
             " ####### ",
@@ -544,6 +544,44 @@ STRUCTURE_BLUEPRINTS = {
         description="An abandoned campsite.",
         item_map={"e": _spawn_indoor_chest, "p": _spawn_book("tattered_journal")},
         destroyed_tile=ground,        
+    ),
+
+    "dragon_bones": build_blueprint(
+        "dragon_bones",
+        "Dragon Bones",
+        [
+            "i  i  ",
+            " s  l ",
+            "  d  l",
+            "l   t ",
+            " l  i ",
+        ],
+        {"s": dragon_skeleton, "d": dragon_skull, "t": dragon_tail, "i": giant_tree, "l": tree},
+        walkable_chars={".", "s", "d", "t"},
+        description="The remains of a long-dead dragon.",
+        item_map={"s": _spawn_indoor_chest, "d": _spawn_book("dragon_treatise")},
+        destroyed_tile=ground,
+    ),
+
+    "owlbear_den": build_blueprint(
+        "owlbear_den",
+        "Owlbear Den",
+        [
+            "     ######     ",
+            "   ####   ###   ",
+            "  ##       ###  ",
+            " ##         ### ",
+            " ###        ### ",
+            " ###       ###  ",
+            "  ###    ###    ",
+            "    ##  ##      ",
+        ],
+        {" ": ground, "#": mountain},
+        walkable_chars={".", " "},
+        description="A den used by an owlbear.",
+        item_map={},
+        npc_map={"c": _spawn_villager},
+        destroyed_tile=ground,
     ),
 
 }

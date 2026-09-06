@@ -216,11 +216,7 @@
         "action": "escort",
         "label": "Escort Them to Town",
         "description": "Walk them back to Northfield to recover",
-        "color": [
-          255,
-          200,
-          140
-        ],
+        "color": [255, 200, 140],
         "outcome": "You walk them clear of the webs and back to Northfield. The innkeeper sits them by the fire and presses a little coin into your hand for the trouble.",
         "hours": 0,
         "escort": true,

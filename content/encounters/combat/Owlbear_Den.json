@@ -7,7 +7,7 @@
     {
       "id": "forest_edge",
       "discovery": "The trail narrows beneath a canopy of old pines, and the undergrowth ahead has been trampled flat. Feathers litter the ground - brown, white, and far too large to belong to any ordinary bird. A deep growl rolls through the trees, followed by a sharp, distressed hoot. Whatever made the sound is nearby, but it doesn't sound like it's hunting.",
-      "landmark_tile": "overworld_forest",
+      "landmark_tile": "tree",
       "landmark_tile_amount": [6, 10],
       "choices": [
         {
@@ -78,8 +78,9 @@
       "id": "den_approach",
       "discovery": "The trees open into a rocky clearing. An enormous owlbear stands near the mouth of a shallow cave, pacing anxiously between the entrance and a fallen tree. It notices you immediately but doesn't charge. Instead, it turns toward the cave and lets out a low, frustrated cry. Something inside answers with a much smaller hoot.",
       "landmark_tile": [
-        "overworld_rock",
-        "overworld_forest"
+        "rock_formation",
+        "tree",
+        "giant_tree"
       ],
       "landmark_tile_amount": [
         3,
@@ -106,7 +107,7 @@
         },
         {
           "key": 2,
-          "action": "resolve",
+          "action": "advance",
           "label": "Calm the Owlbear",
           "description": "Try to convince the creature you aren't a threat - Animal Handling check",
           "color": [160, 220, 170],
@@ -131,7 +132,7 @@
         },
         {
           "key": 3,
-          "action": "resolve",
+          "action": "advance",
           "label": "Look for Another Entrance",
           "description": "Circle the clearing and search the rocks for a way into the cave - Perception check",
           "color": [160, 200, 255],
@@ -167,7 +168,7 @@
     {
       "id": "den_inside",
       "discovery": "The cave smells of feathers, damp earth, and old meat. A nest of branches and shredded hide fills the back of the chamber. Inside it, a young owlbear is tangled in a hunter's iron snare, one leg badly bruised from struggling against it. The adult owlbear stands outside the cave, watching you through the entrance. It could tear you apart, but instead it waits.",
-      "landmark_tile": "overworld_cave",
+      "landmark_tile": "owlbear_den",
       "landmark_tile_amount": [1, 1],
       "choices": [
         {

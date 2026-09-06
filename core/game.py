@@ -416,7 +416,7 @@ from items.items import (
     bread, mushroom, CampfireKit, torch, padded_armor, studded_leather_armor, chainmail_armor, half_plate_armor, robes, 
     iron_dagger, silver_dagger, iron_short_sword, bronze_short_sword, iron_long_sword, steel_long_sword, oak_staff, 
     apprentices_staff, pole_arm, steel_battle_axe, steel_rapier, iron_hammer, steel_maul, steel_mace, dwarven_flail, 
-    round_shield, kite_shield, tower_shield,
+    round_shield, kite_shield, tower_shield, dragonsbane_warhammer,
     Helmet, Boots, FocusItem,
     leather_cap, iron_helmet, steel_helmet, great_helm, mages_circlet, hood_of_shadows,
     leather_boots, iron_greaves, boots_of_speed, boots_of_stealth, dwarven_stompers,
@@ -1137,6 +1137,8 @@ class Game:
         "LizardfolkArcher": LizardfolkArcher,
         "Wererat": Wererat,
         "Troll": Troll,
+        "TombTapper": TombTapper,
+        "Owlbear": Owlbear,
         "Centaur": Centaur,
         "CentaurArcher": CentaurArcher,
         "MyconidSprout": MyconidSprout,
@@ -1217,6 +1219,7 @@ class Game:
         "boots_of_speed": boots_of_speed,
         "boots_of_stealth": boots_of_stealth,
         "dwarven_stompers": dwarven_stompers,
+        "dragonsbane_warhammer": dragonsbane_warhammer,
     }
 
     # A world encounter's JSON may declare a "landmark_tile" (e.g.
@@ -1712,13 +1715,33 @@ class Game:
         is for the discovery "choices", since a bad aftermath block
         should just be skipped rather than forcing an unrelated decision
         on the player.
+
+        Like a "resolve"/"advance" choice (see _normalize_world_encounter_
+        choices()), an aftermath choice may declare a "check" block
+        instead of (or alongside) its own flat "outcome"/"consequences",
+        gating the result on a d20 ability check rolled at resolution
+        time -- reusing _normalize_world_encounter_check()/_roll_world_
+        encounter_check()/_effective_world_encounter_choice() unchanged.
+        A choice with a "check" doesn't need its own "outcome" -- the
+        rolled branch's outcome stands in for it -- so the "needs an
+        'outcome'" requirement below is skipped whenever "check" is
+        present; a "check" missing either outcome line, or naming an
+        unrecognized skill, is dropped instead, the same way any other
+        malformed choice is.
         """
         if not aftermath:
             return None
 
         choices = []
         for choice in aftermath.get("choices", []):
-            if "key" not in choice or "outcome" not in choice:
+            check_data = choice.get("check")
+            check = None
+            if check_data is not None:
+                check = self._normalize_world_encounter_check(check_data, source_name)
+                if check is None:
+                    continue
+
+            if "key" not in choice or ("outcome" not in choice and check is None):
                 self.message_log.add_message(
                     f"Encounter load error ({source_name}): invalid aftermath choice {choice!r}", (255, 100, 100)
                 )
@@ -1731,7 +1754,7 @@ class Game:
                 "description": choice.get("description", ""),
                 "color": tuple(choice.get("color", (200, 200, 200))),
                 "is_cancel": choice.get("is_cancel", False),
-                "outcome": choice["outcome"],
+                "outcome": choice.get("outcome", ""),
                 "hours": choice.get("hours", 0),
                 "consequences": [consequence_from_dict(c) for c in choice.get("consequences", [])],
                 # Opt-in flag (not a Consequence, since it doesn't mutate
@@ -1741,6 +1764,7 @@ class Game:
                 # see recruit_companion()/_resolve_world_encounter_
                 # aftermath_choice() below.
                 "escort": choice.get("escort", False),
+                "check": check,
             })
 
         if not choices:
@@ -3648,11 +3672,13 @@ class Game:
         choice(); this method only handles closing out the aftermath
         menu specifically afterward.
 
-        The choice's "outcome" line (always present -- see
-        _normalize_world_encounter_aftermath()) is shown as its own
-        discovery prompt (see _show_world_encounter_discovery()) before
-        the overworld takes back control.
+        The choice's "outcome" line -- its own flat line, or whichever
+        branch a "check" rolled (see _effective_world_encounter_choice(),
+        shared unchanged with "resolve"/"advance") -- is shown as its
+        own discovery prompt (see _show_world_encounter_discovery())
+        before the overworld takes back control.
         """
+        choice = self._effective_world_encounter_choice(choice)
         self._apply_world_encounter_outcome_choice(choice)
 
         self._world_encounter_target_victims = []
