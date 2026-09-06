@@ -4,7 +4,7 @@
 
 *Mithrim is a dark fantasy, turn-based roguelike where the world isn't just procedurally generated—it evolves through the adventures you create. Explore dangerous dungeons, wander a living overworld, and uncover narrative encounters that leave lasting marks on the land.*
 
-<img width="1621" height="985" alt="Mithrim gameplay" src="assets/mithrim_gif.gif" />
+<video src="assets/mithrim_gameplay.mp4" controls width="640"></video>
 
 ![Python](https://img.shields.io/badge/Python-3.x-blue)
 ![Status](https://img.shields.io/badge/Status-Active%20Development-orange)
@@ -225,9 +225,9 @@ Some planned features include:
 
 <div align="center">
 
-<img width="1621" height="985" alt="Mithrim gameplay" src="assets/mithrim_screenshot1.png" />
+<img width="1919" height="1002" alt="Image" src="https://github.com/user-attachments/assets/a2870322-aa2e-44e0-8ee7-2f2f7af61088" />
 
-<img width="1621" height="985" alt="Mithrim gameplay" src="assets/mithrim_screenshot2.png" />
+<img width="1919" height="1005" alt="Image" src="https://github.com/user-attachments/assets/89ede48c-5e1b-4ed2-802d-6f1375f75667" />
 
 </div>
 ---
