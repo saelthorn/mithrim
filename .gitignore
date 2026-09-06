@@ -93,6 +93,12 @@ profile_default/
 ipython_config.py
 
 # pyenv
+
+# README media
+!assets/
+!assets/mithrim_gif.gif
+!assets/mithrim_screenshot1.png
+!assets/mithrim_screenshot2.png
 .python-version
 
 # pipenv
