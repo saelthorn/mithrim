@@ -272,6 +272,10 @@ def _spawn_book(book_id):
         return book
     return spawn
 
+def _spawn_campfire_kit(x, y):
+    """A campfire kit for an abandoned campsite."""
+    return CampfireKit(x, y)
+
 
 STRUCTURE_BLUEPRINTS = {
     "witch_hut": build_blueprint(
@@ -539,10 +543,10 @@ STRUCTURE_BLUEPRINTS = {
             " cp ",
             "    ",
         ],
-        {"t": tent, "c": campfire, "p": ground, "i": giant_tree},
+        {"t": tent, "c": ground, "p": ground, "i": giant_tree},
         walkable_chars={".", "p", "c",},
         description="An abandoned campsite.",
-        item_map={"e": _spawn_indoor_chest, "p": _spawn_book("tattered_journal")},
+        item_map={"e": _spawn_indoor_chest, "p": _spawn_book("tattered_journal"), "c": _spawn_campfire_kit},
         destroyed_tile=ground,        
     ),
 
@@ -551,10 +555,10 @@ STRUCTURE_BLUEPRINTS = {
         "Dragon Bones",
         [
             "i  i  ",
-            " s  l ",
-            "  d  l",
+            " s   l",
+            "  d   ",
             "l   t ",
-            " l  i ",
+            "  i   ",
         ],
         {"s": dragon_skeleton, "d": dragon_skull, "t": dragon_tail, "i": giant_tree, "l": tree},
         walkable_chars={".", "s", "d", "t"},
@@ -567,6 +571,7 @@ STRUCTURE_BLUEPRINTS = {
         "owlbear_den",
         "Owlbear Den",
         [
+            "                ",
             "     ######     ",
             "   ####   ###   ",
             "  ##       ###  ",
@@ -575,6 +580,7 @@ STRUCTURE_BLUEPRINTS = {
             " ###       ###  ",
             "  ###    ###    ",
             "    ##  ##      ",
+            "                ",
         ],
         {" ": ground, "#": mountain},
         walkable_chars={".", " "},
