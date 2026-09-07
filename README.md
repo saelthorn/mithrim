@@ -225,11 +225,12 @@ Some planned features include:
 
 <div align="center">
 
-<img width="1919" height="1002" alt="Image" src="https://github.com/user-attachments/assets/a2870322-aa2e-44e0-8ee7-2f2f7af61088" />
+<img width="1919" height="1002" alt="Image" src="assets/mithrim_screenshot1.png" />
 
-<img width="1919" height="1005" alt="Image" src="https://github.com/user-attachments/assets/89ede48c-5e1b-4ed2-802d-6f1375f75667" />
+<img width="1919" height="1005" alt="Image" src="assets/mithrim_screenshot2.png" />
 
 </div>
+
 ---
 
 # Controls

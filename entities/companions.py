@@ -561,21 +561,25 @@ RACE_CLASS_VISUALS = {
     ("Zariel Tiefling",       "Rogue"):   ("ZTR", (190,  60,  10)),
     ("Zariel Tiefling",       "Wizard"):  ("ZTW", (240, 110,  40)),
     ("Zariel Tiefling",       "Cleric"):  ("ZTC", (255, 180,  60)),
+    ("Zariel Tiefling",       "Ranger"):  ("ZTG", (255, 180,  60)),
     # Levistus — ice blue (cold cunning)
     ("Levistus Tiefling",     "Fighter"): ("LTF", ( 60, 120, 200)),
     ("Levistus Tiefling",     "Rogue"):   ("LTR", ( 40, 100, 180)),
     ("Levistus Tiefling",     "Wizard"):  ("LTW", ( 80, 160, 240)),
     ("Levistus Tiefling",     "Cleric"):  ("LTC", (160, 210, 255)),
+    ("Levistus Tiefling",     "Ranger"):  ("LTG", (160, 210, 255)),
     # Dispater — iron violet (infiltrator)
     ("Dispater Tiefling",     "Fighter"): ("DTF", (110,  70, 140)),
     ("Dispater Tiefling",     "Rogue"):   ("DTR", ( 90,  50, 120)),
     ("Dispater Tiefling",     "Wizard"):  ("DTW", (140,  90, 180)),
     ("Dispater Tiefling",     "Cleric"):  ("DTC", (200, 160, 255)),
+    ("Dispater Tiefling",     "Ranger"):  ("DTG", (200, 160, 255)),
     # Mephistopheles — arcane teal (arcanist)
     ("Mephistopheles Tiefling", "Fighter"): ("MTF", ( 20, 160, 140)),
     ("Mephistopheles Tiefling", "Rogue"):   ("MTR", ( 10, 130, 110)),
     ("Mephistopheles Tiefling", "Wizard"):  ("MTW", ( 40, 200, 180)),
     ("Mephistopheles Tiefling", "Cleric"):  ("MTC", (160, 240, 220)),
+    ("Mephistopheles Tiefling", "Ranger"):  ("MTG", (160, 240, 220)),
 
     # ── Dragonborn lineages ────────────────────────────────────────
     ("Red Dragonborn",   "Fighter"): ("RDF", (180,  40,  20)),

@@ -78,45 +78,50 @@ def setup_tile_mapping():
         'ER':  (1 * CELL_DIM,  2 * CELL_DIM),  # Drow Rogue
         'EW':  (2 * CELL_DIM,  2 * CELL_DIM),  # Drow Wizard
         'EC':  (3 * CELL_DIM,  2 * CELL_DIM),  # Drow Cleric
-        'EG':  (0 * CELL_DIM, 23 * CELL_DIM),  # Drow Cleric
+        'EG':  (0 * CELL_DIM, 23 * CELL_DIM),  # Drow Ranger
         # High Elf — shares the Drow elf row until a dedicated row exists
         'HEF': (4 * CELL_DIM,  2 * CELL_DIM),  # High Elf Fighter
         'HER': (5 * CELL_DIM,  2 * CELL_DIM),  # High Elf Rogue
         'HEW': (6 * CELL_DIM,  2 * CELL_DIM),  # High Elf Wizard
         'HEC': (7 * CELL_DIM,  2 * CELL_DIM),  # High Elf Cleric
-        'HEG': (4 * CELL_DIM, 23 * CELL_DIM),  # High Elf Cleric
+        'HEG': (4 * CELL_DIM, 23 * CELL_DIM),  # High Elf Ranger
         # Wood Elf — shares the Drow elf row until a dedicated row exists
         'WEF': (8 * CELL_DIM,  2 * CELL_DIM),   # Wood Elf Fighter
         'WER': (9 * CELL_DIM,  2 * CELL_DIM),   # Wood Elf Rogue
         'WEW': (10 * CELL_DIM,  2 * CELL_DIM),  # Wood Elf Wizard
         'WEC': (11 * CELL_DIM,  2 * CELL_DIM),  # Wood Elf Cleric
-        'WEG': (8 * CELL_DIM,  23 * CELL_DIM),  # Wood Elf Cleric
+        'WEG': (8 * CELL_DIM,  23 * CELL_DIM),  # Wood Elf Ranger
 
         # Row 10 — Tiefling (all patron lineages share the base tiefling row)
         'TF':  (0 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Fighter   (legacy key, kept for safety)
         'TR':  (1 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Rogue     (legacy key)
         'TW':  (2 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Wizard    (legacy key)
         'TC':  (3 * CELL_DIM, 10 * CELL_DIM),  # Tiefling Cleric    (legacy key)
+        'Tg':  (0 * CELL_DIM, 24 * CELL_DIM),  # Tiefling Ranger    (legacy key)
         # Zariel
         'ZTF': (0 * CELL_DIM, 10 * CELL_DIM),  # Zariel Tiefling Fighter
         'ZTR': (1 * CELL_DIM, 10 * CELL_DIM),  # Zariel Tiefling Rogue
         'ZTW': (2 * CELL_DIM, 10 * CELL_DIM),  # Zariel Tiefling Wizard
         'ZTC': (3 * CELL_DIM, 10 * CELL_DIM),  # Zariel Tiefling Cleric
+        'ZTG': (0 * CELL_DIM, 24 * CELL_DIM),  # Zariel Tiefling Ranger
         # Levistus
         'LTF': (4 * CELL_DIM, 10 * CELL_DIM),  # Levistus Tiefling Fighter
         'LTR': (5 * CELL_DIM, 10 * CELL_DIM),  # Levistus Tiefling Rogue
         'LTW': (6 * CELL_DIM, 10 * CELL_DIM),  # Levistus Tiefling Wizard
         'LTC': (7 * CELL_DIM, 10 * CELL_DIM),  # Levistus Tiefling Cleric
+        'LTG': (4 * CELL_DIM, 24 * CELL_DIM),  # Levistus Tiefling Ranger
         # Dispater
-        'DTF': (8 * CELL_DIM, 10 * CELL_DIM),  # Dispater Tiefling Fighter
-        'DTR': (9 * CELL_DIM, 10 * CELL_DIM),  # Dispater Tiefling Rogue
+        'DTF': (8 * CELL_DIM, 10 * CELL_DIM),   # Dispater Tiefling Fighter
+        'DTR': (9 * CELL_DIM, 10 * CELL_DIM),   # Dispater Tiefling Rogue
         'DTW': (10 * CELL_DIM, 10 * CELL_DIM),  # Dispater Tiefling Wizard
         'DTC': (11 * CELL_DIM, 10 * CELL_DIM),  # Dispater Tiefling Cleric
+        'DTG': (8 * CELL_DIM, 24 * CELL_DIM),   # Dispater Tiefling Ranger
         # Mephistopheles
         'MTF': (12 * CELL_DIM, 10 * CELL_DIM),  # Mephistopheles Tiefling Fighter
         'MTR': (13 * CELL_DIM, 10 * CELL_DIM),  # Mephistopheles Tiefling Rogue
         'MTW': (14 * CELL_DIM, 10 * CELL_DIM),  # Mephistopheles Tiefling Wizard
         'MTC': (15 * CELL_DIM, 10 * CELL_DIM),  # Mephistopheles Tiefling Cleric
+        'MTG': (12 * CELL_DIM, 24 * CELL_DIM),  # Mephistopheles Tiefling Ranger
 
         # Row 11 — Dragonborn (all colour lineages share the base dragonborn row)
         'DBF': (0 * CELL_DIM, 11 * CELL_DIM),  # Dragonborn Fighter (legacy key)
