@@ -112,6 +112,7 @@ MONSTER_GROUPS = {
     'MyconidAdult': ['MyconidAdult', 'MyconidSprout'],
     'Beholder': ['Beholder', 'Gauth'],
     'LargeOoze': ['LargeOoze', 'Ooze'],
+    'Ghoul': ['Ghoul', 'Ghoul', 'Skeleton',],
     
     # Solo Monsters
     'RedDragon': ['RedDragon'],
@@ -132,6 +133,7 @@ MONSTER_GROUPS = {
     'IntellectDevourer': ['IntellectDevourer', 'IntellectDevourer'],
     'Imp': ['Imp', 'Imp'],
     'Wraith': ['Wraith'],
+    'WilloWisp': ['WilloWisp'],
     'TombTapper': ['TombTapper']
 }
 
@@ -3559,6 +3561,67 @@ class Cultist(Monster):
             "DEX": False,
             "CON": False,
             "INT": True,
+            "WIS": False,
+            "CHA": False,
+        }
+
+class WilloWisp(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'WW', 'Willo Wisp', (255, 255, 0))
+        self.ambient_messages = [
+            "{name} flickers and dances in the darkness...",
+            "A faint, eerie glow pulses from {name}...",
+            "{name} drifts silently, its light wavering...",
+        ]
+
+        self.hp = 22
+        self.max_hp = 22
+        self.attack_bonus = 4
+        self.armor_class = 19
+        self.base_xp = 450
+        self.monster_die_type = 6
+        self.num_damage_dice = 1
+        self.damage_modifier = 2
+        self.detection_range = 8
+        self.is_intelligent = False
+        self.can_fly = True
+
+        self.disposition = Disposition.PASSIVE
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+
+class Ghoul(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'GH', 'Ghoul', (105, 105, 105))
+        self.ambient_messages = [
+            "{name} gnashes its teeth hungrily...",
+            "{name} shuffles forward with a jerky gait...",
+            "{name} hisses and bares its claws...",
+        ]
+
+        self.hp = 22
+        self.max_hp = 22
+        self.attack_bonus = 3
+        self.armor_class = 12
+        self.base_xp = 200
+        self.monster_die_type = 6
+        self.num_damage_dice = 1
+        self.damage_modifier = 2
+        self.detection_range = 6
+        self.is_intelligent = False
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,
+            "CON": False,
+            "INT": False,
             "WIS": False,
             "CHA": False,
         }

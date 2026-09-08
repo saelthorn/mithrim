@@ -377,13 +377,13 @@ from entities.player import Player, Fighter, Rogue, Wizard, Cleric, Ranger
 
 # NEW: Import all monster classes
 from entities.monster import (
-    Monster, Mimic, GiantRat, Ooze, Goblin, GoblinArcher, Skeleton,
+    Monster, Disposition, Mimic, GiantRat, Ooze, Goblin, GoblinArcher, Skeleton,
     SkeletonArcher, Orc, Centaur, CentaurArcher, Troll, Lizardfolk, 
     LizardfolkArcher, GiantSpider, Beholder, LargeOoze, RedDragon,
     Owlbear, Demogorgon, Grick, GibberingMouther, MindFlayer, Minotaur,
     Wererat, Wolf, Yochlol, Drider, RedSlaad, DeathSlaad, MyconidSprout,
     MyconidAdult, Mezzoloth, Gauth, Arasta, AlphaGrick, IntellectDevourer, 
-    Imp, Wraith, TombTapper, Cultist, Disposition
+    Imp, Wraith, TombTapper, Cultist, WilloWisp, Ghoul
 
 )
 
@@ -405,7 +405,7 @@ from entities.companions import (
     CombatCompanion, CompanionStance, CompanionClass,
     FIGHTER, RANGER, ROGUE, WIZARD, CLERIC, RACE_CLASS_VISUALS,
 )
-from core.abilities import SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
+from core.abilities import SummonAnimalCompanion, SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
 from core.message_log import MessageBox
 from core.status_effects import (
     ParryBuff, PowerAttackBuff, DivineStrikeBuff, CunningActionDashBuff, EvasionBuff, Hidden, BlessingOfStrength, CurseOfWeakness, 
@@ -894,10 +894,11 @@ class Game:
 
         # ⚔️ Early-mid dangers (CR 1/2 – CR 2)
         2: [Goblin, GoblinArcher, GiantRat, GiantSpider, Wererat, Wolf,
-            MyconidSprout, IntellectDevourer, Imp, Cultist, Ooze],
+            MyconidSprout, IntellectDevourer, Imp, Cultist, Ooze, WilloWisp, 
+            Ghoul],
 
         # 🛡️ Mid-game threats (CR 2 – CR 4)
-        3: [Skeleton, SkeletonArcher, Orc, Grick, Ooze, Cultist,
+        3: [Skeleton, SkeletonArcher, Orc, Grick, Ooze, Cultist, WilloWisp,
             Lizardfolk, LizardfolkArcher, GiantSpider, Wererat, MyconidAdult],
 
         # 👁️ Late-mid bosses and horrors (CR 4 – CR 8)
@@ -10276,7 +10277,7 @@ class Game:
                     # the player does rather than only ever facing one
                     # direction.
                     flip_x = False
-                    if entity == self.player or isinstance(entity, (EscortCompanion, CombatCompanion)):
+                    if entity == self.player or isinstance(entity, (EscortCompanion, CombatCompanion, SummonAnimalCompanion)):
                         flip_x = not self.player.facing_right
     
                     # Check for submersion (player, companions following the

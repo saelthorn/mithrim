@@ -342,6 +342,9 @@ def setup_tile_mapping():
         'tv':  (14 * CELL_DIM, 7 * CELL_DIM),  # Cocooned Traveler (NPC)
         'pg':  (14 * CELL_DIM, 8 * CELL_DIM),  # Pilgrim (NPC)
         'fm':  (14 * CELL_DIM, 9 * CELL_DIM),  # Fisherman (NPC)
+        'WW':  (15 * CELL_DIM, 7 * CELL_DIM),  # Will o' Wisp
+        'dnk': (15 * CELL_DIM, 8 * CELL_DIM),  # Donkey (NPC)
+        'GH':  (15 * CELL_DIM, 9 * CELL_DIM),  # Ghoul
 
 
         # Tavern Entities and Misc.
@@ -358,13 +361,16 @@ def setup_tile_mapping():
         'CS': (12 * CELL_DIM,  8 * CELL_DIM), # Celestial Spirit (Skill)
 
         # Item Characters
-        'tt': (12 * CELL_DIM,   6 * CELL_DIM), # Thieves' Tools
-        'cf': (13 * CELL_DIM,   6 * CELL_DIM), # Campfire 
-        'pn': (14 * CELL_DIM,   6 * CELL_DIM), # Wood Plank (Junk)
-        'th': (15 * CELL_DIM,  6 * CELL_DIM),  # Torch (Item)
-        'hsy': (17 * CELL_DIM, 6 * CELL_DIM),  # Holy Symbol (Accessory)
-        'spb': (18 * CELL_DIM, 6 * CELL_DIM),  # Spellbook (Off-hand Item)
-        '!': (0 * CELL_DIM,    13 * CELL_DIM), # Potions
+        '!':   (0 * CELL_DIM,    13 * CELL_DIM), # Potions
+        'tt':  (12 * CELL_DIM,   6 * CELL_DIM),  # Thieves' Tools
+        'cf':  (13 * CELL_DIM,   6 * CELL_DIM),  # Campfire 
+        'pn':  (14 * CELL_DIM,   6 * CELL_DIM),  # Wood Plank (Junk)
+        'th':  (15 * CELL_DIM,   6 * CELL_DIM),  # Torch (Item)
+        'hsy': (17 * CELL_DIM,   6 * CELL_DIM),  # Holy Symbol (Accessory)
+        'spb': (18 * CELL_DIM,   6 * CELL_DIM),  # Spellbook (Off-hand Item)
+        'pc':  (19 * CELL_DIM,   6 * CELL_DIM), # Closed Parchment
+        'op':  (20 * CELL_DIM,   6 * CELL_DIM), # Opened Parchment
+        'bk':  (21 * CELL_DIM,   6 * CELL_DIM), # Book
 
         # Food Characters
         'met': (20 * CELL_DIM, 0 * CELL_DIM), # Meat
