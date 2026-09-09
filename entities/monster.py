@@ -3625,3 +3625,37 @@ class Ghoul(Monster):
             "WIS": False,
             "CHA": False,
         }
+
+class GiantScorpion(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'GS', 'Giant Scorpion', (139, 69, 19))
+        self.ambient_messages = [
+            "{name} scuttles across the ground with a clicking sound...",
+            "{name}'s tail arcs menacingly over its back...",
+            "{name} hisses and raises its pincers...",
+        ]
+
+        self.hp = 52
+        self.max_hp = 52
+        self.attack_bonus = 4
+        self.armor_class = 15
+        self.base_xp = 700
+        self.monster_die_type = 6
+        self.num_damage_dice = 1
+        self.damage_modifier = 3
+        self.detection_range = 6
+        self.is_intelligent = False
+
+        self.can_poison = True
+        self.poison_dc = 12
+        self.poison_duration = 3
+        self.poison_damage_per_turn = 4
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
