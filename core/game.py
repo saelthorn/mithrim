@@ -35,6 +35,7 @@ class GameState:
     DEATH_SAVE_MENU = "death_save_menu"  # Player unconscious at 0 hp, rolling death saving throws (see Player.roll_death_save())
     MONSTER_AMBIENT_MENU = "monster_ambient_menu"  # A monster's ambient flavor line, shown as a "[1] Continue" popup -- see Game.show_monster_ambient_popup()
     READING_BOOK = "reading_book"  # A Book item's text on screen, paged -- see Game.open_book()
+    WORLD_MAP_VIEW = "world_map_view"  # Full-screen chunk-level world map, toggled with M -- see render_world_map_screen()
 
 
 class InteractionMode:
@@ -349,7 +350,7 @@ BIOME_CONNECTIONS = {
 
 from core.fov import FOV
 from core.ui_sidebar import draw_sidebar
-from core.ui_screens import render_inventory_screen, render_inventory_menu_popup, render_character_menu
+from core.ui_screens import render_inventory_screen, render_inventory_menu_popup, render_character_menu, render_world_map_screen
 from world.map import GameMap
 from world.dungeon_generator import generate_dungeon
 from world.world_generator import generate_overworld
@@ -813,6 +814,8 @@ class Game:
 
         # Mini-map specific attributes
         self.minimap_surface = None
+        self.world_map_view_surface = None  # cached stitched-tile world map, see ui_screens.render_world_map_screen()
+        self.world_map_view_dirty = True    # forces a rebuild the first time the world map is opened
         self.minimap_rect = None
         self.minimap_needs_redraw = True # Flag to redraw minimap only when needed
 
@@ -6624,6 +6627,16 @@ class Game:
                             self.message_log.add_message("Opening Character Menu...", (100, 200, 255))
                         return True # Consume event, don't process other game states  
 
+                    if event.key == pygame.K_m:
+                        if self.game_state == GameState.WORLD_MAP_VIEW: # If already open, close it
+                            self.game_state = self._previous_game_state
+                            self.message_log.add_message("Closing World Map.", (100, 200, 255))
+                        else: # If not open, open it
+                            self.game_state = GameState.WORLD_MAP_VIEW
+                            self.world_map_view_dirty = True
+                            self.message_log.add_message("Opening World Map...", (100, 200, 255))
+                        return True # Consume event, don't process other game states
+
 
                     # --- Overworld access (temporary: until a proper tavern exit exists) ---
                     if event.key == pygame.K_o and self.game_state == GameState.TAVERN:
@@ -6908,6 +6921,8 @@ class Game:
                     self.handle_inventory_menu_input(event.key)
                     return True
                 elif self.game_state == GameState.CHARACTER_MENU:
+                    return True
+                elif self.game_state == GameState.WORLD_MAP_VIEW:
                     return True
 
                 elif self.game_state == GameState.TARGETING: 
@@ -8737,6 +8752,7 @@ class Game:
            self.game_state == GameState.INVENTORY or \
            self.game_state == GameState.INVENTORY_MENU or \
            self.game_state == GameState.CHARACTER_MENU or \
+           self.game_state == GameState.WORLD_MAP_VIEW or \
            self.game_state == GameState.TARGETING or \
            self.game_state == GameState.CHARACTER_CREATION or \
            self.game_state == GameState.CLASS_SELECTION: # Added CLASS_SELECTION
@@ -8939,6 +8955,9 @@ class Game:
             self.render_inventory_menu_popup() # Popup draws directly to screen
         elif self.game_state == GameState.CHARACTER_MENU:
             self.render_character_menu()
+            self.screen.blit(self.inventory_ui_surface, (0, 0))
+        elif self.game_state == GameState.WORLD_MAP_VIEW:
+            self.render_world_map_screen()
             self.screen.blit(self.inventory_ui_surface, (0, 0))
         else: # This block handles DUNGEON, TAVERN, and TARGETING (and will be drawn under GAME_OVER)
             # --- Camera Update Logic ---
@@ -10992,6 +11011,9 @@ class Game:
 
     def render_character_menu(self):
         render_character_menu(self)
+
+    def render_world_map_screen(self):
+        render_world_map_screen(self)
 
 
     def _draw_text(self, target_surface, font, text, color, x, y):

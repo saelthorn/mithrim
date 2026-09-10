@@ -2,6 +2,7 @@ import pygame
 import graphics
 import config
 from items.items import CampfireKit, Weapon, Helmet, Armor, Boots, FocusItem, OffHand, Potion, Food, Accessory, Tools, Junk, format_price
+from world.world_map import chunk_local_to_world_position
 
 # ── Palette ──────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,9 @@ SLOT_SIZE    = 87   # px — each inventory cell
 SLOT_GAP     = 4    # px — gap between cells
 SPRITE_PAD   = 6    # px — padding inside each cell around the sprite
 COLS         = 5    # inventory grid columns
+
+# ── World map biome colors ──────────────────────────────────────────────────
+_MAP_PLAYER    = (232, 200,  90)  # candlelit gold -- current-position marker
 
 
 # ── Font helpers ──────────────────────────────────────────────────────────────
@@ -779,3 +783,118 @@ def render_character_menu(game):
         _blit_wrap(surf, fSm, ", ".join(all_profs), _TEXT_NORMAL, col3_x, y3, col_w)
     else:
         _blit(surf, fSm, "None", _TEXT_DIM, col3_x, y3)
+
+
+def _build_explored_world_surface(game, size):
+    """
+    Stitch every visited chunk's explored tiles into one Surface of
+    `size`, scaled to fit -- the same explored-tiles-only idea
+    game.py's draw_minimap()/_rebuild_minimap_surface() already uses for
+    the current chunk, just spanning every chunk in game.overworld_chunks
+    at once. Each chunk's local tile positions are converted to global
+    tile positions via chunk_local_to_world_position(), so two adjacent
+    chunks' explored tiles land right next to each other -- that's what
+    makes this read as one continuous map instead of separate blocks.
+
+    This is the expensive part (one draw call per explored tile across
+    every visited chunk) -- render_world_map_screen() below caches the
+    result rather than calling this every frame.
+    """
+    out = pygame.Surface(size, pygame.SRCALPHA)
+    out.fill((0, 0, 0, 0))
+
+    active_coord = getattr(game, "overworld_chunk_coord", None)
+    active_fov = getattr(game, "fov", None)
+
+    tiles = {}  # (world_x, world_y) -> color
+    for chunk_coord, chunk in game.overworld_chunks.items():
+        chunk_map = chunk["map"]
+        is_active = chunk_coord == active_coord
+        for local_x, local_y in chunk["fov"].explored:
+            tile = chunk_map.tiles[local_y][local_x]
+            if is_active and active_fov is not None and active_fov.get_visibility_type(local_x, local_y) in ("player", "torch", "darkvision"):
+                color = tile.color
+            else:
+                color = tile.dark_color
+            tiles[chunk_local_to_world_position(chunk_coord, (local_x, local_y))] = color
+
+    if not tiles:
+        return out
+
+    xs = [x for x, _ in tiles]
+    ys = [y for _, y in tiles]
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    span_x, span_y = max_x - min_x + 1, max_y - min_y + 1
+
+    tile_px = max(1, int(min(size[0] / span_x, size[1] / span_y)))
+    offset_x = (size[0] - span_x * tile_px) // 2
+    offset_y = (size[1] - span_y * tile_px) // 2
+
+    for (world_x, world_y), color in tiles.items():
+        out.fill(color, (offset_x + (world_x - min_x) * tile_px, offset_y + (world_y - min_y) * tile_px, tile_px, tile_px))
+
+    player = getattr(game, "player", None)
+    if active_coord is not None and player is not None:
+        player_world_x, player_world_y = chunk_local_to_world_position(active_coord, (player.x, player.y))
+        marker = max(tile_px * 2, 5)
+        px = offset_x + (player_world_x - min_x) * tile_px + tile_px // 2
+        py = offset_y + (player_world_y - min_y) * tile_px + tile_px // 2
+        pygame.draw.rect(out, _MAP_PLAYER, (px - marker // 2, py - marker // 2, marker, marker), max(1, marker // 4))
+
+    return out
+
+
+def render_world_map_screen(game):
+    """
+    Full-screen world map (GameState.WORLD_MAP_VIEW, toggled with M) --
+    see _build_explored_world_surface() above for the actual stitching.
+
+    The stitched image is cached on game.world_map_view_surface and only
+    rebuilt when game.world_map_view_dirty is set (by the M key handler
+    in game.py, the only place that needs to invalidate it -- nothing in
+    the world can change while this screen is open, since next_turn()
+    early-returns for GameState.WORLD_MAP_VIEW).
+    """
+    surf = game.inventory_ui_surface
+    surf.fill((0, 0, 0, 0))
+    SW, SH = surf.get_width(), surf.get_height()
+    PAD = 14
+
+    fHdr = _f(20, bold=True)
+    fSm  = _f(14)
+
+    pygame.draw.rect(surf, _BG, (0, 0, SW, SH))
+    pygame.draw.rect(surf, _BORDER, (PAD, PAD, SW - PAD * 2, SH - PAD * 2), 1, border_radius=4)
+
+    title_rect = pygame.Rect(PAD, PAD, SW - PAD * 2, 36)
+    pygame.draw.rect(surf, _BG_PANEL, title_rect)
+    pygame.draw.rect(surf, _ACCENT_GOLD, title_rect, 1)
+    _blit_center(surf, fHdr, "WORLD  MAP", _GOLD, SW // 2, PAD + 8)
+
+    content_rect = pygame.Rect(PAD, PAD + 44, SW - PAD * 2, SH - PAD * 2 - 44 - 34)
+    pygame.draw.rect(surf, _BG_PANEL, content_rect, border_radius=4)
+    pygame.draw.rect(surf, _BORDER, content_rect, 1, border_radius=4)
+
+    chunks = getattr(game, "overworld_chunks", {})
+    if not chunks:
+        _blit_center(surf, fSm, "Nothing charted yet.", _TEXT_DIM, SW // 2, content_rect.centery)
+    else:
+        cache_size = (content_rect.width - 8, content_rect.height - 8)
+        cached = getattr(game, "world_map_view_surface", None)
+        if cached is None or cached.get_size() != cache_size or getattr(game, "world_map_view_dirty", True):
+            cached = _build_explored_world_surface(game, cache_size)
+            game.world_map_view_surface = cached
+            game.world_map_view_dirty = False
+        surf.blit(cached, (content_rect.x + 4, content_rect.y + 4))
+
+    status_y = content_rect.bottom + 6
+    world_map = getattr(game, "world_map", None)
+    player_coord = getattr(game, "overworld_chunk_coord", None)
+    if world_map is not None and player_coord is not None and player_coord in chunks:
+        region = world_map.region_name_at(player_coord) or "Uncharted"
+        biome_label = "Sea" if world_map.is_ocean_at(player_coord) else world_map.biome_at(player_coord).value.title()
+        _blit_center(surf, fSm, f"You stand in the {region} ({biome_label})", _TEXT_BRIGHT, SW // 2, status_y)
+
+    hint = fSm.render("M  close", True, _TEXT_DIM)
+    surf.blit(hint, (SW // 2 - hint.get_width() // 2, SH - PAD - hint.get_height()))
