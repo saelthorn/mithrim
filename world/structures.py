@@ -274,7 +274,9 @@ def _spawn_book(book_id):
 
 def _spawn_campfire_kit(x, y):
     """A campfire kit for an abandoned campsite."""
-    return CampfireKit(x, y)
+    campfire_kit = CampfireKit()
+    campfire_kit.x, campfire_kit.y = x, y
+    return campfire_kit
 
 
 STRUCTURE_BLUEPRINTS = {
@@ -560,10 +562,10 @@ STRUCTURE_BLUEPRINTS = {
             "l   t ",
             "  i   ",
         ],
-        {"s": dragon_skeleton, "d": dragon_skull, "t": dragon_tail, "i": giant_tree, "l": tree},
+        {"s": dragon_skull, "d": dragon_skeleton, "t": dragon_tail, "i": giant_tree, "l": tree},
         walkable_chars={".", "s", "d", "t"},
         description="The remains of a long-dead dragon.",
-        item_map={"s": _spawn_indoor_chest, "d": _spawn_book("dragon_treatise")},
+        item_map={"c": _spawn_indoor_chest, "b": _spawn_book("dragon_treatise")},
         destroyed_tile=ground,
     ),
 

@@ -9,6 +9,8 @@ import tracemalloc      # Lifesaver
 from pathlib import Path
 from enum import Enum
 
+WORLD_MAP_ZOOM_STEP = 1.5  # multiplier per +/- press on the world map (M), see handle_world_map_input()
+
 
 class GameState:
     TAVERN = "tavern"
@@ -350,7 +352,7 @@ BIOME_CONNECTIONS = {
 
 from core.fov import FOV
 from core.ui_sidebar import draw_sidebar
-from core.ui_screens import render_inventory_screen, render_inventory_menu_popup, render_character_menu, render_world_map_screen
+from core.ui_screens import render_inventory_screen, render_inventory_menu_popup, render_character_menu, render_world_map_screen, WORLD_MAP_MIN_ZOOM, WORLD_MAP_MAX_ZOOM
 from world.map import GameMap
 from world.dungeon_generator import generate_dungeon
 from world.world_generator import generate_overworld
@@ -816,6 +818,7 @@ class Game:
         self.minimap_surface = None
         self.world_map_view_surface = None  # cached stitched-tile world map, see ui_screens.render_world_map_screen()
         self.world_map_view_dirty = True    # forces a rebuild the first time the world map is opened
+        self.world_map_view_zoom = 1.0      # 1.0 = fit everything explored on screen; see handle_world_map_input()
         self.minimap_rect = None
         self.minimap_needs_redraw = True # Flag to redraw minimap only when needed
 
@@ -6634,6 +6637,7 @@ class Game:
                         else: # If not open, open it
                             self.game_state = GameState.WORLD_MAP_VIEW
                             self.world_map_view_dirty = True
+                            self.world_map_view_zoom = 1.0
                             self.message_log.add_message("Opening World Map...", (100, 200, 255))
                         return True # Consume event, don't process other game states
 
@@ -6923,6 +6927,7 @@ class Game:
                 elif self.game_state == GameState.CHARACTER_MENU:
                     return True
                 elif self.game_state == GameState.WORLD_MAP_VIEW:
+                    self.handle_world_map_input(event.key)
                     return True
 
                 elif self.game_state == GameState.TARGETING: 
@@ -9087,7 +9092,7 @@ class Game:
                 self.draw_minimap() # This method now draws directly to self.screen
 
         # Message log is also drawn directly to screen
-        if self.game_state not in [GameState.CHARACTER_CREATION, GameState.CLASS_SELECTION]:
+        if self.game_state not in [GameState.CHARACTER_CREATION, GameState.CLASS_SELECTION, GameState.WORLD_MAP_VIEW]:
             self.message_log.render(self.screen)
 
         # Overworld chunk transition overlay — plain black fade drawn over everything
@@ -11014,6 +11019,23 @@ class Game:
 
     def render_world_map_screen(self):
         render_world_map_screen(self)
+
+    def handle_world_map_input(self, key):
+        """Zoom controls for the world map (M). +/- (and the numpad/=
+        equivalents) step in and out. Clamped here (not just when
+        ui_screens._build_explored_world_surface() computes the actual
+        scale) so world_map_view_zoom itself never drifts past the
+        visible range -- otherwise holding '-' past the floor keeps
+        shrinking the stored value with no visible effect, and it then
+        takes that many extra '+' presses just to get back to where the
+        display actually starts changing again."""
+        if key in (pygame.K_EQUALS, pygame.K_KP_PLUS, pygame.K_PLUS):
+            self.world_map_view_zoom *= WORLD_MAP_ZOOM_STEP
+            self.world_map_view_dirty = True
+        elif key in (pygame.K_MINUS, pygame.K_KP_MINUS):
+            self.world_map_view_zoom /= WORLD_MAP_ZOOM_STEP
+            self.world_map_view_dirty = True
+        self.world_map_view_zoom = max(WORLD_MAP_MIN_ZOOM, min(WORLD_MAP_MAX_ZOOM, self.world_map_view_zoom))
 
 
     def _draw_text(self, target_surface, font, text, color, x, y):

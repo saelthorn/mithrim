@@ -168,8 +168,7 @@
     {
       "id": "den_inside",
       "discovery": "The cave smells of feathers, damp earth, and old meat. A nest of branches and shredded hide fills the back of the chamber. Inside it, a young owlbear is tangled in a hunter's iron snare, one leg badly bruised from struggling against it. The adult owlbear stands outside the cave, watching you through the entrance. It could tear you apart, but instead it waits.",
-      "landmark_tile": "owlbear_den",
-      "landmark_tile_amount": [1, 1],
+      "landmark_structure": "owlbear_den",
       "choices": [
         {
           "key": 1,

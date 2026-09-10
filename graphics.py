@@ -274,9 +274,9 @@ def setup_tile_mapping():
         'hy': (15 * CELL_DIM, 17 * CELL_DIM),  # Hay
 
         # Dragon Bones
-        'dsk': (16 * CELL_DIM, 17 * CELL_DIM),  # Dragon Skull
-        'dskl': (17 * CELL_DIM, 17 * CELL_DIM), # Dragon Skeleton
-        'dtl': (18 * CELL_DIM, 17 * CELL_DIM),  # Dragon Tail
+        'dsk':  (9  * CELL_DIM,  19 * CELL_DIM),  # Dragon Skull
+        'dskl': (10 * CELL_DIM,  19 * CELL_DIM),  # Dragon Skeleton
+        'dtl':  (11 * CELL_DIM,  19 * CELL_DIM),  # Dragon Tail
 
         # Static Decorations (using distinct chars)
         'b': (2 * CELL_DIM, 5 * CELL_DIM), # Static Barrel (original graphic)
@@ -345,6 +345,8 @@ def setup_tile_mapping():
         'WW':  (15 * CELL_DIM, 7 * CELL_DIM),  # Will o' Wisp
         'dnk': (15 * CELL_DIM, 8 * CELL_DIM),  # Donkey (NPC)
         'GH':  (15 * CELL_DIM, 9 * CELL_DIM),  # Ghoul
+        'GSP': (16 * CELL_DIM, 7 * CELL_DIM),  # Giant Scorpion
+        'obc': (16 * CELL_DIM, 9 * CELL_DIM),  # Owlbear Cub
 
 
         # Tavern Entities and Misc.
@@ -368,9 +370,9 @@ def setup_tile_mapping():
         'th':  (15 * CELL_DIM,   6 * CELL_DIM),  # Torch (Item)
         'hsy': (17 * CELL_DIM,   6 * CELL_DIM),  # Holy Symbol (Accessory)
         'spb': (18 * CELL_DIM,   6 * CELL_DIM),  # Spellbook (Off-hand Item)
-        'pc':  (19 * CELL_DIM,   6 * CELL_DIM), # Closed Parchment
-        'op':  (20 * CELL_DIM,   6 * CELL_DIM), # Opened Parchment
-        'bk':  (21 * CELL_DIM,   6 * CELL_DIM), # Book
+        'pc':  (19 * CELL_DIM,   6 * CELL_DIM),  # Closed Parchment
+        'op':  (20 * CELL_DIM,   6 * CELL_DIM),  # Opened Parchment
+        'bk':  (21 * CELL_DIM,   6 * CELL_DIM),  # Book
 
         # Food Characters
         'met': (20 * CELL_DIM, 0 * CELL_DIM), # Meat

@@ -45,6 +45,9 @@ COLS         = 5    # inventory grid columns
 # ── World map biome colors ──────────────────────────────────────────────────
 _MAP_PLAYER    = (232, 200,  90)  # candlelit gold -- current-position marker
 
+WORLD_MAP_MIN_ZOOM = 0.2   # zoomed out further than "fit everything" just pads with border
+WORLD_MAP_MAX_ZOOM = 8.0   # zoomed in this far, individual tiles are chunky but readable
+
 
 # ── Font helpers ──────────────────────────────────────────────────────────────
 def _f(size, bold=False):
@@ -788,13 +791,19 @@ def render_character_menu(game):
 def _build_explored_world_surface(game, size):
     """
     Stitch every visited chunk's explored tiles into one Surface of
-    `size`, scaled to fit -- the same explored-tiles-only idea
-    game.py's draw_minimap()/_rebuild_minimap_surface() already uses for
-    the current chunk, just spanning every chunk in game.overworld_chunks
-    at once. Each chunk's local tile positions are converted to global
-    tile positions via chunk_local_to_world_position(), so two adjacent
-    chunks' explored tiles land right next to each other -- that's what
-    makes this read as one continuous map instead of separate blocks.
+    `size` -- the same explored-tiles-only idea game.py's draw_minimap()/
+    _rebuild_minimap_surface() already uses for the current chunk, just
+    spanning every chunk in game.overworld_chunks at once. Each chunk's
+    local tile positions are converted to global tile positions via
+    chunk_local_to_world_position(), so two adjacent chunks' explored
+    tiles land right next to each other -- that's what makes this read
+    as one continuous map instead of separate blocks.
+
+    game.world_map_view_zoom (see handle_world_map_input() in game.py)
+    scales this relative to "everything explored fits on screen" (1.0).
+    Above 1.0 the content no longer fits `size`, so the view is centered
+    on the player's current tile and clamped to stay within the explored
+    bounds rather than scrolling off into empty space.
 
     This is the expensive part (one draw call per explored tile across
     every visited chunk) -- render_world_map_screen() below caches the
@@ -827,19 +836,39 @@ def _build_explored_world_surface(game, size):
     min_y, max_y = min(ys), max(ys)
     span_x, span_y = max_x - min_x + 1, max_y - min_y + 1
 
-    tile_px = max(1, int(min(size[0] / span_x, size[1] / span_y)))
-    offset_x = (size[0] - span_x * tile_px) // 2
-    offset_y = (size[1] - span_y * tile_px) // 2
+    fit_scale = min(size[0] / span_x, size[1] / span_y)
+    zoom = max(WORLD_MAP_MIN_ZOOM, min(WORLD_MAP_MAX_ZOOM, getattr(game, "world_map_view_zoom", 1.0)))
+    tile_px = max(1, round(fit_scale * zoom))
 
-    for (world_x, world_y), color in tiles.items():
-        out.fill(color, (offset_x + (world_x - min_x) * tile_px, offset_y + (world_y - min_y) * tile_px, tile_px, tile_px))
+    content_w, content_h = span_x * tile_px, span_y * tile_px
 
     player = getattr(game, "player", None)
     if active_coord is not None and player is not None:
-        player_world_x, player_world_y = chunk_local_to_world_position(active_coord, (player.x, player.y))
+        focus_world_x, focus_world_y = chunk_local_to_world_position(active_coord, (player.x, player.y))
+    else:
+        focus_world_x, focus_world_y = (min_x + max_x) // 2, (min_y + max_y) // 2
+    focus_content_x = (focus_world_x - min_x) * tile_px + tile_px // 2
+    focus_content_y = (focus_world_y - min_y) * tile_px + tile_px // 2
+
+    def _view_offset(focus, content_span, panel_span):
+        if content_span <= panel_span:
+            return -((panel_span - content_span) // 2)  # negative -> pads/centers smaller content
+        return max(0, min(focus - panel_span // 2, content_span - panel_span))
+
+    view_offset_x = _view_offset(focus_content_x, content_w, size[0])
+    view_offset_y = _view_offset(focus_content_y, content_h, size[1])
+
+    for (world_x, world_y), color in tiles.items():
+        out.fill(color, (
+            (world_x - min_x) * tile_px - view_offset_x,
+            (world_y - min_y) * tile_px - view_offset_y,
+            tile_px, tile_px,
+        ))
+
+    if active_coord is not None and player is not None:
         marker = max(tile_px * 2, 5)
-        px = offset_x + (player_world_x - min_x) * tile_px + tile_px // 2
-        py = offset_y + (player_world_y - min_y) * tile_px + tile_px // 2
+        px = focus_content_x - view_offset_x
+        py = focus_content_y - view_offset_y
         pygame.draw.rect(out, _MAP_PLAYER, (px - marker // 2, py - marker // 2, marker, marker), max(1, marker // 4))
 
     return out
@@ -852,9 +881,9 @@ def render_world_map_screen(game):
 
     The stitched image is cached on game.world_map_view_surface and only
     rebuilt when game.world_map_view_dirty is set (by the M key handler
-    in game.py, the only place that needs to invalidate it -- nothing in
-    the world can change while this screen is open, since next_turn()
-    early-returns for GameState.WORLD_MAP_VIEW).
+    and handle_world_map_input()'s zoom controls in game.py) -- nothing
+    else can change while this screen is open, since next_turn()
+    early-returns for GameState.WORLD_MAP_VIEW.
     """
     surf = game.inventory_ui_surface
     surf.fill((0, 0, 0, 0))
@@ -896,5 +925,5 @@ def render_world_map_screen(game):
         biome_label = "Sea" if world_map.is_ocean_at(player_coord) else world_map.biome_at(player_coord).value.title()
         _blit_center(surf, fSm, f"You stand in the {region} ({biome_label})", _TEXT_BRIGHT, SW // 2, status_y)
 
-    hint = fSm.render("M  close", True, _TEXT_DIM)
+    hint = fSm.render("M  close   |   +/-  zoom", True, _TEXT_DIM)
     surf.blit(hint, (SW // 2 - hint.get_width() // 2, SH - PAD - hint.get_height()))

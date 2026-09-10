@@ -47,6 +47,9 @@ SWAMP = 0.72
 # more than moisture doing the same.
 WORLD_ELEVATION_BIAS_STRENGTH = 0.35
 WORLD_MOISTURE_BIAS_STRENGTH = 0.20
+# Keeps a world-scale mountain range present across chunk boundaries while
+# retaining the chunk's own ridge detail.
+WORLD_MOUNTAIN_FLOOR_STRENGTH = 0.78
 
 BIOME_OCEAN = "ocean"
 BIOME_BEACH = "beach"
@@ -151,51 +154,6 @@ REGION_SUFFIX = {
 }
 
 
-BIOME_SETTINGS = {
-
-    ChunkBiome.PLAINS: {
-        "forest_chance": 0.10,
-        "grass_chance": 0.08,
-        "height_offset": 0.00,
-    },
-
-    ChunkBiome.FOREST: {
-        "forest_chance": 0.85,
-        "grass_chance": 0.05,
-        "height_offset": 0.00,
-    },
-
-    ChunkBiome.SWAMP: {
-        "forest_chance": 0.40,
-        "grass_chance": 0.60,
-        "height_offset": -0.03,
-    },
-
-    ChunkBiome.HILLS: {
-        "forest_chance": 0.35,
-        "grass_chance": 0.08,
-        "height_offset": 0.08,
-    },
-
-    ChunkBiome.MOUNTAINS: {
-        "forest_chance": 0.15,
-        "grass_chance": 0.02,
-        "height_offset": 0.16,
-    },
-
-    ChunkBiome.DESERT: {
-        "forest_chance": 0.02,
-        "grass_chance": 0.01,
-        "height_offset": -0.05,
-    },
-
-    ChunkBiome.TUNDRA: {
-        "forest_chance": 0.05,
-        "grass_chance": 0.05,
-        "height_offset": 0.12,
-    },
-
-}
 
 
 def _decoration_hash(x, y, salt):
@@ -936,7 +894,7 @@ def _nearest_tile(game_map, start, predicate, max_radius=20):
 
     return best
 
-def _find_path(game_map, heightmap, start, goal, neighbor_fn=None, blocked=None):
+def _find_path(game_map, heightmap, start, goal, neighbor_fn=None, blocked=None, allow_river=False, allow_lake=False):
     """A* from start to goal. `neighbor_fn` defaults to the 8-directional
     _neighbors (used by rivers); roads pass _cardinal_neighbors instead so
     paths never step diagonally. `blocked` is an optional set of (x, y)
@@ -961,7 +919,14 @@ def _find_path(game_map, heightmap, start, goal, neighbor_fn=None, blocked=None)
         cx, cy = current
 
         for nx, ny in neighbor_fn(cx, cy, heightmap.width, heightmap.height):
-            cost = _movement_cost(game_map, nx, ny, blocked=blocked)
+            cost = _movement_cost(
+                game_map,
+                nx,
+                ny,
+                blocked=blocked,
+                allow_river=allow_river,
+                allow_lake=allow_lake,
+            )
 
             if cost is None:
                 continue
@@ -1131,6 +1096,36 @@ def _bias_grid_toward_world_value(grid, world_value, strength):
             local_value = grid.get(x, y)
             biased = local_value + (world_value - 0.5) * strength
             grid.set(x, y, min(1.0, max(0.0, biased)))
+
+
+def _apply_world_mountain_floor(heightmap, world_map, chunk_coord):
+    """Apply a bilinearly interpolated world mountain envelope to a chunk.
+
+    Sampling between the current coarse cell and its wrapped neighbors makes
+    the value at a chunk's outgoing edge match the value at the neighboring
+    chunk's incoming edge. The local ridge heightmap remains intact; this
+    only prevents a persistent world-scale range from disappearing at a
+    chunk boundary.
+    """
+    grid_x, grid_y = world_map._to_grid(chunk_coord)
+    width, height = heightmap.width, heightmap.height
+
+    for y in range(height):
+        fy = (y + 0.5) / height
+        for x in range(width):
+            fx = (x + 0.5) / width
+            x0 = grid_x
+            y0 = grid_y
+            x1 = (grid_x + 1) % world_map.width
+            y1 = (grid_y + 1) % world_map.height
+            strength = (
+                world_map.mountain_strength.get(x0, y0) * (1.0 - fx) * (1.0 - fy)
+                + world_map.mountain_strength.get(x1, y0) * fx * (1.0 - fy)
+                + world_map.mountain_strength.get(x0, y1) * (1.0 - fx) * fy
+                + world_map.mountain_strength.get(x1, y1) * fx * fy
+            )
+            floor = strength * WORLD_MOUNTAIN_FLOOR_STRENGTH
+            heightmap.set(x, y, max(heightmap.get(x, y), floor))
 
 
 def _generate_moisture_map(perm, chunk_x, chunk_y, width, height, scale, octaves=4, persistence=0.5, lacunarity=2.0,):
@@ -1827,7 +1822,7 @@ def _carve_major_river(game_map, heightmap, edges, radius=2):
     bends around whatever terrain the local heightmap produced.
     """
     width, height = game_map.width, game_map.height
-    waypoints = [_edge_midpoint(width, height, direction) for direction in edges]
+    waypoints = [_edge_midpoint(width, height, direction) for direction in sorted(edges)]
 
     if len(waypoints) == 1:
         # A source or a mouth — only one edge is fixed, so run the river to
@@ -1841,19 +1836,56 @@ def _carve_major_river(game_map, heightmap, edges, radius=2):
     river_tiles = []
 
     for start, goal in zip(waypoints, waypoints[1:]):
-        path = _find_path(game_map, heightmap, start, goal)
+        path = _find_path(
+            game_map,
+            heightmap,
+            start,
+            goal,
+            allow_river=True,
+            allow_lake=True,
+        )
 
         for x, y in path:
             for nx in range(max(0, x - radius), min(width, x + radius + 1)):
                 for ny in range(max(0, y - radius), min(height, y + radius + 1)):
                     if _distance((x, y), (nx, ny)) > radius:
                         continue
-                    if game_map.tiles[ny][nx] is lake:
-                        continue
                     game_map.tiles[ny][nx] = river
                     river_tiles.append((nx, ny))
 
     return river_tiles
+
+
+def _carve_major_road(game_map, heightmap, edges, radius=1):
+    """Realize a world-scale strategic road through matching chunk edges."""
+    width, height = game_map.width, game_map.height
+    waypoints = [_edge_midpoint(width, height, direction) for direction in sorted(edges)]
+
+    if len(waypoints) == 1:
+        waypoints.append((width // 2, height // 2))
+
+    road_tiles = []
+    for start, goal in zip(waypoints, waypoints[1:]):
+        path = _find_path(
+            game_map,
+            heightmap,
+            start,
+            goal,
+            neighbor_fn=_cardinal_neighbors,
+            allow_river=True,
+        )
+        for x, y in path:
+            for nx in range(max(0, x - radius), min(width, x + radius + 1)):
+                for ny in range(max(0, y - radius), min(height, y + radius + 1)):
+                    if _distance((x, y), (nx, ny)) > radius:
+                        continue
+                    if is_water_tile(game_map.tiles[ny][nx]):
+                        continue
+                    if game_map.tiles[ny][nx] is not dungeon_entrance:
+                        game_map.tiles[ny][nx] = road
+                    road_tiles.append((nx, ny))
+
+    return road_tiles
 
 
 def _apply_river_moisture(moisture, river_positions, radius=6, boost=0.4):
@@ -1882,17 +1914,17 @@ def _apply_river_moisture(moisture, river_positions, radius=6, boost=0.4):
 # pathing or painting through a building, and so each structure has an
 # approach point (see _structure_road_approach) to spur a road to.
 # ---------------------------------------------------------------------------
-def _movement_cost(game_map, x, y, blocked=None):
+def _movement_cost(game_map, x, y, blocked=None, allow_river=False, allow_lake=False):
 
     if blocked is not None and (x, y) in blocked:
         return None
 
     tile = game_map.tiles[y][x]
 
-    if tile == lake:
+    if tile == lake and not allow_lake:
         return None
 
-    if tile == river:
+    if tile == river and not allow_river:
         return None
 
     if tile == tree:
@@ -2020,7 +2052,7 @@ def _is_valid_entrance_spot(game_map, x, y):
     return tile is ground  # keep entrances off tall grass/tree tiles for visibility
 
 
-def _place_pois(game_map, heightmap, moisture, poi, count):
+def _place_pois(game_map, heightmap, moisture, poi, count, preferred_positions=None):
     candidates = []
 
     for y in range(game_map.height):
@@ -2038,6 +2070,12 @@ def _place_pois(game_map, heightmap, moisture, poi, count):
                 x,
                 y
             )
+            if preferred_positions:
+                nearest_preferred = min(
+                    _distance((x, y), preferred)
+                    for preferred in preferred_positions
+                )
+                score += max(0, 24 - nearest_preferred)
             candidates.append((score, x, y))
 
     candidates.sort(reverse=True)
@@ -2065,7 +2103,6 @@ def _place_pois(game_map, heightmap, moisture, poi, count):
 
 # ---------------------------------------------------------------------------
 # Heightmap PNG export
-#
 # A small debug/visualization helper: dumps a HeightMap out as a single PNG
 # so the raw noise can be eyeballed without running the full game. Written
 # by hand with `struct` + `zlib` (both stdlib) instead of adding an image
@@ -2368,7 +2405,11 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
     phases clearly while preserving the existing terrain-generation behavior."""
     biome_enum = globals()["ChunkBiome"]
 
-    if biome is None:
+    if world_map is not None:
+        # The persistent world map owns the broad biome decision. Local
+        # height and moisture noise below still provide chunk-level detail.
+        biome = world_map.biome_at(chunk_coord)
+    elif biome is None:
         biome = biome_enum.MOUNTAINS
     else:
         biome_value = getattr(biome, "value", biome)
@@ -2388,13 +2429,22 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
             world_map.elevation_at(chunk_coord),
             WORLD_ELEVATION_BIAS_STRENGTH,
         )
+        _apply_world_mountain_floor(heightmap, world_map, chunk_coord)
 
     flow_field = None
-    river_positions, lake_positions = _perlin_worm_river_positions(
-        heightmap,
-        perm,
-        chunk_coord,
-    )
+    if world_map is None:
+        # Without a persistent world map, retain the standalone chunk river.
+        # In world-map mode, major river_edges are authoritative; an
+        # independent local river could reach a chunk edge without a matching
+        # crossing in the neighboring chunk and create a false discontinuity.
+        river_positions, lake_positions = _perlin_worm_river_positions(
+            heightmap,
+            perm,
+            chunk_coord,
+        )
+    else:
+        river_positions = set()
+        lake_positions = set()
 
     moisture = _generate_moisture_map(
         perm,
@@ -2427,6 +2477,21 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
         if major_river_edges:
             river_tiles.extend(_carve_major_river(game_map, heightmap, major_river_edges))
 
+        strategic_road_edges = world_map.road_edges_at(chunk_coord)
+        if strategic_road_edges:
+            road_tiles = _carve_major_road(game_map, heightmap, strategic_road_edges)
+        else:
+            road_tiles = []
+        strategic_road_targets = [
+            _edge_midpoint(width, height, direction)
+            for direction in strategic_road_edges
+        ]
+        if world_map.road_destinations_at(chunk_coord):
+            strategic_road_targets.append((width // 2, height // 2))
+    else:
+        road_tiles = []
+        strategic_road_targets = []
+
     # 3. Landmark generator: dungeon entrances and future POIs.
     dungeon_poi = PointOfInterest(
         name="Dungeon",
@@ -2439,7 +2504,8 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
         heightmap,
         moisture,
         dungeon_poi,
-        num_dungeon_entrances
+        num_dungeon_entrances,
+        preferred_positions=strategic_road_targets,
     )
 
     # 4. Structures: landmark buildings, the town, and the biome fallback,
@@ -2529,7 +2595,7 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
     # actually leads somewhere instead of just linking empty region centers.
     # `blocked=occupied` keeps every road, trunk or spur, from pathing or
     # painting through a structure's footprint.
-    road_tiles = _generate_trunk_roads(game_map, heightmap, regions, blocked=occupied)
+    road_tiles.extend(_generate_trunk_roads(game_map, heightmap, regions, blocked=occupied))
     for entrance in dungeon_entrances:
         road_tiles.extend(_connect_to_road_network(game_map, heightmap, entrance, road_tiles, blocked=occupied))
     for anchor in structure_anchors:
