@@ -889,19 +889,13 @@ def render_world_map_screen(game):
     surf.fill((0, 0, 0, 0))
     SW, SH = surf.get_width(), surf.get_height()
     PAD = 14
-
-    fHdr = _f(20, bold=True)
+    
     fSm  = _f(14)
 
     pygame.draw.rect(surf, _BG, (0, 0, SW, SH))
     pygame.draw.rect(surf, _BORDER, (PAD, PAD, SW - PAD * 2, SH - PAD * 2), 1, border_radius=4)
 
-    title_rect = pygame.Rect(PAD, PAD, SW - PAD * 2, 36)
-    pygame.draw.rect(surf, _BG_PANEL, title_rect)
-    pygame.draw.rect(surf, _ACCENT_GOLD, title_rect, 1)
-    _blit_center(surf, fHdr, "WORLD  MAP", _GOLD, SW // 2, PAD + 8)
-
-    content_rect = pygame.Rect(PAD, PAD + 44, SW - PAD * 2, SH - PAD * 2 - 44 - 34)
+    content_rect = pygame.Rect(PAD, PAD, SW - PAD * 2, SH - PAD * 2 - 44 - 20)
     pygame.draw.rect(surf, _BG_PANEL, content_rect, border_radius=4)
     pygame.draw.rect(surf, _BORDER, content_rect, 1, border_radius=4)
 
@@ -917,7 +911,7 @@ def render_world_map_screen(game):
             game.world_map_view_dirty = False
         surf.blit(cached, (content_rect.x + 4, content_rect.y + 4))
 
-    status_y = content_rect.bottom + 6
+    status_y = content_rect.bottom + 20
     world_map = getattr(game, "world_map", None)
     player_coord = getattr(game, "overworld_chunk_coord", None)
     if world_map is not None and player_coord is not None and player_coord in chunks:

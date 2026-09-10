@@ -76,7 +76,7 @@ OVERWORLD_CHUNK_HEIGHT = 100
 # their nearest land biome (a chunk is generated with local water regardless
 # of ChunkBiome, so this only affects flavor, not walkability).
 _WORLD_BIOME_TO_CHUNK_BIOME = {
-    BIOME_OCEAN: ChunkBiome.SWAMP,
+    BIOME_OCEAN: ChunkBiome.OCEAN,
     BIOME_BEACH: ChunkBiome.PLAINS,
     BIOME_PLAINS: ChunkBiome.PLAINS,
     BIOME_FOREST: ChunkBiome.FOREST,
@@ -176,7 +176,7 @@ RIVER_MOISTURE_BOOST = 0.18
 # Prevent one land biome from forming an unbroken corridor across dozens of
 # world-map cells. This is a coarse-world constraint; local chunk detail is
 # still handled by world_generator.py.
-MAX_BIOME_RUN_LENGTH = 6
+MAX_BIOME_RUN_LENGTH = 4
 
 
 class WorldMap:
