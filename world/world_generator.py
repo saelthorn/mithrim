@@ -802,6 +802,8 @@ def get_terrain_generator(biome):
         return MountainGenerator
     if biome_value == ChunkBiome.PLAINS.value:
         return PlainsGenerator
+    if biome_value == ChunkBiome.OCEAN.value:
+        return OceanGenerator
 
     return PlainsGenerator
 

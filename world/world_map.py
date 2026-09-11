@@ -178,6 +178,127 @@ RIVER_MOISTURE_BOOST = 0.18
 # still handled by world_generator.py.
 MAX_BIOME_RUN_LENGTH = 4
 
+# -- region character -----------------------------------------------------
+# Thresholds used to describe a region's *character* (elevation_character,
+# moisture_character, near_mountains) from its member cells' averaged/peak
+# values, rather than from a single feature label. Elevation/moisture are
+# percentile-normalized to [0, 1] across the whole world grid by the time
+# regions are built, so plain thirds are a reasonable, simple bucketing.
+REGION_ELEVATION_LOWLAND_MAX = 0.35
+REGION_ELEVATION_HIGHLAND_MIN = 0.65
+REGION_MOISTURE_DRY_MAX = 0.35
+REGION_MOISTURE_WET_MIN = 0.65
+# Same cutoff _get_region_feature() already uses to call a cell
+# "Highlands" -- reused here so "near_mountains" agrees with that feature
+# detection instead of drifting from it.
+REGION_NEAR_MOUNTAIN_STRENGTH = 0.12
+# mountain_strength at/above which a cell's identity is "Mountain Range"
+# rather than merely "Highlands" -- the same cutoff _classify_world_biome()
+# already uses to call a cell BIOME_MOUNTAINS, kept in agreement here too.
+REGION_MOUNTAIN_RANGE_STRENGTH = 0.40
+# How much elevation is allowed to matter when ranking two "Mountain
+# Range" candidates against each other. Small on purpose: mountain_strength
+# is what identity is decided from, so elevation may only break ties
+# between similarly-mountainous cells, never outrank a stronger range cell.
+MOUNTAIN_ELEVATION_TIEBREAK_WEIGHT = 0.25
+
+# -- region influence (graded, alongside the plain near_river/near_mountains
+# booleans already on RegionInfo) -------------------------------------------
+# A region's mountain_influence is bucketed from its cells' *average*
+# mountain_strength (how mountainous the region is overall), reusing the
+# same two cutoffs identity/near_mountains already use, so "Moderate"/
+# "Strong" here agree with what a cell would itself be classified as.
+REGION_MOUNTAIN_INFLUENCE_WEAK = 0.02
+REGION_MOUNTAIN_INFLUENCE_MODERATE = REGION_NEAR_MOUNTAIN_STRENGTH
+REGION_MOUNTAIN_INFLUENCE_STRONG = REGION_MOUNTAIN_RANGE_STRENGTH
+# A region's river_influence is bucketed from the *fraction* of its cells
+# that carry a river edge. Rivers are thin, linear features -- even a
+# region genuinely shaped by a river rarely has it running through most of
+# its cells -- so these fractions are deliberately much lower than the
+# mountain thresholds above, which measure a broad area effect instead.
+REGION_RIVER_INFLUENCE_WEAK = 0.05
+REGION_RIVER_INFLUENCE_MODERATE = 0.15
+REGION_RIVER_INFLUENCE_STRONG = 0.35
+
+# -- region display naming --------------------------------------------------
+# Purely descriptive vocabulary for turning a region's already-decided
+# character (dominant_feature, moisture_character) into a two-word display
+# name (e.g. "Ashen Highlands", "Emerald Vale") -- flavor only. The
+# region's actual identity/lookup key stays RegionInfo.id (see
+# _generate_world_regions), which this never touches.
+REGION_NAME_NOUNS = {
+    "Mountain Range": ["Peaks", "Range", "Crags"],
+    "Highlands": ["Highlands", "Uplands", "Heights"],
+    "Forest": ["Wood", "Grove", "Timberland"],
+    "Marsh": ["Fen", "Mire", "Bog"],
+    "Plains": ["Vale", "Reach", "Downs"],
+    "Coastal": ["Shore", "Coast", "Strand"],
+    "River Valley": ["Valley", "Vale", "Bend"],
+    "Sea": ["Sea", "Deep", "Waters"],
+}
+REGION_NAME_ADJECTIVES = {
+    "Dry": ["Ashen", "Parched", "Dusty"],
+    "Moderate": ["Gray", "Quiet", "Still"],
+    "Wet": ["Emerald", "Verdant", "Misty"],
+}
+
+
+class RegionInfo:
+    """
+    Authoritative, persistent identity and character of one world region.
+
+    A region is a meaningful geographic area, not just a biome or a single
+    terrain feature -- `dominant_biome` and `dominant_feature` are only two
+    of several characteristics describing it, alongside elevation/moisture
+    character and its neighboring terrain (river, mountains, coast, ocean).
+    `id`/`name` are decided once by _generate_world_regions() and are what
+    every other system (chunk generation, roads, flavor) should treat as
+    the region's identity -- nothing downstream re-derives or overrides it.
+    """
+
+    def __init__(
+        self,
+        region_id,
+        name,
+        dominant_biome=None,
+        dominant_feature=None,
+        elevation_character="Midland",
+        moisture_character="Moderate",
+        near_river=False,
+        near_mountains=False,
+        river_influence="None",
+        mountain_influence="None",
+        coastal=False,
+        is_ocean=False,
+        size=0,
+        center=None,
+    ):
+        self.id = region_id
+        self.name = name
+        self.dominant_biome = dominant_biome
+        self.dominant_feature = dominant_feature
+        self.elevation_character = elevation_character
+        self.moisture_character = moisture_character
+        self.near_river = near_river
+        self.near_mountains = near_mountains
+        # Graded ("None"/"Weak"/"Moderate"/"Strong") counterparts to the
+        # plain booleans above -- how much of the region's *area* the
+        # feature actually shapes, not just whether it's present anywhere.
+        self.river_influence = river_influence
+        self.mountain_influence = mountain_influence
+        self.coastal = coastal
+        self.is_ocean = is_ocean
+        self.size = size
+        self.center = center
+        # Populated after every region's RegionInfo exists, from the same
+        # region_graph WorldMap.region_transitions_at() already reads --
+        # kept here too so a RegionInfo is a self-contained description of
+        # the region without needing a second lookup against the WorldMap.
+        self.neighbors = set()
+
+    def __repr__(self):
+        return f"RegionInfo(id={self.id!r}, name={self.name!r}, biome={self.dominant_biome})"
+
 
 class WorldMap:
     """
@@ -208,6 +329,11 @@ class WorldMap:
         self.flavor = {}       # (grid_x, grid_y) -> dict of stage metadata
         self.region_ids = {}    # (grid_x, grid_y) -> region id
         self.region_graph = {}  # region id -> set of neighboring region ids
+        # Authoritative region identity: region id -> RegionInfo. A region's
+        # name/id is decided once, by _generate_world_regions(), and never
+        # re-derived by chunk generation -- world_generator.py only reads
+        # this back through region_info_at() when it paints a chunk.
+        self.regions = {}       # region id -> RegionInfo
         # Whether a cell classified as ocean during biome assignment --
         # ChunkBiome has no OCEAN member (ocean chunks still collapse onto
         # ChunkBiome.SWAMP for chunk generation, see _WORLD_BIOME_TO_CHUNK_BIOME),
@@ -315,6 +441,17 @@ class WorldMap:
     def region_transitions_at(self, chunk_coord):
         region_id = self.region_at(chunk_coord)
         return self.region_graph.get(region_id, set())
+
+    def region_info_at(self, chunk_coord):
+        """The authoritative RegionInfo for this chunk, or None before
+        region generation has run. This -- not a chunk's own local terrain
+        sampling -- is the single source of truth for what world region a
+        chunk belongs to and what that region's character is."""
+        return self.regions.get(self.region_at(chunk_coord))
+
+    def get_region(self, region_id):
+        """Look up a RegionInfo directly by region id (see region_at())."""
+        return self.regions.get(region_id)
 
     def is_ocean_at(self, chunk_coord):
         return self.is_ocean.get(self._to_grid(chunk_coord), False)
@@ -523,6 +660,8 @@ def _classify_world_biome(world_map, x, y, thresholds):
         return BIOME_SWAMP
     if moisture > thresholds.forest_moisture:
         return BIOME_FOREST
+    if elevation <= thresholds.ocean:
+        return BIOME_OCEAN
     return BIOME_PLAINS
 
 
@@ -618,8 +757,8 @@ def _generate_world_regions(world_map, rng, num_regions=None, min_region_size=4,
     feature_candidates = {feature: [] for feature in feature_order}
     for y in range(height):
         for x in range(width):
-            feature = _region_feature_for_cell(world_map, x, y)
-            score = _region_feature_score(world_map, x, y, feature)
+            feature = _get_region_feature(world_map, x, y)
+            score = _get_feature_strength(world_map, x, y, feature)
             feature_candidates[feature].append((score, x, y))
 
     seed_spacing = max(3, min(width, height) // 8)
@@ -639,10 +778,10 @@ def _generate_world_regions(world_map, rng, num_regions=None, min_region_size=4,
     remaining_candidates = sorted(
         [
             (
-                _region_feature_score(world_map, x, y, _region_feature_for_cell(world_map, x, y)),
+                _get_feature_strength(world_map, x, y, _get_region_feature(world_map, x, y)),
                 x,
                 y,
-                _region_feature_for_cell(world_map, x, y),
+                _get_region_feature(world_map, x, y),
             )
         for y in range(height)
         for x in range(width)
@@ -704,12 +843,12 @@ def _generate_world_regions(world_map, rng, num_regions=None, min_region_size=4,
                 )
                 region_grid[y][x] = label
 
+    region_cells = {label: [] for label in region_labels}
     for y in range(height):
         for x in range(width):
             label = region_grid[y][x]
             world_map.set_region((x, y), label)
-            region_name = label.split("-", 1)[0]
-            world_map.set_region_name((x, y), region_name)
+            region_cells[label].append((x, y))
 
     world_map.region_graph = {label: set() for label in region_labels}
     for y in range(height):
@@ -726,7 +865,137 @@ def _generate_world_regions(world_map, rng, num_regions=None, min_region_size=4,
                     world_map.region_graph.setdefault(region_label, set()).add(neighbor_region)
                     world_map.region_graph.setdefault(neighbor_region, set()).add(region_label)
 
+    world_map.regions = _build_region_info(world_map, region_cells, region_seeds)
+    for label, region in world_map.regions.items():
+        region.neighbors = set(world_map.region_graph.get(label, set()))
+        for x, y in region_cells[label]:
+            world_map.set_region_name((x, y), region.name)
+
     return world_map
+
+
+def _elevation_character(average_elevation):
+    if average_elevation < REGION_ELEVATION_LOWLAND_MAX:
+        return "Lowland"
+    if average_elevation >= REGION_ELEVATION_HIGHLAND_MIN:
+        return "Highland"
+    return "Midland"
+
+
+def _moisture_character(average_moisture):
+    if average_moisture < REGION_MOISTURE_DRY_MAX:
+        return "Dry"
+    if average_moisture >= REGION_MOISTURE_WET_MIN:
+        return "Wet"
+    return "Moderate"
+
+
+def _influence_level(value, weak_min, moderate_min, strong_min):
+    """Bucket a 0..1 area measurement (e.g. average mountain_strength, or
+    the fraction of a region's cells carrying a river edge) into a plain
+    "None"/"Weak"/"Moderate"/"Strong" description."""
+    if value >= strong_min:
+        return "Strong"
+    if value >= moderate_min:
+        return "Moderate"
+    if value >= weak_min:
+        return "Weak"
+    return "None"
+
+
+def _stable_index(text, length, salt=0):
+    """Deterministic index into a list of size `length`, derived from
+    `text`. Used instead of the `random` module for descriptive-name
+    variety, so the same world seed always produces the same names
+    without threading an RNG through region metadata building."""
+    if length <= 0:
+        return 0
+    total = salt
+    for character in text:
+        total = (total * 31 + ord(character)) & 0xFFFFFFFF
+    return total % length
+
+
+def _region_display_name(region_id, dominant_feature, moisture_character):
+    """A two-word, human-facing name reflecting the region's own character
+    (e.g. "Ashen Highlands", "Emerald Vale") -- flavor only, derived
+    deterministically from data the region already has. Never used as a
+    lookup key; see RegionInfo.id for that."""
+    nouns = REGION_NAME_NOUNS.get(dominant_feature, ["Wilds"])
+    adjectives = REGION_NAME_ADJECTIVES.get(moisture_character, ["Quiet"])
+    adjective = adjectives[_stable_index(region_id, len(adjectives), salt=1)]
+    noun = nouns[_stable_index(region_id, len(nouns), salt=2)]
+    return f"{adjective} {noun}"
+
+
+def _build_region_info(world_map, region_cells, region_seeds):
+    """
+    Derive one RegionInfo per region label from its actual member cells --
+    this is what lets a region's identity (id/name) stay independent of any
+    single characteristic like dominant_biome or dominant_feature, since
+    those are computed *from* membership rather than defining it.
+    """
+    regions = {}
+    for label, cells in region_cells.items():
+        if not cells:
+            continue
+
+        biome_counts = {}
+        river_cells = 0
+        coastal_cells = 0
+        ocean_cells = 0
+        peak_mountain_strength = 0.0
+        mountain_strength_total = 0.0
+        elevation_total = 0.0
+        moisture_total = 0.0
+
+        for x, y in cells:
+            biome_counts[world_map.biomes.get((x, y))] = biome_counts.get(world_map.biomes.get((x, y)), 0) + 1
+            if world_map.river_edges.get((x, y)):
+                river_cells += 1
+            if world_map.coastal.get((x, y), False):
+                coastal_cells += 1
+            if world_map.is_ocean.get((x, y), False):
+                ocean_cells += 1
+            cell_mountain_strength = world_map.mountain_strength.get(x, y)
+            peak_mountain_strength = max(peak_mountain_strength, cell_mountain_strength)
+            mountain_strength_total += cell_mountain_strength
+            elevation_total += world_map.elevation.get(x, y)
+            moisture_total += world_map.moisture.get(x, y)
+
+        cell_count = len(cells)
+        dominant_biome = max(biome_counts, key=biome_counts.get)
+        dominant_feature = label.split("-", 1)[0]
+        moisture_character = _moisture_character(moisture_total / cell_count)
+
+        regions[label] = RegionInfo(
+            region_id=label,
+            name=_region_display_name(label, dominant_feature, moisture_character),
+            dominant_biome=dominant_biome,
+            dominant_feature=dominant_feature,
+            elevation_character=_elevation_character(elevation_total / cell_count),
+            moisture_character=moisture_character,
+            near_river=river_cells > 0,
+            near_mountains=peak_mountain_strength >= REGION_NEAR_MOUNTAIN_STRENGTH,
+            river_influence=_influence_level(
+                river_cells / cell_count,
+                REGION_RIVER_INFLUENCE_WEAK,
+                REGION_RIVER_INFLUENCE_MODERATE,
+                REGION_RIVER_INFLUENCE_STRONG,
+            ),
+            mountain_influence=_influence_level(
+                mountain_strength_total / cell_count,
+                REGION_MOUNTAIN_INFLUENCE_WEAK,
+                REGION_MOUNTAIN_INFLUENCE_MODERATE,
+                REGION_MOUNTAIN_INFLUENCE_STRONG,
+            ),
+            coastal=coastal_cells > 0,
+            is_ocean=ocean_cells > cell_count / 2,
+            size=cell_count,
+            center=region_seeds.get(label),
+        )
+
+    return regions
 
 
 def _world_road_cost(world_map, current, neighbor):
@@ -874,11 +1143,20 @@ def _region_name_for_biome(biome, is_ocean=False):
     }.get(biome, "Wilds")
 
 
-def _region_feature_for_cell(world_map, x, y):
-    """Return the strongest geographic identity for one world cell."""
+def _get_region_feature(world_map, x, y):
+    """
+    Identity: the single most specific geographic feature this cell
+    represents. Every branch is decided by the same field that actually
+    *is* that feature (ocean by is_ocean, mountains by mountain_strength,
+    rivers by river_edges, coast by world_map.coastal, the rest by
+    biome) -- checked in order of specificity so a cell that qualifies
+    for more than one (a swampy river valley, say) gets the most
+    distinguishing one. _get_feature_strength() below never changes this
+    decision, only ranks candidates that already share it.
+    """
     if world_map.is_ocean.get((x, y), False):
         return "Sea"
-    if world_map.mountain_strength.get(x, y) >= 0.40:
+    if world_map.mountain_strength.get(x, y) >= REGION_MOUNTAIN_RANGE_STRENGTH:
         return "Mountain Range"
     if world_map.river_edges.get((x, y)):
         return "River Valley"
@@ -890,27 +1168,97 @@ def _region_feature_for_cell(world_map, x, y):
         return "Marsh"
     if biome is ChunkBiome.FOREST:
         return "Forest"
-    if biome is ChunkBiome.HILLS or world_map.mountain_strength.get(x, y) >= 0.12:
+    if biome is ChunkBiome.HILLS or world_map.mountain_strength.get(x, y) >= REGION_NEAR_MOUNTAIN_STRENGTH:
         return "Highlands"
-    return "Plains"
+    if biome is ChunkBiome.PLAINS:
+        return "Plains"
+    return "Plains"  # defensive default for any other/unclassified biome
 
 
-def _region_feature_score(world_map, x, y, feature):
-    """Score feature strength for deterministic, geography-led seed choice."""
+def _band_centrality(value, low, high):
+    """
+    How centered `value` sits within [low, high) -- 1.0 at the band's
+    midpoint, tapering to 0.0 at (or past) either edge. Used to score how
+    representative a cell is of a band it was already classified into
+    (e.g. a biome's moisture range), instead of treating the raw field
+    value itself as the score, which rewards drifting toward a
+    neighboring band's territory just as much as sitting solidly inside
+    this one.
+    """
+    if high <= low:
+        return 1.0
+    midpoint = (low + high) / 2.0
+    half_width = (high - low) / 2.0
+    return max(0.0, 1.0 - abs(value - midpoint) / half_width)
+
+
+def _ocean_neighbor_fraction(world_map, x, y):
+    """Fraction (0..1) of this cell's four cardinal neighbors that are
+    open ocean. Only used to rank how exposed a coastal candidate is;
+    coastal identity itself is decided by world_map.coastal, not this."""
+    ocean_neighbors = sum(
+        1
+        for dx, dy in _DIRECTION_OFFSETS.values()
+        if world_map.is_ocean.get((x + dx, y + dy), False)
+    )
+    return ocean_neighbors / 4.0
+
+
+def _get_feature_strength(world_map, x, y, feature):
+    """
+    Strength: how strongly this cell represents `feature`, for ranking
+    candidate seeds against each other *within* one feature category --
+    never used to decide `feature` itself (see _get_region_feature()).
+    Every branch is built from the field(s) that actually back that
+    feature's identity, so a "River Valley" candidate can only score
+    higher by having more river evidence, a "Coastal" candidate only by
+    being more exposed to the ocean, and so on -- never by an unrelated
+    proxy like moisture standing in for a river, or raw continentalness
+    standing in for coastal distance.
+    """
     elevation = world_map.elevation.get(x, y)
     moisture = world_map.moisture.get(x, y)
     mountain_strength = world_map.mountain_strength.get(x, y)
-    feature_bonus = {
-        "Mountain Range": mountain_strength * 2.0 + elevation,
-        "River Valley": 1.0 + moisture,
-        "Coastal": 1.0 + world_map.continentalness.get(x, y),
-        "Marsh": moisture,
-        "Forest": moisture,
-        "Highlands": elevation + mountain_strength,
-        "Plains": 1.0 - abs(elevation - 0.45),
-        "Sea": 1.0 - world_map.continentalness.get(x, y),
-    }
-    return feature_bonus[feature]
+    thresholds = world_map.biome_thresholds
+
+    if feature == "Sea":
+        ocean_threshold = world_map.continentalness_ocean_threshold
+        if ocean_threshold is None:
+            ocean_threshold = 0.0
+        return ocean_threshold - world_map.continentalness.get(x, y)
+
+    if feature == "Mountain Range":
+        return mountain_strength + elevation * MOUNTAIN_ELEVATION_TIEBREAK_WEIGHT
+
+    if feature == "River Valley":
+        return len(world_map.river_edges.get((x, y), ())) / 4.0
+
+    if feature == "Coastal":
+        return _ocean_neighbor_fraction(world_map, x, y)
+
+    if feature == "Marsh":
+        if thresholds is not None:
+            moisture_strength = _band_centrality(moisture, thresholds.swamp_moisture, 1.0)
+        else:
+            moisture_strength = moisture
+        return moisture_strength * (1.0 - elevation)  # marshes are lowland by definition
+
+    if feature == "Forest":
+        if thresholds is not None:
+            return _band_centrality(moisture, thresholds.forest_moisture, thresholds.swamp_moisture)
+        return moisture
+
+    if feature == "Highlands":
+        return elevation + mountain_strength
+
+    if feature == "Plains":
+        if thresholds is not None:
+            elevation_strength = _band_centrality(elevation, thresholds.beach, thresholds.hills)
+        else:
+            elevation_strength = 1.0 - abs(elevation - 0.5)
+        return elevation_strength * (1.0 - mountain_strength)  # low relief, not just mid elevation
+
+    raise ValueError(f"Unknown region feature: {feature!r}")
 
 
 def _region_boundary_between(world_map, current, neighbor):
