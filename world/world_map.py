@@ -30,7 +30,6 @@ do individual chunks get generated, each consulting this map for:
 import math
 import heapq
 import random
-from collections import deque
 
 from world.world_generator import (
     ChunkBiome,
@@ -241,6 +240,35 @@ REGION_NAME_ADJECTIVES = {
     "Moderate": ["Gray", "Quiet", "Still"],
     "Wet": ["Emerald", "Verdant", "Misty"],
 }
+
+# -- region growth cost -------------------------------------------------
+# Base cost of extending a region by one cell on perfectly uniform terrain
+# -- with everything else below at zero, this reduces to plain nearest-
+# seed distance, so regions only diverge from that baseline where the
+# terrain underneath actually changes.
+REGION_GROWTH_STEP_COST = 1.0
+# Elevation is the single strongest visual signal for a natural boundary
+# (a ridge, a cliff, a valley wall), so it dominates the cost -- weighted
+# well above moisture and biome below so a real elevation change reliably
+# outweighs them.
+REGION_GROWTH_ELEVATION_WEIGHT = 6.0
+# Moisture/climate transitions (forest thinning into plains, plains
+# drying into something sparser) are a real but gentler boundary cue than
+# a wall of elevation, so this stays well under the elevation weight.
+REGION_GROWTH_MOISTURE_WEIGHT = 3.0
+# Flat penalty for stepping into a different (but still adjacency-legal --
+# see _biomes_are_adjacent) biome, on top of whatever elevation/moisture
+# gap caused it, so a biome edge is never entirely free to cross even when
+# the underlying numbers are close.
+REGION_GROWTH_BIOME_TRANSITION_COST = 1.5
+# Soft, not hard: crossing a major river or a distinct mountain range
+# (see _region_boundary_between) costs about six extra steps' worth of
+# distance rather than being forbidden outright, so growth usually stops
+# at one without it being a rule that every river/range must become a
+# region edge -- a region can still cross one where growth pressure from
+# every other direction is blocked and that's the only way to reach
+# unclaimed ground.
+REGION_GROWTH_BARRIER_COST = 6.0
 
 
 class RegionInfo:
@@ -726,23 +754,186 @@ def _biomes_are_adjacent(a, b):
     return b in adjacency.get(a, set()) or a in adjacency.get(b, set())
 
 
-def _generate_world_regions(world_map, rng, num_regions=None, min_region_size=4, max_region_size=14):
+def _region_growth_cost(world_map, current, neighbor):
+    """
+    Cost of a region extending one step from `current` into `neighbor`.
+    Built entirely from the elevation/moisture/biome/river/mountain-range
+    data at those two cells -- on flat, uniform terrain this is just
+    REGION_GROWTH_STEP_COST everywhere, so growth reduces to ordinary
+    nearest-seed distance; it only rises where the terrain underneath
+    actually changes, which is what lets a boundary settle along a real
+    ridge, riverbank, or climate transition instead of an arbitrary line.
+    """
+    elevation_delta = abs(world_map.elevation.get(*current) - world_map.elevation.get(*neighbor))
+    moisture_delta = abs(world_map.moisture.get(*current) - world_map.moisture.get(*neighbor))
+
+    cost = REGION_GROWTH_STEP_COST
+    cost += elevation_delta * REGION_GROWTH_ELEVATION_WEIGHT
+    cost += moisture_delta * REGION_GROWTH_MOISTURE_WEIGHT
+
+    if world_map.biomes.get(current) is not world_map.biomes.get(neighbor):
+        cost += REGION_GROWTH_BIOME_TRANSITION_COST
+
+    if _region_boundary_between(world_map, current, neighbor):
+        cost += REGION_GROWTH_BARRIER_COST
+
+    return cost
+
+
+def _grow_regions_by_cost(world_map, selected_seeds, max_region_size):
+    """
+    Multi-source flood fill: every seed grows outward simultaneously and
+    each cell is claimed by whichever seed can reach it most cheaply (see
+    _region_growth_cost), not whichever seed is nearest in a straight
+    line. The ocean/land split and biologically-implausible biome
+    adjacency (see _biomes_are_adjacent) are still hard boundaries no
+    region ever crosses; a river or a distinct mountain range is only a
+    steep cost, so a region can still span one where growth pressure from
+    every other direction leaves no cheaper path to unclaimed ground.
+
+    `max_region_size` is an optional hard cap (None means uncapped) on
+    how many cells one region may claim -- once reached, that region's
+    frontier stops advancing and every other seed keeps growing to fill
+    what's left.
+    """
+    width, height = world_map.width, world_map.height
+    region_grid = [[None for _ in range(width)] for _ in range(height)]
+    region_cost = [[math.inf for _ in range(width)] for _ in range(height)]
+    region_seeds = {}
+    region_labels = []
+    claimed_count = {}
+
+    frontier = []
+    for region_id, (seed_x, seed_y, feature) in enumerate(selected_seeds, start=1):
+        label = f"{feature}-{region_id}"
+        region_seeds[label] = (seed_x, seed_y)
+        region_labels.append(label)
+        claimed_count[label] = 1
+        region_grid[seed_y][seed_x] = label
+        region_cost[seed_y][seed_x] = 0.0
+        heapq.heappush(frontier, (0.0, seed_y, seed_x, label))
+
+    while frontier:
+        cost, cy, cx, label = heapq.heappop(frontier)
+        if region_grid[cy][cx] != label or cost > region_cost[cy][cx]:
+            continue  # a cheaper claim already won this cell
+        if max_region_size is not None and claimed_count[label] >= max_region_size:
+            continue  # this region has already claimed its full allowance
+
+        seed_is_ocean = world_map.is_ocean[region_seeds[label]]
+        current_biome = world_map.biomes[(cx, cy)]
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = cx + dx, cy + dy
+            if not (0 <= nx < width and 0 <= ny < height):
+                continue
+            if world_map.is_ocean[(nx, ny)] != seed_is_ocean:
+                continue  # never grow a region across the coastline
+            if not _biomes_are_adjacent(current_biome, world_map.biomes[(nx, ny)]):
+                continue  # never grow a region across a biologically implausible seam
+
+            new_cost = cost + _region_growth_cost(world_map, (cx, cy), (nx, ny))
+            if new_cost < region_cost[ny][nx]:
+                region_cost[ny][nx] = new_cost
+                previous_owner = region_grid[ny][nx]
+                if previous_owner is not None:
+                    claimed_count[previous_owner] -= 1
+                region_grid[ny][nx] = label
+                claimed_count[label] += 1
+                heapq.heappush(frontier, (new_cost, ny, nx, label))
+
+    # Defensive fallback: a cell can only be left unreached if it's boxed
+    # in entirely by the opposite ocean/land class or an implausible
+    # biome seam with no seed of its own on its side -- assign any such
+    # leftover cell to its nearest same-class seed by plain distance.
+    for y in range(height):
+        for x in range(width):
+            if region_grid[y][x] is not None:
+                continue
+            is_ocean = world_map.is_ocean[(x, y)]
+            candidates = [
+                label for label in region_labels
+                if world_map.is_ocean[region_seeds[label]] == is_ocean
+            ] or region_labels
+            region_grid[y][x] = min(
+                candidates,
+                key=lambda current_label: abs(x - region_seeds[current_label][0]) + abs(y - region_seeds[current_label][1]),
+            )
+
+    return region_grid, region_seeds, region_labels
+
+
+def _region_cells_from_grid(region_grid, region_labels):
+    region_cells = {label: [] for label in region_labels}
+    for y, row in enumerate(region_grid):
+        for x, label in enumerate(row):
+            region_cells[label].append((x, y))
+    return region_cells
+
+
+def _merge_undersized_regions(world_map, region_grid, region_cells, region_labels, region_seeds, min_region_size):
+    """
+    Fold any region smaller than `min_region_size` cells into whichever
+    neighboring region shares the most border with it -- a seed that got
+    boxed in early by faster-growing (or more favorably placed) neighbors
+    shouldn't linger as a degenerate sliver. Labels are always processed
+    in sorted order, and ties on which neighbor to merge into are broken
+    the same way, so the result never depends on dict/set iteration order.
+    """
+    width, height = world_map.width, world_map.height
+    changed = True
+    while changed:
+        changed = False
+        for label in sorted(region_labels):
+            if label not in region_cells or len(region_labels) <= 1:
+                continue
+            cells = region_cells[label]
+            if len(cells) >= min_region_size:
+                continue
+
+            border_counts = {}
+            for x, y in cells:
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = x + dx, y + dy
+                    if not (0 <= nx < width and 0 <= ny < height):
+                        continue
+                    neighbor_label = region_grid[ny][nx]
+                    if neighbor_label != label:
+                        border_counts[neighbor_label] = border_counts.get(neighbor_label, 0) + 1
+
+            if not border_counts:
+                continue  # isolated with nothing to merge into -- leave it
+
+            target = max(sorted(border_counts), key=border_counts.get)
+
+            for x, y in cells:
+                region_grid[y][x] = target
+            region_cells[target].extend(cells)
+            del region_cells[label]
+            region_labels.remove(label)
+            region_seeds.pop(label, None)
+            changed = True
+
+    return region_grid, region_cells, region_labels, region_seeds
+
+
+def _generate_world_regions(world_map, rng, num_regions=None, min_region_size=4, max_region_size=None):
     """
     Generate a coarse region graph for the world map using geography-aware
     seeded growth. Seeds favor mountain ranges, river valleys, coasts, and
     broad climate/terrain masses before filling remaining slots from the
-    strongest unclaimed geographic features. Rivers and distinct mountain
-    ranges act as soft boundaries, while biome adjacency and the ocean/land
-    split keep neighboring geography compatible. `rng` is retained for
-    deterministic tie-breaking and region growth reproducibility.
+    strongest unclaimed geographic features. Every seed then grows
+    simultaneously and competes for territory by cost (see
+    _region_growth_cost) rather than straight-line distance, so a
+    region's shape follows real elevation/moisture/biome continuity
+    instead of settling on an arbitrary bisector between two seeds.
+    Rivers and distinct mountain ranges are steep but not absolute costs
+    to cross, and the ocean/land split is still never crossed. `rng` is
+    unused now that growth is fully cost-driven, but is kept in the
+    signature since callers already pass it.
     """
     width, height = world_map.width, world_map.height
     if num_regions is None:
         num_regions = max(8, (width * height) // 500)
-
-    region_grid = [[None for _ in range(width)] for _ in range(height)]
-    region_seeds = {}
-    region_labels = []
 
     feature_order = (
         "Mountain Range",
@@ -795,60 +986,15 @@ def _generate_world_regions(world_map, rng, num_regions=None, min_region_size=4,
             continue
         selected_seeds.append((seed_x, seed_y, feature))
 
-    for region_id, (seed_x, seed_y, feature) in enumerate(selected_seeds, start=1):
-        region_label = f"{feature}-{region_id}"
-        queue = deque([(seed_x, seed_y)])
-        region_grid[seed_y][seed_x] = region_label
-        region_seeds[region_label] = (seed_x, seed_y)
-        region_labels.append(region_label)
+    region_grid, region_seeds, region_labels = _grow_regions_by_cost(world_map, selected_seeds, max_region_size)
+    region_cells = _region_cells_from_grid(region_grid, region_labels)
+    region_grid, region_cells, region_labels, region_seeds = _merge_undersized_regions(
+        world_map, region_grid, region_cells, region_labels, region_seeds, min_region_size,
+    )
 
-        size = 0
-        while queue and size < max_region_size:
-            cx, cy = queue.popleft()
-            size += 1
-            biome = world_map.biomes[(seed_x, seed_y)]
-            is_ocean = world_map.is_ocean[(seed_x, seed_y)]
-            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                nx, ny = cx + dx, cy + dy
-                if not (0 <= nx < width and 0 <= ny < height):
-                    continue
-                if region_grid[ny][nx] is not None:
-                    continue
-
-                if world_map.is_ocean[(nx, ny)] != is_ocean:
-                    continue  # never grow a region across the coastline
-
-                neighbor_biome = world_map.biomes[(nx, ny)]
-                if not _biomes_are_adjacent(biome, neighbor_biome):
-                    continue
-
-                if _region_boundary_between(world_map, (cx, cy), (nx, ny)):
-                    continue
-
-                if size < min_region_size or rng.random() < 0.90:
-                    region_grid[ny][nx] = region_label
-                    queue.append((nx, ny))
-
-    for y in range(height):
-        for x in range(width):
-            if region_grid[y][x] is None:
-                is_ocean = world_map.is_ocean[(x, y)]
-                candidates = [
-                    label for label in region_labels
-                    if world_map.is_ocean[region_seeds[label]] == is_ocean
-                ] or region_labels
-                label = min(
-                    candidates,
-                    key=lambda current_label: abs(x - region_seeds[current_label][0]) + abs(y - region_seeds[current_label][1]),
-                )
-                region_grid[y][x] = label
-
-    region_cells = {label: [] for label in region_labels}
-    for y in range(height):
-        for x in range(width):
-            label = region_grid[y][x]
+    for label, cells in region_cells.items():
+        for x, y in cells:
             world_map.set_region((x, y), label)
-            region_cells[label].append((x, y))
 
     world_map.region_graph = {label: set() for label in region_labels}
     for y in range(height):
@@ -1127,20 +1273,6 @@ def _generate_world_roads(world_map):
         _record_world_road_path(world_map, path, region_id, neighbor_id)
 
     return world_map
-
-
-def _region_name_for_biome(biome, is_ocean=False):
-    if is_ocean:
-        return "Sea"
-    if biome is None:
-        return "Wilds"
-    return {
-        ChunkBiome.FOREST: "Forest",
-        ChunkBiome.PLAINS: "Plains",
-        ChunkBiome.SWAMP: "Swamp",
-        ChunkBiome.HILLS: "Highlands",
-        ChunkBiome.MOUNTAINS: "Mountains",
-    }.get(biome, "Wilds")
 
 
 def _get_region_feature(world_map, x, y):
@@ -1617,7 +1749,7 @@ def generate_world_map(
     num_rivers=None,
     num_regions=None,
     min_region_size=4,
-    max_region_size=14,
+    max_region_size=None,
     elevation_curve=None,
     moisture_curve=None,
     local_detail_weight=0.35,
@@ -1656,11 +1788,13 @@ def generate_world_map(
     # Perlin detail noise (a different corner of the permutation table
     # than per-chunk generation uses, so coarse world layout and fine
     # per-chunk detail don't end up correlated), `rng` for everything
-    # that needs ordinary randomness (continent cores, mountain walks,
-    # region growth) -- kept as a local random.Random rather than the
-    # global `random` module so world generation stays reproducible for
-    # a given world_seed regardless of what else in the process has
-    # touched the global RNG.
+    # that needs ordinary randomness (continent cores, mountain walks) --
+    # kept as a local random.Random rather than the global `random`
+    # module so world generation stays reproducible for a given
+    # world_seed regardless of what else in the process has touched the
+    # global RNG. Region growth (see _generate_world_regions) no longer
+    # draws from `rng` -- it's fully cost-driven and deterministic on its
+    # own -- but the parameter is kept since it's already threaded through.
     perm = _build_permutation_table(world_seed ^ 0x5EED)
     rng = random.Random(world_seed ^ 0xC0FFEE)
 

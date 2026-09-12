@@ -104,7 +104,7 @@ class ChunkBiome(Enum):
     TUNDRA = "tundra"
     OCEAN = "ocean"
 
-REGION_PREFIXES = [
+PATCH_PREFIXES = [
     "Ashen",
     "Golden",
     "Frozen",
@@ -119,7 +119,7 @@ REGION_PREFIXES = [
     "Scarlet",
 ]
 
-REGION_SUFFIX = {
+PATCH_SUFFIX = {
     BIOME_FOREST: [
         "Forest",
         "Woods",
@@ -230,7 +230,10 @@ class FlowField:
         self.volume[y][x] += amount
 
 
-class RegionMap:
+class PatchMap:
+    """Per-tile map of which local LandscapePatch each tile falls in --
+    chunk-scoped terrain variation, not a world region (see WorldMap)."""
+
     def __init__(self, width, height):
         self.width = width
         self.height = height
@@ -242,8 +245,8 @@ class RegionMap:
     def get(self, x, y):
         return self.values[y][x]
 
-    def set(self, x, y, region):
-        self.values[y][x] = region
+    def set(self, x, y, patch):
+        self.values[y][x] = patch
 
 
 class PointOfInterest:
@@ -260,7 +263,16 @@ class PointOfInterest:
         self.min_spacing = min_spacing
         self.score_function = score_function
 
-class Region:
+class LandscapePatch:
+    """
+    A local, chunk-scoped terrain patch (a stand of forest, a stretch of
+    hills, a clearing) -- one of several that can exist inside a single
+    chunk, all belonging to that chunk's one WorldMap region. Exists to
+    give the chunk's own trunk-road network real anchor points and a bit
+    of naming flavor for sub-areas; it is not a region and does not
+    carry or override any world-scale geographic identity.
+    """
+
     def __init__(self, id, name, biome):
         self.id = id
         self.name = name
@@ -813,8 +825,8 @@ def _biome(height, moisture, thresholds=None):
     Classify a single (height, moisture) sample into a BIOME_* constant.
 
     `thresholds` defaults to DEFAULT_BIOME_THRESHOLDS (the original
-    fixed cutoffs), so every existing call site -- _generate_regions()'s
-    per-chunk flavor naming, _score_dungeon_location()'s scoring -- is
+    fixed cutoffs), so every existing call site -- _generate_landscape_patches()'s
+    per-patch flavor naming, _score_dungeon_location()'s scoring -- is
     unaffected. world_map.py passes its own distribution-aware
     BiomeThresholds when classifying world-scale cells; see
     BiomeThresholds' docstring for why that matters.
@@ -838,11 +850,11 @@ def _biome(height, moisture, thresholds=None):
     return BIOME_PLAINS
 
 
-def _random_region_name(biome):
-    prefix = random.choice(REGION_PREFIXES)
+def _random_patch_name(biome, rng):
+    prefix = rng.choice(PATCH_PREFIXES)
 
-    suffix = random.choice(
-        REGION_SUFFIX.get(
+    suffix = rng.choice(
+        PATCH_SUFFIX.get(
             biome,
             ["Wilds"]
         )
@@ -851,45 +863,60 @@ def _random_region_name(biome):
     return f"{prefix} {suffix}"
 
 
-def _generate_region_seeds(width, height, count):
+def _generate_patch_seeds(width, height, count, rng):
     seeds = []
 
     for i in range(count):
-        x = random.randrange(width)
-        y = random.randrange(height)
+        x = rng.randrange(width)
+        y = rng.randrange(height)
 
         seeds.append((i, x, y))
 
     return seeds
 
 
-def _generate_regions(game_map, heightmap, moisture):
+def _generate_landscape_patches(game_map, heightmap, moisture, rng):
+    """
+    Split one chunk's own tiles into a handful of local LandscapePatches
+    (forest stand, hillside, clearing, ...) purely for trunk-road anchor
+    points and sub-area naming flavor. This is chunk-local terrain
+    variation, not world-region identity -- a chunk's actual region comes
+    from WorldMap.region_at()/region_info_at(); see generate_chunk_context's
+    flavor step.
+
+    `rng` must be a per-(world_seed, chunk_coord) random.Random (see
+    _patch_rng below), not the bare `random` module -- otherwise which
+    patches/names a chunk gets would depend on how many other random
+    draws happened first, i.e. on chunk generation order, rather than
+    only on the world seed and this chunk's own coordinate.
+    """
     width = game_map.width
     height = game_map.height
 
-    region_count = max(6, width * height // 24000)
+    patch_count = max(6, width * height // 24000)
 
-    seeds = _generate_region_seeds(
+    seeds = _generate_patch_seeds(
         width,
         height,
-        region_count
+        patch_count,
+        rng
     )
 
-    region_map = RegionMap(width, height)
-    regions = {}
+    patch_map = PatchMap(width, height)
+    patches = {}
 
-    for region_id, sx, sy in seeds:
+    for patch_id, sx, sy in seeds:
         biome = _biome(
             heightmap.get(sx, sy),
             moisture.get(sx, sy)
         )
-        region = Region(
-            region_id,
-            _random_region_name(biome),
+        patch = LandscapePatch(
+            patch_id,
+            _random_patch_name(biome, rng),
             biome
         )
-        region.center = (sx, sy)
-        regions[region_id] = region
+        patch.center = (sx, sy)
+        patches[patch_id] = patch
 
 
     for y in range(height):
@@ -899,12 +926,12 @@ def _generate_regions(game_map, heightmap, moisture):
                 key=lambda s:
                 (x-s[1])**2 + (y-s[2])**2
             )
-            region_id = nearest[0]
-            region_map.set(x, y, region_id)
-            regions[region_id].tiles.append((x, y))
+            patch_id = nearest[0]
+            patch_map.set(x, y, patch_id)
+            patches[patch_id].tiles.append((x, y))
 
 
-    return region_map, list(regions.values())
+    return patch_map, list(patches.values())
 
 
 # ---------------------------------------------------------------------------
@@ -2034,14 +2061,14 @@ def _paint_road_path(game_map, heightmap, start, goal, blocked=None):
     return road_tiles
 
 
-def _generate_trunk_roads(game_map, heightmap, regions, blocked=None):
+def _generate_trunk_roads(game_map, heightmap, patches, blocked=None):
     """
-    Lay down a backbone road network by connecting each region's center to
-    its nearest neighboring region's center. Runs after structures are
-    placed — see the module-level comment above — so `blocked` can already
-    account for every building's footprint.
+    Lay down a backbone road network by connecting each local landscape
+    patch's center to its nearest neighboring patch's center. Runs after
+    structures are placed — see the module-level comment above — so
+    `blocked` can already account for every building's footprint.
     """
-    centers = [region.center for region in regions if region.center is not None]
+    centers = [patch.center for patch in patches if patch.center is not None]
     connected_pairs = set()
     road_tiles = []
 
@@ -2340,6 +2367,21 @@ def _town_rng(chunk_coord, world_seed):
     return random.Random((world_seed * 1_000_003) ^ (chunk_coord[0] * 92_821) ^ (chunk_coord[1] * 68_917))
 
 
+def _patch_rng(chunk_coord, world_seed):
+    """
+    Deterministic per-(world, chunk) RNG for this chunk's local landscape
+    patches (see _generate_landscape_patches). Same mixing as _town_rng,
+    XORed with a distinct constant so patch seeding and town placement
+    don't draw from identical, correlated sequences for the same chunk.
+    """
+    return random.Random(
+        (world_seed * 1_000_003)
+        ^ (chunk_coord[0] * 92_821)
+        ^ (chunk_coord[1] * 68_917)
+        ^ 0x9E3779B9
+    )
+
+
 def _place_town(game_map, chunk_coord, biome, world_seed):
     """
     Attempt to place a small town — one tavern, one shop, and a handful of
@@ -2490,13 +2532,24 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
         biome_value = getattr(biome, "value", biome)
         biome = next((candidate for candidate in biome_enum if candidate.value == biome_value), biome_enum.PLAINS)
 
+    # 0. World-region context: the environmental identity this chunk's
+    # region carries (dominant biome, elevation/moisture character,
+    # river/mountain/coastal relationship, neighbors -- see world_map.py's
+    # RegionInfo), fetched once and carried through as read-only context.
+    # None for a standalone chunk with no world map. Nothing below may
+    # derive or override a competing region identity from local terrain --
+    # local generation only realizes detail within this region, it never
+    # decides which region the chunk is in.
+    region_context = world_map.region_info_at(chunk_coord) if world_map is not None else None
+
     perm = _build_permutation_table(world_seed)
     width, height = game_map.width, game_map.height
 
     if num_dungeon_entrances is None:
         num_dungeon_entrances = max(1, (width * height) // 24000)
 
-    # 1. Region generator: coarse regional identity and region boundaries.
+    # 1. Landscape patches: chunk-local terrain variation (not world-region
+    # identity -- see step 7 below, which reads that from WorldMap).
     heightmap = _generate_ridge_heightmap(width, height)
     if world_map is not None:
         _bias_grid_toward_world_value(
@@ -2538,7 +2591,7 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
         )
 
     _apply_river_moisture(moisture, river_positions | lake_positions)
-    region_map, regions = _generate_regions(game_map, heightmap, moisture)
+    patch_map, patches = _generate_landscape_patches(game_map, heightmap, moisture, _patch_rng(chunk_coord, world_seed))
 
     # 2. Chunk generator: paint terrain with biome-specific terrain rules.
     terrain_generator = get_terrain_generator(biome)()
@@ -2664,13 +2717,13 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
         for placed, anchor in structure_placements
     ]
 
-    # 5. Infrastructure: roads and trails. Trunk roads connect region
-    # centers to each other; every dungeon entrance and placed structure
-    # above then gets a spur to the nearest existing road, so the network
-    # actually leads somewhere instead of just linking empty region centers.
-    # `blocked=occupied` keeps every road, trunk or spur, from pathing or
-    # painting through a structure's footprint.
-    road_tiles.extend(_generate_trunk_roads(game_map, heightmap, regions, blocked=occupied))
+    # 5. Infrastructure: roads and trails. Trunk roads connect local
+    # landscape patch centers to each other; every dungeon entrance and
+    # placed structure above then gets a spur to the nearest existing
+    # road, so the network actually leads somewhere instead of just
+    # linking empty patch centers. `blocked=occupied` keeps every road,
+    # trunk or spur, from pathing or painting through a structure's footprint.
+    road_tiles.extend(_generate_trunk_roads(game_map, heightmap, patches, blocked=occupied))
     for entrance in dungeon_entrances:
         road_tiles.extend(_connect_to_road_network(game_map, heightmap, entrance, road_tiles, blocked=occupied))
     for anchor in structure_anchors:
@@ -2679,17 +2732,41 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
     # 6. Population: reserved for creatures, NPC travelers, and encounters.
     # (town NPCs already gathered into `population` above)
 
-    # 7. Flavor: biome, region name, and scene-level tags.
-    region_name = None
-    if world_map is not None:
-        region_name = world_map.region_name_at(chunk_coord)
+    # 7. Flavor: biome, world-region identity/context, and scene-level
+    # tags. The region itself was already decided by WorldMap in step 0 --
+    # everything here only reads region_context back, it never invents or
+    # overrides a region.
+    region_id = region_context.id if region_context is not None else None
+    region_name = world_map.region_name_at(chunk_coord) if world_map is not None else None
     if region_name is None:
         region_name = f"{getattr(biome, 'value', str(biome)).title()} Region"
 
+    terrain_tags = list(terrain_generator.terrain_tags())
+    if region_context is not None:
+        # Descriptive only -- these note the region's broader character
+        # even on a chunk whose own local terrain doesn't carry that
+        # feature directly (e.g. a forest chunk in a river-fed region),
+        # they never change which tiles get painted.
+        if region_context.near_river:
+            terrain_tags.append("regional_river")
+        if region_context.near_mountains:
+            terrain_tags.append("regional_mountains")
+        if region_context.coastal:
+            terrain_tags.append("regional_coastal")
+
     flavor = {
         "biome": getattr(biome, "value", str(biome)),
+        "region_id": region_id,
         "region_name": region_name,
-        "terrain_tags": list(terrain_generator.terrain_tags()),
+        "region_dominant_biome": getattr(region_context.dominant_biome, "value", None) if region_context else None,
+        "region_dominant_feature": region_context.dominant_feature if region_context else None,
+        "region_elevation_character": region_context.elevation_character if region_context else None,
+        "region_moisture_character": region_context.moisture_character if region_context else None,
+        "region_near_river": bool(region_context and region_context.near_river),
+        "region_near_mountains": bool(region_context and region_context.near_mountains),
+        "region_coastal": bool(region_context and region_context.coastal),
+        "region_neighbors": sorted(region_context.neighbors) if region_context else [],
+        "terrain_tags": terrain_tags,
         "landmarks": landmarks,
         "has_major_river": bool(world_map and world_map.river_edges_at(chunk_coord)),
         "river_edges": list(world_map.river_edges_at(chunk_coord)) if world_map else [],
@@ -2707,8 +2784,12 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
         "water_tiles": river_tiles,
         "dungeon_entrances": dungeon_entrances,
         "road_tiles": road_tiles,
-        "region_map": region_map,
-        "regions": regions,
+        # Chunk-local landscape patches (see LandscapePatch) -- NOT world
+        # regions. World-region identity/context lives in `region_context`
+        # and `flavor["region_*"]`, sourced from WorldMap in step 0.
+        "region_map": patch_map,
+        "regions": patches,
+        "region_context": region_context,
         "landmarks": dungeon_entrances,
         "terrain_landmarks": landmarks,
         "infrastructure": road_tiles,
@@ -2716,6 +2797,7 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
         "flavor": flavor,
         "town_buildings": town_buildings,
     }
+
 
 
 def generate_overworld(game_map, chunk_coord, world_seed, biome, world_map=None, num_dungeon_entrances=None, debug_heightmap_path=None):
@@ -2747,6 +2829,7 @@ def generate_overworld(game_map, chunk_coord, world_seed, biome, world_map=None,
         "road_tiles": context["road_tiles"],
         "region_map": context["region_map"],
         "regions": context["regions"],
+        "region_context": context["region_context"],
         "landmarks": context["landmarks"],
         "infrastructure": context["infrastructure"],
         "population": context["population"],

@@ -4182,10 +4182,9 @@ class Game:
         pygame.event.clear()
 
         # The player used to start inside a dedicated GameState.TAVERN interior
-        # map. That's scrapped now — the starting chunk (0, 0) always rolls a
-        # town (see _place_town's "% 5 != 0" check), so instead we generate the
-        # overworld and drop the player inside that town's tavern building.
-        self.generate_overworld_map(chunk_coord=(0, -1)) 
+        # map. That's scrapped now, so instead we generate the nearest safe
+        # overworld chunk and drop the player inside a tavern building there.
+        self.generate_overworld_map(chunk_coord=self._find_safe_starting_chunk((0, -1))) 
         self._spawn_player_in_starting_tavern()
 
     def _spawn_player_in_starting_tavern(self):
@@ -4588,21 +4587,59 @@ class Game:
         self.chunk_transition_alpha = 0
 
     def _find_overworld_start_position(self):
-        """Find an open grass tile nearest the center of the current overworld chunk to spawn on."""
-        from world.tile import grass
+        """Find an open, dry, non-mountain tile nearest the center of the current overworld chunk."""
+        from world.tile import grass, ground, tall_grass, clearing, meadow, flower_field
 
         width, height = self.game_map.width, self.game_map.height
         center_x, center_y = width // 2, height // 2
+        preferred_tiles = {grass, ground, tall_grass, clearing, meadow, flower_field}
+
+        def is_safe_start_tile(x, y):
+            if not self.game_map.is_walkable(x, y):
+                return False
+            tile = self.game_map.tiles[y][x]
+            return tile in preferred_tiles and not is_water_tile(tile)
 
         for radius in range(max(width, height)):
             for dx in range(-radius, radius + 1):
                 for dy in range(-radius, radius + 1):
                     x, y = center_x + dx, center_y + dy
                     if 0 <= x < width and 0 <= y < height:
-                        if self.game_map.tiles[y][x] is grass:
+                        if is_safe_start_tile(x, y):
                             return x, y
 
         return center_x, center_y  # Fallback — shouldn't happen on a real map
+
+    def _find_safe_starting_chunk(self, preferred_coord=(0, -1), max_radius=12):
+        """
+        Pick the nearest non-ocean, non-mountain chunk for a brand new player.
+
+        World generation is seed-driven, so the old fixed starting chunk could
+        land in open ocean or a mountain range. Search outward from the same
+        preferred coordinate to keep starts close to the intended origin while
+        guaranteeing a gentler first biome whenever the world map has one nearby.
+        """
+        disallowed_biomes = {ChunkBiome.OCEAN, ChunkBiome.MOUNTAINS}
+
+        def is_safe_chunk(coord):
+            if self.world_map.is_ocean_at(coord):
+                return False
+            return self.world_map.biome_at(coord) not in disallowed_biomes
+
+        if is_safe_chunk(preferred_coord):
+            return preferred_coord
+
+        base_x, base_y = preferred_coord
+        for radius in range(1, max_radius + 1):
+            for dy in range(-radius, radius + 1):
+                for dx in range(-radius, radius + 1):
+                    if max(abs(dx), abs(dy)) != radius:
+                        continue
+                    coord = (base_x + dx, base_y + dy)
+                    if is_safe_chunk(coord):
+                        return coord
+
+        return preferred_coord
 
     def get_chunk_biome(self, coord):
         """
