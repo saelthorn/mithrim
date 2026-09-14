@@ -30,7 +30,6 @@ from world.tile import (
     door,
 )
 from world.water_features import river, lake, is_water_tile
-from world.structures import create_town_npcs, place_structure_at_anchor, get_structure_blueprint
 
 
 DEEP_WATER = 0.12
@@ -287,13 +286,23 @@ class TerrainGenerator:
     def terrain_tags(self):
         return ()
 
-    def decorate(self, game_map, heightmap, moisture, river_positions):
+    def decorate(self, game_map, heightmap, moisture, river_positions, mask=None):
         return
 
-    def place_landmarks(self, game_map, heightmap, moisture, river_positions):
+    def place_landmarks(self, game_map, heightmap, moisture, river_positions, rng=None, mask=None):
         return []
 
-    def apply(self, game_map, heightmap, moisture, river_positions):
+    def apply(self, game_map, heightmap, moisture, river_positions, mask=None, place_landmarks_enabled=True):
+        """
+        Paint this generator's biome. `mask`, if given, is a per-tile
+        `mask[y][x]` boolean grid restricting painting/decoration/landmark
+        placement to only the tiles this generator owns -- see
+        _build_local_terrain_mask()/_paint_chunk_terrain() in
+        generate_chunk_context(), which run several generators over the
+        same chunk, each confined to the tiles WorldMap's continuous
+        fields classified as its biome. `mask=None` paints every tile,
+        preserving the old single-generator-per-chunk behavior.
+        """
         raise NotImplementedError
 
 
@@ -301,12 +310,14 @@ class OceanGenerator(TerrainGenerator):
     def terrain_tags(self):
         return ("deep_water", "shallow_water", "coastline")
 
-    def apply(self, game_map, heightmap, moisture, river_positions):
+    def apply(self, game_map, heightmap, moisture, river_positions, mask=None, place_landmarks_enabled=True):
         river_tiles = set(river_positions or ())
         width, height = game_map.width, game_map.height
 
         for y in range(height):
             for x in range(width):
+                if mask is not None and not mask[y][x]:
+                    continue
                 h = heightmap.get(x, y)
                 m = moisture.get(x, y)
 
@@ -317,15 +328,19 @@ class OceanGenerator(TerrainGenerator):
                 else:
                     game_map.tiles[y][x] = river
 
-        self.decorate(game_map, heightmap, moisture, river_positions)
-        return self.place_landmarks(game_map, heightmap, moisture, river_positions)
+        self.decorate(game_map, heightmap, moisture, river_positions, mask=mask)
+        if not place_landmarks_enabled:
+            return []
+        return self.place_landmarks(game_map, heightmap, moisture, river_positions, mask=mask)
 
-    def decorate(self, game_map, heightmap, moisture, river_positions):
+    def decorate(self, game_map, heightmap, moisture, river_positions, mask=None):
         river_tiles = set(river_positions or ())
         width, height = game_map.width, game_map.height
 
         for y in range(height):
             for x in range(width):
+                if mask is not None and not mask[y][x]:
+                    continue
                 if (x, y) in river_tiles:
                     continue
                 tile = game_map.tiles[y][x]
@@ -346,11 +361,14 @@ class OceanGenerator(TerrainGenerator):
                 elif m > 0.50 and _chance(x, y, 10, 1 / 24):
                     game_map.tiles[y][x] = lake
 
-    def place_landmarks(self, game_map, heightmap, moisture, river_positions):
+    def place_landmarks(self, game_map, heightmap, moisture, river_positions, rng=None, mask=None):
+        rng = rng or getattr(self, "rng", random)
         candidates = []
         width, height = game_map.width, game_map.height
         for y in range(1, height - 1):
             for x in range(1, width - 1):
+                if mask is not None and not mask[y][x]:
+                    continue
                 if (x, y) in set(river_positions or ()):
                     continue
                 tile = game_map.tiles[y][x]
@@ -362,8 +380,8 @@ class OceanGenerator(TerrainGenerator):
         if not candidates:
             return []
 
-        x, y = random.choice(candidates)
-        landmark = random.choice(["Sunken Ship", "Lone Island",])
+        x, y = rng.choice(candidates)
+        landmark = rng.choice(["Sunken Ship", "Lone Island",])
         game_map.tiles[y][x] = ground
         return [(x, y, landmark)]
 
@@ -371,12 +389,14 @@ class PlainsGenerator(TerrainGenerator):
     def terrain_tags(self):
         return ("open_grass", "wildflowers", "scattered_trees", "gentle_hills")
 
-    def apply(self, game_map, heightmap, moisture, river_positions):
+    def apply(self, game_map, heightmap, moisture, river_positions, mask=None, place_landmarks_enabled=True):
         river_tiles = set(river_positions or ())
         width, height = game_map.width, game_map.height
 
         for y in range(height):
             for x in range(width):
+                if mask is not None and not mask[y][x]:
+                    continue
                 h = heightmap.get(x, y)
                 m = moisture.get(x, y)
 
@@ -401,15 +421,19 @@ class PlainsGenerator(TerrainGenerator):
                 else:
                     game_map.tiles[y][x] = ground
 
-        self.decorate(game_map, heightmap, moisture, river_positions)
-        return self.place_landmarks(game_map, heightmap, moisture, river_positions)
+        self.decorate(game_map, heightmap, moisture, river_positions, mask=mask)
+        if not place_landmarks_enabled:
+            return []
+        return self.place_landmarks(game_map, heightmap, moisture, river_positions, mask=mask)
 
-    def decorate(self, game_map, heightmap, moisture, river_positions):
+    def decorate(self, game_map, heightmap, moisture, river_positions, mask=None):
         river_tiles = set(river_positions or ())
         width, height = game_map.width, game_map.height
 
         for y in range(height):
             for x in range(width):
+                if mask is not None and not mask[y][x]:
+                    continue
                 if (x, y) in river_tiles:
                     continue
                 tile = game_map.tiles[y][x]
@@ -430,11 +454,14 @@ class PlainsGenerator(TerrainGenerator):
                 elif m > 0.50 and _chance(x, y, 10, 1 / 24):
                     game_map.tiles[y][x] = flower_field
 
-    def place_landmarks(self, game_map, heightmap, moisture, river_positions):
+    def place_landmarks(self, game_map, heightmap, moisture, river_positions, rng=None, mask=None):
+        rng = rng or getattr(self, "rng", random)
         candidates = []
         width, height = game_map.width, game_map.height
         for y in range(1, height - 1):
             for x in range(1, width - 1):
+                if mask is not None and not mask[y][x]:
+                    continue
                 if (x, y) in set(river_positions or ()):
                     continue
                 tile = game_map.tiles[y][x]
@@ -446,8 +473,8 @@ class PlainsGenerator(TerrainGenerator):
         if not candidates:
             return []
 
-        x, y = random.choice(candidates)
-        landmark = random.choice(["Ruined Farm", "Caravan Camp", "Standing Stones", "Windmill"])
+        x, y = rng.choice(candidates)
+        landmark = rng.choice(["Ruined Farm", "Caravan Camp", "Standing Stones", "Windmill"])
         game_map.tiles[y][x] = ground
         return [(x, y, landmark)]
 
@@ -456,12 +483,14 @@ class ForestGenerator(TerrainGenerator):
     def terrain_tags(self):
         return ("forests", "rolling_hills", "streams")
 
-    def apply(self, game_map, heightmap, moisture, river_positions):
+    def apply(self, game_map, heightmap, moisture, river_positions, mask=None, place_landmarks_enabled=True):
         river_tiles = set(river_positions or ())
         width, height = game_map.width, game_map.height
 
         for y in range(height):
             for x in range(width):
+                if mask is not None and not mask[y][x]:
+                    continue
                 h = heightmap.get(x, y)
                 m = moisture.get(x, y)
 
@@ -486,15 +515,19 @@ class ForestGenerator(TerrainGenerator):
                 else:
                     game_map.tiles[y][x] = ground
 
-        self.decorate(game_map, heightmap, moisture, river_positions)
-        return self.place_landmarks(game_map, heightmap, moisture, river_positions)
+        self.decorate(game_map, heightmap, moisture, river_positions, mask=mask)
+        if not place_landmarks_enabled:
+            return []
+        return self.place_landmarks(game_map, heightmap, moisture, river_positions, mask=mask)
 
-    def decorate(self, game_map, heightmap, moisture, river_positions):
+    def decorate(self, game_map, heightmap, moisture, river_positions, mask=None):
         river_tiles = set(river_positions or ())
         width, height = game_map.width, game_map.height
 
         for y in range(height):
             for x in range(width):
+                if mask is not None and not mask[y][x]:
+                    continue
                 if (x, y) in river_tiles:
                     continue
                 tile = game_map.tiles[y][x]
@@ -515,11 +548,14 @@ class ForestGenerator(TerrainGenerator):
                 elif h < 0.65 and _chance(x, y, 5, 1 / 16):
                     game_map.tiles[y][x] = dead_forest
 
-    def place_landmarks(self, game_map, heightmap, moisture, river_positions):
+    def place_landmarks(self, game_map, heightmap, moisture, river_positions, rng=None, mask=None):
+        rng = rng or getattr(self, "rng", random)
         candidates = []
         width, height = game_map.width, game_map.height
         for y in range(1, height - 1):
             for x in range(1, width - 1):
+                if mask is not None and not mask[y][x]:
+                    continue
                 if (x, y) in set(river_positions or ()):
                     continue
                 tile = game_map.tiles[y][x]
@@ -531,8 +567,8 @@ class ForestGenerator(TerrainGenerator):
         if not candidates:
             return []
 
-        x, y = random.choice(candidates)
-        landmark = random.choice(["Ancient Oak", "Fairy Pond", "Stone Circle", "Bandit Camp"])
+        x, y = rng.choice(candidates)
+        landmark = rng.choice(["Ancient Oak", "Fairy Pond", "Stone Circle", "Bandit Camp"])
         game_map.tiles[y][x] = ground
         return [(x, y, landmark)]
 
@@ -541,12 +577,14 @@ class SwampGenerator(TerrainGenerator):
     def terrain_tags(self):
         return ("shallow_lakes", "mud_grass", "dead_trees")
 
-    def apply(self, game_map, heightmap, moisture, river_positions):
+    def apply(self, game_map, heightmap, moisture, river_positions, mask=None, place_landmarks_enabled=True):
         river_tiles = set(river_positions or ())
         width, height = game_map.width, game_map.height
 
         for y in range(height):
             for x in range(width):
+                if mask is not None and not mask[y][x]:
+                    continue
                 h = heightmap.get(x, y)
                 m = moisture.get(x, y)
 
@@ -569,15 +607,19 @@ class SwampGenerator(TerrainGenerator):
                 else:
                     game_map.tiles[y][x] = ground
 
-        self.decorate(game_map, heightmap, moisture, river_positions)
-        return self.place_landmarks(game_map, heightmap, moisture, river_positions)
+        self.decorate(game_map, heightmap, moisture, river_positions, mask=mask)
+        if not place_landmarks_enabled:
+            return []
+        return self.place_landmarks(game_map, heightmap, moisture, river_positions, mask=mask)
 
-    def decorate(self, game_map, heightmap, moisture, river_positions):
+    def decorate(self, game_map, heightmap, moisture, river_positions, mask=None):
         river_tiles = set(river_positions or ())
         width, height = game_map.width, game_map.height
 
         for y in range(height):
             for x in range(width):
+                if mask is not None and not mask[y][x]:
+                    continue
                 if (x, y) in river_tiles:
                     continue
                 tile = game_map.tiles[y][x]
@@ -596,11 +638,14 @@ class SwampGenerator(TerrainGenerator):
                 elif m > 0.42 and _chance(x, y, 5, 1 / 14):
                     game_map.tiles[y][x] = pond
 
-    def place_landmarks(self, game_map, heightmap, moisture, river_positions):
+    def place_landmarks(self, game_map, heightmap, moisture, river_positions, rng=None, mask=None):
+        rng = rng or getattr(self, "rng", random)
         candidates = []
         width, height = game_map.width, game_map.height
         for y in range(1, height - 1):
             for x in range(1, width - 1):
+                if mask is not None and not mask[y][x]:
+                    continue
                 if (x, y) in set(river_positions or ()):
                     continue
                 tile = game_map.tiles[y][x]
@@ -612,8 +657,8 @@ class SwampGenerator(TerrainGenerator):
         if not candidates:
             return []
 
-        x, y = random.choice(candidates)
-        landmark = random.choice(["Witch Hut", "Bog Cemetery", "Sunken Chapel", "Giant Lily Marsh"])
+        x, y = rng.choice(candidates)
+        landmark = rng.choice(["Witch Hut", "Bog Cemetery", "Sunken Chapel", "Giant Lily Marsh"])
         structure_id = {"Witch Hut": "witch_hut"}.get(landmark)
         if structure_id is not None:
             return [(x, y, landmark, structure_id)]
@@ -625,12 +670,14 @@ class HillsGenerator(TerrainGenerator):
     def terrain_tags(self):
         return ("rolling_grass", "rock_outcrops", "scattered_forest", "ridgelines")
 
-    def apply(self, game_map, heightmap, moisture, river_positions):
+    def apply(self, game_map, heightmap, moisture, river_positions, mask=None, place_landmarks_enabled=True):
         river_tiles = set(river_positions or ())
         width, height = game_map.width, game_map.height
 
         for y in range(height):
             for x in range(width):
+                if mask is not None and not mask[y][x]:
+                    continue
                 h = heightmap.get(x, y)
                 m = moisture.get(x, y)
 
@@ -653,15 +700,19 @@ class HillsGenerator(TerrainGenerator):
                 else:
                     game_map.tiles[y][x] = ground
 
-        self.decorate(game_map, heightmap, moisture, river_positions)
-        return self.place_landmarks(game_map, heightmap, moisture, river_positions)
+        self.decorate(game_map, heightmap, moisture, river_positions, mask=mask)
+        if not place_landmarks_enabled:
+            return []
+        return self.place_landmarks(game_map, heightmap, moisture, river_positions, mask=mask)
 
-    def decorate(self, game_map, heightmap, moisture, river_positions):
+    def decorate(self, game_map, heightmap, moisture, river_positions, mask=None):
         river_tiles = set(river_positions or ())
         width, height = game_map.width, game_map.height
 
         for y in range(height):
             for x in range(width):
+                if mask is not None and not mask[y][x]:
+                    continue
                 if (x, y) in river_tiles:
                     continue
                 tile = game_map.tiles[y][x]
@@ -680,11 +731,14 @@ class HillsGenerator(TerrainGenerator):
                 elif m > 0.48 and _chance(x, y, 3, 1 / 18):
                     game_map.tiles[y][x] = flower_field
 
-    def place_landmarks(self, game_map, heightmap, moisture, river_positions):
+    def place_landmarks(self, game_map, heightmap, moisture, river_positions, rng=None, mask=None):
+        rng = rng or getattr(self, "rng", random)
         candidates = []
         width, height = game_map.width, game_map.height
         for y in range(1, height - 1):
             for x in range(1, width - 1):
+                if mask is not None and not mask[y][x]:
+                    continue
                 if (x, y) in set(river_positions or ()):
                     continue
                 tile = game_map.tiles[y][x]
@@ -696,8 +750,8 @@ class HillsGenerator(TerrainGenerator):
         if not candidates:
             return []
 
-        x, y = random.choice(candidates)
-        landmark = random.choice(["Old Watchtower", "Standing Stones", "Sheep Pasture", "Abandoned Quarry"])
+        x, y = rng.choice(candidates)
+        landmark = rng.choice(["Old Watchtower", "Standing Stones", "Sheep Pasture", "Abandoned Quarry"])
         structure_id = {"Old Watchtower": "watch_tower"}.get(landmark)
         if structure_id is not None:
             return [(x, y, landmark, structure_id)]
@@ -709,12 +763,14 @@ class MountainGenerator(TerrainGenerator):
     def terrain_tags(self):
         return ("cliffs", "plateaus", "caves", "pine_forests", "scree_slopes")
 
-    def apply(self, game_map, heightmap, moisture, river_positions):
+    def apply(self, game_map, heightmap, moisture, river_positions, mask=None, place_landmarks_enabled=True):
         river_tiles = set(river_positions or ())
         width, height = game_map.width, game_map.height
 
         for y in range(height):
             for x in range(width):
+                if mask is not None and not mask[y][x]:
+                    continue
                 h = heightmap.get(x, y)
                 m = moisture.get(x, y)
 
@@ -743,15 +799,19 @@ class MountainGenerator(TerrainGenerator):
                 else:
                     game_map.tiles[y][x] = ground
 
-        self.decorate(game_map, heightmap, moisture, river_positions)
-        return self.place_landmarks(game_map, heightmap, moisture, river_positions)
+        self.decorate(game_map, heightmap, moisture, river_positions, mask=mask)
+        if not place_landmarks_enabled:
+            return []
+        return self.place_landmarks(game_map, heightmap, moisture, river_positions, mask=mask)
 
-    def decorate(self, game_map, heightmap, moisture, river_positions):
+    def decorate(self, game_map, heightmap, moisture, river_positions, mask=None):
         river_tiles = set(river_positions or ())
         width, height = game_map.width, game_map.height
 
         for y in range(height):
             for x in range(width):
+                if mask is not None and not mask[y][x]:
+                    continue
                 if (x, y) in river_tiles:
                     continue
                 tile = game_map.tiles[y][x]
@@ -774,11 +834,14 @@ class MountainGenerator(TerrainGenerator):
                 elif tile is tree and _chance(x, y, 5, 1 / 29):
                     game_map.tiles[y][x] = tree
 
-    def place_landmarks(self, game_map, heightmap, moisture, river_positions):
+    def place_landmarks(self, game_map, heightmap, moisture, river_positions, rng=None, mask=None):
+        rng = rng or getattr(self, "rng", random)
         candidates = []
         width, height = game_map.width, game_map.height
         for y in range(1, height - 1):
             for x in range(1, width - 1):
+                if mask is not None and not mask[y][x]:
+                    continue
                 if (x, y) in set(river_positions or ()):
                     continue
                 tile = game_map.tiles[y][x]
@@ -790,8 +853,8 @@ class MountainGenerator(TerrainGenerator):
         if not candidates:
             return []
 
-        x, y = random.choice(candidates)
-        landmark = random.choice(["Dwarven Mine", "Giant Skeleton", "Watchtower", "Shrine", "Dragon Bones"])
+        x, y = rng.choice(candidates)
+        landmark = rng.choice(["Dwarven Mine", "Giant Skeleton", "Watchtower", "Shrine", "Dragon Bones"])
         structure_id = {"Watchtower": "watch_tower", "Shrine": "shrine"}.get(landmark)
         if structure_id is not None:
             return [(x, y, landmark, structure_id)]
@@ -1087,25 +1150,26 @@ def _fractal_noise(perm, x, y, octaves, persistence, lacunarity):
     return total / max_amplitude  # normalized back to roughly [-1, 1]
 
 
-def _generate_mountain_ridges(width, height):
+def _generate_mountain_ridges(width, height, rng=None):
     """
     Creates several long mountain ridges.
 
     These are NOT mountains yet.
     They're just polylines that later become elevation.
     """
+    rng = rng or random
     ridges = []
 
     ridge_count = max(3, (width * height) // 20000)
 
     for _ in range(ridge_count):
-        x = random.randint(width // 5, width * 4 // 5)
-        y = random.randint(height // 5, height * 4 // 5)
+        x = rng.randint(width // 5, width * 4 // 5)
+        y = rng.randint(height // 5, height * 4 // 5)
 
-        angle = random.uniform(0, math.pi * 2)
+        angle = rng.uniform(0, math.pi * 2)
         ridge = []
 
-        length = random.randint(
+        length = rng.randint(
             min(width, height) // 3,
             min(width, height) // 2
         )
@@ -1113,7 +1177,7 @@ def _generate_mountain_ridges(width, height):
         for _ in range(length):
             ridge.append((int(x), int(y)))
             # slowly bend
-            angle += random.uniform(-0.25, 0.25)
+            angle += rng.uniform(-0.25, 0.25)
 
             x += math.cos(angle)
             y += math.sin(angle)
@@ -1128,11 +1192,11 @@ def _generate_mountain_ridges(width, height):
     return ridges
 
 
-def _generate_ridge_heightmap(width, height):
+def _generate_ridge_heightmap(width, height, rng=None):
     """
     Builds a heightmap from mountain ridges instead of Perlin noise.
     """
-    ridges = _generate_mountain_ridges(width, height)
+    ridges = _generate_mountain_ridges(width, height, rng=rng)
     heightmap = HeightMap(width, height)
     max_radius = max(width, height) * 0.30
 
@@ -1228,6 +1292,44 @@ def _apply_world_mountain_floor(heightmap, world_map, chunk_coord):
             )
             floor = strength * WORLD_MOUNTAIN_FLOOR_STRENGTH
             heightmap.set(x, y, max(heightmap.get(x, y), floor))
+
+
+def _world_grid_value_for_tile(world_map, chunk_coord, local_x, local_y, tile_width, tile_height, grid):
+    """Bilinearly sample a WorldMap grid for one tile inside a chunk."""
+    grid_x, grid_y = world_map._to_grid(chunk_coord)
+    fx = (local_x + 0.5) / tile_width
+    fy = (local_y + 0.5) / tile_height
+    x1 = (grid_x + 1) % world_map.width
+    y1 = (grid_y + 1) % world_map.height
+    return (
+        grid.get(grid_x, grid_y) * (1.0 - fx) * (1.0 - fy)
+        + grid.get(x1, grid_y) * fx * (1.0 - fy)
+        + grid.get(grid_x, y1) * (1.0 - fx) * fy
+        + grid.get(x1, y1) * fx * fy
+    )
+
+
+def _bias_grid_toward_world_surface(grid, world_map, chunk_coord, world_grid, strength):
+    """
+    Nudge a tile grid toward the continuous world-scale surface for this
+    chunk. This keeps local visual detail while making the broad geographic
+    signal come from WorldMap rather than from an independently-generated
+    chunk-local decision.
+    """
+    for y in range(grid.height):
+        for x in range(grid.width):
+            world_value = _world_grid_value_for_tile(
+                world_map,
+                chunk_coord,
+                x,
+                y,
+                grid.width,
+                grid.height,
+                world_grid,
+            )
+            local_value = grid.get(x, y)
+            biased = local_value + (world_value - 0.5) * strength
+            grid.set(x, y, min(1.0, max(0.0, biased)))
 
 
 def _generate_moisture_map(perm, chunk_x, chunk_y, width, height, scale, octaves=4, persistence=0.5, lacunarity=2.0,):
@@ -2382,6 +2484,16 @@ def _patch_rng(chunk_coord, world_seed):
     )
 
 
+def _chunk_materialization_rng(chunk_coord, world_seed, salt=0):
+    """Deterministic per-(world, chunk) RNG for chunk-local realization."""
+    return random.Random(
+        (world_seed * 1_000_003)
+        ^ (chunk_coord[0] * 92_821)
+        ^ (chunk_coord[1] * 68_917)
+        ^ salt
+    )
+
+
 def _place_town(game_map, chunk_coord, biome, world_seed):
     """
     Attempt to place a small town — one tavern, one shop, and a handful of
@@ -2417,6 +2529,7 @@ def _place_town(game_map, chunk_coord, biome, world_seed):
     town was placed here.
     """
     width, height = game_map.width, game_map.height
+    from world.structures import place_structure_at_anchor, get_structure_blueprint
 
     if getattr(biome, "value", biome) == ChunkBiome.MOUNTAINS.value:
         return [], None
@@ -2517,10 +2630,84 @@ def _place_town(game_map, chunk_coord, biome, world_seed):
     return town_buildings, (anchor_x, anchor_y)
 
 
+def _build_local_terrain_mask(world_map, chunk_coord, heightmap, moisture, width, height):
+    """
+    Per-tile ChunkBiome classification for one chunk, replacing the old
+    "one discrete biome for the whole chunk" decision.
+
+    `heightmap`/`moisture` are this chunk's own local grids -- already
+    continuous across chunk boundaries via _bias_grid_toward_world_surface
+    -- providing fine local detail. continentalness/mountain_strength have
+    no chunk-local layer of their own yet, so they're sampled straight from
+    WorldMap's continuous fields, once per tile. WorldMap.classify_local_terrain()
+    then applies the same elevation/mountain/moisture rules world-scale
+    biome classification uses, just against these continuously-sampled
+    values instead of one flat value per world-map cell -- so the result
+    grades smoothly (ocean into beach into plains, plains into hills into
+    mountains, grass into forest, swamp into plains) wherever the
+    underlying fields do, instead of switching all at once at whichever
+    edge two neighboring chunks' single biomes happened to disagree.
+    """
+    mask = [[None for _ in range(width)] for _ in range(height)]
+    for y in range(height):
+        fy = (y + 0.5) / height
+        for x in range(width):
+            fx = (x + 0.5) / width
+            continentalness = world_map.continentalness_at_subtile(chunk_coord, fx, fy)
+            mountain_strength = world_map.mountain_strength_at_subtile(chunk_coord, fx, fy)
+            mask[y][x] = world_map.classify_local_terrain(
+                heightmap.get(x, y),
+                moisture.get(x, y),
+                continentalness,
+                mountain_strength,
+            )
+    return mask
+
+
+def _paint_chunk_terrain(game_map, heightmap, moisture, river_positions, local_terrain, rng):
+    """
+    Paint a chunk from its per-tile biome classification (see
+    _build_local_terrain_mask): every ChunkBiome actually present gets its
+    own TerrainGenerator instance, each confined to only the tiles
+    classified as its biome, so a chunk straddling e.g. plains and forest
+    gets both painters' styles at the tiles where the classification
+    actually crosses over, instead of one painter claiming the whole
+    chunk. Landmark placement still runs only for the chunk's dominant
+    (most common) local biome, preserving the old one-landmark-per-chunk
+    behavior.
+
+    Returns (dominant_biome, terrain_tags, landmarks).
+    """
+    width, height = game_map.width, game_map.height
+
+    counts = {}
+    for row in local_terrain:
+        for biome in row:
+            counts[biome] = counts.get(biome, 0) + 1
+    dominant_biome = max(counts, key=counts.get)
+
+    terrain_tags = []
+    landmarks = []
+    for biome in counts:
+        generator = get_terrain_generator(biome)()
+        generator.rng = rng
+        biome_mask = [[local_terrain[y][x] is biome for x in range(width)] for y in range(height)]
+        result = generator.apply(
+            game_map, heightmap, moisture, river_positions,
+            mask=biome_mask, place_landmarks_enabled=(biome is dominant_biome),
+        )
+        terrain_tags.extend(generator.terrain_tags())
+        if biome is dominant_biome:
+            landmarks = result
+
+    return dominant_biome, sorted(set(terrain_tags)), landmarks
+
+
 def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_map=None, num_dungeon_entrances=None, debug_heightmap_path=None, ChunkBiome=None):
     """Build a staged context for one overworld chunk, exposing the pipeline
     phases clearly while preserving the existing terrain-generation behavior."""
     biome_enum = globals()["ChunkBiome"]
+    from world.structures import create_town_npcs, place_structure_at_anchor
 
     if world_map is not None:
         # The persistent world map owns the broad biome decision. Local
@@ -2550,11 +2737,17 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
 
     # 1. Landscape patches: chunk-local terrain variation (not world-region
     # identity -- see step 7 below, which reads that from WorldMap).
-    heightmap = _generate_ridge_heightmap(width, height)
+    heightmap = _generate_ridge_heightmap(
+        width,
+        height,
+        rng=_chunk_materialization_rng(chunk_coord, world_seed, salt=0xA11CE),
+    )
     if world_map is not None:
-        _bias_grid_toward_world_value(
+        _bias_grid_toward_world_surface(
             heightmap,
-            world_map.elevation_at(chunk_coord),
+            world_map,
+            chunk_coord,
+            world_map.elevation,
             WORLD_ELEVATION_BIAS_STRENGTH,
         )
         _apply_world_mountain_floor(heightmap, world_map, chunk_coord)
@@ -2584,18 +2777,36 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
     )
 
     if world_map is not None:
-        _bias_grid_toward_world_value(
+        _bias_grid_toward_world_surface(
             moisture,
-            world_map.moisture_at(chunk_coord),
+            world_map,
+            chunk_coord,
+            world_map.moisture,
             WORLD_MOISTURE_BIAS_STRENGTH,
         )
 
     _apply_river_moisture(moisture, river_positions | lake_positions)
     patch_map, patches = _generate_landscape_patches(game_map, heightmap, moisture, _patch_rng(chunk_coord, world_seed))
 
-    # 2. Chunk generator: paint terrain with biome-specific terrain rules.
-    terrain_generator = get_terrain_generator(biome)()
-    landmarks = terrain_generator.apply(game_map, heightmap, moisture, river_positions)
+    # 2. Chunk generator: paint terrain from WorldMap's continuous fields
+    # sampled per tile (see _build_local_terrain_mask/_paint_chunk_terrain),
+    # not from the one discrete biome the chunk's own world-map cell was
+    # classified as -- that discrete `biome` is still used below for flavor
+    # text, monster tables, and the town/structure fallback, none of which
+    # need tile-grained blending. Standalone chunks (no world_map, so no
+    # continuous fields to sample) fall back to the old single-generator
+    # behavior.
+    materialization_rng = _chunk_materialization_rng(chunk_coord, world_seed, salt=0xB10DE)
+    if world_map is not None:
+        local_terrain = _build_local_terrain_mask(world_map, chunk_coord, heightmap, moisture, width, height)
+        _dominant_local_biome, local_terrain_tags, landmarks = _paint_chunk_terrain(
+            game_map, heightmap, moisture, river_positions, local_terrain, materialization_rng,
+        )
+    else:
+        terrain_generator = get_terrain_generator(biome)()
+        terrain_generator.rng = materialization_rng
+        landmarks = terrain_generator.apply(game_map, heightmap, moisture, river_positions)
+        local_terrain_tags = list(terrain_generator.terrain_tags())
 
     lake_tiles = _carve_lakes(game_map, lake_positions)
     river_tiles = lake_tiles + _carve_rivers(game_map, river_positions)
@@ -2741,7 +2952,7 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
     if region_name is None:
         region_name = f"{getattr(biome, 'value', str(biome)).title()} Region"
 
-    terrain_tags = list(terrain_generator.terrain_tags())
+    terrain_tags = list(local_terrain_tags)
     if region_context is not None:
         # Descriptive only -- these note the region's broader character
         # even on a chunk whose own local terrain doesn't carry that

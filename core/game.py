@@ -938,7 +938,7 @@ class Game:
                                               # unaided; darkvision is what closes the gap back up
                                               # to OVERWORLD_VISION_RADIUS (see update_fov()).
 
-    def spawn_overworld_monster_groups(self, game_map, biome, dungeon_entrances):
+    def spawn_overworld_monster_groups(self, game_map, biome, dungeon_entrances, chunk_coord=None):
         """
         Populate a freshly generated overworld chunk with monster groups.
 
@@ -950,6 +950,17 @@ class Game:
         from entities.monster import MONSTER_GROUPS
 
         possible_monsters = self.OVERWORLD_MONSTER_TABLE.get(biome, [GiantRat])
+        if chunk_coord is None:
+            rng = random
+            group_prefix = "overworld_pack"
+        else:
+            rng = random.Random(
+                (self.world_seed * 1_000_003)
+                ^ (chunk_coord[0] * 92_821)
+                ^ (chunk_coord[1] * 68_917)
+                ^ 0x51A7E
+            )
+            group_prefix = f"overworld_pack:{chunk_coord[0]}:{chunk_coord[1]}"
         structure_names = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
         spawned = []
 
@@ -966,10 +977,10 @@ class Game:
                 return False
             return True
 
-        num_groups = random.randint(*self.OVERWORLD_MONSTER_GROUP_COUNT)
-        for _ in range(num_groups):
-            anchor_x = random.randint(0, game_map.width - 1)
-            anchor_y = random.randint(0, game_map.height - 1)
+        num_groups = rng.randint(*self.OVERWORLD_MONSTER_GROUP_COUNT)
+        for group_index in range(num_groups):
+            anchor_x = rng.randint(0, game_map.width - 1)
+            anchor_y = rng.randint(0, game_map.height - 1)
             radius = self.OVERWORLD_GROUP_SEARCH_RADIUS
 
             valid_positions = [
@@ -981,16 +992,16 @@ class Game:
             if not valid_positions:
                 continue  # Anchor landed somewhere too cramped (water, town, etc.) - skip this group
 
-            primary_monster_class = random.choice(possible_monsters)
+            primary_monster_class = rng.choice(possible_monsters)
             compatible_types = MONSTER_GROUPS.get(primary_monster_class.__name__, [primary_monster_class.__name__])
             min_spawn, max_spawn = (1, 4) if len(compatible_types) > 1 else (1, 2)
-            num_to_spawn = random.randint(min_spawn, max_spawn)
+            num_to_spawn = rng.randint(min_spawn, max_spawn)
 
             # Shared by every monster spawned around this anchor -- see
             # Monster.group_id/provoke(): attacking one PASSIVE/NEUTRAL
             # member of the cluster (a centaur band, a myconid grove, ...)
             # alerts the rest of it at the same time.
-            group_id = f"overworld_pack:{uuid.uuid4().hex[:8]}"
+            group_id = f"{group_prefix}:{group_index}"
 
             for _ in range(num_to_spawn):
                 if not valid_positions:
@@ -998,9 +1009,9 @@ class Game:
                 # Compatible pack members are looked up by name against the classes
                 # already imported into this module (globals()), the same way
                 # MONSTER_GROUPS names are resolved for dungeon packs.
-                monster_type_name = random.choice(compatible_types)
+                monster_type_name = rng.choice(compatible_types)
                 monster_class = globals().get(monster_type_name, primary_monster_class)
-                spawn_x, spawn_y = random.choice(valid_positions)
+                spawn_x, spawn_y = rng.choice(valid_positions)
                 valid_positions.remove((spawn_x, spawn_y))
                 monster = monster_class(spawn_x, spawn_y)
                 monster.group_id = group_id
@@ -4453,7 +4464,7 @@ class Game:
                 world_map=self.world_map,
             )
             monster_population = self.spawn_overworld_monster_groups(
-                chunk_map, biome, overworld_info["dungeon_entrances"]
+                chunk_map, biome, overworld_info["dungeon_entrances"], chunk_coord=chunk_coord
             )
             self.overworld_chunks[chunk_coord] = {
                 "map": chunk_map,

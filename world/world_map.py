@@ -112,6 +112,11 @@ _CONTINENT_MIN_SPACING_FACTOR = 1.6
 # within that region; mountain ranges below key off this same cutoff too,
 # so all three stay in agreement about where land actually is.
 CONTINENTALNESS_OCEAN_PERCENTILE = 0.35
+# Coastal band just above the ocean cutoff -- cells here read as beach/
+# shallows rather than solid land. Same 0.06 gap DEFAULT_BIOME_THRESHOLDS
+# already uses between its own ocean/beach elevation percentiles, applied
+# to continentalness instead so land/water shape stays the authority.
+CONTINENTALNESS_BEACH_PERCENTILE = CONTINENTALNESS_OCEAN_PERCENTILE + 0.06
 
 # -- mountain ranges ---------------------------------------------------
 # Ranges are walked as ridge polylines (see _generate_mountain_spines)
@@ -397,6 +402,10 @@ class WorldMap:
         # ocean (see CONTINENTALNESS_OCEAN_PERCENTILE) -- kept around for
         # the same debugging/introspection reasons as biome_thresholds.
         self.continentalness_ocean_threshold = None
+        # Same idea, one band further inland -- the continentalness value
+        # below which a *tile* (not a whole world-map cell) reads as
+        # coastal/beach rather than solid land. See classify_local_terrain().
+        self.continentalness_beach_threshold = None
 
     def _to_grid(self, chunk_coord):
         """Wrap an unbounded (chunk_x, chunk_y) onto this fixed-size grid."""
@@ -420,6 +429,72 @@ class WorldMap:
     def mountain_strength_at(self, chunk_coord):
         grid_x, grid_y = self._to_grid(chunk_coord)
         return self.mountain_strength.get(grid_x, grid_y)
+
+    def _bilinear_sample(self, grid, chunk_coord, fx, fy):
+        """Sample `grid` (elevation/moisture/continentalness/mountain_strength
+        -- any HeightMap this world map owns) continuously inside a chunk,
+        where (fx, fy) in [0, 1] is a tile's position within it -- fx=fy=0
+        is the chunk's own top-left corner, fx=fy=1 its bottom-right.
+
+        Bilinearly blends this cell's value with its wrapped right/down/
+        diagonal neighbors, the same trick the old per-chunk mountain-floor
+        biasing used, generalized to any field: a chunk's edge (fx or fy at
+        0 or 1) always lands exactly on the shared world-map cell value its
+        neighboring chunk's opposite edge also lands on, so the sampled
+        field is continuous across chunk boundaries with no seam.
+        """
+        grid_x, grid_y = self._to_grid(chunk_coord)
+        x1 = (grid_x + 1) % self.width
+        y1 = (grid_y + 1) % self.height
+        return (
+            grid.get(grid_x, grid_y) * (1 - fx) * (1 - fy)
+            + grid.get(x1, grid_y) * fx * (1 - fy)
+            + grid.get(grid_x, y1) * (1 - fx) * fy
+            + grid.get(x1, y1) * fx * fy
+        )
+
+    def elevation_at_subtile(self, chunk_coord, fx, fy):
+        return self._bilinear_sample(self.elevation, chunk_coord, fx, fy)
+
+    def moisture_at_subtile(self, chunk_coord, fx, fy):
+        return self._bilinear_sample(self.moisture, chunk_coord, fx, fy)
+
+    def continentalness_at_subtile(self, chunk_coord, fx, fy):
+        return self._bilinear_sample(self.continentalness, chunk_coord, fx, fy)
+
+    def mountain_strength_at_subtile(self, chunk_coord, fx, fy):
+        return self._bilinear_sample(self.mountain_strength, chunk_coord, fx, fy)
+
+    def classify_local_terrain(self, elevation, moisture, continentalness, mountain_strength):
+        """
+        Tile-grained analog of _classify_world_biome(): the same
+        elevation/mountain/moisture rules, evaluated against continuously
+        sampled values (see the *_at_subtile() accessors above) instead of
+        one flat value per world-map cell. Returns a ChunkBiome.
+
+        Because the inputs are continuous, calling this once per tile
+        across a chunk -- rather than once for the whole chunk -- makes a
+        chunk's local terrain grade smoothly through ocean/beach/plains/
+        forest/swamp/hills/mountains wherever the underlying fields do,
+        instead of jumping between whichever two single biomes two
+        neighboring chunks' own world-map cells happened to be classified
+        as.
+        """
+        if continentalness < self.continentalness_ocean_threshold:
+            return ChunkBiome.OCEAN
+        if continentalness < self.continentalness_beach_threshold:
+            return ChunkBiome.PLAINS
+
+        thresholds = self.biome_thresholds
+        if elevation >= thresholds.mountains or mountain_strength >= 0.40:
+            return ChunkBiome.MOUNTAINS
+        if elevation >= thresholds.hills or mountain_strength >= 0.12:
+            return ChunkBiome.HILLS
+        if moisture > thresholds.swamp_moisture:
+            return ChunkBiome.SWAMP
+        if moisture > thresholds.forest_moisture:
+            return ChunkBiome.FOREST
+        return ChunkBiome.PLAINS
 
     def mountain_range_id_at(self, chunk_coord):
         """Index into mountain_ranges for whichever range dominates this
@@ -1886,6 +1961,7 @@ def generate_world_map(
     # coherent shapes instead of following every local elevation wobble.
     continentalness_ocean_threshold = _value_at_percentile(world_map.continentalness, CONTINENTALNESS_OCEAN_PERCENTILE)
     world_map.continentalness_ocean_threshold = continentalness_ocean_threshold
+    world_map.continentalness_beach_threshold = _value_at_percentile(world_map.continentalness, CONTINENTALNESS_BEACH_PERCENTILE)
 
     for y in range(height):
         for x in range(width):
