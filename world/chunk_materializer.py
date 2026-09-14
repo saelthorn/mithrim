@@ -1,15 +1,6 @@
-"""
-Obsolete
-"""
-
-
 import math
 import heapq
 import random
-import struct
-import zlib
-from dataclasses import dataclass
-from enum import Enum
 from world.tile import (
     grass,
     tall_grass,
@@ -35,78 +26,25 @@ from world.tile import (
     door,
 )
 from world.water_features import river, lake, is_water_tile
-
-
-DEEP_WATER = 0.12
-SHALLOW_WATER = 0.18
-PLAINS = 0.55
-HILLS = 0.75
-FOREST = 0.50
-SWAMP = 0.72
-
-# How strongly a chunk's local elevation/moisture noise is pulled toward the
-# coarse, world-scale value WorldMap recorded for that chunk (see
-# _bias_grid_toward_world_value). Elevation is biased harder than moisture —
-# mountain ranges and coastlines reading as continuous across chunks matters
-# more than moisture doing the same.
-WORLD_ELEVATION_BIAS_STRENGTH = 0.35
-WORLD_MOISTURE_BIAS_STRENGTH = 0.20
-# Keeps a world-scale mountain range present across chunk boundaries while
-# retaining the chunk's own ridge detail.
-WORLD_MOUNTAIN_FLOOR_STRENGTH = 0.78
-
-BIOME_OCEAN = "ocean"
-BIOME_BEACH = "beach"
-BIOME_PLAINS = "plains"
-BIOME_FOREST = "forest"
-BIOME_SWAMP = "swamp"
-BIOME_HILLS = "hills"
-BIOME_MOUNTAINS = "mountains"
-
-
-@dataclass(frozen=True)
-class BiomeThresholds:
-    """
-    Elevation/moisture cutoffs _biome() classifies against.
-
-    Field names keep the (slightly confusing) meaning the old bare
-    module constants had: `hills` is the elevation a tile must reach to
-    stop being plains/forest/swamp and start being hills (was PLAINS),
-    `mountains` is the elevation to stop being hills and become
-    mountains (was HILLS).
-
-    The defaults below assume a roughly uniform [0, 1] input
-    distribution, which is true of the per-chunk local heightmap/
-    moisture grids (_normalize_heightmap()'s squeeze, _generate_moisture_map())
-    but is NOT reliably true of raw fBm noise in general -- summing
-    several octaves is a Central-Limit-Theorem setup, so the result
-    clusters near its mean no matter how far the endpoints are
-    stretched. world_map.py's compute_biome_thresholds() derives a
-    distribution-aware BiomeThresholds instead (percentile lookups
-    against the actual world, not these fixed values) so world-scale
-    biome area fractions stay close to what these defaults imply
-    regardless of how a given world seed's noise happens to be shaped.
-    """
-    ocean: float = DEEP_WATER
-    beach: float = SHALLOW_WATER
-    hills: float = PLAINS
-    mountains: float = HILLS
-    forest_moisture: float = FOREST
-    swamp_moisture: float = SWAMP
-
-
-DEFAULT_BIOME_THRESHOLDS = BiomeThresholds()
-
-
-class ChunkBiome(Enum):
-    PLAINS = "plains"
-    FOREST = "forest"
-    SWAMP = "swamp"
-    HILLS = "hills"
-    MOUNTAINS = "mountains"
-    DESERT = "desert"
-    TUNDRA = "tundra"
-    OCEAN = "ocean"
+from world.noise import (
+    HeightMap,
+    _build_permutation_table,
+    _fractal_noise,
+    _decoration_hash,
+    _chance,
+)
+from world.world_map import (
+    ChunkBiome,
+    _biome,
+    _generate_ridge_heightmap,
+    _generate_moisture_map,
+    BIOME_OCEAN,
+    BIOME_PLAINS,
+    BIOME_FOREST,
+    BIOME_SWAMP,
+    BIOME_HILLS,
+    BIOME_MOUNTAINS,
+)
 
 PATCH_PREFIXES = [
     "Ashen",
@@ -160,49 +98,6 @@ PATCH_SUFFIX = {
 
 
 
-
-def _decoration_hash(x, y, salt):
-    """
-    Deterministic pseudo-random value in [0, 1) for a tile, used to scatter
-    decorations. Unlike a linear check such as `(x * a + y * b) % n == 0`,
-    which always produces evenly-spaced parallel diagonal lines (an artifact
-    of the congruence, not real randomness), this mixes the bits of x, y,
-    and a salt so results look organically scattered while still being
-    fully deterministic for a given tile/salt pair (no shared RNG state,
-    safe to call in any order).
-    """
-    h = (x * 0x1F1F1F1F) ^ (y * 0x2545F491) ^ (salt * 0x9E3779B1)
-    h = (h ^ (h >> 15)) * 0x85EBCA6B
-    h = (h ^ (h >> 13)) * 0xC2B2AE35
-    h ^= h >> 16
-    return (h & 0xFFFFFFFF) / 0xFFFFFFFF
-
-
-def _chance(x, y, salt, probability):
-    """Returns True with roughly `probability` odds, scattered (not aligned)."""
-    return _decoration_hash(x, y, salt) < probability
-
-
-class HeightMap:
-    """
-    Stores the elevation of every tile.
-    Values are normalized between 0.0 and 1.0.
-    """
-
-    def __init__(self, width, height):
-        self.width = width
-        self.height = height
-
-        self.values = [
-            [0.0 for _ in range(width)]
-            for _ in range(height)
-        ]
-
-    def get(self, x, y):
-        return self.values[y][x]
-
-    def set(self, x, y, value):
-        self.values[y][x] = value
 
 
 class FlowField:
@@ -302,7 +197,7 @@ class TerrainGenerator:
         Paint this generator's biome. `mask`, if given, is a per-tile
         `mask[y][x]` boolean grid restricting painting/decoration/landmark
         placement to only the tiles this generator owns -- see
-        _build_local_terrain_mask()/_paint_chunk_terrain() in
+        WorldMap.generate_chunk_geography()/_paint_chunk_terrain() in
         generate_chunk_context(), which run several generators over the
         same chunk, each confined to the tiles WorldMap's continuous
         fields classified as its biome. `mask=None` paints every tile,
@@ -888,35 +783,6 @@ def get_terrain_generator(biome):
     return PlainsGenerator
 
 
-def _biome(height, moisture, thresholds=None):
-    """
-    Classify a single (height, moisture) sample into a BIOME_* constant.
-
-    `thresholds` defaults to DEFAULT_BIOME_THRESHOLDS (the original
-    fixed cutoffs), so every existing call site -- _generate_landscape_patches()'s
-    per-patch flavor naming, _score_dungeon_location()'s scoring -- is
-    unaffected. world_map.py passes its own distribution-aware
-    BiomeThresholds when classifying world-scale cells; see
-    BiomeThresholds' docstring for why that matters.
-    """
-    if thresholds is None:
-        thresholds = DEFAULT_BIOME_THRESHOLDS
-
-    if height < thresholds.ocean:
-        return BIOME_OCEAN
-    if height < thresholds.beach:
-        return BIOME_BEACH
-    if height >= thresholds.mountains:
-        return BIOME_MOUNTAINS
-    if height >= thresholds.hills:
-        return BIOME_HILLS
-    if moisture > thresholds.swamp_moisture:
-        return BIOME_SWAMP
-    if moisture > thresholds.forest_moisture:
-        return BIOME_FOREST
-
-    return BIOME_PLAINS
-
 
 def _random_patch_name(biome, rng):
     prefix = rng.choice(PATCH_PREFIXES)
@@ -1015,14 +881,6 @@ def _generate_landscape_patches(game_map, heightmap, moisture, rng):
 # instead of leaving it as speckled noise.
 # ---------------------------------------------------------------------------
 
-def _build_permutation_table(seed):
-    rng = random.Random(seed)
-
-    perm = list(range(256))
-    rng.shuffle(perm)
-
-    return perm + perm
-
 
 def _distance(a, b):
     return abs(a[0]-b[0]) + abs(a[1]-b[1])
@@ -1110,258 +968,6 @@ def _find_path(game_map, heightmap, start, goal, neighbor_fn=None, blocked=None,
                 heapq.heappush(open_set, (f, (nx, ny)))
 
     return []
-
-
-def _fade(t):
-    return t * t * t * (t * (t * 6 - 15) + 10)
-
-
-def _lerp(t, a, b):
-    return a + t * (b - a)
-
-
-def _gradient(hash_value, x, y):
-    """Pick one of 8 gradient directions based on the low bits of the hash."""
-    h = hash_value & 7
-    u = x if h < 4 else y
-    v = y if h < 4 else x
-    return (u if h & 1 == 0 else -u) + (v if h & 2 == 0 else -v)
-
-
-def _perlin(perm, x, y):
-    """Sample 2D Perlin noise at (x, y). Returns a value roughly in [-1, 1]."""
-    xi, yi = int(math.floor(x)) & 255, int(math.floor(y)) & 255
-    xf, yf = x - math.floor(x), y - math.floor(y)
-    u, v = _fade(xf), _fade(yf)
-
-    aa = perm[perm[xi] + yi]
-    ab = perm[perm[xi] + yi + 1]
-    ba = perm[perm[xi + 1] + yi]
-    bb = perm[perm[xi + 1] + yi + 1]
-
-    top = _lerp(u, _gradient(aa, xf, yf), _gradient(ba, xf - 1, yf))
-    bottom = _lerp(u, _gradient(ab, xf, yf - 1), _gradient(bb, xf - 1, yf - 1))
-    return _lerp(v, top, bottom)
-
-
-def _fractal_noise(perm, x, y, octaves, persistence, lacunarity):
-    """Layer several octaves of Perlin noise (fBm) for more natural-looking detail."""
-    total, amplitude, frequency, max_amplitude = 0.0, 1.0, 1.0, 0.0
-    for _ in range(octaves):
-        total += _perlin(perm, x * frequency, y * frequency) * amplitude
-        max_amplitude += amplitude
-        amplitude *= persistence
-        frequency *= lacunarity
-    return total / max_amplitude  # normalized back to roughly [-1, 1]
-
-
-def _generate_mountain_ridges(width, height, rng=None):
-    """
-    Creates several long mountain ridges.
-
-    These are NOT mountains yet.
-    They're just polylines that later become elevation.
-    """
-    rng = rng or random
-    ridges = []
-
-    ridge_count = max(3, (width * height) // 20000)
-
-    for _ in range(ridge_count):
-        x = rng.randint(width // 5, width * 4 // 5)
-        y = rng.randint(height // 5, height * 4 // 5)
-
-        angle = rng.uniform(0, math.pi * 2)
-        ridge = []
-
-        length = rng.randint(
-            min(width, height) // 3,
-            min(width, height) // 2
-        )
-
-        for _ in range(length):
-            ridge.append((int(x), int(y)))
-            # slowly bend
-            angle += rng.uniform(-0.25, 0.25)
-
-            x += math.cos(angle)
-            y += math.sin(angle)
-
-            if x < 2 or x >= width - 2:
-                break
-            if y < 2 or y >= height - 2:
-                break
-
-        ridges.append(ridge)
-
-    return ridges
-
-
-def _generate_ridge_heightmap(width, height, rng=None):
-    """
-    Builds a heightmap from mountain ridges instead of Perlin noise.
-    """
-    ridges = _generate_mountain_ridges(width, height, rng=rng)
-    heightmap = HeightMap(width, height)
-    max_radius = max(width, height) * 0.30
-
-    for y in range(height):
-        for x in range(width):
-            elevation = 0.0
-
-            for ridge in ridges:
-                nearest = float("inf")
-                for rx, ry in ridge:
-                    d = math.hypot(rx - x, ry - y)
-
-                    if d < nearest:
-                        nearest = d
-
-                if nearest < max_radius:
-                    influence = 1.0 - (nearest / max_radius)
-                    elevation += influence ** 2
-
-            heightmap.set(x, y, elevation)
-
-    _normalize_heightmap(heightmap)
-
-    return heightmap
-
-
-def _normalize_heightmap(heightmap):
-
-    minimum = float("inf")
-    maximum = float("-inf")
-
-    for row in heightmap.values:
-        for value in row:
-            minimum = min(minimum, value)
-            maximum = max(maximum, value)
-
-    scale = maximum - minimum
-
-    if scale == 0:
-        return
-
-    for y in range(heightmap.height):
-        for x in range(heightmap.width):
-
-            value = (heightmap.get(x, y) - minimum) / scale
-            value = value * 0.85 + 0.08
-
-            heightmap.set(x, y, value)
-
-
-def _bias_grid_toward_world_value(grid, world_value, strength):
-    """
-    Nudge every tile in a HeightMap-like grid (elevation or moisture) toward
-    a single coarse, world-scale value for this chunk, so a chunk sampled
-    from a world-map mountain range trends mountainous locally too, and a
-    chunk sampled from a wet region trends moister — instead of every
-    chunk's terrain being decided independently of its neighbors.
-    `strength` controls how hard the world value pulls; the local Perlin
-    detail is only shifted, not replaced, so per-chunk variation survives.
-    """
-    for y in range(grid.height):
-        for x in range(grid.width):
-            local_value = grid.get(x, y)
-            biased = local_value + (world_value - 0.5) * strength
-            grid.set(x, y, min(1.0, max(0.0, biased)))
-
-
-def _apply_world_mountain_floor(heightmap, world_map, chunk_coord):
-    """Apply a bilinearly interpolated world mountain envelope to a chunk.
-
-    Sampling between the current coarse cell and its wrapped neighbors makes
-    the value at a chunk's outgoing edge match the value at the neighboring
-    chunk's incoming edge. The local ridge heightmap remains intact; this
-    only prevents a persistent world-scale range from disappearing at a
-    chunk boundary.
-    """
-    grid_x, grid_y = world_map._to_grid(chunk_coord)
-    width, height = heightmap.width, heightmap.height
-
-    for y in range(height):
-        fy = (y + 0.5) / height
-        for x in range(width):
-            fx = (x + 0.5) / width
-            x0 = grid_x
-            y0 = grid_y
-            x1 = (grid_x + 1) % world_map.width
-            y1 = (grid_y + 1) % world_map.height
-            strength = (
-                world_map.mountain_strength.get(x0, y0) * (1.0 - fx) * (1.0 - fy)
-                + world_map.mountain_strength.get(x1, y0) * fx * (1.0 - fy)
-                + world_map.mountain_strength.get(x0, y1) * (1.0 - fx) * fy
-                + world_map.mountain_strength.get(x1, y1) * fx * fy
-            )
-            floor = strength * WORLD_MOUNTAIN_FLOOR_STRENGTH
-            heightmap.set(x, y, max(heightmap.get(x, y), floor))
-
-
-def _world_grid_value_for_tile(world_map, chunk_coord, local_x, local_y, tile_width, tile_height, grid):
-    """Bilinearly sample a WorldMap grid for one tile inside a chunk."""
-    grid_x, grid_y = world_map._to_grid(chunk_coord)
-    fx = (local_x + 0.5) / tile_width
-    fy = (local_y + 0.5) / tile_height
-    x1 = (grid_x + 1) % world_map.width
-    y1 = (grid_y + 1) % world_map.height
-    return (
-        grid.get(grid_x, grid_y) * (1.0 - fx) * (1.0 - fy)
-        + grid.get(x1, grid_y) * fx * (1.0 - fy)
-        + grid.get(grid_x, y1) * (1.0 - fx) * fy
-        + grid.get(x1, y1) * fx * fy
-    )
-
-
-def _bias_grid_toward_world_surface(grid, world_map, chunk_coord, world_grid, strength):
-    """
-    Nudge a tile grid toward the continuous world-scale surface for this
-    chunk. This keeps local visual detail while making the broad geographic
-    signal come from WorldMap rather than from an independently-generated
-    chunk-local decision.
-    """
-    for y in range(grid.height):
-        for x in range(grid.width):
-            world_value = _world_grid_value_for_tile(
-                world_map,
-                chunk_coord,
-                x,
-                y,
-                grid.width,
-                grid.height,
-                world_grid,
-            )
-            local_value = grid.get(x, y)
-            biased = local_value + (world_value - 0.5) * strength
-            grid.set(x, y, min(1.0, max(0.0, biased)))
-
-
-def _generate_moisture_map(perm, chunk_x, chunk_y, width, height, scale, octaves=4, persistence=0.5, lacunarity=2.0,):
-    """
-    Generates a normalized moisture map.
-    Values range from 0.0 to 1.0.
-    """
-    #perm = _build_permutation_table()
-    moisture = HeightMap(width, height)
-
-    for y in range(height):
-        for x in range(width):
-            world_x = chunk_x * width + x
-            world_y = chunk_y * height + y
-            value = _fractal_noise(
-                perm,
-                world_x / scale,
-                world_y / scale,
-                octaves,
-                persistence,
-                lacunarity
-            )
-
-            value = (value + 1) / 2
-            moisture.set(x, y, value)
-
-    return moisture
 
 
 def _score_dungeon_location(game_map, heightmap, moisture, x, y):
@@ -2635,51 +2241,18 @@ def _place_town(game_map, chunk_coord, biome, world_seed):
     return town_buildings, (anchor_x, anchor_y)
 
 
-def _build_local_terrain_mask(world_map, chunk_coord, heightmap, moisture, width, height):
-    """
-    Per-tile ChunkBiome classification for one chunk, replacing the old
-    "one discrete biome for the whole chunk" decision.
-
-    `heightmap`/`moisture` are this chunk's own local grids -- already
-    continuous across chunk boundaries via _bias_grid_toward_world_surface
-    -- providing fine local detail. continentalness/mountain_strength have
-    no chunk-local layer of their own yet, so they're sampled straight from
-    WorldMap's continuous fields, once per tile. WorldMap.classify_local_terrain()
-    then applies the same elevation/mountain/moisture rules world-scale
-    biome classification uses, just against these continuously-sampled
-    values instead of one flat value per world-map cell -- so the result
-    grades smoothly (ocean into beach into plains, plains into hills into
-    mountains, grass into forest, swamp into plains) wherever the
-    underlying fields do, instead of switching all at once at whichever
-    edge two neighboring chunks' single biomes happened to disagree.
-    """
-    mask = [[None for _ in range(width)] for _ in range(height)]
-    for y in range(height):
-        fy = (y + 0.5) / height
-        for x in range(width):
-            fx = (x + 0.5) / width
-            continentalness = world_map.continentalness_at_subtile(chunk_coord, fx, fy)
-            mountain_strength = world_map.mountain_strength_at_subtile(chunk_coord, fx, fy)
-            mask[y][x] = world_map.classify_local_terrain(
-                heightmap.get(x, y),
-                moisture.get(x, y),
-                continentalness,
-                mountain_strength,
-            )
-    return mask
-
-
 def _paint_chunk_terrain(game_map, heightmap, moisture, river_positions, local_terrain, rng):
     """
     Paint a chunk from its per-tile biome classification (see
-    _build_local_terrain_mask): every ChunkBiome actually present gets its
-    own TerrainGenerator instance, each confined to only the tiles
-    classified as its biome, so a chunk straddling e.g. plains and forest
-    gets both painters' styles at the tiles where the classification
-    actually crosses over, instead of one painter claiming the whole
-    chunk. Landmark placement still runs only for the chunk's dominant
-    (most common) local biome, preserving the old one-landmark-per-chunk
-    behavior.
+    WorldMap.generate_chunk_geography/local_terrain_mask): every ChunkBiome
+    actually present gets its own TerrainGenerator instance, each confined
+    to only the tiles classified as its biome, so a chunk straddling e.g.
+    plains and forest gets both painters' styles at the tiles where the
+    classification actually crosses over, instead of one painter claiming
+    the whole chunk. This function only paints what WorldMap already
+    decided -- it never classifies terrain itself. Landmark placement
+    still runs only for the chunk's dominant (most common) local biome,
+    preserving the old one-landmark-per-chunk behavior.
 
     Returns (dominant_biome, terrain_tags, landmarks).
     """
@@ -2740,70 +2313,59 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
     if num_dungeon_entrances is None:
         num_dungeon_entrances = max(1, (width * height) // 24000)
 
-    # 1. Landscape patches: chunk-local terrain variation (not world-region
-    # identity -- see step 7 below, which reads that from WorldMap).
-    heightmap = _generate_ridge_heightmap(
-        width,
-        height,
-        rng=_chunk_materialization_rng(chunk_coord, world_seed, salt=0xA11CE),
-    )
-    if world_map is not None:
-        _bias_grid_toward_world_surface(
-            heightmap,
-            world_map,
-            chunk_coord,
-            world_map.elevation,
-            WORLD_ELEVATION_BIAS_STRENGTH,
-        )
-        _apply_world_mountain_floor(heightmap, world_map, chunk_coord)
-
+    # 1. Geography: WorldMap decides elevation, moisture, and per-tile local
+    # biome for this chunk (see WorldMap.generate_chunk_geography) -- this
+    # layer only turns that data into tiles below, it never generates or
+    # overrides geography of its own. A standalone chunk (no WorldMap) is
+    # the one case that still makes its own local geographic decisions,
+    # since there's no world to be authoritative over it.
     flow_field = None
-    if world_map is None:
-        # Without a persistent world map, retain the standalone chunk river.
+    if world_map is not None:
+        heightmap, moisture, local_terrain = world_map.generate_chunk_geography(
+            chunk_coord, world_seed, width, height,
+            rng=_chunk_materialization_rng(chunk_coord, world_seed, salt=0xA11CE),
+        )
         # In world-map mode, major river_edges are authoritative; an
-        # independent local river could reach a chunk edge without a matching
-        # crossing in the neighboring chunk and create a false discontinuity.
+        # independent local river could reach a chunk edge without a
+        # matching crossing in the neighboring chunk and create a false
+        # discontinuity, so no local river is traced here.
+        river_positions = set()
+        lake_positions = set()
+    else:
+        heightmap = _generate_ridge_heightmap(
+            width,
+            height,
+            rng=_chunk_materialization_rng(chunk_coord, world_seed, salt=0xA11CE),
+        )
+        # Without a persistent world map, retain the standalone chunk river.
         river_positions, lake_positions = _perlin_worm_river_positions(
             heightmap,
             perm,
             chunk_coord,
         )
-    else:
-        river_positions = set()
-        lake_positions = set()
-
-    moisture = _generate_moisture_map(
-        perm,
-        chunk_coord[0],
-        chunk_coord[1],
-        width,
-        height,
-        scale=max(width, height) / 10
-    )
-
-    if world_map is not None:
-        _bias_grid_toward_world_surface(
-            moisture,
-            world_map,
-            chunk_coord,
-            world_map.moisture,
-            WORLD_MOISTURE_BIAS_STRENGTH,
+        moisture = _generate_moisture_map(
+            perm,
+            chunk_coord[0],
+            chunk_coord[1],
+            width,
+            height,
+            scale=max(width, height) / 10,
         )
+        _apply_river_moisture(moisture, river_positions | lake_positions)
+        local_terrain = None
 
-    _apply_river_moisture(moisture, river_positions | lake_positions)
+    # 2. Landscape patches: chunk-local terrain variation (not world-region
+    # identity -- see step 7 below, which reads that from WorldMap).
     patch_map, patches = _generate_landscape_patches(game_map, heightmap, moisture, _patch_rng(chunk_coord, world_seed))
 
-    # 2. Chunk generator: paint terrain from WorldMap's continuous fields
-    # sampled per tile (see _build_local_terrain_mask/_paint_chunk_terrain),
-    # not from the one discrete biome the chunk's own world-map cell was
-    # classified as -- that discrete `biome` is still used below for flavor
-    # text, monster tables, and the town/structure fallback, none of which
-    # need tile-grained blending. Standalone chunks (no world_map, so no
-    # continuous fields to sample) fall back to the old single-generator
-    # behavior.
+    # 3. Terrain materialization: turn the geography above into actual
+    # tiles. Every ChunkBiome WorldMap classified into this chunk (see
+    # _paint_chunk_terrain) gets its own TerrainGenerator confined to only
+    # its own tiles -- this step paints, it does not decide what belongs
+    # where. Standalone chunks (no local_terrain, since there's no WorldMap
+    # to classify one) fall back to the old single-generator behavior.
     materialization_rng = _chunk_materialization_rng(chunk_coord, world_seed, salt=0xB10DE)
     if world_map is not None:
-        local_terrain = _build_local_terrain_mask(world_map, chunk_coord, heightmap, moisture, width, height)
         _dominant_local_biome, local_terrain_tags, landmarks = _paint_chunk_terrain(
             game_map, heightmap, moisture, river_positions, local_terrain, materialization_rng,
         )
@@ -3016,15 +2578,15 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
 
 
 
-def generate_overworld(game_map, chunk_coord, world_seed, biome, world_map=None, num_dungeon_entrances=None, debug_heightmap_path=None):
+def materialize_overworld_chunk(game_map, chunk_coord, world_seed, biome, world_map=None, num_dungeon_entrances=None, debug_heightmap_path=None):
     """
-    Generate a new overworld map, filling in the game_map.tiles array with
-    terrain tiles, and returning a dictionary of metadata about the generated
-    world.
-
-    This now delegates to generate_chunk_context() so the generation pipeline
-    is organized into explicit stages while preserving the existing game
-    behavior and return values.
+    Materialize one overworld chunk: fill in game_map.tiles with playable
+    terrain tiles from WorldMap's geography (see generate_chunk_context/
+    WorldMap.generate_chunk_geography), and return a dictionary of metadata
+    about what was generated. This is the module's one public entry point --
+    everything else here is either an implementation detail of turning
+    WorldMap's geography into tiles, or (for standalone/no-WorldMap chunks
+    only) a self-contained local geography generator of last resort.
     """
     context = generate_chunk_context(
         game_map,

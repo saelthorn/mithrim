@@ -300,7 +300,7 @@ def _ambient_time_period(hour_of_day):
 
 
 
-from world.world_generator import ChunkBiome
+from world.world_map import ChunkBiome
 
 BIOME_CONNECTIONS = {
 
@@ -355,7 +355,7 @@ from core.ui_sidebar import draw_sidebar
 from core.ui_screens import render_inventory_screen, render_inventory_menu_popup, render_character_menu, render_world_map_screen, WORLD_MAP_MIN_ZOOM, WORLD_MAP_MAX_ZOOM
 from world.map import GameMap
 from world.dungeon_generator import generate_dungeon
-from world.world_generator import generate_overworld
+from world.chunk_materializer import materialize_overworld_chunk
 from world.world_map import (
     generate_world_map,
     OVERWORLD_CHUNK_WIDTH,
@@ -938,7 +938,7 @@ class Game:
                                               # unaided; darkvision is what closes the gap back up
                                               # to OVERWORLD_VISION_RADIUS (see update_fov()).
 
-    def spawn_overworld_monster_groups(self, game_map, biome, dungeon_entrances, chunk_coord=None):
+    def spawn_overworld_monster_groups(self, game_map, biome, dungeon_entrances):
         """
         Populate a freshly generated overworld chunk with monster groups.
 
@@ -950,17 +950,6 @@ class Game:
         from entities.monster import MONSTER_GROUPS
 
         possible_monsters = self.OVERWORLD_MONSTER_TABLE.get(biome, [GiantRat])
-        if chunk_coord is None:
-            rng = random
-            group_prefix = "overworld_pack"
-        else:
-            rng = random.Random(
-                (self.world_seed * 1_000_003)
-                ^ (chunk_coord[0] * 92_821)
-                ^ (chunk_coord[1] * 68_917)
-                ^ 0x51A7E
-            )
-            group_prefix = f"overworld_pack:{chunk_coord[0]}:{chunk_coord[1]}"
         structure_names = {"Witch Hut", "Watchtower", "Shrine", "Cabin", "Tavern", "Shop", "House"}
         spawned = []
 
@@ -977,10 +966,10 @@ class Game:
                 return False
             return True
 
-        num_groups = rng.randint(*self.OVERWORLD_MONSTER_GROUP_COUNT)
-        for group_index in range(num_groups):
-            anchor_x = rng.randint(0, game_map.width - 1)
-            anchor_y = rng.randint(0, game_map.height - 1)
+        num_groups = random.randint(*self.OVERWORLD_MONSTER_GROUP_COUNT)
+        for _ in range(num_groups):
+            anchor_x = random.randint(0, game_map.width - 1)
+            anchor_y = random.randint(0, game_map.height - 1)
             radius = self.OVERWORLD_GROUP_SEARCH_RADIUS
 
             valid_positions = [
@@ -992,16 +981,16 @@ class Game:
             if not valid_positions:
                 continue  # Anchor landed somewhere too cramped (water, town, etc.) - skip this group
 
-            primary_monster_class = rng.choice(possible_monsters)
+            primary_monster_class = random.choice(possible_monsters)
             compatible_types = MONSTER_GROUPS.get(primary_monster_class.__name__, [primary_monster_class.__name__])
             min_spawn, max_spawn = (1, 4) if len(compatible_types) > 1 else (1, 2)
-            num_to_spawn = rng.randint(min_spawn, max_spawn)
+            num_to_spawn = random.randint(min_spawn, max_spawn)
 
             # Shared by every monster spawned around this anchor -- see
             # Monster.group_id/provoke(): attacking one PASSIVE/NEUTRAL
             # member of the cluster (a centaur band, a myconid grove, ...)
             # alerts the rest of it at the same time.
-            group_id = f"{group_prefix}:{group_index}"
+            group_id = f"overworld_pack:{uuid.uuid4().hex[:8]}"
 
             for _ in range(num_to_spawn):
                 if not valid_positions:
@@ -1009,9 +998,9 @@ class Game:
                 # Compatible pack members are looked up by name against the classes
                 # already imported into this module (globals()), the same way
                 # MONSTER_GROUPS names are resolved for dungeon packs.
-                monster_type_name = rng.choice(compatible_types)
+                monster_type_name = random.choice(compatible_types)
                 monster_class = globals().get(monster_type_name, primary_monster_class)
-                spawn_x, spawn_y = rng.choice(valid_positions)
+                spawn_x, spawn_y = random.choice(valid_positions)
                 valid_positions.remove((spawn_x, spawn_y))
                 monster = monster_class(spawn_x, spawn_y)
                 monster.group_id = group_id
@@ -1083,7 +1072,7 @@ class Game:
     # stage's "landmark_structure" names more than one (see
     # _place_world_encounter_structure_cluster()), plus extra random slack
     # layered on top purely for visual variety -- same "guaranteed floor,
-    # jittered on top" shape world_generator.py's _place_town() uses for
+    # jittered on top" shape chunk_materializer.py's _place_town() uses for
     # TOWN_BUILDING_GAP/TOWN_LAYOUT_JITTER.
     WORLD_ENCOUNTER_STRUCTURE_GAP = 2
     WORLD_ENCOUNTER_STRUCTURE_JITTER = 3
@@ -2629,7 +2618,7 @@ class Game:
         rather than landmark_structure being limited to exactly one
         building.
 
-        Mirrors world_generator.py's _place_town(): the first structure
+        Mirrors chunk_materializer.py's _place_town(): the first structure
         anchors the cluster; each later one is offset from the *previous*
         one by their combined footprint half-widths plus a gap (see
         _world_encounter_structure_offset(), the same math as that
@@ -2716,7 +2705,7 @@ class Game:
         a small perpendicular drift so a longer cluster reads as a
         scattered hamlet rather than a rigid line of buildings. See
         _place_world_encounter_structure_cluster()'s docstring for how
-        this mirrors world_generator.py's _place_town().
+        this mirrors chunk_materializer.py's _place_town().
         """
         previous_x, previous_y, previous_width, previous_height = previous_anchor
         gap = self.WORLD_ENCOUNTER_STRUCTURE_GAP + random.randint(0, self.WORLD_ENCOUNTER_STRUCTURE_JITTER)
@@ -2737,7 +2726,7 @@ class Game:
         Distance to add to one structure's anchor coordinate to get the
         anchor coordinate of a second structure placed directly after it,
         leaving at least `gap` empty tiles between their two footprints.
-        Identical math to world_generator.py's module-level
+        Identical math to chunk_materializer.py's module-level
         _anchor_offset() (place_structure_at_anchor() centers a building
         on its anchor using `origin = anchor - size // 2`, so this mirrors
         that rather than guessing at spacing with hand-picked offsets) --
@@ -4456,7 +4445,7 @@ class Game:
             chunk_map = GameMap(OVERWORLD_CHUNK_WIDTH, OVERWORLD_CHUNK_HEIGHT)
             biome = self.get_chunk_biome(chunk_coord)
             
-            overworld_info = generate_overworld(
+            overworld_info = materialize_overworld_chunk(
                 chunk_map,
                 chunk_coord=chunk_coord,
                 world_seed=self.world_seed,
@@ -4464,7 +4453,7 @@ class Game:
                 world_map=self.world_map,
             )
             monster_population = self.spawn_overworld_monster_groups(
-                chunk_map, biome, overworld_info["dungeon_entrances"], chunk_coord=chunk_coord
+                chunk_map, biome, overworld_info["dungeon_entrances"]
             )
             self.overworld_chunks[chunk_coord] = {
                 "map": chunk_map,
