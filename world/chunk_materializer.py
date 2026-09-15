@@ -1,30 +1,14 @@
 import math
 import heapq
 import random
+
 from world.tile import (
-    grass,
-    tall_grass,
-    tree,
-    dungeon_entrance,
-    road,
-    ground,
-    mountain,
-    clearing,
-    giant_tree,
-    pond,
-    flower_field,
-    cliff,
-    valley,
-    waterfall,
-    scree,
-    ridge,
-    meadow,
-    rock_formation,
-    marsh_pool,
-    reeds,
-    dead_forest,
+    grass, tall_grass, tree, dungeon_entrance, road, ground, mountain, 
+    clearing, giant_tree, pond, flower_field, cliff, valley, waterfall, 
+    scree, ridge, meadow, rock_formation, marsh_pool, reeds, dead_forest, 
     door,
 )
+
 from world.water_features import river, lake, is_water_tile
 from world.noise import (
     HeightMap,
@@ -33,6 +17,7 @@ from world.noise import (
     _decoration_hash,
     _chance,
 )
+
 from world.world_map import (
     ChunkBiome,
     _biome,
@@ -45,6 +30,7 @@ from world.world_map import (
     BIOME_HILLS,
     BIOME_MOUNTAINS,
 )
+
 
 PATCH_PREFIXES = [
     "Ashen",
@@ -1061,13 +1047,6 @@ def _smooth(grid, width, height, birth_limit, death_limit):
     return new_grid
 
 
-def _smooth_mask(grid, width, height, iterations, birth_limit=4, death_limit=3):
-    """Repeatedly apply the CA smoothing pass to an existing boolean grid (post-processing)."""
-    for _ in range(iterations):
-        grid = _smooth(grid, width, height, birth_limit, death_limit)
-    return grid
-
-
 # ---------------------------------------------------------------------------
 # Rivers
 #
@@ -1276,15 +1255,6 @@ def _river_tile_positions(flow_field):
                         positions.add((nx, ny))
 
     return positions
-
-
-def _stamp_disc(positions, center, width, height, radius):
-    cx, cy = center
-
-    for y in range(max(0, cy - radius), min(height, cy + radius + 1)):
-        for x in range(max(0, cx - radius), min(width, cx + radius + 1)):
-            if _distance((cx, cy), (x, y)) <= radius:
-                positions.add((x, y))
 
 
 def _noise01(perm, x, y, scale, octaves=2):
@@ -1853,20 +1823,6 @@ def _structure_road_approach(game_map, placed_tiles, anchor, occupied):
 # (and afterward spurred onto) the existing road network.
 # ---------------------------------------------------------------------------
 
-def _is_valid_entrance_spot(game_map, x, y):
-    """A dungeon entrance needs open, dry, walkable ground to sit on."""
-    if hasattr(game_map, "is_walkable"):
-        walkable = game_map.is_walkable(x, y)
-    else:
-        walkable = not getattr(game_map.tiles[y][x], "blocked", True)
-    if not walkable:
-        return False
-    tile = game_map.tiles[y][x]
-    if is_water_tile(tile):
-        return False
-    return tile is ground  # keep entrances off tall grass/tree tiles for visibility
-
-
 def _place_pois(game_map, heightmap, moisture, poi, count, preferred_positions=None):
     candidates = []
 
@@ -1914,106 +1870,6 @@ def _place_pois(game_map, heightmap, moisture, poi, count, preferred_positions=N
         placed.append((x, y))
 
     return placed
-
-
-# ---------------------------------------------------------------------------
-# Heightmap PNG export
-# A small debug/visualization helper: dumps a HeightMap out as a single PNG
-# so the raw noise can be eyeballed without running the full game. Written
-# by hand with `struct` + `zlib` (both stdlib) instead of adding an image
-# library dependency — same "no new dependencies" approach as the Perlin
-# noise implementation above.
-# ---------------------------------------------------------------------------
-
-# Elevation -> color stops, reusing the same thresholds as _biome() so the
-# preview image lines up with what actually gets painted onto the map.
-# _HEIGHTMAP_COLOR_STOPS = [
-#     (0.00,          (20, 40, 120)),    # deep water
-#     (DEEP_WATER,    (40, 90, 200)),    # shallow water
-#     (SHALLOW_WATER, (194, 178, 128)),  # beach
-#     (PLAINS * 0.6,  (90, 160, 60)),    # plains / lowlands
-#     (PLAINS,        (60, 110, 40)),    # forest-ish green
-#     (HILLS,         (120, 100, 70)),   # hills
-#     (1.00,          (235, 235, 240)),  # mountain peaks
-# ]
-
-
-# def _lerp_color(t, color_a, color_b):
-#     return tuple(
-#         round(_lerp(t, a, b))
-#         for a, b in zip(color_a, color_b)
-#     )
-
-
-# def _elevation_to_color(value):
-#     """Map a normalized elevation value in [0.0, 1.0] to an (r, g, b) color."""
-#     value = min(1.0, max(0.0, value))
-
-#     for (low, low_color), (high, high_color) in zip(_HEIGHTMAP_COLOR_STOPS, _HEIGHTMAP_COLOR_STOPS[1:]):
-#         if value <= high:
-#             span = high - low
-#             t = 0.0 if span == 0 else (value - low) / span
-#             return _lerp_color(t, low_color, high_color)
-
-#     return _HEIGHTMAP_COLOR_STOPS[-1][1]
-
-
-# def _write_png(path, width, height, pixel_rows):
-#     """
-#     Write an uncompressed-filter RGB PNG from raw pixel data.
-#     pixel_rows: list of `height` rows, each a flat list of `width * 3` ints (0-255).
-#     """
-
-#     def chunk(chunk_type, data):
-#         return (
-#             struct.pack(">I", len(data))
-#             + chunk_type
-#             + data
-#             + struct.pack(">I", zlib.crc32(chunk_type + data))
-#         )
-
-#     signature = b"\x89PNG\r\n\x1a\n"
-
-#     header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)  # 8-bit RGB, no filter/interlace
-
-#     # Each scanline is prefixed with a filter-type byte (0 = "none").
-#     raw = bytearray()
-#     for row in pixel_rows:
-#         raw.append(0)
-#         raw.extend(row)
-
-#     compressed = zlib.compress(bytes(raw), level=9)
-
-#     png = (
-#         signature
-#         + chunk(b"IHDR", header)
-#         + chunk(b"IDAT", compressed)
-#         + chunk(b"IEND", b"")
-#     )
-
-#     with open(path, "wb") as f:
-#         f.write(png)
-
-
-# def save_heightmap_png(heightmap, path="heightmap.png"):
-#     """
-#     Render a HeightMap (values in [0.0, 1.0]) out to a color-coded PNG at
-#     `path`, using the same elevation bands as the biome logic so it reads
-#     like a preview of the generated terrain. Handy for eyeballing the noise
-#     without needing to run the game.
-#     """
-#     pixel_rows = []
-
-#     for y in range(heightmap.height):
-#         row = []
-#         for x in range(heightmap.width):
-#             r, g, b = _elevation_to_color(heightmap.get(x, y))
-#             row.extend((r, g, b))
-#         pixel_rows.append(row)
-
-#     _write_png(path, heightmap.width, heightmap.height, pixel_rows)
-
-#     return path
 
 
 # ---------------------------------------------------------------------------
@@ -2281,10 +2137,9 @@ def _paint_chunk_terrain(game_map, heightmap, moisture, river_positions, local_t
     return dominant_biome, sorted(set(terrain_tags)), landmarks
 
 
-def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_map=None, num_dungeon_entrances=None, debug_heightmap_path=None, ChunkBiome=None):
+def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_map=None, num_dungeon_entrances=None):
     """Build a staged context for one overworld chunk, exposing the pipeline
     phases clearly while preserving the existing terrain-generation behavior."""
-    biome_enum = globals()["ChunkBiome"]
     from world.structures import create_town_npcs, place_structure_at_anchor
 
     if world_map is not None:
@@ -2292,10 +2147,10 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
         # height and moisture noise below still provide chunk-level detail.
         biome = world_map.biome_at(chunk_coord)
     elif biome is None:
-        biome = biome_enum.MOUNTAINS
+        biome = ChunkBiome.MOUNTAINS
     else:
         biome_value = getattr(biome, "value", biome)
-        biome = next((candidate for candidate in biome_enum if candidate.value == biome_value), biome_enum.PLAINS)
+        biome = next((candidate for candidate in ChunkBiome if candidate.value == biome_value), ChunkBiome.PLAINS)
 
     # 0. World-region context: the environmental identity this chunk's
     # region carries (dominant biome, elevation/moisture character,
@@ -2465,10 +2320,10 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
     )
     if not has_any_structure:
         biome_structure = {
-            biome_enum.SWAMP: "witch_hut",
-            biome_enum.MOUNTAINS: "watch_tower",
-            biome_enum.FOREST: "small_cabin",
-            biome_enum.PLAINS: "small_cabin",
+            ChunkBiome.SWAMP: "witch_hut",
+            ChunkBiome.MOUNTAINS: "watch_tower",
+            ChunkBiome.FOREST: "small_cabin",
+            ChunkBiome.PLAINS: "small_cabin",
         }.get(biome, "shrine")
 
         # Spread this fallback landmark across the chunk (with the same
@@ -2578,7 +2433,7 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
 
 
 
-def materialize_overworld_chunk(game_map, chunk_coord, world_seed, biome, world_map=None, num_dungeon_entrances=None, debug_heightmap_path=None):
+def materialize_overworld_chunk(game_map, chunk_coord, world_seed, biome, world_map=None, num_dungeon_entrances=None):
     """
     Materialize one overworld chunk: fill in game_map.tiles with playable
     terrain tiles from WorldMap's geography (see generate_chunk_context/
@@ -2595,7 +2450,6 @@ def materialize_overworld_chunk(game_map, chunk_coord, world_seed, biome, world_
         biome=biome,
         world_map=world_map,
         num_dungeon_entrances=num_dungeon_entrances,
-        debug_heightmap_path=debug_heightmap_path,
     )
 
     return {

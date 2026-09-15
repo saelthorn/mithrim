@@ -1,32 +1,4 @@
-"""
-World-scale map: a coarse, persistent grid laid over the *entire* game
-world, one cell per overworld chunk.
 
-Each individual chunk (chunk_materializer.materialize_overworld_chunk) is still
-generated on demand, the first time the player steps into it, using its
-own fine-grained Perlin noise. WorldMap decides what the world at large
-*is*; the chunk generator decides what one chunk *looks like* given its
-place in that world.
-
-Generation is geography-first rather than biome-first:
-
-    SEED -> CONTINENTS -> ELEVATION (+ MOUNTAIN RANGES) -> CLIMATE
-          -> RIVERS -> BIOMES -> REGIONS
-
-A handful of continent "cores" are seeded first and grown into cohesive
-landmass shapes; mountain ranges are walked as ridge polylines across
-those landmasses (the same ridge-polyline trick this module's own
-_generate_ridge_heightmap() uses per-chunk, just at world scale) rather
-than picked from raw noise, so mountains read as ranges instead of
-scattered blobs. Climate (moisture) then reacts to that shape -- a
-latitude band plus rain shadows cast by the mountain ranges -- before
-biomes are classified off the result. Only after all of that is decided
-do individual chunks get generated, each consulting this map for:
-  - its biome (WorldMap.biome_at)
-  - a coarse elevation bias (WorldMap.elevation_at), so mountain ranges
-    and lowlands span multiple chunks instead of resetting every chunk
-  - which of its edges a major river enters/exits on (WorldMap.river_edges_at)
-"""
 import math
 import heapq
 import random
@@ -806,7 +778,21 @@ class WorldMap:
         "WorldMap data -> terrain materialization -> GameMap" pipeline --
         chunk_materializer.py's job starts only once this returns; it never
         generates or overrides geography of its own.
+
+        `rng` is normally a chunk-scoped deterministic Random the caller
+        already seeded from (world_seed, chunk_coord) -- see
+        chunk_materializer.py's _chunk_materialization_rng(). If none is
+        given, one is derived here from (world_seed, chunk_coord), the same
+        integer-mixing scheme _chunk_materialization_rng() uses, rather
+        than falling back to the shared global `random` module further
+        down the call chain, so this method is deterministic on its own
+        and safe to call directly, not only through chunk_materializer.py.
         """
+        if rng is None:
+            rng = random.Random(
+                (world_seed * 1_000_003) ^ (chunk_coord[0] * 92_821) ^ (chunk_coord[1] * 68_917)
+            )
+
         heightmap = _generate_ridge_heightmap(width, height, rng=rng)
         self._bias_grid_toward_surface(heightmap, chunk_coord, self.elevation, WORLD_ELEVATION_BIAS_STRENGTH)
         self._apply_mountain_floor(heightmap, chunk_coord)
@@ -2141,6 +2127,241 @@ def _apply_climate(moisture, mountain_influence, width, height, prevailing_wind_
             moisture.set(x, y, value)
 
 
+# ---------------------------------------------------------------------------
+# generate_world_map(): the WorldMap generation pipeline
+# ---------------------------------------------------------------------------
+# WorldMap is the single authoritative procedural world model. Everything
+# below builds one WorldMap in clearly separated stages -- each stage is a
+# small orchestrator function operating on fields the previous stage(s)
+# already finalized, never on anything a later stage will still change.
+# This is what keeps the pipeline generation-order independent *within a
+# single world*: every stage is a pure function of the WorldMap state that
+# already exists, computed once, up front, for the whole coarse grid --
+# never per chunk and never re-derived on demand.
+#
+#   1. WORLD SEED               -- _init_world_seed
+#   2. MACRO GEOGRAPHY          -- _generate_macro_geography
+#        continentalness, elevation, mountain ranges, ocean/land
+#   3. CLIMATE                  -- _generate_climate
+#        moisture (temperature is not modeled in this game yet)
+#   4. WORLD FEATURES: rivers   -- _generate_rivers
+#   5. DERIVED TERRAIN CONDITIONS -- _generate_derived_terrain_conditions
+#        biome thresholds + classification (coastal/mountain/wetland/
+#        forest/plains conditions all fall out of the same elevation/
+#        moisture/continentalness/mountain_strength fields -- see
+#        classify_local_terrain() below for the chunk-grain version)
+#   6. REGIONS                  -- _generate_world_regions (region identity,
+#        names, flavor, transitions -- already its own well-scoped stage)
+#   7. WORLD FEATURES: roads    -- _generate_world_roads
+#
+# Stage 4 (rivers) runs *before* stage 5 (biome classification) even though
+# the suggested numbering above lists "world features" after "derived
+# terrain conditions": rivers raise moisture along their banks, and biome
+# classification has to see that raised moisture to classify a riverbank
+# as swamp/forest rather than whatever it would've been without a river
+# nearby. Stage 7 (roads) runs *after* regions, not alongside rivers in
+# one "world features" stage, because roads connect region centers and
+# don't exist as a concept until regions do. Both are genuine data
+# dependencies in this codebase, not arbitrary choices -- see each stage
+# function's docstring.
+#
+# Settlements, structures, and landmarks are deliberately NOT generated
+# here. They're a chunk_materializer.py concern: rolled per chunk, on
+# demand, the first time a chunk is visited (see _place_town()/_place_pois()
+# there) rather than persisted as world-scale WorldMap data. WorldMap stays
+# a coarse model of the world's *geography*; where a given player's game
+# happens to place a town is fine detail, generated lazily, exactly like
+# the rest of chunk materialization.
+
+
+def _init_world_seed(world_seed):
+    """
+    Stage 1: WORLD SEED.
+
+    Two different, unrelated seeds derived from world_seed: `perm` for
+    Perlin detail noise (a different corner of the permutation table than
+    per-chunk generation uses, so coarse world layout and fine per-chunk
+    detail don't end up correlated), `rng` for everything that needs
+    ordinary randomness (continent cores, mountain walks) -- kept as a
+    local random.Random rather than the global `random` module so world
+    generation stays reproducible for a given world_seed regardless of
+    what else in the process has touched the global RNG.
+    """
+    perm = _build_permutation_table(world_seed ^ 0x5EED)
+    rng = random.Random(world_seed ^ 0xC0FFEE)
+    return perm, rng
+
+
+def _generate_regional_relief(perm, width, height, elevation_scale):
+    """
+    An independent fBm layer feeding elevation (see _generate_elevation) --
+    its own offset into the permutation table, so it doesn't just echo
+    continent_shape or elevation's own local detail layer, normalized on
+    its own so its highs/lows are spread naturally rather than clustered
+    near the mean.
+    """
+    regional_relief = HeightMap(width, height)
+    for y in range(height):
+        for x in range(width):
+            value = _fractal_noise(
+                perm, (x + 3000) / elevation_scale, (y + 3000) / elevation_scale,
+                REGIONAL_RELIEF_OCTAVES, REGIONAL_RELIEF_PERSISTENCE, REGIONAL_RELIEF_LACUNARITY,
+            )
+            regional_relief.set(x, y, (value + 1.0) / 2.0)
+    _percentile_normalize(regional_relief)
+    return regional_relief
+
+
+def _generate_elevation(world_map, perm, regional_relief, width, height, elevation_scale, local_detail_weight):
+    """Blend regional relief + mountain influence (macro) with a faster
+    local fBm layer into world_map.elevation."""
+    local_elevation_scale = elevation_scale / 5
+    for y in range(height):
+        for x in range(width):
+            macro_elevation = (
+                regional_relief.get(x, y) * _RELIEF_ELEVATION_SHARE
+                + world_map.mountain_strength.get(x, y) * _MOUNTAIN_ELEVATION_SHARE
+            )
+            detail = (_fractal_noise(perm, x / local_elevation_scale, y / local_elevation_scale, 4, 0.5, 2.0) + 1.0) / 2.0
+            world_map.elevation.set(x, y, macro_elevation * (1.0 - local_detail_weight) + detail * local_detail_weight)
+
+
+def _classify_ocean_land(world_map, width, height):
+    """
+    Ocean/land distribution: a continentalness question, not an elevation
+    one -- this is what keeps oceans and continents reading as a few
+    large, coherent shapes instead of following every local elevation
+    wobble. Also records the beach threshold one band further inland (see
+    classify_local_terrain()'s tile-grain use of it).
+    """
+    ocean_threshold = _value_at_percentile(world_map.continentalness, CONTINENTALNESS_OCEAN_PERCENTILE)
+    world_map.continentalness_ocean_threshold = ocean_threshold
+    world_map.continentalness_beach_threshold = _value_at_percentile(world_map.continentalness, CONTINENTALNESS_BEACH_PERCENTILE)
+
+    for y in range(height):
+        for x in range(width):
+            world_map.is_ocean[(x, y)] = world_map.continentalness.get(x, y) < ocean_threshold
+
+
+def _generate_macro_geography(world_map, rng, perm, width, height, num_continents, num_mountain_ranges, elevation_curve, local_detail_weight):
+    """
+    Stage 2: MACRO GEOGRAPHY -- continentalness, elevation, mountain
+    ranges, ocean/land distribution. Everything downstream (climate,
+    rivers, biomes, regions) treats these fields as settled once this
+    stage returns.
+    """
+    if num_continents is None:
+        num_continents = max(3, (width * height) // 3500)
+    continent_shape, continent_id = _generate_continents(rng, width, height, num_continents)
+    world_map.continent_id = continent_id
+
+    # continent_shape itself stays raw (unnormalized, can run negative
+    # between continents) since mountain seeding and elevation blending
+    # below rely on that raw falloff scale. continentalness is a separate,
+    # percentile-normalized copy -- the actual [0, 1] field is_ocean and
+    # chunk_materializer.py read.
+    for y in range(height):
+        for x in range(width):
+            world_map.continentalness.set(x, y, continent_shape.get(x, y))
+    _percentile_normalize(world_map.continentalness)
+
+    if num_mountain_ranges is None:
+        num_mountain_ranges = max(3, (width * height) // 4000)
+    mountain_spines = _generate_mountain_spines(rng, world_map.continentalness, width, height, num_mountain_ranges)
+    world_map.mountain_ranges = mountain_spines
+    _apply_mountain_influence(world_map.mountain_strength, world_map.mountain_range_id, mountain_spines, width, height)
+
+    elevation_scale = max(width, height) / 6
+    # The local layer varies ~5x faster than its macro counterpart --
+    # frequent enough that neighboring chunks routinely diverge, not so
+    # frequent that terrain reads as pure static instead of shaped land --
+    # see _generate_elevation()'s local_elevation_scale.
+    regional_relief = _generate_regional_relief(perm, width, height, elevation_scale)
+    _generate_elevation(world_map, perm, regional_relief, width, height, elevation_scale, local_detail_weight)
+
+    # Summing several octaves of noise (fBm) statistically pulls the result
+    # toward the middle of its range -- it's rare for every octave to line up
+    # near an extreme at once. A plain min/max stretch only fixes the
+    # *endpoints*; the bulk of cells still cluster near the mean, so a fixed
+    # cutoff like "elevation >= 0.75" barely ever fires. Percentile
+    # normalization fixes the actual distribution instead of just its
+    # extremes -- see _percentile_normalize()'s docstring.
+    _percentile_normalize(world_map.elevation)
+    # Optional art/tuning knob -- a no-op unless a curve is supplied. Applied
+    # after percentile normalization so it's reshaping an already-uniform
+    # distribution on purpose, not fighting the same clustering above fixes.
+    _apply_curve(world_map.elevation, elevation_curve)
+
+    _classify_ocean_land(world_map, width, height)
+
+    return elevation_scale
+
+
+def _generate_climate(world_map, perm, width, height, moisture_curve, local_detail_weight, prevailing_wind_dx):
+    """
+    Stage 3: CLIMATE -- moisture, shaped by mountain rain shadows.
+    Temperature isn't modeled by this game yet; moisture is the only
+    climate field WorldMap currently carries.
+    """
+    moisture_scale = max(width, height) / 4
+    local_moisture_scale = moisture_scale / 5
+    for y in range(height):
+        for x in range(width):
+            # Offset the sample point for moisture so it isn't just a
+            # scaled copy of the elevation noise.
+            macro_moisture = (_fractal_noise(perm, (x + 1000) / moisture_scale, (y + 1000) / moisture_scale, 4, 0.5, 2.0) + 1.0) / 2.0
+            local_moisture = (_fractal_noise(perm, (x + 6000) / local_moisture_scale, (y + 6000) / local_moisture_scale, 2, 0.5, 2.0) + 1.0) / 2.0
+            world_map.moisture.set(x, y, macro_moisture * (1.0 - local_detail_weight) + local_moisture * local_detail_weight)
+
+    # Climate reacts to the shape macro geography already decided --
+    # latitude and mountain rain shadows -- before percentile
+    # normalization, so the nudge just shifts a cell's rank rather than
+    # needing its own separate rescale.
+    _apply_climate(world_map.moisture, world_map.mountain_strength, width, height, prevailing_wind_dx)
+    _percentile_normalize(world_map.moisture)
+    _apply_curve(world_map.moisture, moisture_curve)
+
+
+def _generate_rivers(world_map, width, height, num_rivers):
+    """
+    Stage 4: WORLD FEATURES (rivers). Runs before stage 5's biome
+    classification on purpose: a river raises moisture along its banks
+    (see _apply_river_moisture), and that raised moisture has to be in
+    place before biome thresholds/classification run, or a riverbank
+    would classify as whatever it would've been with no river nearby.
+    The ocean threshold used here to decide where a river "reaches the
+    sea" is a preliminary one, computed from pre-river moisture; stage 5
+    computes the real, final BiomeThresholds afterward.
+    """
+    if num_rivers is None:
+        num_rivers = max(3, (width * height) // 1800)
+
+    river_thresholds = compute_biome_thresholds(world_map.elevation, world_map.moisture)
+    _generate_world_rivers(world_map, num_rivers, ocean_threshold=river_thresholds.ocean)
+    _apply_river_moisture(world_map.moisture, world_map.river_edges, width, height)
+
+
+def _generate_derived_terrain_conditions(world_map, width, height):
+    """
+    Stage 5: DERIVED TERRAIN CONDITIONS -- biome thresholds and
+    classification. Coastal, mountain, wetland, forest, and plains
+    conditions are not separate systems here: they all fall out of the
+    same elevation/moisture/continentalness/mountain_strength fields
+    through one distribution-aware BiomeThresholds and
+    _classify_world_biome() (see classify_local_terrain() below for the
+    tile-grain version chunk materialization samples).
+    """
+    thresholds = compute_biome_thresholds(world_map.elevation, world_map.moisture)
+    world_map.biome_thresholds = thresholds
+
+    for y in range(height):
+        for x in range(width):
+            world_biome = _classify_world_biome(world_map, x, y, thresholds)
+            world_map.biomes[(x, y)] = _WORLD_BIOME_TO_CHUNK_BIOME[world_biome]
+
+    _break_long_biome_runs(world_map)
+
+
 def generate_world_map(
     world_seed,
     width=WORLD_MAP_WIDTH,
@@ -2157,16 +2378,19 @@ def generate_world_map(
     prevailing_wind_dx=1,
 ):
     """
-    Generate the coarse, persistent world map for a game, geography-first:
-    continents, then mountain ranges, then elevation, then climate, then
-    rivers, then biomes, then regions. This is cheap (width * height
-    cells, not width * height * chunk_size tiles) so it's generated once,
-    up front, rather than lazily per chunk like the fine-grained terrain
-    in generate_overworld.
+    Generate the coarse, persistent WorldMap for a game: the single
+    authoritative procedural world model, built in clearly separated
+    stages (see the module-level comment above this function). This is
+    cheap (width * height cells, not width * height * chunk_size tiles)
+    so it's generated once, up front, rather than lazily per chunk like
+    the fine-grained terrain chunk_materializer.py produces on demand --
+    WorldMap models the world; chunk_materializer.py materializes the
+    playable area, one chunk at a time, only when a chunk is actually
+    needed (see generate_chunk_geography() below).
 
     `num_continents`/`num_mountain_ranges` default to a handful scaled by
-    grid area (see below) -- pass explicit values to make a seed feel more
-    fragmented (more, smaller continents) or more monolithic.
+    grid area -- pass explicit values to make a seed feel more fragmented
+    (more, smaller continents) or more monolithic.
 
     `prevailing_wind_dx` controls which side of a mountain range reads as
     its rain shadow (see _apply_climate()).
@@ -2176,151 +2400,47 @@ def generate_world_map(
     percentile normalization, for controlling how mountainous/wet the
     world *feels* without touching biome area fractions -- those are
     always derived fresh from whatever distribution the grids end up
-    with, via compute_biome_thresholds() below.
+    with, via compute_biome_thresholds().
 
     `local_detail_weight` (0..1) controls how much fine per-cell noise is
     blended on top of the macro shape (continents + mountain ranges) --
     higher means neighboring chunks diverge in biome more readily, lower
     keeps terrain reading as large, geographically coherent masses.
-    """
-    # Two different, unrelated seeds derived from world_seed: `perm` for
-    # Perlin detail noise (a different corner of the permutation table
-    # than per-chunk generation uses, so coarse world layout and fine
-    # per-chunk detail don't end up correlated), `rng` for everything
-    # that needs ordinary randomness (continent cores, mountain walks) --
-    # kept as a local random.Random rather than the global `random`
-    # module so world generation stays reproducible for a given
-    # world_seed regardless of what else in the process has touched the
-    # global RNG. Region growth (see _generate_world_regions) no longer
-    # draws from `rng` -- it's fully cost-driven and deterministic on its
-    # own -- but the parameter is kept since it's already threaded through.
-    perm = _build_permutation_table(world_seed ^ 0x5EED)
-    rng = random.Random(world_seed ^ 0xC0FFEE)
 
+    Every stage below is a pure function of WorldMap state the previous
+    stage(s) already finalized -- nothing here depends on chunk
+    generation order, and nothing in chunk generation feeds back into
+    these fields once this function returns.
+    """
     world_map = WorldMap(width, height)
 
-    if num_continents is None:
-        num_continents = max(3, (width * height) // 3500)
-    continent_shape, continent_id = _generate_continents(rng, width, height, num_continents)
-    world_map.continent_id = continent_id
+    # Stage 1: WORLD SEED
+    perm, rng = _init_world_seed(world_seed)
 
-    # continent_shape itself stays raw (unnormalized, can run negative
-    # between continents) since mountain seeding and elevation blending
-    # below rely on that raw falloff scale. continentalness is a separate,
-    # percentile-normalized copy -- the actual [0, 1] field is_ocean and
-    # future chunk_materializer.py logic should read.
-    for y in range(height):
-        for x in range(width):
-            world_map.continentalness.set(x, y, continent_shape.get(x, y))
-    _percentile_normalize(world_map.continentalness)
-
-    if num_mountain_ranges is None:
-        num_mountain_ranges = max(3, (width * height) // 4000)
-    mountain_spines = _generate_mountain_spines(rng, world_map.continentalness, width, height, num_mountain_ranges)
-    world_map.mountain_ranges = mountain_spines
-    _apply_mountain_influence(world_map.mountain_strength, world_map.mountain_range_id, mountain_spines, width, height)
-
-    elevation_scale = max(width, height) / 6
-    moisture_scale = max(width, height) / 4
-    # The local layer varies ~5x faster than its macro counterpart --
-    # frequent enough that neighboring chunks routinely diverge, not so
-    # frequent that terrain reads as pure static instead of shaped land.
-    local_elevation_scale = elevation_scale / 5
-    local_moisture_scale = moisture_scale / 5
-
-    # Regional relief: an independent fBm layer (own offset into the
-    # permutation table, so it doesn't just echo continent_shape or the
-    # fine detail layer below), normalized on its own so its highs/lows
-    # are spread naturally rather than clustered near the mean.
-    regional_relief = HeightMap(width, height)
-    for y in range(height):
-        for x in range(width):
-            value = _fractal_noise(
-                perm, (x + 3000) / elevation_scale, (y + 3000) / elevation_scale,
-                REGIONAL_RELIEF_OCTAVES, REGIONAL_RELIEF_PERSISTENCE, REGIONAL_RELIEF_LACUNARITY,
-            )
-            regional_relief.set(x, y, (value + 1.0) / 2.0)
-    _percentile_normalize(regional_relief)
-
-    for y in range(height):
-        for x in range(width):
-            macro_elevation = (
-                regional_relief.get(x, y) * _RELIEF_ELEVATION_SHARE
-                + world_map.mountain_strength.get(x, y) * _MOUNTAIN_ELEVATION_SHARE
-            )
-            detail = (_fractal_noise(perm, x / local_elevation_scale, y / local_elevation_scale, 4, 0.5, 2.0) + 1.0) / 2.0
-            elevation = macro_elevation * (1.0 - local_detail_weight) + detail * local_detail_weight
-            world_map.elevation.set(x, y, elevation)
-
-            # Offset the sample point for moisture so it isn't just a scaled
-            # copy of the elevation noise.
-            macro_moisture = (_fractal_noise(perm, (x + 1000) / moisture_scale, (y + 1000) / moisture_scale, 4, 0.5, 2.0) + 1.0) / 2.0
-            local_moisture = (_fractal_noise(perm, (x + 6000) / local_moisture_scale, (y + 6000) / local_moisture_scale, 2, 0.5, 2.0) + 1.0) / 2.0
-            world_map.moisture.set(x, y, macro_moisture * (1.0 - local_detail_weight) + local_moisture * local_detail_weight)
-
-    # Climate reacts to the shape already decided above -- latitude and
-    # mountain rain shadows -- before percentile normalization, so both
-    # nudges just shift a cell's rank rather than needing their own
-    # separate rescale.
-    _apply_climate(world_map.moisture, world_map.mountain_strength, width, height, prevailing_wind_dx)
-
-    # Summing several octaves of noise (fBm) statistically pulls the result
-    # toward the middle of its range -- it's rare for every octave to line up
-    # near an extreme at once. A plain min/max stretch only fixes the
-    # *endpoints*; the bulk of cells still cluster near the mean, so a fixed
-    # cutoff like "elevation >= 0.75" barely ever fires. Percentile
-    # normalization fixes the actual distribution instead of just its
-    # extremes -- see _percentile_normalize()'s docstring.
-    _percentile_normalize(world_map.elevation)
-    _percentile_normalize(world_map.moisture)
-
-    # Optional art/tuning knobs -- no-ops unless a curve is supplied. Applied
-    # after percentile normalization so they're reshaping an already-uniform
-    # distribution on purpose, not fighting the same clustering above fixes.
-    _apply_curve(world_map.elevation, elevation_curve)
-    _apply_curve(world_map.moisture, moisture_curve)
-
-    # Ocean/land is now a continentalness question, not an elevation one --
-    # this is what keeps oceans and continents reading as a few large,
-    # coherent shapes instead of following every local elevation wobble.
-    continentalness_ocean_threshold = _value_at_percentile(world_map.continentalness, CONTINENTALNESS_OCEAN_PERCENTILE)
-    world_map.continentalness_ocean_threshold = continentalness_ocean_threshold
-    world_map.continentalness_beach_threshold = _value_at_percentile(world_map.continentalness, CONTINENTALNESS_BEACH_PERCENTILE)
-
-    for y in range(height):
-        for x in range(width):
-            world_map.is_ocean[(x, y)] = world_map.continentalness.get(x, y) < continentalness_ocean_threshold
-
-    # Rivers need the coastline classification to know where to stop, but
-    # their moisture influence must be applied before biome thresholds and
-    # regions are finalized.
-    if num_rivers is None:
-        num_rivers = max(3, (width * height) // 1800)
-
-    river_thresholds = compute_biome_thresholds(world_map.elevation, world_map.moisture)
-    _generate_world_rivers(world_map, num_rivers, ocean_threshold=river_thresholds.ocean)
-    _apply_river_moisture(world_map.moisture, world_map.river_edges, width, height)
-
-    # Distribution-aware cutoffs for the final climate field, including the
-    # river contribution, so moisture affects classification without
-    # replacing the underlying climate signal.
-    thresholds = compute_biome_thresholds(world_map.elevation, world_map.moisture)
-    world_map.biome_thresholds = thresholds
-
-    for y in range(height):
-        for x in range(width):
-            world_biome = _classify_world_biome(world_map, x, y, thresholds)
-            world_map.biomes[(x, y)] = _WORLD_BIOME_TO_CHUNK_BIOME[world_biome]
-
-    _break_long_biome_runs(world_map)
-
-    _generate_world_regions(
-        world_map,
-        rng,
-        num_regions=num_regions,
-        min_region_size=min_region_size,
-        max_region_size=max_region_size,
+    # Stage 2: MACRO GEOGRAPHY
+    _generate_macro_geography(
+        world_map, rng, perm, width, height,
+        num_continents, num_mountain_ranges, elevation_curve, local_detail_weight,
     )
+
+    # Stage 3: CLIMATE
+    _generate_climate(world_map, perm, width, height, moisture_curve, local_detail_weight, prevailing_wind_dx)
+
+    # Stage 4: WORLD FEATURES -- rivers (before biome classification; see
+    # _generate_rivers()'s docstring for why)
+    _generate_rivers(world_map, width, height, num_rivers)
+
+    # Stage 5: DERIVED TERRAIN CONDITIONS
+    _generate_derived_terrain_conditions(world_map, width, height)
+
+    # Stage 6: REGIONS
+    _generate_world_regions(
+        world_map, rng,
+        num_regions=num_regions, min_region_size=min_region_size, max_region_size=max_region_size,
+    )
+
+    # Stage 7: WORLD FEATURES -- roads (after regions; connects region
+    # centers, so roads aren't a meaningful concept until regions exist)
     _generate_world_roads(world_map)
 
     return world_map

@@ -302,53 +302,6 @@ def _ambient_time_period(hour_of_day):
 
 from world.world_map import ChunkBiome
 
-BIOME_CONNECTIONS = {
-
-    ChunkBiome.PLAINS: [
-        ChunkBiome.PLAINS,
-        ChunkBiome.FOREST,
-        ChunkBiome.HILLS,
-        ChunkBiome.SWAMP,
-        ChunkBiome.MOUNTAINS,
-    ],
-
-    ChunkBiome.FOREST: [
-        ChunkBiome.FOREST,
-        ChunkBiome.PLAINS,
-        ChunkBiome.HILLS,
-        ChunkBiome.SWAMP,
-    ],
-
-    ChunkBiome.SWAMP: [
-        ChunkBiome.SWAMP,
-        ChunkBiome.FOREST,
-        ChunkBiome.PLAINS,
-    ],
-
-    ChunkBiome.HILLS: [
-        ChunkBiome.HILLS,
-        ChunkBiome.PLAINS,
-        ChunkBiome.FOREST,
-        ChunkBiome.MOUNTAINS,
-    ],
-
-    ChunkBiome.MOUNTAINS: [
-        ChunkBiome.MOUNTAINS,
-        ChunkBiome.HILLS,
-        ChunkBiome.TUNDRA,
-    ],
-
-    ChunkBiome.TUNDRA: [
-        ChunkBiome.TUNDRA,
-        ChunkBiome.MOUNTAINS,
-    ],
-
-    ChunkBiome.DESERT: [
-        ChunkBiome.DESERT,
-        ChunkBiome.PLAINS,
-    ],
-}
-
 
 from core.fov import FOV
 from core.ui_sidebar import draw_sidebar
@@ -4645,10 +4598,8 @@ class Game:
         """
         Look up this chunk's biome from the persistent world map, so
         neighboring chunks agree on terrain the same way they now agree on
-        rivers, instead of each chunk's biome being a random walk from
-        whichever neighbor happened to be generated first (the old
-        BIOME_CONNECTIONS approach — kept below, now unused, in case we ever
-        want chunk-local biome variation layered on top of the world map).
+        rivers, instead of each chunk's biome being an independent random
+        walk from whichever neighbor happened to be generated first.
         """
         if coord in self.chunk_biomes:
             return self.chunk_biomes[coord]
