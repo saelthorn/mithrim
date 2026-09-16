@@ -2,7 +2,7 @@ import pygame
 import graphics
 import config
 from items.items import CampfireKit, Weapon, Helmet, Armor, Boots, FocusItem, OffHand, Potion, Food, Accessory, Tools, Junk, format_price
-from world.world_map import chunk_local_to_world_position
+from world.world_map import chunk_local_to_world_position, ChunkBiome
 
 # ── Palette ──────────────────────────────────────────────────────────────────
 
@@ -916,8 +916,10 @@ def render_world_map_screen(game):
     player_coord = getattr(game, "overworld_chunk_coord", None)
     if world_map is not None and player_coord is not None and player_coord in chunks:
         region = world_map.region_name_at(player_coord) or "Uncharted"
-        biome_label = "Sea" if world_map.is_ocean_at(player_coord) else world_map.biome_at(player_coord).value.title()
-        _blit_center(surf, fSm, f"You stand in the {region} ({biome_label})", _TEXT_BRIGHT, SW // 2, status_y)
+        chunk_biome = chunks[player_coord].get("biome")
+        if chunk_biome is not None:
+            biome_label = "Sea" if chunk_biome is ChunkBiome.OCEAN else chunk_biome.value.title()
+            _blit_center(surf, fSm, f"You stand in the {region} ({biome_label})", _TEXT_BRIGHT, SW // 2, status_y)
 
     hint = fSm.render("M  close   |   +/-  zoom", True, _TEXT_DIM)
     surf.blit(hint, (SW // 2 - hint.get_width() // 2, SH - PAD - hint.get_height()))

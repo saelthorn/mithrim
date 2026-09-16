@@ -2221,7 +2221,7 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
     # to classify one) fall back to the old single-generator behavior.
     materialization_rng = _chunk_materialization_rng(chunk_coord, world_seed, salt=0xB10DE)
     if world_map is not None:
-        _dominant_local_biome, local_terrain_tags, landmarks = _paint_chunk_terrain(
+        dominant_local_biome, local_terrain_tags, landmarks = _paint_chunk_terrain(
             game_map, heightmap, moisture, river_positions, local_terrain, materialization_rng,
         )
     else:
@@ -2229,6 +2229,11 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
         terrain_generator.rng = materialization_rng
         landmarks = terrain_generator.apply(game_map, heightmap, moisture, river_positions)
         local_terrain_tags = list(terrain_generator.terrain_tags())
+        # No per-tile local_terrain mask exists without a WorldMap to
+        # classify one (see above) -- the chunk's single discrete `biome`
+        # is the only terrain decision made here, so it's also the closest
+        # thing to a "dominant" biome this chunk has.
+        dominant_local_biome = biome
 
     lake_tiles = _carve_lakes(game_map, lake_positions)
     river_tiles = lake_tiles + _carve_rivers(game_map, river_positions)
@@ -2429,6 +2434,17 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
         "population": population,
         "flavor": flavor,
         "town_buildings": town_buildings,
+        # The biome that actually covers most of THIS chunk's tiles --
+        # distinct from world_map.biome_at(chunk_coord), which is only the
+        # single discrete classification of the chunk's own coarse
+        # world-map cell. A chunk straddling a biome transition (see
+        # _paint_chunk_terrain) can easily have a different dominant biome
+        # than its world-map cell alone would suggest -- e.g. a cell
+        # classified OCEAN can still materialize as a mostly-land coastal
+        # chunk. Anything describing "what is this chunk, really" (the
+        # world-map screen's status line, for one) should read this, not
+        # world_map.biome_at()/is_ocean_at().
+        "dominant_biome": dominant_local_biome,
     }
 
 
@@ -2467,4 +2483,5 @@ def materialize_overworld_chunk(game_map, chunk_coord, world_seed, biome, world_
         "population": context["population"],
         "flavor": context["flavor"],
         "town_buildings": context["town_buildings"],
+        "dominant_biome": context["dominant_biome"],
     }

@@ -1,4 +1,3 @@
-
 import math
 import heapq
 import random
@@ -161,7 +160,19 @@ _OPPOSITE_DIRECTION = {"N": "S", "S": "N", "W": "E", "E": "W"}
 # A continent is a Voronoi-style falloff blob around a seeded core; cells
 # take the strongest falloff among all cores, so land forms as a few
 # cohesive masses instead of a scatter of noise-driven islands.
-CONTINENT_RADIUS_FRACTION = 0.14
+#
+# Note: this radius only shapes each core's own falloff curve -- it does
+# NOT control how much of the world ends up as land. continentalness is
+# percentile-normalized below (_percentile_normalize), which stretches the
+# distribution to hit CONTINENTALNESS_OCEAN_PERCENTILE exactly regardless
+# of this radius. Individual continent size is actually controlled by how
+# many cores there are (num_continents, see _generate_macro_geography) and
+# how much land the ocean percentile leaves for them to share -- shrink
+# those two to make continents smaller, not this radius. This radius still
+# matters for how tightly packed cores can legally be placed
+# (min_spacing below scales with it), so a smaller radius is also what
+# lets more, smaller continents actually fit without crowding out.
+CONTINENT_RADIUS_FRACTION = 0.05
 # Minimum gap enforced between two continent cores, as a multiple of
 # CONTINENT_RADIUS_FRACTION's radius -- without this, cores placed close
 # together by chance blend into one shape far bigger than any individual
@@ -173,8 +184,10 @@ _CONTINENT_MIN_SPACING_FACTOR = 1.6
 # which is now secondary. Continentalness decides *whether a region is
 # ocean or land* at the large scale; elevation decides terrain height
 # within that region; mountain ranges below key off this same cutoff too,
-# so all three stay in agreement about where land actually is.
-CONTINENTALNESS_OCEAN_PERCENTILE = 0.35
+# so all three stay in agreement about where land actually is. Raised from
+# 0.35 -- more ocean between continent cores is what actually keeps them
+# from touching and reading as one giant landmass (see note above).
+CONTINENTALNESS_OCEAN_PERCENTILE = 0.55
 # Coastal band just above the ocean cutoff -- cells here read as beach/
 # shallows rather than solid land. Same 0.06 gap DEFAULT_BIOME_THRESHOLDS
 # already uses between its own ocean/beach elevation percentiles, applied
@@ -203,8 +216,10 @@ WORLD_MOUNTAIN_FLOOR_STRENGTH = 0.78
 # How solidly on a continent (by normalized continentalness, 0..1) a
 # cell must be to *seed* a new range -- comfortably above the ocean
 # cutoff (CONTINENTALNESS_OCEAN_PERCENTILE) so ranges start well inland,
-# never right at a coastline.
-MOUNTAIN_LAND_THRESHOLD = 0.55
+# never right at a coastline. Kept as an offset from the ocean cutoff,
+# not a fixed value, so this stays "well inland" regardless of how much
+# of the world reads as ocean.
+MOUNTAIN_LAND_THRESHOLD = CONTINENTALNESS_OCEAN_PERCENTILE + 0.20
 # How far continentalness may drop before an already-walking range stops
 # -- lower than the seed threshold (so a range can cross a lower inland
 # saddle without ending), but still kept a clear margin above
@@ -2251,7 +2266,11 @@ def _generate_macro_geography(world_map, rng, perm, width, height, num_continent
     stage returns.
     """
     if num_continents is None:
-        num_continents = max(3, (width * height) // 3500)
+        # //600 rather than the old //3500 -- more, smaller cores, so each
+        # continent actually reads as a smaller landmass instead of a
+        # handful of cores whose falloff blobs all touch into one giant
+        # connected mass (see CONTINENT_RADIUS_FRACTION's note above).
+        num_continents = max(3, (width * height) // 600)
     continent_shape, continent_id = _generate_continents(rng, width, height, num_continents)
     world_map.continent_id = continent_id
 

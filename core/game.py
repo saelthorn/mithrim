@@ -4412,6 +4412,16 @@ class Game:
                 "map": chunk_map,
                 "dungeon_entrances": overworld_info["dungeon_entrances"],
                 "population": overworld_info["population"] + monster_population,
+                # This chunk's actual dominant biome, as materialized --
+                # not world_map.biome_at(chunk_coord), which is only the
+                # single discrete classification of the chunk's coarse
+                # world-map cell and can disagree with what the chunk
+                # actually turned out to be mostly made of (a cell
+                # classified OCEAN can still materialize as a mostly-land
+                # coastal chunk). See render_world_map_screen()'s status
+                # line in ui_screens.py for why this is cached here rather
+                # than re-derived from world_map on every render.
+                "biome": overworld_info["dominant_biome"],
                 # Its own FOV, cached alongside the map so revisiting this chunk
                 # later restores what's already been explored instead of
                 # resetting it (see the restore below).
