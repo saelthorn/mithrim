@@ -178,6 +178,17 @@ CONTINENT_RADIUS_FRACTION = 0.05
 # together by chance blend into one shape far bigger than any individual
 # continent should be (their falloff disks overlap almost entirely).
 _CONTINENT_MIN_SPACING_FACTOR = 1.6
+# A coherent noise layer added to each continent's radial falloff before
+# the ocean/land threshold, so a coastline bulges into peninsulas and
+# pulls into bays instead of tracing a mathematically perfect circle --
+# see _generate_continents()'s docstring for why the plain radial falloff
+# needed this. Scale is relative to CONTINENT_RADIUS_FRACTION's own
+# radius, so a handful of coastline features form per continent
+# regardless of how big that radius is; roughness is in the same units
+# as the radial falloff term itself (roughly 0..1), tuned so a coastline
+# visibly wanders without breaking the landmass into scattered islands.
+_CONTINENT_COASTLINE_NOISE_SCALE = 0.6
+_CONTINENT_COASTLINE_ROUGHNESS = 0.5
 
 # Target fraction of the world that reads as ocean by continentalness
 # alone -- distinct from elevation's own OCEAN_PERCENTILE (see below),
@@ -1968,19 +1979,27 @@ def _toroidal_delta(a, b, size):
     return min(delta, size - delta)
 
 
-def _generate_continents(rng, width, height, num_continents):
+def _generate_continents(rng, perm, width, height, num_continents):
     """
     Seed `num_continents` landmass cores at random positions and build a
     continent shape field: every cell takes its value from whichever core
     pulls it least far into negative territory, so land forms as a few
-    cohesive masses with organic-ish edges instead of scattered noise
-    blobs. Deliberately left unclamped at the low end (a cell equidistant
-    from every core, deep in a gap between continents, can read well
-    below 0) rather than floored at 0 -- that's what gives the ocean
-    between two continents one coherent low trough instead of scattered
-    noise-driven ponds once this feeds into elevation below. Percentile
-    normalization downstream doesn't care about the actual magnitude,
-    only the ranking this produces, so leaving it unbounded costs nothing.
+    cohesive masses instead of scattered noise blobs. A coherent noise
+    layer is added on top of that radial falloff (see
+    _CONTINENT_COASTLINE_NOISE_SCALE/_CONTINENT_COASTLINE_ROUGHNESS) so the
+    resulting coastline wanders into bays and peninsulas instead of
+    tracing a perfect circle -- a plain `1.0 - distance/radius` falloff
+    has no such wander built in; the isocontour of a pure Euclidean
+    distance field is, by definition, a circle, and percentile
+    normalization downstream only rescales values by rank, so it can't
+    introduce any irregularity a step upstream didn't already put there.
+    Deliberately left unclamped at the low end (a cell equidistant from
+    every core, deep in a gap between continents, can read well below 0)
+    rather than floored at 0 -- that's what gives the ocean between two
+    continents one coherent low trough instead of scattered noise-driven
+    ponds once this feeds into elevation below. Percentile normalization
+    downstream doesn't care about the actual magnitude, only the ranking
+    this produces, so leaving it unbounded costs nothing.
 
     Returns (continent_shape, continent_id): the HeightMap described
     above, and a dict of which core each cell is nearest to (every cell
@@ -1988,6 +2007,7 @@ def _generate_continents(rng, width, height, num_continents):
     """
     radius = max(width, height) * CONTINENT_RADIUS_FRACTION
     min_spacing = radius * _CONTINENT_MIN_SPACING_FACTOR
+    noise_scale = max(2.0, radius * _CONTINENT_COASTLINE_NOISE_SCALE)
 
     seeds = []
     attempts = 0
@@ -2017,7 +2037,9 @@ def _generate_continents(rng, width, height, num_continents):
                 if best_value is None or value > best_value:
                     best_value = value
                     best_index = index
-            shape.set(x, y, best_value if best_value is not None else -1.0)
+            coastline_noise = _fractal_noise(perm, x / noise_scale, y / noise_scale, 3, 0.5, 2.0)
+            best_value = (best_value if best_value is not None else -1.0) + coastline_noise * _CONTINENT_COASTLINE_ROUGHNESS
+            shape.set(x, y, best_value)
             continent_id[(x, y)] = best_index
 
     return shape, continent_id
@@ -2271,7 +2293,7 @@ def _generate_macro_geography(world_map, rng, perm, width, height, num_continent
         # handful of cores whose falloff blobs all touch into one giant
         # connected mass (see CONTINENT_RADIUS_FRACTION's note above).
         num_continents = max(3, (width * height) // 600)
-    continent_shape, continent_id = _generate_continents(rng, width, height, num_continents)
+    continent_shape, continent_id = _generate_continents(rng, perm, width, height, num_continents)
     world_map.continent_id = continent_id
 
     # continent_shape itself stays raw (unnormalized, can run negative
