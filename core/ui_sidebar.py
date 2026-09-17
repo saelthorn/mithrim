@@ -411,10 +411,6 @@ def _overworld_location_label(game) -> str:
         return "Overworld"
 
 
-    get_chunk_biome = getattr(game, "get_chunk_biome", None)
-    if callable(get_chunk_biome):
-        return f"Overworld  {get_chunk_biome(chunk_coord).value.title()}"
-
     return "Overworld"
 
 

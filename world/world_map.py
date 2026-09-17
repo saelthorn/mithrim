@@ -278,6 +278,12 @@ RAIN_SHADOW_STRENGTH = 0.6
 # World-map cells around a major river receive a smooth moisture increase.
 RIVER_MOISTURE_RADIUS = 5
 RIVER_MOISTURE_BOOST = 0.18
+# How heavily a river's path to the ocean is penalized for climbing in
+# elevation (see _trace_river_path_to_ocean) -- high enough that the path
+# still reads as "downhill-seeking" wherever a downhill route to the sea
+# exists, low enough that climbing over a shallow ridge to escape a local
+# low point is still cheaper than the path never reaching the ocean at all.
+RIVER_CLIMB_PENALTY = 20.0
 # Prevent one land biome from forming an unbroken corridor across dozens of
 # world-map cells. This is a coarse-world constraint; local chunk detail is
 # still handled by chunk_materializer.py.
@@ -1829,28 +1835,94 @@ def _region_boundary_between(world_map, current, neighbor):
     )
 
 
-def _generate_world_rivers(world_map, num_rivers, min_spacing=5, ocean_threshold=DEEP_WATER):
+def _trace_river_path_to_ocean(world_map, start, width, height):
+    """
+    Least-cost path from `start` to the nearest ocean cell, strongly
+    preferring to descend in elevation but never permanently stuck the way
+    a plain greedy steepest-descent walk can be: that walk stops dead the
+    moment every remaining neighbor is higher or already visited (a
+    "local minimum"), even when a short climb over a low ridge would reach
+    much lower ground -- and therefore the ocean -- just beyond it. This
+    is a Dijkstra search instead, so it always finds *some* route if one
+    exists, which it always does here (the grid is fully connected and
+    ocean cells always exist). Climbing is heavily penalized
+    (RIVER_CLIMB_PENALTY), not forbidden, so the chosen route still reads
+    as downhill-seeking wherever a downhill route exists, and only climbs
+    where the alternative is never reaching the coast at all.
+
+    A cell counts as "reached the ocean" only via `world_map.is_ocean` --
+    continentalness's own, authoritative coastline signal. An earlier
+    version of this also accepted any cell below a low-elevation cutoff
+    as a stand-in "reached the ocean" -- inherited from before `is_ocean`
+    existed -- which let a river terminate at a low-lying inland basin
+    that was never actually part of the coastline. Dijkstra actively
+    seeks out the cheapest way to satisfy its goal condition, so that
+    loophole wasn't just occasionally taken, it was often the cheapest
+    option, defeating the actual "reaches the ocean" guarantee this
+    function exists to provide.
+
+    Returns the path as a list of (x, y), or None if no ocean cell is
+    reachable at all (shouldn't happen on a connected world, but callers
+    should still check).
+    """
+    frontier = [(0.0, start[0], start[1])]
+    cost_so_far = {start: 0.0}
+    came_from = {start: None}
+    goal = None
+
+    while frontier:
+        cost, cx, cy = heapq.heappop(frontier)
+        if cost > cost_so_far.get((cx, cy), float("inf")):
+            continue  # a cheaper route to this cell was already processed
+        if world_map.is_ocean.get((cx, cy), False):
+            goal = (cx, cy)
+            break
+
+        current_elevation = world_map.elevation.get(cx, cy)
+        for dx, dy in _DIRECTION_OFFSETS.values():
+            nx, ny = (cx + dx) % width, (cy + dy) % height
+            neighbor_elevation = world_map.elevation.get(nx, ny)
+            rise = max(0.0, neighbor_elevation - current_elevation)
+            step_cost = 1.0 + rise * RIVER_CLIMB_PENALTY
+            new_cost = cost + step_cost
+            if new_cost < cost_so_far.get((nx, ny), float("inf")):
+                cost_so_far[(nx, ny)] = new_cost
+                came_from[(nx, ny)] = (cx, cy)
+                heapq.heappush(frontier, (new_cost, nx, ny))
+
+    if goal is None:
+        return None
+
+    path = [goal]
+    node = goal
+    while came_from[node] is not None:
+        node = came_from[node]
+        path.append(node)
+    path.reverse()
+    return path
+
+
+def _generate_world_rivers(world_map, num_rivers, min_spacing=5):
     """
     Trace `num_rivers` major rivers across the world grid. Sources are
-    selected from spaced mountain/highland cells, then each river follows
-    the lowest unvisited neighboring elevation until it reaches the ocean
-    or a suitable low basin. This is the same steepest-descent idea as the
-    per-chunk flow field in chunk_materializer.py, just at chunk granularity and
-    without the meander -- a river spanning dozens of chunks doesn't need
-    to wobble tile-by-tile to look natural. Each step records which edge of
-    the source cell and entry edge of the destination cell the river crosses.
+    selected from spaced mountain/highland cells, round-robining across
+    continents so rivers spread across the world's landmasses instead of
+    clustering wherever the single tallest peaks happen to be -- picking
+    sources by pure global-elevation ranking left most continents on a
+    multi-continent world entirely riverless, since a handful of the
+    tallest, most mountainous landmasses soaked up every requested source.
+    Each river then follows a least-cost path to the nearest actual ocean
+    cell (see _trace_river_path_to_ocean) instead of a plain greedy
+    steepest-descent walk, which is what let a river dead-end at an
+    inland local minimum -- or, once that was first patched with an
+    elevation-based fallback, at a low inland basin that merely read as
+    low-elevation -- instead of reaching the real coastline.
 
     Sourcing rivers from mountain/highland cells means they begin in
     believable headwaters rather than in ocean cells or arbitrary lowland
-    noise peaks. The source candidates and downhill choices are sorted and
-    scanned deterministically, so the same world seed always produces the
-    same systems.
-
-    `world_map.is_ocean` is the primary coastline signal. `ocean_threshold`
-    remains as a low-water compatibility fallback for callers that provide
-    an elevation cutoff; generate_world_map() passes the world's own
-    computed BiomeThresholds.ocean here instead of relying on the fixed
-    DEEP_WATER constant.
+    noise peaks. Source candidates and downhill choices are sorted and
+    scanned deterministically, so the same world seed always produces
+    the same systems.
     """
     width, height = world_map.width, world_map.height
 
@@ -1864,66 +1936,50 @@ def _generate_world_rivers(world_map, num_rivers, min_spacing=5, ocean_threshold
     # source a plausible reason to exist. The lower threshold allows ranges
     # that are represented by a broad highland rather than a sharp ridge.
     highland_threshold = _value_at_percentile(world_map.elevation, 0.70)
-    source_candidates = [
-        (elevation, x, y)
-        for elevation, x, y in highest_first
-        if not world_map.is_ocean.get((x, y), False)
-        and (
-            world_map.mountain_strength.get(x, y) >= 0.15
-            or elevation >= highland_threshold
-        )
-    ]
+    candidates_by_continent = {}
+    for elevation, x, y in highest_first:
+        if world_map.is_ocean.get((x, y), False):
+            continue
+        if not (world_map.mountain_strength.get(x, y) >= 0.15 or elevation >= highland_threshold):
+            continue
+        continent = world_map.continent_id.get((x, y))
+        candidates_by_continent.setdefault(continent, []).append((x, y))
+    # Each continent's own list is already highest-elevation-first, since
+    # highest_first was iterated in that order above.
 
     sources = []
-    for _, x, y in source_candidates:
-        if len(sources) >= num_rivers:
-            break
+
+    def add_source(x, y):
         if any(abs(x - sx) + abs(y - sy) < min_spacing for sx, sy in sources):
-            continue
+            return False
         sources.append((x, y))
+        return True
 
-    lowland_threshold = _value_at_percentile(world_map.elevation, 0.20)
-    for start_x, start_y in sources:
-        path = [(start_x, start_y)]
-        visited = {(start_x, start_y)}
-        current_x, current_y = start_x, start_y
+    # Round-robin across continents: every continent with a viable source
+    # gets its best candidate before any continent gets a second one, so
+    # num_rivers spreads across the map instead of piling onto whichever
+    # landmass happens to have the tallest peaks.
+    continent_order = list(candidates_by_continent.keys())
+    cursor = {continent: 0 for continent in continent_order}
+    made_progress = True
+    while len(sources) < num_rivers and made_progress:
+        made_progress = False
+        for continent in continent_order:
+            if len(sources) >= num_rivers:
+                break
+            candidates = candidates_by_continent[continent]
+            index = cursor[continent]
+            while index < len(candidates):
+                x, y = candidates[index]
+                index += 1
+                if add_source(x, y):
+                    made_progress = True
+                    break
+            cursor[continent] = index
 
-        for _ in range(width + height):  # generous upper bound on river length
-            current_elevation = world_map.elevation.get(current_x, current_y)
-            if (
-                world_map.is_ocean.get((current_x, current_y), False)
-                or current_elevation < ocean_threshold
-            ):
-                break  # reached the ocean or a low-water endpoint
-            if len(path) > 1 and current_elevation <= lowland_threshold:
-                break  # reached a suitable low basin
-
-            best_neighbor = None
-            best_elevation = current_elevation
-
-            for direction, (dx, dy) in _DIRECTION_OFFSETS.items():
-                nx = (current_x + dx) % width
-                ny = (current_y + dy) % height
-                if (nx, ny) in visited:
-                    continue
-
-                neighbor_elevation = world_map.elevation.get(nx, ny)
-                if world_map.is_ocean.get((nx, ny), False):
-                    best_neighbor = (direction, nx, ny)
-                    break  # prefer recording the coastline crossing
-                if neighbor_elevation < best_elevation:
-                    best_elevation = neighbor_elevation
-                    best_neighbor = (direction, nx, ny)
-
-            if best_neighbor is None:
-                break  # local minimum with nowhere lower to flow — river ends here
-
-            _, next_x, next_y = best_neighbor
-            path.append((next_x, next_y))
-            visited.add((next_x, next_y))
-            current_x, current_y = next_x, next_y
-
-        if len(path) > 1:
+    for start in sources:
+        path = _trace_river_path_to_ocean(world_map, start, width, height)
+        if path is not None and len(path) > 1:
             _record_river_path(world_map, path)
 
 
@@ -2370,15 +2426,21 @@ def _generate_rivers(world_map, width, height, num_rivers):
     (see _apply_river_moisture), and that raised moisture has to be in
     place before biome thresholds/classification run, or a riverbank
     would classify as whatever it would've been with no river nearby.
-    The ocean threshold used here to decide where a river "reaches the
-    sea" is a preliminary one, computed from pre-river moisture; stage 5
-    computes the real, final BiomeThresholds afterward.
+    Where a river "reaches the sea" is decided against `world_map.is_ocean`
+    directly (see _trace_river_path_to_ocean) -- continentalness is
+    already settled by this point in the pipeline (stage 2), so there's
+    no need for a preliminary threshold the way biome classification
+    still needs one ahead of its own, later, final pass.
     """
     if num_rivers is None:
-        num_rivers = max(3, (width * height) // 1800)
+        # //900 rather than the old //1800 -- roughly double the old count,
+        # so that once sources round-robin across continents (see
+        # _generate_world_rivers), there's enough requested to give most
+        # or all of the world's separate landmasses at least one river
+        # instead of just the two or three biggest.
+        num_rivers = max(3, (width * height) // 900)
 
-    river_thresholds = compute_biome_thresholds(world_map.elevation, world_map.moisture)
-    _generate_world_rivers(world_map, num_rivers, ocean_threshold=river_thresholds.ocean)
+    _generate_world_rivers(world_map, num_rivers)
     _apply_river_moisture(world_map.moisture, world_map.river_edges, width, height)
 
 
