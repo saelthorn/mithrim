@@ -401,15 +401,34 @@ def _overworld_location_label(game) -> str:
     anything (there's no floor to be on). Reads the same coarse region
     label world_map.py assigns every chunk up front at world-gen time
     (WorldMap.region_name_at(), e.g. "Forest"/"Highlands"/"Wilds"),
-    falling back to the chunk's raw biome name, and finally to a bare
-    "Overworld" if neither is available yet (shouldn't happen once a
-    game is actually running, but keeps this from erroring during setup).
+    falling back to the chunk's actual materialized biome, and finally to
+    a bare "Overworld" if neither is available yet (shouldn't happen once
+    a game is actually running, but keeps this from erroring during setup).
+
+    The biome fallback deliberately does NOT go through
+    world_map.biome_at()/game.get_chunk_biome() -- those are only the
+    single discrete classification of the chunk's coarse world-map cell,
+    and a chunk straddling a biome transition can easily disagree with
+    what it actually turned out to be mostly made of once materialized
+    (a cell classified OCEAN can still materialize as a mostly-land
+    coastal chunk). This reads game.overworld_chunks[chunk_coord]["biome"]
+    instead -- the chunk's real materialized dominant biome, cached there
+    for exactly this reason. See ui_screens.py's render_world_map_screen
+    for the same fix applied to the world-map screen's status line.
     """
     world_map = getattr(game, "world_map", None)
     chunk_coord = getattr(game, "overworld_chunk_coord", None)
     if world_map is None or chunk_coord is None:
         return "Overworld"
 
+    region = world_map.region_name_at(chunk_coord)
+    if region:
+        return f"Overworld  {region}"
+
+    chunk = getattr(game, "overworld_chunks", {}).get(chunk_coord)
+    biome = chunk.get("biome") if chunk else None
+    if biome is not None:
+        return f"Overworld  {biome.value.title()}"
 
     return "Overworld"
 

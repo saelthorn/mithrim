@@ -1,6 +1,7 @@
 import math
 import heapq
 import random
+from collections import deque
 
 from world.tile import (
     grass, tall_grass, tree, dungeon_entrance, road, ground, mountain, 
@@ -1594,6 +1595,36 @@ def _edge_midpoint(width, height, direction):
     return (width - 1, height // 2)  # "E"
 
 
+def _nearest_water_tile(game_map, from_point):
+    """
+    BFS outward from `from_point` for the nearest already-painted water
+    tile (lake or river), or None if this chunk has no water at all.
+    Terrain painting (see _paint_chunk_terrain) has already run by the
+    time _carve_major_river calls this, so any water a biome painter put
+    down -- including a chunk whose WorldMap cell reads as ocean but which
+    actually materialized as mostly land (a chunk can straddle a
+    coastline, see local_terrain_mask) -- is already on the tile grid to
+    find.
+    """
+    width, height = game_map.width, game_map.height
+    start_x, start_y = from_point
+    if is_water_tile(game_map.tiles[start_y][start_x]):
+        return from_point
+
+    visited = {from_point}
+    queue = deque([from_point])
+    while queue:
+        x, y = queue.popleft()
+        for nx, ny in _cardinal_neighbors(x, y, width, height):
+            if (nx, ny) in visited:
+                continue
+            visited.add((nx, ny))
+            if is_water_tile(game_map.tiles[ny][nx]):
+                return (nx, ny)
+            queue.append((nx, ny))
+    return None
+
+
 def _carve_major_river(game_map, heightmap, edges, radius=2):
     """
     Force a wide river connecting the given edge(s) of this chunk.
@@ -1610,13 +1641,25 @@ def _carve_major_river(game_map, heightmap, edges, radius=2):
     waypoints = [_edge_midpoint(width, height, direction) for direction in sorted(edges)]
 
     if len(waypoints) == 1:
-        # A source or a mouth — only one edge is fixed, so run the river to
-        # this chunk's lowest point rather than to a second edge.
-        lowest_point = min(
-            ((x, y) for y in range(height) for x in range(width)),
-            key=lambda point: heightmap.get(*point),
-        )
-        waypoints.append(lowest_point)
+        # A source or a mouth -- only one edge is fixed. A mouth chunk
+        # usually already has some water painted into it by terrain
+        # generation (see _nearest_water_tile's docstring for why "usually"
+        # rather than "always" -- WorldMap's own ocean cell for this chunk
+        # doesn't guarantee this chunk materialized as mostly water), so
+        # route there directly instead of to whatever tile happens to have
+        # the lowest raw elevation -- that used to be able to land on
+        # ordinary dry ground with no connection to any actual water,
+        # which is what made a river look like it just stopped at the edge
+        # of an "ocean" chunk that had turned out to be mostly land. A
+        # source chunk has no water yet, so this falls back to the old
+        # lowest-point behavior, same as it always has.
+        target = _nearest_water_tile(game_map, waypoints[0])
+        if target is None:
+            target = min(
+                ((x, y) for y in range(height) for x in range(width)),
+                key=lambda point: heightmap.get(*point),
+            )
+        waypoints.append(target)
 
     river_tiles = []
 
