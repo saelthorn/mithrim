@@ -1290,11 +1290,23 @@ def _region_cells_from_grid(region_grid, region_labels):
 def _merge_undersized_regions(world_map, region_grid, region_cells, region_labels, region_seeds, min_region_size):
     """
     Fold any region smaller than `min_region_size` cells into whichever
-    neighboring region shares the most border with it -- a seed that got
-    boxed in early by faster-growing (or more favorably placed) neighbors
-    shouldn't linger as a degenerate sliver. Labels are always processed
-    in sorted order, and ties on which neighbor to merge into are broken
-    the same way, so the result never depends on dict/set iteration order.
+    same ocean/land-class neighboring region shares the most border with
+    it -- a seed that got boxed in early by faster-growing (or more
+    favorably placed) neighbors shouldn't linger as a degenerate sliver.
+    Restricted to same-class neighbors so this can't undo the ocean/land
+    split _grow_regions_by_cost() enforces during growth: an undersized
+    land region (a lone mountain peak, say) merging into its only
+    neighbor -- an ocean region -- used to be exactly how that barrier
+    got quietly crossed after the fact. The region itself still correctly
+    reads as land (is_ocean/dominant_biome are computed from its own
+    member cells), but its *name* came from whichever much larger ocean
+    region absorbed it, which is how a region ends up named "Still Sea"
+    while a player can be standing on dry land inside it. A region with
+    no same-class neighbor at all (a genuinely isolated single-cell
+    island) is left standing on its own instead, same as the existing
+    "nothing to merge into" case below. Labels are always processed in
+    sorted order, and ties on which neighbor to merge into are broken the
+    same way, so the result never depends on dict/set iteration order.
     """
     width, height = world_map.width, world_map.height
     changed = True
@@ -1307,6 +1319,7 @@ def _merge_undersized_regions(world_map, region_grid, region_cells, region_label
             if len(cells) >= min_region_size:
                 continue
 
+            region_is_ocean = world_map.is_ocean[cells[0]]
             border_counts = {}
             for x, y in cells:
                 for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
@@ -1314,11 +1327,14 @@ def _merge_undersized_regions(world_map, region_grid, region_cells, region_label
                     if not (0 <= nx < width and 0 <= ny < height):
                         continue
                     neighbor_label = region_grid[ny][nx]
-                    if neighbor_label != label:
-                        border_counts[neighbor_label] = border_counts.get(neighbor_label, 0) + 1
+                    if neighbor_label == label:
+                        continue
+                    if world_map.is_ocean[(nx, ny)] != region_is_ocean:
+                        continue  # never merge a region across the coastline
+                    border_counts[neighbor_label] = border_counts.get(neighbor_label, 0) + 1
 
             if not border_counts:
-                continue  # isolated with nothing to merge into -- leave it
+                continue  # isolated with nothing same-class to merge into -- leave it
 
             target = max(sorted(border_counts), key=border_counts.get)
 
@@ -1409,21 +1425,33 @@ def _generate_world_regions(world_map, rng, num_regions=None, min_region_size=4,
         world_map, region_grid, region_cells, region_labels, region_seeds, min_region_size,
     )
 
+    # Written directly into the backing dicts rather than through
+    # set_region()/set_region_name() -- those apply _to_grid()'s
+    # chunk-coordinate-to-grid-index offset, which this function's own
+    # (x, y) here already *are* (bounded grid indices straight out of
+    # region_cells/range(width)/range(height)), so routing them through
+    # _to_grid() a second time silently wrote every region assignment to
+    # the wrong cell, offset by (width // 2, height // 2) from where it
+    # actually belonged. That's what let a region assembled entirely from
+    # ocean cells end up attached to a chunk sitting on dry land, however
+    # far from any real coastline -- the geography (elevation/moisture/
+    # is_ocean/biomes) was always correct, only region_ids/region_names
+    # were reading from the wrong location.
     for label, cells in region_cells.items():
         for x, y in cells:
-            world_map.set_region((x, y), label)
+            world_map.region_ids[(x, y)] = label
 
     world_map.region_graph = {label: set() for label in region_labels}
     for y in range(height):
         for x in range(width):
-            region_label = world_map.region_at((x, y))
+            region_label = world_map.region_ids.get((x, y))
             if region_label is None:
                 continue
             for dx, dy in ((1, 0), (0, 1)):
                 nx, ny = x + dx, y + dy
                 if not (0 <= nx < width and 0 <= ny < height):
                     continue
-                neighbor_region = world_map.region_at((nx, ny))
+                neighbor_region = world_map.region_ids.get((nx, ny))
                 if neighbor_region and neighbor_region != region_label:
                     world_map.region_graph.setdefault(region_label, set()).add(neighbor_region)
                     world_map.region_graph.setdefault(neighbor_region, set()).add(region_label)
@@ -1432,7 +1460,7 @@ def _generate_world_regions(world_map, rng, num_regions=None, min_region_size=4,
     for label, region in world_map.regions.items():
         region.neighbors = set(world_map.region_graph.get(label, set()))
         for x, y in region_cells[label]:
-            world_map.set_region_name((x, y), region.name)
+            world_map.region_names[(x, y)] = region.name
 
     return world_map
 
@@ -1646,7 +1674,13 @@ def _generate_world_roads(world_map):
     region_cells = {}
     for y in range(world_map.height):
         for x in range(world_map.width):
-            region_id = world_map.region_at((x, y))
+            # world_map.region_ids read directly, not via region_at((x, y))
+            # -- (x, y) here are already bounded grid indices, and
+            # region_at() applies _to_grid()'s chunk-coordinate offset,
+            # which silently looked up the wrong cell's region (see the
+            # same fix, with the full explanation, in
+            # _generate_world_regions() above).
+            region_id = world_map.region_ids.get((x, y))
             if region_id is None or world_map.is_ocean.get((x, y), False):
                 continue
             region_cells.setdefault(region_id, []).append((x, y))
