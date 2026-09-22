@@ -239,6 +239,44 @@ class CompanionStance:
 
 
 # ---------------------------------------------------------------------------
+# CompanionMood
+# ---------------------------------------------------------------------------
+# Party morale, separate from CompanionStance (which is player-selected
+# combat orders). Mood moves on its own in response to events -- right
+# now just a party member dying (see CombatCompanion.die()) -- and only
+# ever escalates or recovers one tier at a time via set_mood()/decay, so
+# it can't be skipped past. MOOD_ORDER's index is that tier ranking;
+# MOOD_ATTACK_PENALTY/MOOD_MUTINY_CHANCE (further down, once combat
+# effects land) key off these same values.
+
+class CompanionMood:
+    NEUTRAL = "neutral"   # default -- no combat penalty
+    SAD = "sad"           # grieving/shaken -- combat penalty
+    ANGRY = "angry"       # combat penalty, may turn on the owner
+
+
+#: Low -> high severity, so set_mood()/recover_mood() can step between
+#: tiers by index instead of hardcoding each transition pair.
+MOOD_ORDER = [CompanionMood.NEUTRAL, CompanionMood.SAD, CompanionMood.ANGRY]
+
+#: Flat penalty to attack rolls (not damage) while in each mood -- see
+#: CombatCompanion.effective_attack_bonus. NEUTRAL has no entry, so
+#: .get(mood, 0) below falls back to no penalty.
+MOOD_ATTACK_PENALTY = {
+    CompanionMood.SAD: -1,
+    CompanionMood.ANGRY: -3,
+}
+
+#: Per-turn chance an Angry companion turns on its owner instead of
+#: taking a normal turn -- see CombatCompanion._attempt_mutiny().
+MOOD_MUTINY_CHANCE = 0.08
+
+#: Turns of passive decay before a non-Neutral mood steps back one tier
+#: -- see CombatCompanion.take_turn()'s mood_recovery_timer handling.
+MOOD_RECOVERY_TURNS = 30
+
+
+# ---------------------------------------------------------------------------
 # CompanionClass
 # ---------------------------------------------------------------------------
 
@@ -809,6 +847,13 @@ class CombatCompanion(SummonedEntity):
         # already does until the player changes it via COMPANION_MENU.
         self.stance = CompanionStance.NEAREST
 
+        # Party morale -- see CompanionMood above. Starts NEUTRAL; only
+        # set_mood()/recover_mood() (below) are meant to change it, so
+        # combat/decay effects (added in a later phase) always see a
+        # value from MOOD_ORDER rather than an arbitrary string.
+        self.mood = CompanionMood.NEUTRAL
+        self.mood_recovery_timer = 0
+
         # Downed state -- a hit that would kill this companion drops
         # them to 0 HP and unconscious instead (see take_damage()),
         # mirroring Player.is_dying, so the party has a chance to
@@ -1176,6 +1221,94 @@ class CombatCompanion(SummonedEntity):
                     f'{self.name}: "{self.personality.level_up_line}"', self.color
                 )
 
+    # -- mood ---------------------------------------------------------------
+    # Combat effects (attack penalty, Angry mutiny chance) and decay/rest
+    # recovery land in a later pass -- this is just the state machine they
+    # will drive: set_mood() only ever escalates, recover_mood() only ever
+    # improves, so no caller can accidentally clobber a worse mood with a
+    # better one (e.g. a second death while already Sad correctly pushes
+    # to Angry instead of no-op'ing).
+
+    def set_mood(self, mood, game_instance=None):
+        """Move to `mood` if it's more severe than the current one;
+        otherwise a no-op. Logs the transition when it actually happens."""
+        if MOOD_ORDER.index(mood) <= MOOD_ORDER.index(self.mood):
+            return
+        self.mood = mood
+        self.mood_recovery_timer = 0
+        if game_instance:
+            game_instance.message_log.add_message(
+                f"{self.name}'s mood darkens to {self.mood}.", self.color
+            )
+
+    def recover_mood(self, game_instance=None):
+        """Step one tier back toward NEUTRAL. No-op if already NEUTRAL."""
+        current_index = MOOD_ORDER.index(self.mood)
+        if current_index == 0:
+            return
+        self.mood = MOOD_ORDER[current_index - 1]
+        self.mood_recovery_timer = 0
+        if game_instance:
+            game_instance.message_log.add_message(
+                f"{self.name}'s mood eases to {self.mood}.", self.color
+            )
+
+    @property
+    def effective_attack_bonus(self):
+        """self.attack_bonus minus the current mood's penalty (see
+        MOOD_ATTACK_PENALTY) -- what attack_enemy()/ranged_attack_enemy()/
+        melee_scuffle() actually roll against, so a Sad or Angry companion
+        visibly fights worse without touching the underlying gear-derived
+        attack_bonus itself."""
+        return self.attack_bonus + MOOD_ATTACK_PENALTY.get(self.mood, 0)
+
+    def _attempt_mutiny(self, game_instance):
+        """While Angry, a small per-turn chance to turn on the owner
+        instead of taking a normal turn. Returns True if the mutiny
+        happened (hit or miss) so take_turn() knows to stop there.
+
+        Deliberately doesn't reuse _resolve_attack(): that method's
+        kill-handling branch assumes a Monster target and calls
+        target.die(game_instance, killer=...), which doesn't match
+        Player.die()'s own no-argument signature. Simpler and safer to
+        roll this by hand and clamp the owner's HP to a minimum of 1 --
+        a mutinous companion is a combat penalty, not a death sentence.
+        """
+        if random.random() > MOOD_MUTINY_CHANCE:
+            return False
+
+        owner = self.owner
+        d20_roll = random.randint(1, 20)
+        attack_total = d20_roll + self.effective_attack_bonus
+        target_ac = getattr(owner, 'armor_class', 10)
+
+        game_instance.message_log.add_message(
+            f"{self.name} turns on you, seething with anger!", (255, 80, 80)
+        )
+        game_instance.message_log.add_message(
+            f"{self.name} attacks: [{d20_roll}] + [{self.effective_attack_bonus}] (Attack Bonus) "
+            f"= {attack_total} vs AC {target_ac}!", self.color
+        )
+
+        if attack_total >= target_ac:
+            dice = self.equipped_weapon.damage_dice if self.equipped_weapon else "1d4"
+            raw_damage = self._roll_dice(dice) + self.attack_power
+            safe_damage = max(0, min(raw_damage, owner.hp - 1))
+            if safe_damage > 0:
+                owner.take_damage(safe_damage, game_instance, damage_type=self.companion_class.damage_type)
+                game_instance.message_log.add_message(
+                    f"{self.name}'s blow lands for {safe_damage} damage!", (255, 80, 80)
+                )
+                game_instance.floating_texts.append(FloatingText(owner.x, owner.y, str(safe_damage), (255, 0, 0)))
+            else:
+                game_instance.message_log.add_message(
+                    f"{self.name}'s blow is pulled at the last moment.", (255, 80, 80)
+                )
+        else:
+            game_instance.message_log.add_message(f"{self.name}'s attack misses!", (150, 150, 150))
+
+        return True
+
     # -- combat orders (wired to the AI in the next pass) --------------------
 
     def set_stance(self, stance, game_instance):
@@ -1483,7 +1616,7 @@ class CombatCompanion(SummonedEntity):
         companion's own race/class-derived stats and equipped weapon."""
         dice = self.equipped_weapon.damage_dice if self.equipped_weapon else "1d4"
         self._resolve_attack(
-            target, game_instance, self.attack_bonus, self.attack_power,
+            target, game_instance, self.effective_attack_bonus, self.attack_power,
             dice, self.companion_class.damage_type, style="melee",
         )
 
@@ -1520,7 +1653,7 @@ class CombatCompanion(SummonedEntity):
             note = f" ({remaining} {self.ammo_item_name.lower()}(s) left)"
         dice = self.equipped_weapon.damage_dice if self.equipped_weapon else "1d4"
         self._resolve_attack(
-            target, game_instance, self.attack_bonus, self.attack_power,
+            target, game_instance, self.effective_attack_bonus, self.attack_power,
             dice, self.companion_class.damage_type, style="ranged", out_of_ammo_note=note,
         )
         if self.ammo_item_name is not None:
@@ -1541,7 +1674,7 @@ class CombatCompanion(SummonedEntity):
         with a Cleric's mace flavor.
         """
         weapon = self.equipped_weapon
-        unarmed_bonus = self.attack_bonus - (weapon.attack_bonus if weapon else 0)
+        unarmed_bonus = self.effective_attack_bonus - (weapon.attack_bonus if weapon else 0)
         unarmed_power = max(0, self.attack_power - (weapon.damage_modifier if weapon else 0))
         self._resolve_attack(
             target, game_instance, unarmed_bonus, unarmed_power,
@@ -1758,6 +1891,9 @@ class CombatCompanion(SummonedEntity):
         A downed companion (see take_damage()) hands off to
         _take_downed_turn() instead -- rolling a death save is the only
         thing an unconscious party member does on their turn.
+
+        An Angry companion (see CompanionMood) rolls a small chance
+        each turn to turn on the owner instead -- see _attempt_mutiny().
         """
         self.tick_duration(game_instance)
         if not self.alive:
@@ -1766,12 +1902,20 @@ class CombatCompanion(SummonedEntity):
         if self.heal_cooldown > 0:
             self.heal_cooldown -= 1
 
+        if self.mood != CompanionMood.NEUTRAL:
+            self.mood_recovery_timer += 1
+            if self.mood_recovery_timer >= MOOD_RECOVERY_TURNS:
+                self.recover_mood(game_instance)
+
         if self.is_downed:
             self._take_downed_turn(game_instance)
             return
 
         if self.dismissed:
             self._take_dismissed_turn(game_map, game_instance)
+            return
+
+        if self.mood == CompanionMood.ANGRY and self._attempt_mutiny(game_instance):
             return
 
         if self.stance != CompanionStance.PASSIVE and self._within_leash():
@@ -1983,6 +2127,14 @@ class CombatCompanion(SummonedEntity):
                 f'{self.name}: "{self.personality.death_line}"', (255, 80, 80)
             )
         self._leave_party(game_instance)
+        self._grieve_party(game_instance)
+
+    def _grieve_party(self, game_instance):
+        """Every surviving companion takes this death as one step worse
+        mood -- called after _leave_party() so self is already out of
+        game_instance.combat_companions and doesn't grieve itself."""
+        for companion in game_instance.combat_companions:
+            companion.set_mood(CompanionMood.SAD, game_instance)
 
     def _leave_party(self, game_instance):
         """Shared combat_companions cleanup for both dismiss() and die()

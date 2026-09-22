@@ -369,6 +369,11 @@ class StorySystems:
         and fires SLEEP so any story reacting to "the player slept" sees it."""
         self.world_time.advance(hours, TimeUnit.HOUR)
         self.trigger_system.fire(TriggerType.SLEEP, instigator=instigator, hours=hours)
+        # A proper rest eases the party's mood one tier faster than the
+        # passive per-turn decay alone would (see companions.py's
+        # CombatCompanion.recover_mood()/mood_recovery_timer).
+        for companion in getattr(self.game, "combat_companions", []):
+            companion.recover_mood(self.game)
 
     def get_dialogue(self, story_id: str, node_id: str):
         return self.dialogue.get(story_id, node_id)

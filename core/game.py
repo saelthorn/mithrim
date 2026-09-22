@@ -358,7 +358,7 @@ from entities.races import (
 )
 from entities.summons import MageHandEntity, SummonedEntity, EscortCompanion, _chebyshev_distance
 from entities.companions import (
-    CombatCompanion, CompanionStance, CompanionClass,
+    CombatCompanion, CompanionStance, CompanionClass, CompanionMood,
     FIGHTER, RANGER, ROGUE, WIZARD, CLERIC, RACE_CLASS_VISUALS,
 )
 from core.abilities import SummonAnimalCompanion, SecondWind, PowerAttack, CunningActionDash, Evasion, FireBolt, MistyStep, MageHand, ActionSurge
@@ -9429,7 +9429,7 @@ class Game:
 
         PAD = 14
         W   = 440
-        H   = 280
+        H   = 300  # +20 over the original 280 to leave room for the mood line below
         sx  = (config.GAME_AREA_WIDTH - W) // 2
         sy  = (config.SCREEN_HEIGHT   - H) // 2
 
@@ -9465,9 +9465,19 @@ class Game:
         xp_surf = font_body.render(xp_text, True, (200, 200, 200))
         self.screen.blit(xp_surf, (sx + PAD, sy + PAD + 40))
 
+        # Mood only takes a line -- and pushes the divider/options down
+        # to make room -- when it's not Neutral, so the common case
+        # renders exactly as it did before this was added.
+        divider_y = sy + PAD + 66
+        if companion.mood != CompanionMood.NEUTRAL:
+            mood_color = (255, 100, 100) if companion.mood == CompanionMood.ANGRY else (220, 200, 120)
+            mood_surf = font_body.render(f"  Mood: {companion.mood.capitalize()}", True, mood_color)
+            self.screen.blit(mood_surf, (sx + PAD, sy + PAD + 60))
+            divider_y += 20
+
         pygame.draw.line(
             self.screen, (60, 60, 75),
-            (sx + PAD, sy + PAD + 66), (sx + W - PAD, sy + PAD + 66)
+            (sx + PAD, divider_y), (sx + W - PAD, divider_y)
         )
 
         options = [
@@ -9478,7 +9488,7 @@ class Game:
             ("[5] Hold Fire (Passive)", CompanionStance.PASSIVE, (180, 180, 180)),
         ]
 
-        y = sy + PAD + 76
+        y = divider_y + 10
         for header, stance, color in options:
             # The companion's active stance is drawn brighter with a
             # leading marker, so its current order is visible at a
