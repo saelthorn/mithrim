@@ -118,14 +118,39 @@ class CompanionPersonality:
     companion only levels up or dies once per occurrence, so there's no
     need for variety within a single instance the way ambient chatter
     needs to avoid repeating itself turn after turn.
+
+    `sad_ambient_lines`/`angry_ambient_lines` are extra pools
+    speak_ambient() draws from instead of `ambient_lines` while the
+    companion's CompanionMood (see above) is Sad/Angry, so the same
+    stoic/jovial/grim/etc. voice still comes through even when what
+    they're saying has turned bitter or dangerous. Both default to
+    empty -- a personality that doesn't define its own falls back to
+    `ambient_lines` via ambient_lines_for() below, so this is purely
+    additive and no existing personality needs updating to keep working.
     """
 
-    def __init__(self, personality_id, display_name, ambient_lines, level_up_line=None, death_line=None):
+    def __init__(
+        self, personality_id, display_name, ambient_lines,
+        level_up_line=None, death_line=None,
+        sad_ambient_lines=None, angry_ambient_lines=None,
+    ):
         self.id = personality_id
         self.display_name = display_name
         self.ambient_lines = list(ambient_lines)
         self.level_up_line = level_up_line
         self.death_line = death_line
+        self.sad_ambient_lines = list(sad_ambient_lines or [])
+        self.angry_ambient_lines = list(angry_ambient_lines or [])
+
+    def ambient_lines_for(self, mood):
+        """Which pool speak_ambient() should draw from for the given
+        CompanionMood -- the mood-specific pool if this personality
+        defines one, otherwise the everyday `ambient_lines` pool."""
+        if mood == CompanionMood.SAD and self.sad_ambient_lines:
+            return self.sad_ambient_lines
+        if mood == CompanionMood.ANGRY and self.angry_ambient_lines:
+            return self.angry_ambient_lines
+        return self.ambient_lines
 
     def __repr__(self):
         return f"CompanionPersonality({self.id!r})"
@@ -146,6 +171,17 @@ COMPANION_PERSONALITIES = {
         ],
         level_up_line="Stronger. Good.",
         death_line="No words. Just silence, then stillness.",
+        sad_ambient_lines=[
+            "...",
+            "We march. That's all there is to do now.",
+            "I'll grieve later. Not now.",
+            "One less at my side. Noted.",
+        ],
+        angry_ambient_lines=[
+            "Careful. I'm not in the mood.",
+            "Don't push me right now.",
+            "I'm holding this together by a thread.",
+        ],
     ),
     "jovial": CompanionPersonality(
         "jovial", "Jovial",
@@ -159,6 +195,17 @@ COMPANION_PERSONALITIES = {
         ],
         level_up_line="Ha! Getting stronger by the day! Drinks are on me later.",
         death_line="Heh... not bad, for a life... not bad at all...",
+        sad_ambient_lines=[
+            "...Haven't got a joke for this one.",
+            "Wish I could laugh this off. Can't, this time.",
+            "We'll drink to them later. Properly.",
+            "Feels quieter out here without them.",
+        ],
+        angry_ambient_lines=[
+            "Not laughing. Not today.",
+            "Say something funny. I dare you.",
+            "I've got half a mind to hit something. Anything.",
+        ],
     ),
     "grim": CompanionPersonality(
         "grim", "Grim",
@@ -171,6 +218,17 @@ COMPANION_PERSONALITIES = {
         ],
         level_up_line="Another step from the grave. For now.",
         death_line="...I knew it would end like this.",
+        sad_ambient_lines=[
+            "Told you. Didn't I tell you.",
+            "One more name for the list.",
+            "This is what this road does. Always has.",
+            "Don't get attached. See what happens.",
+        ],
+        angry_ambient_lines=[
+            "Something's going to pay for this.",
+            "I want blood. Simple as that.",
+            "Keep talking. See where it gets you.",
+        ],
     ),
     "sarcastic": CompanionPersonality(
         "sarcastic", "Sarcastic",
@@ -184,6 +242,17 @@ COMPANION_PERSONALITIES = {
         ],
         level_up_line="Oh look, I'm marginally less likely to die now. Thrilling.",
         death_line="Figures. Should've... seen this... coming...",
+        sad_ambient_lines=[
+            "Great. Fantastic. Love that for us.",
+            "No witty remark. Not one. Take that in.",
+            "Sure, let's just keep going like nothing happened.",
+            "I'm fine. Totally fine. Definitely.",
+        ],
+        angry_ambient_lines=[
+            "I'm real close to saying something I'll regret.",
+            "Oh, I have PLENTY to say right now.",
+            "Test me. Go on. See what happens.",
+        ],
     ),
     "devout": CompanionPersonality(
         "devout", "Devout",
@@ -196,6 +265,17 @@ COMPANION_PERSONALITIES = {
         ],
         level_up_line="I feel the light's favor growing within me.",
         death_line="Into the light... I go gladly...",
+        sad_ambient_lines=[
+            "Rest now, in the light. I'll carry the rest of this.",
+            "Even the faithful grieve. I won't pretend otherwise.",
+            "I'll light a candle when we make camp.",
+            "The light feels distant today.",
+        ],
+        angry_ambient_lines=[
+            "Forgive me -- I am struggling to find peace right now.",
+            "I pray for patience. It is not coming easily.",
+            "Do not test me. Even faith has its limits.",
+        ],
     ),
     "greedy": CompanionPersonality(
         "greedy", "Greedy",
@@ -208,6 +288,17 @@ COMPANION_PERSONALITIES = {
         ],
         level_up_line="Stronger AND more valuable. Excellent.",
         death_line="My share... someone... take my share...",
+        sad_ambient_lines=[
+            "Didn't even get to split their share fair.",
+            "No amount of gold fixes this one.",
+            "...I'll take a smaller cut this time. Out of respect.",
+            "That's one less to split with, at least. ...Too soon?",
+        ],
+        angry_ambient_lines=[
+            "Somebody's going to owe me for this.",
+            "I want payment. In blood, if coin won't do.",
+            "Watch your step. I'm not feeling generous.",
+        ],
     ),
 }
 
@@ -2040,11 +2131,17 @@ class CombatCompanion(SummonedEntity):
         if random.random() > COMPANION_AMBIENT_CHANCE:
             return
 
-        # Draw from this companion's own personality pool so party
-        # members read as distinct people -- fall back to the generic
-        # pool for the defensive case of a personality with no lines of
-        # its own (or, in principle, no personality at all).
-        pool = getattr(self.personality, "ambient_lines", None) or COMPANION_AMBIENT_LINES
+        # Draw from this companion's own personality pool, mood-specific
+        # if their current mood has one (see CompanionPersonality.
+        # ambient_lines_for()), so party members read as distinct people
+        # even in how they express grief or anger -- fall back to the
+        # generic pool for the defensive case of a personality with no
+        # lines of its own (or, in principle, no personality at all).
+        if hasattr(self.personality, "ambient_lines_for"):
+            pool = self.personality.ambient_lines_for(self.mood)
+        else:
+            pool = getattr(self.personality, "ambient_lines", None)
+        pool = pool or COMPANION_AMBIENT_LINES
         line = random.choice(pool)
         game_instance.message_log.add_message(f'{self.name}: "{line}"', self.color)
         game_instance._companion_ambient_cooldown = COMPANION_AMBIENT_COOLDOWN_TURNS

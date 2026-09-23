@@ -436,11 +436,11 @@ STRUCTURE_BLUEPRINTS = {
     "empty_blacksmith": build_blueprint(
         # SQUARE + CHIMNEY: compact square with a stack poking out the roofline
         "empty_blacksmith",
-        "Blacksmith",
+        "Empty Blacksmith",
         [
             "        ",
             " ###### ",
-            " wkf.s# ",
+            " wkF.s# ",
             " #.N.t# ",
             " w....+ ",
             " #w##w# ",
