@@ -1194,6 +1194,16 @@ class Townsfolk(TownNPC):
         super().__init__(x, y, 'p', name or random.choice(TOWNSFOLK_NAMES), (205, 205, 185), dialogue)
 
 
+class OwlbearCub(TownNPC):
+    def __init__(self, x, y, name=None):
+        dialogue = [
+            "The owlbear cub looks at you with curious eyes.",
+            "It seems to be searching for something.",
+            "You hear a soft growl as it sniffs the air.",
+        ]
+        super().__init__(x, y, 'o', name or random.choice(TOWNSFOLK_NAMES), (205, 205, 185), dialogue)
+
+
 class Blacksmith(TownNPC):
     #: Minds the forge during open hours instead of wandering.
     schedule = AT_POST_SCHEDULE

@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 import random
 
 from entities.base_entity import NPC
-from entities.town_npcs import TownNPC, Innkeeper, Shopkeeper, Townsfolk, Blacksmith, Priest
+from entities.town_npcs import OwlbearCub, TownNPC, Innkeeper, Shopkeeper, Townsfolk, Blacksmith, Priest
 from entities.monster import GiantRat, Goblin, Skeleton, Wolf, Orc, GoblinArcher
 from entities.companions import RACE_CLASS_VISUALS, FIGHTER, RANGER, ROGUE, WIZARD, CLERIC
 from items.items import Chest, Book, IndoorChest, OutdoorChest, LockedChest, CampfireKit, BOOKS_CONTENT_ROOT, generate_random_loot, generate_locked_loot, get_book, clone_item
@@ -76,6 +76,8 @@ def _spawn_innkeeper(x, y):
 def _spawn_shopkeeper(x, y):
     return Shopkeeper(x, y)
 
+def _spawn_owlbear_cub(x, y):
+    return OwlbearCub(x, y)
 
 def _spawn_villager(x, y):
     return Townsfolk(x, y)
@@ -441,13 +443,13 @@ STRUCTURE_BLUEPRINTS = {
             "        ",
             " ###### ",
             " wkF.s# ",
-            " #.N.t# ",
+            " #.N..# ",
             " w....+ ",
             " #w##w# ",
             "        ",
         ],
         {
-            "#": wall, "w": window, ".": floor, "B": floor, "F": forge, "N": anvil, "s": shelf_three, "+": door, "|": bar_counter_five, "k": barrel, "7": bar_counter_six,
+            "#": wall, "w": window, ".": floor, "B": floor, "F": forge, "N": anvil, "s": shelf_three, "+": door, "|": bar_counter_five, "k": tavern_barrel_two, "7": bar_counter_six,
             "t": table,
         },
         walkable_chars={".", "B", "+"},
@@ -577,7 +579,7 @@ STRUCTURE_BLUEPRINTS = {
             "     ######     ",
             "   ####   ###   ",
             "  ##       ###  ",
-            " ##         ### ",
+            " ##    c    ### ",
             " ###        ### ",
             " ###       ###  ",
             "  ###    ###    ",
@@ -588,7 +590,7 @@ STRUCTURE_BLUEPRINTS = {
         walkable_chars={".", " "},
         description="A den used by an owlbear.",
         item_map={},
-        npc_map={"c": _spawn_villager},
+        npc_map={"c": _spawn_owlbear_cub},
         destroyed_tile=ground,
     ),
 
