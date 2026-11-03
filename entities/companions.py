@@ -715,18 +715,25 @@ RACE_CLASS_VISUALS = {
     ("Red Dragonborn",   "Rogue"):   ("DBR", (160,  30,  10)),
     ("Red Dragonborn",   "Wizard"):  ("RDW", (220,  60,  30)),
     ("Red Dragonborn",   "Cleric"):  ("RDC", (255, 200,  60)),
+    ("Red Dragonborn",   "Ranger"):  ("RDG", (255, 200,  60)),
+
     ("Blue Dragonborn",  "Fighter"): ("BDF", ( 40,  80, 200)),
     ("Blue Dragonborn",  "Rogue"):   ("BDR", ( 30,  60, 170)),
     ("Blue Dragonborn",  "Wizard"):  ("BDW", ( 60, 120, 255)),
     ("Blue Dragonborn",  "Cleric"):  ("BDC", (200, 220, 255)),
+    ("Blue Dragonborn",  "Ranger"):  ("BDG", (200, 220, 255)),
+
     ("Gold Dragonborn",  "Fighter"): ("GDF", (200, 160,  20)),
     ("Gold Dragonborn",  "Rogue"):   ("GDR", (180, 140,  10)),
     ("Gold Dragonborn",  "Wizard"):  ("GDW", (240, 200,  60)),
     ("Gold Dragonborn",  "Cleric"):  ("GDC", (255, 230, 120)),
+    ("Gold Dragonborn",  "Ranger"):  ("GDG", (255, 230, 120)),
+
     ("Green Dragonborn", "Fighter"): ("GNF", ( 30, 130,  50)),
     ("Green Dragonborn", "Rogue"):   ("GNR", ( 20, 110,  40)),
     ("Green Dragonborn", "Wizard"):  ("GNW", ( 40, 160,  70)),
     ("Green Dragonborn", "Cleric"):  ("GNC", (160, 220, 100)),
+    ("Green Dragonborn", "Ranger"):  ("GNG", (160, 220, 100)),
 }
 
 # Ranger doesn't have its own visuals yet -- reuse each race's Rogue

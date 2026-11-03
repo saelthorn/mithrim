@@ -128,26 +128,31 @@ def setup_tile_mapping():
         'DBR': (1 * CELL_DIM, 11 * CELL_DIM),  # Dragonborn Rogue   (legacy key)
         'DBW': (2 * CELL_DIM, 11 * CELL_DIM),  # Dragonborn Wizard  (legacy key)
         'DBC': (3 * CELL_DIM, 11 * CELL_DIM),  # Dragonborn Cleric  (legacy key)
+        'DBG': (0 * CELL_DIM, 25 * CELL_DIM),  # Dragonborn Ranger  (legacy key)
         # Red
         'RDF': (0 * CELL_DIM, 11 * CELL_DIM),  # Red Dragonborn Fighter
         'RDR': (1 * CELL_DIM, 11 * CELL_DIM),  # Red Dragonborn Rogue
         'RDW': (2 * CELL_DIM, 11 * CELL_DIM),  # Red Dragonborn Wizard
         'RDC': (3 * CELL_DIM, 11 * CELL_DIM),  # Red Dragonborn Cleric        
+        'RDG': (0 * CELL_DIM, 25 * CELL_DIM),  # Red Dragonborn Ranger
         # Gold
         'GDF': (4 * CELL_DIM, 11 * CELL_DIM),  # Gold Dragonborn Fighter
         'GDR': (5 * CELL_DIM, 11 * CELL_DIM),  # Gold Dragonborn Rogue
         'GDW': (6 * CELL_DIM, 11 * CELL_DIM),  # Gold Dragonborn Wizard
         'GDC': (7 * CELL_DIM, 11 * CELL_DIM),  # Gold Dragonborn Cleric
+        'GDG': (4 * CELL_DIM, 25 * CELL_DIM),  # Gold Dragonborn Ranger
         # Green
         'GNF': (8 * CELL_DIM, 11 * CELL_DIM),   # Green Dragonborn Fighter
         'GNR': (9 * CELL_DIM, 11 * CELL_DIM),   # Green Dragonborn Rogue
         'GNW': (10 * CELL_DIM, 11 * CELL_DIM),  # Green Dragonborn Wizard
         'GNC': (11 * CELL_DIM, 11 * CELL_DIM),  # Green Dragonborn Cleric
+        'GNG': (8 * CELL_DIM, 25 * CELL_DIM),   # Green Dragonborn Ranger
         # Blue
         'BDF': (12 * CELL_DIM, 11 * CELL_DIM),  # Blue Dragonborn Fighter
         'BDR': (13 * CELL_DIM, 11 * CELL_DIM),  # Blue Dragonborn Rogue
         'BDW': (14 * CELL_DIM, 11 * CELL_DIM),  # Blue Dragonborn Wizard
         'BDC': (15 * CELL_DIM, 11 * CELL_DIM),  # Blue Dragonborn Cleric
+        'BDG': (12 * CELL_DIM, 25 * CELL_DIM),  # Blue Dragonborn Ranger
 
 
 
