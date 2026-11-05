@@ -883,6 +883,13 @@ class CombatCompanion(SummonedEntity):
     #: turn after turn even though each individual step looked reasonable.
     LEASH_DISTANCE = 8
 
+    #: How far (in tiles) a companion will go to fetch its own spent
+    #: ammo, and how many turns it waits before trying again after a
+    #: failed attempt (unreachable arrow, full inventory).
+    AMMO_PICKUP_RADIUS = 6
+    AMMO_PICKUP_RETRY_TURNS = 10
+    _ammo_pickup_cooldown = 0
+
     #: Turns to idle between wander steps once dismissed -- reuses
     #: TownNPC's own pacing (see _take_dismissed_turn()) rather than
     #: picking a separate value.
@@ -1734,6 +1741,60 @@ class CombatCompanion(SummonedEntity):
         spent.y = y
         game_instance.game_map.items_on_ground.append(spent)
 
+    def _nearest_spent_ammo(self, game_instance):
+        candidates = [
+            item for item in game_instance.game_map.items_on_ground
+            if getattr(item, "name", None) == self.ammo_item_name
+            and not isinstance(item, Monster)
+            and _chebyshev_distance(self.x, self.y, item.x, item.y) <= self.AMMO_PICKUP_RADIUS
+            and _chebyshev_distance(self.owner.x, self.owner.y, item.x, item.y) <= self.LEASH_DISTANCE
+        ]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda item: _chebyshev_distance(self.x, self.y, item.x, item.y))
+
+    def _collect_spent_ammo(self, game_map, game_instance):
+        """
+        With no hostile monster within DETECTION_RADIUS, walk to the
+        nearest of this companion's own spent ammo on the ground and put
+        it back into the owner's shared inventory. Only arrows within
+        LEASH_DISTANCE of the owner are considered, so fetching never
+        pulls the companion past its leash. Returns True if it moved or
+        picked something up this turn.
+        """
+        if self.ammo_item_name is None:
+            return False
+        if self._ammo_pickup_cooldown > 0:
+            self._ammo_pickup_cooldown -= 1
+            return False
+        if self._gather_enemies(game_instance, max_distance=self.DETECTION_RADIUS):
+            return False
+
+        ammo = self._nearest_spent_ammo(game_instance)
+        if ammo is None:
+            return False
+
+        if (self.x, self.y) != (ammo.x, ammo.y):
+            if self._approach(game_map, game_instance, ammo.x, ammo.y):
+                return True
+            self._ammo_pickup_cooldown = self.AMMO_PICKUP_RETRY_TURNS
+            return False
+
+        inventory = getattr(self.owner, "inventory", None)
+        if inventory is None or not inventory.add_item(ammo):
+            self._ammo_pickup_cooldown = self.AMMO_PICKUP_RETRY_TURNS
+            return False
+
+        ammo.owner = self.owner
+        game_instance.game_map.items_on_ground.remove(ammo)
+        if hasattr(self.owner, "update_arrow_shot_ability"):
+            self.owner.update_arrow_shot_ability()
+        game_instance.message_log.add_message(
+            f"{self.name} retrieves a spent {self.ammo_item_name.lower()}.", self.color
+        )
+        game_instance.update_fov()
+        return True
+
     def ranged_attack_enemy(self, target, game_instance):
         """Ranged attack against a target within attack_range and line
         of sight. Consumes one round of ammo from the owner's (the
@@ -2032,6 +2093,9 @@ class CombatCompanion(SummonedEntity):
             # -- try to break free instead of sitting idle for the rest
             # of the effect's duration.
             self._attempt_escape_restraint(game_instance)
+            return
+
+        if self._collect_spent_ammo(game_map, game_instance):
             return
 
         self._follow_owner(game_map, game_instance)
