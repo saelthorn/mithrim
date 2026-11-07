@@ -579,6 +579,7 @@ class Game:
         # never has to guard against an unset id (e.g. via the legacy,
         # currently-unreachable GameState.TAVERN doorway further down).
         self.current_dungeon_id = (0, 0)
+        self.cleared_dungeon_floors = set()  # (dungeon_id, level_number) keys already rewarded
         self.overworld_player_pos = None
         self.chunk_biomes = {}
         self.dungeon_entrance_positions = []
@@ -825,6 +826,11 @@ class Game:
     # contained descent.
     DUNGEON_MIN_FLOORS = 2
     DUNGEON_MAX_FLOORS = 5
+
+    # XP awarded the first time a dungeon floor is cleared of hostile
+    # monsters: base for floor 1, plus a flat bonus for each floor deeper.
+    FLOOR_CLEAR_XP_BASE = 1000
+    FLOOR_CLEAR_XP_PER_FLOOR = 500
 
     # Boss pool keyed by *depth within a dungeon* (1 .. DUNGEON_MAX_FLOORS),
     # not by an absolute floor number -- every dungeon is only 2-5 floors
@@ -6200,6 +6206,34 @@ class Game:
             companion.gain_xp(xp_gained, self)
             self.message_log.add_message(f"{companion.name} gains {xp_gained} XP!", companion.color)
 
+    def floor_clear_xp(self, level_number):
+        return self.FLOOR_CLEAR_XP_BASE + self.FLOOR_CLEAR_XP_PER_FLOOR * (level_number - 1)
+
+    def _check_floor_cleared(self):
+        if self.game_state != GameState.DUNGEON or not self.player.alive:
+            return
+
+        floor_key = self._dungeon_level_key(self.current_level)
+        if floor_key in self.cleared_dungeon_floors:
+            return
+
+        for entity in self.entities:
+            if not isinstance(entity, Monster) or not getattr(entity, "alive", True):
+                continue
+            if isinstance(entity, (SummonedEntity, EscortCompanion)):
+                continue
+            if entity in self.combat_companions or entity in self.companions:
+                continue
+            if isinstance(entity, Mimic) and entity.disguised:
+                continue
+            if entity.disposition == Disposition.AGGRESSIVE:
+                return
+
+        self.cleared_dungeon_floors.add(floor_key)
+        xp_reward = self.floor_clear_xp(self.current_level)
+        self.message_log.add_message(f"=== FLOOR {self.current_level} CLEARED ===", (0, 255, 255))
+        self.award_shared_xp(xp_reward)
+
     def cleanup_entities(self):
         """Remove dead or expired entities/items from the game world."""
 
@@ -6214,6 +6248,8 @@ class Game:
 
         # Remove dead monsters/NPCs
         self.entities = [e for e in self.entities if getattr(e, "alive", True)]
+
+        self._check_floor_cleared()
 
         # self.companions (see recruit_companion()/EscortCompanion in
         # entities/summons.py) is a third list tracking the same escort
