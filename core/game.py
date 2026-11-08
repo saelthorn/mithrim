@@ -307,7 +307,8 @@ from core.fov import FOV
 from core.ui_sidebar import draw_sidebar
 from core.ui_screens import render_inventory_screen, render_inventory_menu_popup, render_character_menu, render_world_map_screen, WORLD_MAP_MIN_ZOOM, WORLD_MAP_MAX_ZOOM
 from world.map import GameMap
-from world.dungeon_generator import generate_dungeon
+from world.dungeon_generator import generate_dungeon, room_interior_area
+from world.dungeon_themes import theme_for_entrance
 from world.chunk_materializer import materialize_overworld_chunk
 from world.world_map import (
     generate_world_map,
@@ -339,7 +340,8 @@ from entities.monster import (
     Owlbear, Demogorgon, Grick, GibberingMouther, MindFlayer, Minotaur,
     Wererat, Wolf, Yochlol, Drider, RedSlaad, DeathSlaad, MyconidSprout,
     MyconidAdult, Mezzoloth, Gauth, Arasta, AlphaGrick, IntellectDevourer, 
-    Imp, Wraith, TombTapper, Cultist, WilloWisp, Ghoul
+    Imp, Wraith, TombTapper, Cultist, WilloWisp, Ghoul,
+    CultAcolyte, CultFanatic, CultHierophant
 
 )
 
@@ -4641,20 +4643,7 @@ class Game:
 
     def get_room_interior_area(self, room):
         """Calculate the area (number of interior tiles) of a room."""
-        from world.dungeon_generator import LShapedRoom
-        
-        if isinstance(room, LShapedRoom):
-            # For L-shaped rooms, count actual interior tiles
-            h_area = max(0, (room.h_x2 - room.h_x1 - 2)) * max(0, (room.h_y2 - room.h_y1 - 2))
-            v_area = max(0, (room.v_x2 - room.v_x1 - 2)) * max(0, (room.v_y2 - room.v_y1 - 2))
-            # Subtract overlap (intersection area) to avoid double counting
-            overlap_x = max(0, min(room.h_x2, room.v_x2) - max(room.h_x1, room.v_x1) - 2)
-            overlap_y = max(0, min(room.h_y2, room.v_y2) - max(room.h_y1, room.v_y1) - 2)
-            overlap_area = overlap_x * overlap_y
-            return h_area + v_area - overlap_area
-        else:
-            # For rectangular rooms
-            return max(0, (room.x2 - room.x1 - 2)) * max(0, (room.y2 - room.y1 - 2))
+        return room_interior_area(room)
 
     def spawn_monsters_near_prison_alert(self, alert_x, alert_y, search_radius=8):
         """
@@ -4668,8 +4657,7 @@ class Game:
         # Get possible monsters for this level. self.current_level is this
         # dungeon's depth (1 .. DUNGEON_MAX_FLOORS); clamp defensively the
         # same way generate_level() does.
-        monster_depth = max(1, min(self.current_level, max(self.MONSTER_SPAWN_TIERS)))
-        possible_monsters = self.MONSTER_SPAWN_TIERS.get(monster_depth, [])
+        possible_monsters = self._dungeon_theme().monster_pool(self.current_level, self.MONSTER_SPAWN_TIERS)
 
         if not possible_monsters:
             return
@@ -4984,6 +4972,10 @@ class Game:
             + level_number * 131
         ) & 0xFFFFFFFF
 
+    def _dungeon_theme(self):
+        chunk_coord, _ = world_position_to_chunk_local(self.current_dungeon_id)
+        return theme_for_entrance(self.world_seed, self.current_dungeon_id, self.get_chunk_biome(chunk_coord))
+
     def _dungeon_floor_count(self):
         """
         How many floors self.current_dungeon_id's dungeon has in total,
@@ -5004,8 +4996,9 @@ class Game:
             + dungeon_x * 92_821
             + dungeon_y * 68_927
         ) & 0xFFFFFFFF
-        span = self.DUNGEON_MAX_FLOORS - self.DUNGEON_MIN_FLOORS + 1
-        return self.DUNGEON_MIN_FLOORS + random.Random(seed).randrange(span)
+        min_floors, max_floors = self._dungeon_theme().floor_range or (self.DUNGEON_MIN_FLOORS, self.DUNGEON_MAX_FLOORS)
+        span = max_floors - min_floors + 1
+        return min_floors + random.Random(seed).randrange(span)
 
     def generate_level(self, level_number, spawn_on_stairs_up=False):
         # Snapshot whichever dungeon level the player is currently standing
@@ -5043,13 +5036,18 @@ class Game:
         # last one. The final floor never gets downstairs -- there's
         # nowhere further down for this dungeon to go -- and always gets
         # a boss room instead (see is_boss_floor below).
+        dungeon_theme = self._dungeon_theme()
         dungeon_floor_count = self._dungeon_floor_count()
         is_final_floor = level_number >= dungeon_floor_count
 
         dungeon_seed = self._dungeon_seed(level_number)
+        floor_profile = dungeon_theme.floor_profile(level_number)
         rooms, self.stairs_positions, self.torch_light_sources, prison_prisoners = generate_dungeon(
-            self.game_map, level_number, seed=dungeon_seed, spawn_downstairs=not is_final_floor
+            self.game_map, level_number, seed=dungeon_seed, spawn_downstairs=not is_final_floor,
+            profile=floor_profile
         )
+        if floor_profile is not None:
+            self.message_log.add_message(f"{dungeon_theme.name}: {floor_profile.name}", (180, 120, 200))
 
 
         # Defensive path only: in normal play a level is always cached (see
@@ -5175,8 +5173,7 @@ class Game:
                     # indexes BOSS_FLOORS directly; clamp defensively in
                     # case DUNGEON_MAX_FLOORS is ever raised past the pool's
                     # highest defined depth.
-                    boss_depth = max(1, min(level_number, max(self.BOSS_FLOORS)))
-                    boss_name = random.choice(self.BOSS_FLOORS[boss_depth])
+                    boss_name = random.choice(dungeon_theme.boss_pool(level_number, self.BOSS_FLOORS))
                     # Map names to classes (fallback to Demogorgon if missing)
                     name_to_cls = {
                         'Ooze': Ooze,
@@ -5192,7 +5189,9 @@ class Game:
                         'MindFlayer': MindFlayer,
                         'RedDragon': RedDragon,  # TODO: replace with Red Dragon class when available
                         'Demogorgon': Demogorgon,
-                        'Arasta': Arasta
+                        'Arasta': Arasta,
+                        'Yochlol': Yochlol,
+                        'CultHierophant': CultHierophant
                     }
                     boss_cls = name_to_cls.get(boss_name, Demogorgon)
                     boss_entity = boss_cls(spawn_x, spawn_y)
@@ -5203,11 +5202,9 @@ class Game:
                     # Don't spawn regular monsters in the boss room
                     monster_rooms = [r for r in monster_rooms if r is not boss_room]
 
-        # Determine which monsters can spawn on this level based on
-        # MONSTER_SPAWN_TIERS, keyed by depth (1 .. DUNGEON_MAX_FLOORS).
-        # Clamp defensively for the same reason boss_depth does above.
-        monster_depth = max(1, min(level_number, max(self.MONSTER_SPAWN_TIERS)))
-        possible_monsters = self.MONSTER_SPAWN_TIERS.get(monster_depth, [GiantRat])
+        # Monsters that can spawn on this level come from the dungeon's
+        # theme, falling back to MONSTER_SPAWN_TIERS for the classic theme.
+        possible_monsters = dungeon_theme.monster_pool(level_number, self.MONSTER_SPAWN_TIERS, [GiantRat])
 
         for i, room in enumerate(monster_rooms):
             # NEW: Use get_valid_spawn_point_in_room to handle L-shaped rooms
@@ -7711,7 +7708,7 @@ class Game:
         
         # Get the primary monster's name for group lookup
         primary_name = primary_monster_class.__name__
-        compatible_types = MONSTER_GROUPS.get(primary_name, [primary_name])
+        compatible_types = self._dungeon_theme().group_for(primary_name, MONSTER_GROUPS)
         
         # Determine how many monsters to spawn (1-4)
         min_spawn = 1

@@ -3565,6 +3565,93 @@ class Cultist(Monster):
             "CHA": False,
         }
 
+class CultAcolyte(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'CUL', 'Cult Acolyte', (128, 0, 128))
+        self.ambient_messages = [
+            "{name} chants in a low, hypnotic voice...",
+            "{name} traces a dark sigil in the air with its hands...",
+            "{name} clutches an amulet and whispers to it...",
+        ]
+
+        self.hp = 18
+        self.max_hp = 18
+        self.attack_bonus = 3
+        self.armor_class = 13
+        self.base_xp = 100
+        self.monster_die_type = 6
+        self.num_damage_dice = 1
+        self.damage_modifier = 2
+        self.detection_range = 6
+        self.is_intelligent = True
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": False,
+            "CON": False,
+            "INT": True,
+            "WIS": False,
+            "CHA": False,
+        }
+
+class CultFanatic(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'CUL', 'Cult Fanatic', (128, 0, 128))
+        self.ambient_messages = [
+            "{name} chants in a fervent, almost frenzied voice...",
+            "{name} traces a dark sigil in the air with its hands...",
+            "{name} clutches an amulet and whispers to it with intensity...",
+        ]
+
+        self.hp = 27
+        self.max_hp = 27
+        self.attack_bonus = 4
+        self.armor_class = 14
+        self.base_xp = 150
+        self.monster_die_type = 6
+        self.num_damage_dice = 1
+        self.damage_modifier = 3
+        self.detection_range = 8
+        self.is_intelligent = True
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": False,
+            "CON": False,
+            "INT": True,
+            "WIS": False,
+            "CHA": False,
+        }
+
+class CultHierophant(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'CUL', 'Cult Hierophant', (128, 0, 128))
+        self.ambient_messages = [
+            "{name} chants in a commanding, resonant voice...",
+            "{name} traces a dark sigil in the air with its hands with authority...",
+            "{name} clutches an amulet and whispers to it with power...",
+        ]
+
+        self.hp = 36
+        self.max_hp = 36
+        self.attack_bonus = 5
+        self.armor_class = 15
+        self.base_xp = 200
+        self.monster_die_type = 6
+        self.num_damage_dice = 1
+        self.damage_modifier = 4
+        self.detection_range = 10
+        self.is_intelligent = True
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": False,
+            "CON": False,
+            "INT": True,
+            "WIS": False,
+            "CHA": False,
+        }
+
 class WilloWisp(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'WW', 'Willo Wisp', (255, 255, 0))

@@ -17,6 +17,7 @@ from world.water_features import generate_water_features, river, lake, sewer_wat
 from world.encounters.prison_cell import generate_prison_cell, is_prison_cell_position, PrisonDoorTile
 from world.encounters.temple_room import generate_circular_temple
 from world.encounters.crypt import generate_crypt, is_crypt_position
+from world.encounters.church import generate_church_nave, generate_church_sanctum
 
 
 # ---------------------------------------------------------------------------
@@ -217,6 +218,16 @@ _ROOM_PROPS = [
     crate, barrel, bones, rubble, mushroom, fresh_bones,
     dungeon_grass, dungeon_grass_two, cob_web,
 ]
+
+
+def room_interior_area(room):
+    if isinstance(room, LShapedRoom):
+        h_area = max(0, (room.h_x2 - room.h_x1 - 2)) * max(0, (room.h_y2 - room.h_y1 - 2))
+        v_area = max(0, (room.v_x2 - room.v_x1 - 2)) * max(0, (room.v_y2 - room.v_y1 - 2))
+        overlap_x = max(0, min(room.h_x2, room.v_x2) - max(room.h_x1, room.v_x1) - 2)
+        overlap_y = max(0, min(room.h_y2, room.v_y2) - max(room.h_y1, room.v_y1) - 2)
+        return h_area + v_area - overlap_x * overlap_y
+    return max(0, (room.x2 - room.x1 - 2)) * max(0, (room.y2 - room.y1 - 2))
 
 
 def _plain_floor():
@@ -638,7 +649,7 @@ def _dig_plus_shaped_room(game_map, plus_room):
 # ---------------------------------------------------------------------------
 
 def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room_max_size=10,
-                      seed=None, spawn_downstairs=True):
+                      seed=None, spawn_downstairs=True, profile=None):
     """
     `seed`, when given, reseeds the global `random` module before anything
     else in this function touches it, so the exact same `seed` always
@@ -668,7 +679,8 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
     # Scale some things with dungeon depth
     trap_placement_chance = min(0.03 + level_number * 0.005, 0.12)
     possible_traps = [DartTrap, SpikeTrap, FireTrap, ExplosiveTrap, AcidSprayTrap]
-    prop_chance = 0.16
+    prop_chance = profile.prop_chance if profile and profile.prop_chance is not None else 0.16
+    room_props = profile.room_props if profile and profile.room_props else _ROOM_PROPS
     door_chance = 0.55   # probability of placing a door at a tunnel bend
     
     # Calculate center-biased placement region to keep rooms clustered
@@ -962,8 +974,8 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
     #     Similar to prison cells but with tombs that spawn skeletons
     #     or drop treasure when disturbed.
     # ------------------------------------------------------------------
-    MAX_CRYPT_ROOMS    = 2
-    CRYPT_ROOM_CHANCE  = 0.50
+    MAX_CRYPT_ROOMS, CRYPT_ROOM_CHANCE = profile.crypt_rooms if profile and profile.crypt_rooms else (2, 0.50)
+    crypt_room_ids = set()
 
     crypt_candidates = [
         room for room in rooms
@@ -985,6 +997,43 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
         tomb_positions = generate_crypt(game_map, candidate, stairs_positions)
         if tomb_positions is not None:
             crypt_rooms_placed += 1
+            crypt_room_ids.add(id(candidate))
+
+    # ------------------------------------------------------------------
+    # 6c. Themed rooms (see world/dungeon_themes.py's DungeonFloorProfile)
+    #     The sanctum goes in the same room game.py picks for the boss:
+    #     the largest room after the first.
+    # ------------------------------------------------------------------
+    themed_rooms = set()
+    if profile is not None:
+        taken_room_ids = set(prison_blocked_sides) | crypt_room_ids
+
+        if profile.sanctum and not spawn_downstairs and len(rooms) > 1:
+            sanctum_room = max(rooms[1:], key=room_interior_area)
+            if id(sanctum_room) not in taken_room_ids:
+                if generate_church_sanctum(game_map, sanctum_room, stairs_positions):
+                    themed_rooms.add(id(sanctum_room))
+
+        max_naves, nave_chance = profile.nave_rooms
+        nave_candidates = [
+            room for room in rooms
+            if isinstance(room, RectRoom)
+            and room is not stairs_up_room
+            and room is not stairs_down_room
+            and id(room) not in taken_room_ids | themed_rooms
+            and (room.x2 - room.x1) >= 8
+            and (room.y2 - room.y1) >= 9
+        ]
+        random.shuffle(nave_candidates)
+        naves_placed = 0
+        for candidate in nave_candidates:
+            if naves_placed >= max_naves:
+                break
+            if random.random() > nave_chance:
+                continue
+            if generate_church_nave(game_map, candidate, stairs_positions):
+                themed_rooms.add(id(candidate))
+                naves_placed += 1
 
     # ------------------------------------------------------------------
     # 7. Repair tunnels that cut through prison-blocked walls
@@ -1109,7 +1158,7 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
         )
 
         # --- Pillars in large rooms (not stair rooms, not prison rooms, not special shapes) ---
-        if (not is_stair_room and not room_has_prison_tiles and 
+        if (not is_stair_room and not room_has_prison_tiles and id(room) not in themed_rooms and
             not isinstance(room, LShapedRoom) and not isinstance(room, PlusShapedRoom) and 
             random.random() < 0.4):
             _place_pillars(game_map, room)
@@ -1160,7 +1209,7 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
                         game_map.tiles[ry][rx] = MimicTile(mimic, display_char, base.color, base.name)
                         game_map.items_on_ground.append(mimic)
                     else:
-                        game_map.tiles[ry][rx] = random.choice(_ROOM_PROPS)
+                        game_map.tiles[ry][rx] = random.choice(room_props)
 
         # --- Chest / chest mimic at room center ---
         if is_stair_room:
