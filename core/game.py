@@ -6192,6 +6192,19 @@ class Game:
             return
         entity._fire_kill_reported = True
         self.stories.fire_kill(entity, instigator=killer or self.player, group_id=getattr(entity, "group_id", None))
+        self._apply_kill_world_effects(entity)
+
+    def _apply_kill_world_effects(self, entity):
+        for faction, delta in getattr(entity, "kill_reputation", {}).items():
+            self.stories.execution_context.modify_reputation(faction, delta)
+
+        scar_tag = getattr(entity, "world_scar_on_death", None)
+        if scar_tag and self.game_state == GameState.DUNGEON:
+            dungeon_x, dungeon_y = self.current_dungeon_id
+            self.stories.failure_manager.record_world_change(
+                scar_tag, f"dungeon:{dungeon_x},{dungeon_y}", dungeon_id=[dungeon_x, dungeon_y]
+            )
+            self.message_log.add_message(f"The {self._dungeon_theme().name} falls silent.", (180, 120, 200))
 
     def award_shared_xp(self, xp_gained):
         self.player.gain_xp(xp_gained, self)
@@ -6240,7 +6253,9 @@ class Game:
         # just below prunes the entity away, since fire_kill still needs
         # to see it (and its group_id) to attribute the kill correctly.
         for entity in self.entities:
-            if not getattr(entity, "alive", True) and getattr(entity, "group_id", None):
+            if getattr(entity, "alive", True):
+                continue
+            if getattr(entity, "group_id", None) or getattr(entity, "kill_reputation", None) or getattr(entity, "world_scar_on_death", None):
                 self._notify_monster_killed(entity)
 
         # Remove dead monsters/NPCs

@@ -12,7 +12,8 @@ from world.tile import (
     table, crate, tavern_barrel_two, altar, door, forge, anvil, shelf, bed, hay, bar_counter, bar_counter_five, bar_counter_six,
     shelf_three, bar_counter, shelf_two, tavern_barrel, tavern_crate, cob_web, wood_plank, tavern_floor, ladder, tavern_cobweb,
     window, flower_field, meadow, barrel, tent, campfire, giant_tree, fence, fence_gate, banner, washed_boat, sail_left, sail, 
-    sail_right, overworld_cobweb, dragon_skull, dragon_skeleton, dragon_tail, tree, mountain
+    sail_right, overworld_cobweb, dragon_skull, dragon_skeleton, dragon_tail, tree, mountain,
+    ritual_circle, gravestone, gravestone_two, gravestone_three, rubble
 )
 
 
@@ -355,6 +356,32 @@ STRUCTURE_BLUEPRINTS = {
         description="A defensive tower on a hilltop.",
         item_map={"c": _spawn_indoor_chest},
         destroyed_tile=tavern_floor,
+    ),
+
+    "ruined_church": build_blueprint(
+        "ruined_church",
+        "Ruined Church",
+        [
+            "  h    g  G  ",
+            "  ##%#w####  ",
+            "  #b..&..b#  ",
+            "  #.......#  ",
+            "  w..%.*..w  ",
+            "  #.%...%.%  ",
+            "  #..*....#  ",
+            "  w.......w  ",
+            "  #.%...*.#  ",
+            "  ####+####  ",
+            " g  r   r  G ",
+        ],
+        {
+            "#": wall, "w": window, "+": door, ".": floor, "&": altar, "b": banner,
+            "%": rubble, "*": overworld_cobweb, "g": gravestone, "G": gravestone_two,
+            "h": gravestone_three, "r": ritual_circle,
+        },
+        walkable_chars={".", "%", "+"},
+        description="A collapsed church whose congregation never left.",
+        destroyed_tile=ground,
     ),
 
     "shrine": build_blueprint(

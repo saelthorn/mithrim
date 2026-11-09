@@ -1,7 +1,7 @@
 import random
 from core.pathfinding import astar
 from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff, BlessingOfAgility, GuardBuff, ParryBuff, Restrained, Frightened, is_restrained
-from entities.monster_abilities import Charge, Multiattack, Sweep, Knockback, Regeneration, Roar, CallToArms, Webbed
+from entities.monster_abilities import Charge, Multiattack, Sweep, Knockback, Regeneration, Roar, CallToArms, Webbed, HealAlly, SummonAllies
 from world.water_features import is_water_tile
 
 from items.items import (
@@ -346,6 +346,8 @@ class Monster:
         self.telegraph_timer = 0  # Timer for when telegraphed attack resolves (3 turns)
 
         self.loot_table = []  # List of (item_template, drop_chance) tuples
+        self.kill_reputation = {}  # faction_id -> reputation change applied when this monster is killed
+        self.world_scar_on_death = None  # WorldScar tag recorded when this monster is killed
         
         self.consecutive_failed_flee_turns = 0
 
@@ -3549,6 +3551,7 @@ class Cultist(Monster):
         self.max_hp = 9
         self.attack_bonus = 2
         self.armor_class = 12
+        self.kill_reputation = {"cultists": -1}
         self.base_xp = 50
         self.monster_die_type = 4
         self.num_damage_dice = 1
@@ -3567,89 +3570,124 @@ class Cultist(Monster):
 
 class CultAcolyte(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'CUL', 'Cult Acolyte', (128, 0, 128))
+        super().__init__(x, y, 'CAC', 'Cult Acolyte', (150, 60, 150))
         self.ambient_messages = [
-            "{name} chants in a low, hypnotic voice...",
-            "{name} traces a dark sigil in the air with its hands...",
-            "{name} clutches an amulet and whispers to it...",
+            "{name} mutters a quiet prayer over a dark amulet...",
+            "{name} anoints the stones with something dark...",
+            "{name} swaps whispered verses with the shadows...",
         ]
 
-        self.hp = 18
-        self.max_hp = 18
-        self.attack_bonus = 3
-        self.armor_class = 13
-        self.base_xp = 100
-        self.monster_die_type = 6
+        self.hp = 13
+        self.max_hp = 13
+        self.attack_bonus = 2
+        self.armor_class = 11
+        self.kill_reputation = {"cultists": -1}
+        self.loot_table = [
+            (lesser_healing_potion, 0.30),
+            (robes, 0.15),
+        ]
+        self.base_xp = 50
+        self.monster_die_type = 4
         self.num_damage_dice = 1
-        self.damage_modifier = 2
-        self.detection_range = 6
+        self.damage_modifier = 0
+        self.detection_range = 4
         self.is_intelligent = True
+        self.monster_abilities = [HealAlly(heal_dice=8, bonus=2, radius=4, threshold=0.5, cooldown=3)]
 
         self.saving_throw_proficiencies = {
             "STR": False,
             "DEX": False,
             "CON": False,
-            "INT": True,
-            "WIS": False,
+            "INT": False,
+            "WIS": True,
             "CHA": False,
         }
 
+
 class CultFanatic(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'CUL', 'Cult Fanatic', (128, 0, 128))
+        super().__init__(x, y, 'CFN', 'Cult Fanatic', (110, 0, 110))
         self.ambient_messages = [
-            "{name} chants in a fervent, almost frenzied voice...",
-            "{name} traces a dark sigil in the air with its hands...",
-            "{name} clutches an amulet and whispers to it with intensity...",
+            "{name} chants feverishly, eyes rolled back...",
+            "{name} laughs at something only they can hear...",
+            "{name} presses a blade to their palm and smiles...",
         ]
 
         self.hp = 27
         self.max_hp = 27
         self.attack_bonus = 4
-        self.armor_class = 14
-        self.base_xp = 150
+        self.armor_class = 13
+        self.kill_reputation = {"cultists": -2, "church": 1}
+        self.loot_table = [
+            (lesser_healing_potion, 0.35),
+            (silver_dagger, 0.20),
+            (robes, 0.20),
+        ]
+        self.base_xp = 450
         self.monster_die_type = 6
         self.num_damage_dice = 1
-        self.damage_modifier = 3
-        self.detection_range = 8
+        self.damage_modifier = 2
+        self.detection_range = 5
+        self.is_ranged = True
+        self.ranged_attack_bonus = 5
+        self.range = 4
+        self.ranged_die_type = 8
+        self.ranged_num_dice = 1
         self.is_intelligent = True
+
+        self.can_kite = True
+        self.ideal_kiting_distance = 3
+        self.kiting_attack_threshold = 2
 
         self.saving_throw_proficiencies = {
             "STR": False,
             "DEX": False,
             "CON": False,
-            "INT": True,
-            "WIS": False,
-            "CHA": False,
+            "INT": False,
+            "WIS": True,
+            "CHA": True,
         }
+
 
 class CultHierophant(Monster):
     def __init__(self, x, y):
-        super().__init__(x, y, 'CUL', 'Cult Hierophant', (128, 0, 128))
+        super().__init__(x, y, 'CHP', 'Cult Hierophant', (160, 20, 160))
         self.ambient_messages = [
-            "{name} chants in a commanding, resonant voice...",
-            "{name} traces a dark sigil in the air with its hands with authority...",
-            "{name} clutches an amulet and whispers to it with power...",
+            "{name} intones a litany in a language older than the church...",
+            "The air around {name} grows cold and heavy...",
+            "{name} raises a hand and the candles gutter...",
         ]
 
-        self.hp = 36
-        self.max_hp = 36
-        self.attack_bonus = 5
-        self.armor_class = 15
-        self.base_xp = 200
-        self.monster_die_type = 6
-        self.num_damage_dice = 1
-        self.damage_modifier = 4
-        self.detection_range = 10
+        self.hp = 110
+        self.max_hp = 110
+        self.attack_bonus = 6
+        self.armor_class = 14
+        self.kill_reputation = {"cultists": -10, "church": 5}
+        self.world_scar_on_death = "cult_church_cleansed"
+        self.loot_table = [
+            (greater_healing_potion, 1.0),
+            (steel_mace, 0.75),
+            (silver_dagger, 0.50),
+            (robes, 0.50),
+        ]
+        self.base_xp = 2300
+        self.monster_die_type = 8
+        self.num_damage_dice = 2
+        self.damage_modifier = 3
+        self.detection_range = 8
         self.is_intelligent = True
+        self.monster_abilities = [
+            SummonAllies("Imp", count=2, max_alive=4, cooldown=8),
+            CallToArms(radius=12, cooldown=30),
+        ]
 
         self.saving_throw_proficiencies = {
             "STR": False,
             "DEX": False,
-            "CON": False,
-            "INT": True,
-            "WIS": False,
-            "CHA": False,
+            "CON": True,
+            "INT": False,
+            "WIS": True,
+            "CHA": True,
         }
 
 class WilloWisp(Monster):

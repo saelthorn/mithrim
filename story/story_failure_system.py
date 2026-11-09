@@ -172,7 +172,7 @@ class WorldScar:
         self,
         tag: str,
         story_id: str,
-        failure_mode: FailureMode,
+        failure_mode: Optional[FailureMode],
         world_hour: Optional[int] = None,
         data: Optional[Dict[str, Any]] = None,
         scar_id: Optional[str] = None,
@@ -180,7 +180,7 @@ class WorldScar:
         self.id: str = scar_id or f"scar:{tag}:{story_id}"
         self.tag: str = tag
         self.story_id: str = story_id
-        self.failure_mode: FailureMode = failure_mode
+        self.failure_mode: Optional[FailureMode] = failure_mode
         self.world_hour: Optional[int] = world_hour
         self.created_at: float = time.time()
         self.data: Dict[str, Any] = data if data is not None else {}
@@ -192,7 +192,7 @@ class WorldScar:
             "id": self.id,
             "tag": self.tag,
             "story_id": self.story_id,
-            "failure_mode": self.failure_mode.value,
+            "failure_mode": self.failure_mode.value if self.failure_mode else None,
             "world_hour": self.world_hour,
             "created_at": self.created_at,
             "data": dict(self.data),
@@ -203,7 +203,7 @@ class WorldScar:
         scar = cls(
             tag=data["tag"],
             story_id=data["story_id"],
-            failure_mode=FailureMode(data["failure_mode"]),
+            failure_mode=FailureMode(data["failure_mode"]) if data.get("failure_mode") else None,
             world_hour=data.get("world_hour"),
             data=dict(data.get("data", {})),
             scar_id=data.get("id"),
@@ -212,7 +212,7 @@ class WorldScar:
         return scar
 
     def __repr__(self) -> str:
-        return f"WorldScar(tag={self.tag!r}, story_id={self.story_id!r}, mode={self.failure_mode.value})"
+        return f"WorldScar(tag={self.tag!r}, story_id={self.story_id!r}, mode={self.failure_mode.value if self.failure_mode else None})"
 
 
 # ---------------------------------------------------------------------------
@@ -527,8 +527,11 @@ class StoryFailureManager:
         for consequence in consequences:
             self.consequence_executor.execute(consequence, context)
 
+    def record_world_change(self, tag: str, source_id: str, **detail: Any) -> None:
+        self._record_scar(tag, source_id, None, detail)
+
     def _record_scar(
-        self, tag: Optional[str], story_id: str, mode: "FailureMode", detail: Dict[str, Any]
+        self, tag: Optional[str], story_id: str, mode: Optional["FailureMode"], detail: Dict[str, Any]
     ) -> None:
         if tag is None:
             return

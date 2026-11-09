@@ -2261,6 +2261,24 @@ def _is_valid_entrance_spot(game_map, x, y):
     return tile is ground  # keep entrances off tall grass/tree tiles for visibility
 
 
+def _dungeon_exterior_landmarks(dungeon_entrances, chunk_coord, world_seed, biome):
+    from world.dungeon_themes import theme_for_entrance
+    from world.structures import get_structure_blueprint
+    from world.world_map import chunk_local_to_world_position
+
+    landmarks = []
+    for entrance_x, entrance_y in dungeon_entrances:
+        world_position = chunk_local_to_world_position(chunk_coord, (entrance_x, entrance_y))
+        theme = theme_for_entrance(world_seed, world_position, biome)
+        blueprint = get_structure_blueprint(theme.exterior_structure) if theme.exterior_structure else None
+        if blueprint is None:
+            continue
+        height = len(blueprint.tile_map)
+        anchor_y = entrance_y - 1 - (height - 1 - height // 2)
+        landmarks.append((entrance_x, anchor_y, theme.name, theme.exterior_structure))
+    return landmarks
+
+
 def _place_pois(game_map, heightmap, moisture, poi, count, preferred_positions=None):
     candidates = []
 
@@ -2870,6 +2888,7 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
     structure_placements = []
     all_footprints = []
 
+    landmarks = list(landmarks or []) + _dungeon_exterior_landmarks(dungeon_entrances, chunk_coord, world_seed, biome)
     for landmark in landmarks:
         if len(landmark) < 4:
             continue

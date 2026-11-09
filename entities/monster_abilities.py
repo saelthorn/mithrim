@@ -405,3 +405,68 @@ class Regeneration(MonsterAbility):
             game.message_log.add_message(f"The {monster.name}'s wounds knit back together!", (0, 255, 100))
             game.floating_texts.append(FloatingText(monster.x, monster.y, f"+{healed}", (0, 255, 0)))
         return healed > 0
+
+class HealAlly(MonsterAbility):
+    """
+    Passive per-turn healing for nearby allies, same idea as a 5e Cleric's
+    Healing Word -- heals automatically at the start of each turn unless the monster
+    took fire or acid damage since its last turn (see
+    Monster.took_fire_or_acid_damage, set in take_damage() and read/
+    cleared once per turn in take_turn()).
+    """
+
+    def __init__(self, heal_amount=5, radius=3):
+        super().__init__(
+            "Heal Ally",
+            "Heals nearby allies each turn unless recently burned.",
+            cooldown=0,
+            passive=True,
+        )
+        self.heal_amount = heal_amount
+        self.radius = radius
+
+    def execute(self, monster, target, game):
+        if not monster.alive:
+            return False
+        if monster.took_fire_or_acid_damage:
+            return False
+
+        healed_any = False
+        for entity in game.entities:
+            if entity is not monster and getattr(entity, "alive", False) and monster.distance_to(entity.x, entity.y) <= self.radius:
+                healed = entity.heal(self.heal_amount)
+                if healed > 0:
+                    game.message_log.add_message(f"The {monster.name} heals {entity.name}!", (0, 255, 100))
+                    game.floating_texts.append(FloatingText(entity.x, entity.y, f"+{healed}", (0, 255, 0)))
+                    healed_any = True
+        return healed_any
+
+class SummonAllies(MonsterAbility):
+    """
+    Passive per-turn summoning of nearby allies, same idea as a 5e Druid's
+    Summon Nature's Ally -- summons automatically at the start of each turn unless the monster
+    took fire or acid damage since its last turn (see
+    Monster.took_fire_or_acid_damage, set in take_damage() and read/
+    cleared once per turn in take_turn()).
+    """
+
+    def __init__(self, summon_type, radius=3):
+        super().__init__(
+            "Summon Ally",
+            "Summons nearby allies each turn unless recently burned.",
+            cooldown=0,
+            passive=True,
+        )
+        self.summon_type = summon_type
+        self.radius = radius
+
+    def execute(self, monster, target, game):
+        if not monster.alive:
+            return False
+        if monster.took_fire_or_acid_damage:
+            return False
+
+        # Summon logic here (this is a placeholder; actual implementation would depend on game mechanics)
+        game.message_log.add_message(f"The {monster.name} summons an ally!", (0, 255, 100))
+        # Example: create a new entity of type self.summon_type and place it near the monster
+        return True

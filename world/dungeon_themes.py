@@ -28,6 +28,7 @@ class DungeonTheme:
     boss_pools: dict = None
     monster_groups: dict = None
     floor_profiles: dict = None
+    exterior_structure: str = None
     biome_weights: dict = field(default_factory=dict)
 
     @staticmethod
@@ -80,6 +81,7 @@ CULT_CHURCH_THEME = register_theme(DungeonTheme(
     key="cult_church",
     name="Ruined Church",
     floor_range=(3, 3),
+    exterior_structure="ruined_church",
     monster_tiers={
         1: [Cultist, CultAcolyte, Imp, GiantRat, GiantSpider],
         2: [Cultist, CultAcolyte, CultFanatic, Imp, Skeleton, SkeletonArcher, Ghoul],
