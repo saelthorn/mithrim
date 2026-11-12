@@ -1866,6 +1866,29 @@ def _structure_road_approach(game_map, placed_tiles, anchor, occupied):
 # (and afterward spurred onto) the existing road network.
 # ---------------------------------------------------------------------------
 
+def _place_dungeon_exteriors(game_map, dungeon_entrances, chunk_coord, world_seed, biome, structure_placements, all_footprints):
+    from world.dungeon_themes import theme_for_entrance
+    from world.structures import place_structure_at_anchor
+
+    theme = theme_for_entrance(world_seed, chunk_coord, biome)
+    if not theme.exterior_structure:
+        return dungeon_entrances
+
+    entrances = []
+    for entrance_x, entrance_y in dungeon_entrances:
+        game_map.tiles[entrance_y][entrance_x] = ground
+        placed = place_structure_at_anchor(game_map, theme.exterior_structure, entrance_x, entrance_y)
+        new_entrance = next(((x, y) for x, y, _ in placed or [] if game_map.tiles[y][x] is dungeon_entrance), None)
+        if new_entrance is None:
+            game_map.tiles[entrance_y][entrance_x] = dungeon_entrance
+            entrances.append((entrance_x, entrance_y))
+            continue
+        structure_placements.append((placed, (entrance_x, entrance_y)))
+        all_footprints.append(placed)
+        entrances.append(new_entrance)
+    return entrances
+
+
 def _place_pois(game_map, heightmap, moisture, poi, count, preferred_positions=None):
     candidates = []
 
@@ -2335,6 +2358,9 @@ def generate_chunk_context(game_map, chunk_coord, world_seed, biome=None, world_
     structure_placements = []
     all_footprints = []
 
+    dungeon_entrances = _place_dungeon_exteriors(
+        game_map, dungeon_entrances, chunk_coord, world_seed, biome, structure_placements, all_footprints
+    )
     for landmark in landmarks:
         if len(landmark) < 4:
             continue

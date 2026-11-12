@@ -1,7 +1,7 @@
 import random
 from core.pathfinding import astar
 from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff, BlessingOfAgility, GuardBuff, ParryBuff, Restrained, Frightened, is_restrained
-from entities.monster_abilities import Charge, Multiattack, Sweep, Knockback, Regeneration, Roar, CallToArms, Webbed, HealAlly, SummonAllies
+from entities.monster_abilities import Charge, Multiattack, Sweep, Knockback, Regeneration, Roar, CallToArms, Webbed, HealAlly, SummonAllies, MendAlly, SummonReinforcements
 from world.water_features import is_water_tile
 
 from items.items import (
@@ -3592,7 +3592,7 @@ class CultAcolyte(Monster):
         self.damage_modifier = 0
         self.detection_range = 4
         self.is_intelligent = True
-        self.monster_abilities = [HealAlly(heal_dice=8, bonus=2, radius=4, threshold=0.5, cooldown=3)]
+        self.monster_abilities = [MendAlly(heal_dice=8, bonus=2, radius=4, threshold=0.5, cooldown=3)]
 
         self.saving_throw_proficiencies = {
             "STR": False,
@@ -3677,7 +3677,7 @@ class CultHierophant(Monster):
         self.detection_range = 8
         self.is_intelligent = True
         self.monster_abilities = [
-            SummonAllies("Imp", count=2, max_alive=4, cooldown=8),
+            SummonReinforcements("Imp", count=2, max_alive=4, cooldown=8),
             CallToArms(radius=12, cooldown=30),
         ]
 

@@ -1,3 +1,4 @@
+import random
 from core.pathfinding import astar
 from core.floating_text import FloatingText
 from core.status_effects import is_restrained
@@ -469,4 +470,112 @@ class SummonAllies(MonsterAbility):
         # Summon logic here (this is a placeholder; actual implementation would depend on game mechanics)
         game.message_log.add_message(f"The {monster.name} summons an ally!", (0, 255, 100))
         # Example: create a new entity of type self.summon_type and place it near the monster
+        return True
+
+
+class MendAlly(MonsterAbility):
+    def __init__(self, heal_dice=8, bonus=2, radius=4, threshold=0.5, cooldown=3):
+        super().__init__(
+            "Mend Ally",
+            "Mends a badly wounded ally nearby.",
+            cooldown=cooldown,
+        )
+        self.heal_dice = heal_dice
+        self.bonus = bonus
+        self.radius = radius
+        self.threshold = threshold
+
+    def _wounded_ally(self, monster, game):
+        from entities.monster import Monster, Disposition
+
+        wounded = [
+            entity for entity in game.entities
+            if entity is not monster and isinstance(entity, Monster) and entity.alive
+            and entity.disposition == Disposition.AGGRESSIVE
+            and entity.hp < entity.max_hp * self.threshold
+            and monster.distance_to(entity.x, entity.y) <= self.radius
+        ]
+        return min(wounded, key=lambda entity: entity.hp / entity.max_hp, default=None)
+
+    def should_trigger(self, monster, target, distance, game):
+        return self.is_ready() and self._wounded_ally(monster, game) is not None
+
+    def execute(self, monster, target, game):
+        ally = self._wounded_ally(monster, game)
+        if ally is None:
+            return False
+
+        healed = ally.heal(random.randint(1, self.heal_dice) + self.bonus)
+        if healed <= 0:
+            return False
+
+        game.message_log.add_message(f"The {monster.name} mends the {ally.name}'s wounds!", (0, 255, 100))
+        game.floating_texts.append(FloatingText(ally.x, ally.y, f"+{healed}", (0, 255, 0)))
+        return True
+
+
+class SummonReinforcements(MonsterAbility):
+    def __init__(self, monster_class_name, count=2, max_alive=4, summon_range=8, radius=2, cooldown=8):
+        super().__init__(
+            "Summon Reinforcements",
+            "Calls forth reinforcements from beyond.",
+            cooldown=cooldown,
+        )
+        self.monster_class_name = monster_class_name
+        self.count = count
+        self.max_alive = max_alive
+        self.summon_range = summon_range
+        self.radius = radius
+        self.summoned = []
+
+    def _alive_count(self):
+        self.summoned = [ally for ally in self.summoned if ally.alive]
+        return len(self.summoned)
+
+    def _free_tiles(self, monster, game):
+        game_map = game.game_map
+        occupied = {(entity.x, entity.y) for entity in game.entities if getattr(entity, "alive", False)}
+        occupied.add((game.player.x, game.player.y))
+
+        tiles = []
+        for dx in range(-self.radius, self.radius + 1):
+            for dy in range(-self.radius, self.radius + 1):
+                x, y = monster.x + dx, monster.y + dy
+                if (dx, dy) == (0, 0) or (x, y) in occupied:
+                    continue
+                if not (0 <= x < game_map.width and 0 <= y < game_map.height):
+                    continue
+                if game_map.is_walkable(x, y):
+                    tiles.append((x, y))
+        random.shuffle(tiles)
+        return tiles
+
+    def should_trigger(self, monster, target, distance, game):
+        return self.is_ready() and distance <= self.summon_range and self._alive_count() < self.max_alive
+
+    def execute(self, monster, target, game):
+        import entities.monster as monster_module
+        from entities.monster import Disposition, AI_State
+
+        summon_class = getattr(monster_module, self.monster_class_name)
+        tiles = self._free_tiles(monster, game)
+        to_spawn = min(self.count, self.max_alive - self._alive_count(), len(tiles))
+        if to_spawn <= 0:
+            return False
+
+        for x, y in tiles[:to_spawn]:
+            ally = summon_class(x, y)
+            ally.base_xp = 0
+            ally.disposition = Disposition.AGGRESSIVE
+            ally.is_active = True
+            ally.ai_state = AI_State.CHASING
+            ally.last_known_player_position = (target.x, target.y)
+            ally.roll_initiative()
+            game.entities.append(ally)
+            game.turn_order.append(ally)
+            self.summoned.append(ally)
+            game.floating_texts.append(FloatingText(x, y, "SUMMONED!", (200, 80, 255)))
+
+        game._resort_turn_order_preserving_current()
+        game.message_log.add_message(f"The {monster.name} calls forth {to_spawn} {ally.name}s!", (200, 80, 255))
         return True

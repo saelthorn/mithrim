@@ -61,6 +61,8 @@ class DungeonTheme:
 
 THEMES = {}
 
+FORCED_THEME_KEY = "cult_church"
+
 
 def register_theme(theme):
     THEMES[theme.key] = theme
@@ -127,8 +129,11 @@ CULT_CHURCH_THEME = register_theme(DungeonTheme(
 ))
 
 
-def theme_for_entrance(world_seed, entrance_position, biome):
-    entrance_x, entrance_y = entrance_position
+def theme_for_entrance(world_seed, location, biome):
+    if FORCED_THEME_KEY:
+        return THEMES[FORCED_THEME_KEY]
+
+    entrance_x, entrance_y = location
     seed = (
         world_seed * 2_654_435_761
         + entrance_x * 92_821

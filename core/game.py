@@ -4974,7 +4974,7 @@ class Game:
 
     def _dungeon_theme(self):
         chunk_coord, _ = world_position_to_chunk_local(self.current_dungeon_id)
-        return theme_for_entrance(self.world_seed, self.current_dungeon_id, self.get_chunk_biome(chunk_coord))
+        return theme_for_entrance(self.world_seed, chunk_coord, self.get_chunk_biome(chunk_coord))
 
     def _dungeon_floor_count(self):
         """

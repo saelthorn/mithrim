@@ -13,7 +13,7 @@ from world.tile import (
     shelf_three, bar_counter, shelf_two, tavern_barrel, tavern_crate, cob_web, wood_plank, tavern_floor, ladder, tavern_cobweb,
     window, flower_field, meadow, barrel, tent, campfire, giant_tree, fence, fence_gate, banner, washed_boat, sail_left, sail, 
     sail_right, overworld_cobweb, dragon_skull, dragon_skeleton, dragon_tail, tree, mountain,
-    ritual_circle, gravestone, gravestone_two, gravestone_three, rubble
+    ritual_circle, gravestone, gravestone_two, gravestone_three, rubble, dungeon_entrance
 )
 
 
@@ -367,7 +367,7 @@ STRUCTURE_BLUEPRINTS = {
             "  #b..&..b#  ",
             "  #.......#  ",
             "  w..%.*..w  ",
-            "  #.%...%.%  ",
+            "  #.%.E.%.%  ",
             "  #..*....#  ",
             "  w.......w  ",
             "  #.%...*.#  ",
@@ -377,9 +377,9 @@ STRUCTURE_BLUEPRINTS = {
         {
             "#": wall, "w": window, "+": door, ".": floor, "&": altar, "b": banner,
             "%": rubble, "*": overworld_cobweb, "g": gravestone, "G": gravestone_two,
-            "h": gravestone_three, "r": ritual_circle,
+            "h": gravestone_three, "r": ritual_circle, "E": dungeon_entrance,
         },
-        walkable_chars={".", "%", "+"},
+        walkable_chars={".", "%", "+", "E"},
         description="A collapsed church whose congregation never left.",
         destroyed_tile=ground,
     ),
