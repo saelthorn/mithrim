@@ -2442,6 +2442,135 @@ class GoblinArcher(Monster):
             "CHA": False,
         }        
 
+
+
+class Hobgoblin(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'HOB', 'Hobgoblin', (200, 120, 0))
+        self.ambient_messages = [
+            "{name} sharpens a blade with slow, practiced strokes...",
+            "{name} barks an order at no one in particular...",
+            "{name} stands watch with disciplined menace...",
+        ]
+
+        self.hp = 11
+        self.max_hp = 11
+        self.attack_bonus = 3
+        self.armor_class = 16
+        self.kill_reputation = {"goblins": -1}
+        self.base_xp = 100
+        self.monster_die_type = 8
+        self.num_damage_dice = 1
+        self.damage_modifier = 1
+        self.detection_range = 6
+        self.is_intelligent = True
+        self.loot_table = [
+            (iron_short_sword, 0.4),
+            (round_shield, 0.2),
+        ]
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": False,
+            "CON": True,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+
+
+class GoblinBoss(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'GBS', 'Goblin Boss', (0, 200, 60))
+        self.ambient_messages = [
+            "{name} snarls at the nearest goblin to move faster...",
+            "{name} counts a pile of stolen coins, twice...",
+            "{name} shoves a smaller goblin out of the way...",
+        ]
+        self.dialogue_lines = [
+            "Mine! All mine!",
+            "Get 'em, you useless runts!",
+            "Warchief will hear of this!",
+        ]
+
+        self.hp = 21
+        self.max_hp = 21
+        self.attack_bonus = 4
+        self.armor_class = 15
+        self.kill_reputation = {"goblins": -2, "kingdom": 1}
+        self.base_xp = 200
+        self.monster_die_type = 6
+        self.num_damage_dice = 1
+        self.damage_modifier = 2
+        self.detection_range = 7
+        self.is_intelligent = True
+        self.monster_abilities = [
+            Multiattack(extra_attacks=1),
+            CallToArms(radius=10, cooldown=30),
+        ]
+        self.loot_table = [
+            (lesser_healing_potion, 0.4),
+            (iron_long_sword, 0.3),
+            (round_shield, 0.25),
+        ]
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+
+
+class GoblinWarchief(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'GWC', 'Goblin Warchief', (0, 160, 40))
+        self.ambient_messages = [
+            "{name} bellows a war chant that echoes through the warren...",
+            "{name} hefts a notched axe and grins...",
+            "{name} kicks a wolf-skin rug into the fire...",
+        ]
+        self.dialogue_lines = [
+            "You come to MY warren? Bold. Dead, but bold.",
+            "Wolves! Dinner has arrived!",
+            "Nobody leaves the Warchief's hall!",
+        ]
+
+        self.hp = 65
+        self.max_hp = 65
+        self.attack_bonus = 5
+        self.armor_class = 16
+        self.kill_reputation = {"goblins": -10, "kingdom": 5}
+        self.world_scar_on_death = "goblin_hideout_cleared"
+        self.base_xp = 700
+        self.monster_die_type = 8
+        self.num_damage_dice = 2
+        self.damage_modifier = 3
+        self.detection_range = 8
+        self.is_intelligent = True
+        self.monster_abilities = [
+            SummonReinforcements("Wolf", count=2, max_alive=2, cooldown=10),
+            CallToArms(radius=12, cooldown=30),
+        ]
+        self.loot_table = [
+            (greater_healing_potion, 0.75),
+            (steel_battle_axe, 0.6),
+            (kite_shield, 0.4),
+            (studded_leather_armor, 0.4),
+        ]
+
+        self.saving_throw_proficiencies = {
+            "STR": True,
+            "DEX": False,
+            "CON": True,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+        
+
 class Skeleton(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'SK', 'Skeleton', (200, 200, 200))

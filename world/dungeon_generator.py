@@ -18,6 +18,10 @@ from world.encounters.prison_cell import generate_prison_cell, is_prison_cell_po
 from world.encounters.temple_room import generate_circular_temple
 from world.encounters.crypt import generate_crypt, is_crypt_position
 from world.encounters.church import generate_church_nave, generate_church_sanctum
+from world.encounters.goblin import generate_goblin_camp, generate_goblin_hall
+
+ROOM_DRESSERS = {"church_nave": generate_church_nave, "goblin_camp": generate_goblin_camp}
+BOSS_DRESSERS = {"church_sanctum": generate_church_sanctum, "goblin_hall": generate_goblin_hall}
 
 
 # ---------------------------------------------------------------------------
@@ -1001,39 +1005,39 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
 
     # ------------------------------------------------------------------
     # 6c. Themed rooms (see world/dungeon_themes.py's DungeonFloorProfile)
-    #     The sanctum goes in the same room game.py picks for the boss:
+    #     The boss dresser goes in the same room game.py picks for the boss:
     #     the largest room after the first.
     # ------------------------------------------------------------------
     themed_rooms = set()
     if profile is not None:
         taken_room_ids = set(prison_blocked_sides) | crypt_room_ids
 
-        if profile.sanctum and not spawn_downstairs and len(rooms) > 1:
-            sanctum_room = max(rooms[1:], key=room_interior_area)
-            if id(sanctum_room) not in taken_room_ids:
-                if generate_church_sanctum(game_map, sanctum_room, stairs_positions):
-                    themed_rooms.add(id(sanctum_room))
+        if profile.boss_dresser and not spawn_downstairs and len(rooms) > 1:
+            boss_room = max(rooms[1:], key=room_interior_area)
+            if id(boss_room) not in taken_room_ids:
+                if BOSS_DRESSERS[profile.boss_dresser](game_map, boss_room, stairs_positions):
+                    themed_rooms.add(id(boss_room))
 
-        max_naves, nave_chance = profile.nave_rooms
-        nave_candidates = [
-            room for room in rooms
-            if isinstance(room, RectRoom)
-            and room is not stairs_up_room
-            and room is not stairs_down_room
-            and id(room) not in taken_room_ids | themed_rooms
-            and (room.x2 - room.x1) >= 8
-            and (room.y2 - room.y1) >= 9
-        ]
-        random.shuffle(nave_candidates)
-        naves_placed = 0
-        for candidate in nave_candidates:
-            if naves_placed >= max_naves:
-                break
-            if random.random() > nave_chance:
-                continue
-            if generate_church_nave(game_map, candidate, stairs_positions):
-                themed_rooms.add(id(candidate))
-                naves_placed += 1
+        for dresser_name, max_rooms, chance in profile.room_dressers:
+            candidates = [
+                room for room in rooms
+                if isinstance(room, RectRoom)
+                and room is not stairs_up_room
+                and room is not stairs_down_room
+                and id(room) not in taken_room_ids | themed_rooms
+                and (room.x2 - room.x1) >= 8
+                and (room.y2 - room.y1) >= 9
+            ]
+            random.shuffle(candidates)
+            rooms_placed = 0
+            for candidate in candidates:
+                if rooms_placed >= max_rooms:
+                    break
+                if random.random() > chance:
+                    continue
+                if ROOM_DRESSERS[dresser_name](game_map, candidate, stairs_positions):
+                    themed_rooms.add(id(candidate))
+                    rooms_placed += 1
 
     # ------------------------------------------------------------------
     # 7. Repair tunnels that cut through prison-blocked walls

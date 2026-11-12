@@ -13,7 +13,7 @@ from world.tile import (
     shelf_three, bar_counter, shelf_two, tavern_barrel, tavern_crate, cob_web, wood_plank, tavern_floor, ladder, tavern_cobweb,
     window, flower_field, meadow, barrel, tent, campfire, giant_tree, fence, fence_gate, banner, washed_boat, sail_left, sail, 
     sail_right, overworld_cobweb, dragon_skull, dragon_skeleton, dragon_tail, tree, mountain,
-    ritual_circle, gravestone, gravestone_two, gravestone_three, rubble, dungeon_entrance
+    ritual_circle, gravestone, gravestone_two, gravestone_three, rubble, dungeon_entrance, cauldron
 )
 
 
@@ -381,6 +381,33 @@ STRUCTURE_BLUEPRINTS = {
         },
         walkable_chars={".", "%", "+", "E"},
         description="A collapsed church whose congregation never left.",
+        destroyed_tile=ground,
+    ),
+
+    "goblin_hideout": build_blueprint(
+        "goblin_hideout",
+        "Goblin Hideout",
+        [
+            "             ",
+            "             ",
+            " fffffffffff ",
+            " f         f ",
+            " f  MMMMM  f ",
+            " f MMMMMMM f ",
+            " f MM E MM f ",
+            " f T     T f ",
+            " f  H F H  f ",
+            " f k U   b f ",
+            " fffffgfffff ",
+            "    B   B    ",
+            "             ",
+        ],
+        {
+            "f": fence, "g": fence_gate, "M": mountain, "E": dungeon_entrance, "T": tent,
+            "H": hay, "F": campfire, "U": cauldron, "k": crate, "b": barrel, "B": banner,
+        },
+        walkable_chars={" ", "g", "E", "F"},
+        description="A palisaded goblin camp built around a cave mouth.",
         destroyed_tile=ground,
     ),
 

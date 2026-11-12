@@ -341,7 +341,7 @@ from entities.monster import (
     Wererat, Wolf, Yochlol, Drider, RedSlaad, DeathSlaad, MyconidSprout,
     MyconidAdult, Mezzoloth, Gauth, Arasta, AlphaGrick, IntellectDevourer, 
     Imp, Wraith, TombTapper, Cultist, WilloWisp, Ghoul,
-    CultAcolyte, CultFanatic, CultHierophant
+    CultAcolyte, CultFanatic, CultHierophant, GoblinWarchief
 
 )
 
@@ -5191,7 +5191,8 @@ class Game:
                         'Demogorgon': Demogorgon,
                         'Arasta': Arasta,
                         'Yochlol': Yochlol,
-                        'CultHierophant': CultHierophant
+                        'CultHierophant': CultHierophant,
+                        'GoblinWarchief': GoblinWarchief
                     }
                     boss_cls = name_to_cls.get(boss_name, Demogorgon)
                     boss_entity = boss_cls(spawn_x, spawn_y)

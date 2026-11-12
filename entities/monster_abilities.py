@@ -577,5 +577,5 @@ class SummonReinforcements(MonsterAbility):
             game.floating_texts.append(FloatingText(x, y, "SUMMONED!", (200, 80, 255)))
 
         game._resort_turn_order_preserving_current()
-        game.message_log.add_message(f"The {monster.name} calls forth {to_spawn} {ally.name}s!", (200, 80, 255))
+        game.message_log.add_message(f"The {monster.name} calls for reinforcements! ({to_spawn} {ally.name})", (200, 80, 255))
         return True

@@ -6,6 +6,7 @@ from world import tile
 from entities.monster import (
     Cultist, CultAcolyte, CultFanatic, Imp, GiantRat, GiantSpider,
     Skeleton, SkeletonArcher, Ghoul, Wraith,
+    Goblin, GoblinArcher, Hobgoblin, GoblinBoss, Wolf,
 )
 
 
@@ -14,9 +15,9 @@ class DungeonFloorProfile:
     name: str
     room_props: tuple = None
     prop_chance: float = None
-    nave_rooms: tuple = (0, 0)
+    room_dressers: tuple = ()
+    boss_dresser: str = None
     crypt_rooms: tuple = None
-    sanctum: bool = False
 
 
 @dataclass(frozen=True, eq=False)
@@ -61,7 +62,7 @@ class DungeonTheme:
 
 THEMES = {}
 
-FORCED_THEME_KEY = "cult_church"
+FORCED_THEME_KEY = None
 
 
 def register_theme(theme):
@@ -107,7 +108,7 @@ CULT_CHURCH_THEME = register_theme(DungeonTheme(
                 tile.rubble, tile.rubble, tile.rubble, tile.bones, tile.cob_web,
                 tile.cob_web, tile.dungeon_grass, tile.dungeon_grass_two, tile.crate,
             ),
-            nave_rooms=(2, 0.7),
+            room_dressers=(("church_nave", 2, 0.7),),
         ),
         2: DungeonFloorProfile(
             "Catacombs",
@@ -121,13 +122,52 @@ CULT_CHURCH_THEME = register_theme(DungeonTheme(
         3: DungeonFloorProfile(
             "Inner Sanctum",
             room_props=(tile.fresh_bones, tile.fresh_bones, tile.bones, tile.rubble, tile.cob_web),
-            nave_rooms=(1, 0.5),
-            sanctum=True,
+            room_dressers=(("church_nave", 1, 0.5),),
+            boss_dresser="church_sanctum",
         ),
     },
     biome_weights={"forest": 1, "plains": 1},
 ))
 
+
+GOBLIN_HIDEOUT_THEME = register_theme(DungeonTheme(
+    key="goblin_hideout",
+    name="Goblin Hideout",
+    floor_range=(2, 2),
+    exterior_structure="goblin_hideout",
+    monster_tiers={
+        1: [Goblin, GoblinArcher, Hobgoblin, Wolf, GiantRat],
+        2: [Goblin, GoblinArcher, Hobgoblin, GoblinBoss, Wolf],
+    },
+    boss_pools={
+        1: ["GoblinWarchief"],
+        2: ["GoblinWarchief"],
+    },
+    monster_groups={
+        "Goblin": ["Goblin", "Goblin", "GoblinArcher", "Hobgoblin"],
+        "Hobgoblin": ["Hobgoblin", "Goblin", "GoblinArcher"],
+        "GoblinBoss": ["GoblinBoss", "Goblin", "GoblinArcher", "Wolf"],
+    },
+    floor_profiles={
+        1: DungeonFloorProfile(
+            "Goblin Warrens",
+            room_props=(
+                tile.crate, tile.barrel, tile.hay, tile.bones,
+                tile.rubble, tile.rubble, tile.cob_web,
+            ),
+            prop_chance=0.2,
+            room_dressers=(("goblin_camp", 2, 0.7),),
+        ),
+        2: DungeonFloorProfile(
+            "Chieftain's Den",
+            room_props=(tile.crate, tile.barrel, tile.bones, tile.fresh_bones, tile.rubble, tile.hay),
+            prop_chance=0.2,
+            room_dressers=(("goblin_camp", 1, 0.5),),
+            boss_dresser="goblin_hall",
+        ),
+    },
+    biome_weights={"hills": 2, "forest": 1, "mountains": 1},
+))
 
 def theme_for_entrance(world_seed, location, biome):
     if FORCED_THEME_KEY:
