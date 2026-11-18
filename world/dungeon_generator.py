@@ -19,9 +19,13 @@ from world.encounters.temple_room import generate_circular_temple
 from world.encounters.crypt import generate_crypt, is_crypt_position
 from world.encounters.church import generate_church_nave, generate_church_sanctum
 from world.encounters.goblin import generate_goblin_camp, generate_goblin_hall
+from world.encounters.tomb import generate_ossuary, generate_lich_sanctum
+from world.encounters.spider import generate_web_nest, generate_brood_lair
+from world.encounters.orc import generate_war_barracks, generate_war_hall
+from world.encounters.temple import generate_flooded_hall, generate_temple_sanctum
 
-ROOM_DRESSERS = {"church_nave": generate_church_nave, "goblin_camp": generate_goblin_camp}
-BOSS_DRESSERS = {"church_sanctum": generate_church_sanctum, "goblin_hall": generate_goblin_hall}
+ROOM_DRESSERS = {"church_nave": generate_church_nave, "goblin_camp": generate_goblin_camp, "ossuary": generate_ossuary, "web_nest": generate_web_nest, "war_barracks": generate_war_barracks, "flooded_hall": generate_flooded_hall}
+BOSS_DRESSERS = {"church_sanctum": generate_church_sanctum, "goblin_hall": generate_goblin_hall, "lich_sanctum": generate_lich_sanctum, "brood_lair": generate_brood_lair, "war_hall": generate_war_hall, "temple_sanctum": generate_temple_sanctum}
 
 
 # ---------------------------------------------------------------------------
@@ -909,7 +913,7 @@ def generate_dungeon(game_map, level_number, max_rooms=32, room_min_size=8, room
     # ------------------------------------------------------------------
     # 4. Water features
     # ------------------------------------------------------------------
-    water_spawn_chance = 0.4 + level_number * 0.05   # increases with depth
+    water_spawn_chance = profile.water_chance if profile and profile.water_chance is not None else 0.4 + level_number * 0.05   # increases with depth
     water_tiles = generate_water_features(game_map, rooms, min(water_spawn_chance, 0.85))
 
     # Protect stairs from being overwritten by water

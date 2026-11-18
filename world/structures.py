@@ -13,7 +13,7 @@ from world.tile import (
     shelf_three, bar_counter, shelf_two, tavern_barrel, tavern_crate, cob_web, wood_plank, tavern_floor, ladder, tavern_cobweb,
     window, flower_field, meadow, barrel, tent, campfire, giant_tree, fence, fence_gate, banner, washed_boat, sail_left, sail, 
     sail_right, overworld_cobweb, dragon_skull, dragon_skeleton, dragon_tail, tree, mountain,
-    ritual_circle, gravestone, gravestone_two, gravestone_three, rubble, dungeon_entrance, cauldron
+    ritual_circle, gravestone, gravestone_two, gravestone_three, rubble, dungeon_entrance, cauldron, dungeon_pillar, torch, bones, dead_forest, forge, anvil, pond, reeds
 )
 
 
@@ -381,6 +381,112 @@ STRUCTURE_BLUEPRINTS = {
         },
         walkable_chars={".", "%", "+", "E"},
         description="A collapsed church whose congregation never left.",
+        destroyed_tile=ground,
+    ),
+
+    "sunken_temple": build_blueprint(
+        "sunken_temple",
+        "Sunken Temple",
+        [
+            "             ",
+            "wwwwwwwwwwwww",
+            "wwr       rww",
+            "ww #%###%# ww",
+            "ww #p...p# ww",
+            "wwr#.....% ww",
+            "ww #..E..# ww",
+            "ww %.....#rww",
+            "ww #p...p# ww",
+            "ww ###.### ww",
+            "wwr       rww",
+            "             ",
+            "             ",
+        ],
+        {
+            "w": pond, "r": reeds, "#": wall, ".": floor, "%": rubble, "p": dungeon_pillar, "E": dungeon_entrance,
+        },
+        walkable_chars={".", "%", "E", " ", "r"},
+        description="A ruined ziggurat sinking into a stagnant pool.",
+        destroyed_tile=ground,
+    ),
+
+    "orc_stronghold": build_blueprint(
+        "orc_stronghold",
+        "Orc Stronghold",
+        [
+            "             ",
+            "  MMMMMMMMM  ",
+            " ########### ",
+            " #..;...;..# ",
+            " #.F.....A.# ",
+            " #.........# ",
+            " #....E....# ",
+            " #.k.....b.# ",
+            " #.........# ",
+            " #.........# ",
+            " #####+##### ",
+            "    B   B    ",
+            "             ",
+        ],
+        {
+            "#": wall, ".": floor, "+": door, "M": mountain, "E": dungeon_entrance, "F": forge,
+            "A": anvil, "k": crate, "b": barrel, "B": banner, ";": bones,
+        },
+        walkable_chars={".", "+", "E", ";"},
+        description="A walled orc war-camp built against the mountainside.",
+        destroyed_tile=ground,
+    ),
+
+    "spider_nest": build_blueprint(
+        "spider_nest",
+        "Spider Nest",
+        [
+            "             ",
+            "  d       d  ",
+            "    MMMMM    ",
+            "   MMMMMMM   ",
+            "  MMMMMMMMM  ",
+            "  MMMMMMMMM  ",
+            "  MM  E  MM  ",
+            "  d*  ;  *d  ",
+            "   *     *   ",
+            "  d    ;    d",
+            "     *   *   ",
+            "             ",
+            "             ",
+        ],
+        {
+            "M": mountain, "E": dungeon_entrance, "*": overworld_cobweb, "d": dead_forest, ";": bones,
+        },
+        walkable_chars={" ", "E", ";", "d"},
+        description="A rocky mound wrapped in webbing, ringed by dead trees.",
+        destroyed_tile=ground,
+    ),
+
+    "ancient_tomb": build_blueprint(
+        "ancient_tomb",
+        "Ancient Tomb",
+        [
+            "             ",
+            "  h       G  ",
+            "  #########  ",
+            "  #*.....*#  ",
+            "  #.p...p.#  ",
+            "  #.......#  ",
+            "  #..;E;..#  ",
+            "  #.p...p.#  ",
+            "  #.......#  ",
+            "  ###i+i###  ",
+            " p  h   h  p ",
+            "             ",
+            "             ",
+        ],
+        {
+            "#": wall, ".": floor, "+": door, "*": overworld_cobweb, "p": dungeon_pillar, "i": torch,
+            ";": bones, "h": gravestone_three, "G": gravestone_two, "E": dungeon_entrance,
+        },
+        walkable_chars={".", "+", "E", ";"},
+        description="A sealed barrow-house whose dead do not rest.",
         destroyed_tile=ground,
     ),
 

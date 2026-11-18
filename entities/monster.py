@@ -1,7 +1,7 @@
 import random
 from core.pathfinding import astar
 from core.status_effects import Poisoned, AcidBurned, Burning, PowerAttackBuff, EvasionBuff, BlessingOfAgility, GuardBuff, ParryBuff, Restrained, Frightened, is_restrained
-from entities.monster_abilities import Charge, Multiattack, Sweep, Knockback, Regeneration, Roar, CallToArms, Webbed, HealAlly, SummonAllies, MendAlly, SummonReinforcements
+from entities.monster_abilities import Charge, Multiattack, Sweep, Knockback, Regeneration, Roar, CallToArms, Webbed, HealAlly, SummonAllies, MendAlly, SummonReinforcements, DreadGaze
 from world.water_features import is_water_tile
 
 from items.items import (
@@ -2442,135 +2442,6 @@ class GoblinArcher(Monster):
             "CHA": False,
         }        
 
-
-
-class Hobgoblin(Monster):
-    def __init__(self, x, y):
-        super().__init__(x, y, 'HOB', 'Hobgoblin', (200, 120, 0))
-        self.ambient_messages = [
-            "{name} sharpens a blade with slow, practiced strokes...",
-            "{name} barks an order at no one in particular...",
-            "{name} stands watch with disciplined menace...",
-        ]
-
-        self.hp = 11
-        self.max_hp = 11
-        self.attack_bonus = 3
-        self.armor_class = 16
-        self.kill_reputation = {"goblins": -1}
-        self.base_xp = 100
-        self.monster_die_type = 8
-        self.num_damage_dice = 1
-        self.damage_modifier = 1
-        self.detection_range = 6
-        self.is_intelligent = True
-        self.loot_table = [
-            (iron_short_sword, 0.4),
-            (round_shield, 0.2),
-        ]
-
-        self.saving_throw_proficiencies = {
-            "STR": False,
-            "DEX": False,
-            "CON": True,
-            "INT": False,
-            "WIS": False,
-            "CHA": False,
-        }
-
-
-class GoblinBoss(Monster):
-    def __init__(self, x, y):
-        super().__init__(x, y, 'GBS', 'Goblin Boss', (0, 200, 60))
-        self.ambient_messages = [
-            "{name} snarls at the nearest goblin to move faster...",
-            "{name} counts a pile of stolen coins, twice...",
-            "{name} shoves a smaller goblin out of the way...",
-        ]
-        self.dialogue_lines = [
-            "Mine! All mine!",
-            "Get 'em, you useless runts!",
-            "Warchief will hear of this!",
-        ]
-
-        self.hp = 21
-        self.max_hp = 21
-        self.attack_bonus = 4
-        self.armor_class = 15
-        self.kill_reputation = {"goblins": -2, "kingdom": 1}
-        self.base_xp = 200
-        self.monster_die_type = 6
-        self.num_damage_dice = 1
-        self.damage_modifier = 2
-        self.detection_range = 7
-        self.is_intelligent = True
-        self.monster_abilities = [
-            Multiattack(extra_attacks=1),
-            CallToArms(radius=10, cooldown=30),
-        ]
-        self.loot_table = [
-            (lesser_healing_potion, 0.4),
-            (iron_long_sword, 0.3),
-            (round_shield, 0.25),
-        ]
-
-        self.saving_throw_proficiencies = {
-            "STR": False,
-            "DEX": True,
-            "CON": False,
-            "INT": False,
-            "WIS": False,
-            "CHA": False,
-        }
-
-
-class GoblinWarchief(Monster):
-    def __init__(self, x, y):
-        super().__init__(x, y, 'GWC', 'Goblin Warchief', (0, 160, 40))
-        self.ambient_messages = [
-            "{name} bellows a war chant that echoes through the warren...",
-            "{name} hefts a notched axe and grins...",
-            "{name} kicks a wolf-skin rug into the fire...",
-        ]
-        self.dialogue_lines = [
-            "You come to MY warren? Bold. Dead, but bold.",
-            "Wolves! Dinner has arrived!",
-            "Nobody leaves the Warchief's hall!",
-        ]
-
-        self.hp = 65
-        self.max_hp = 65
-        self.attack_bonus = 5
-        self.armor_class = 16
-        self.kill_reputation = {"goblins": -10, "kingdom": 5}
-        self.world_scar_on_death = "goblin_hideout_cleared"
-        self.base_xp = 700
-        self.monster_die_type = 8
-        self.num_damage_dice = 2
-        self.damage_modifier = 3
-        self.detection_range = 8
-        self.is_intelligent = True
-        self.monster_abilities = [
-            SummonReinforcements("Wolf", count=2, max_alive=2, cooldown=10),
-            CallToArms(radius=12, cooldown=30),
-        ]
-        self.loot_table = [
-            (greater_healing_potion, 0.75),
-            (steel_battle_axe, 0.6),
-            (kite_shield, 0.4),
-            (studded_leather_armor, 0.4),
-        ]
-
-        self.saving_throw_proficiencies = {
-            "STR": True,
-            "DEX": False,
-            "CON": True,
-            "INT": False,
-            "WIS": False,
-            "CHA": False,
-        }
-        
-
 class Skeleton(Monster):
     def __init__(self, x, y):
         super().__init__(x, y, 'SK', 'Skeleton', (200, 200, 200))
@@ -3911,5 +3782,499 @@ class GiantScorpion(Monster):
             "CON": False,
             "INT": False,
             "WIS": False,
+            "CHA": False,
+        }
+
+
+class Hobgoblin(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'HOB', 'Hobgoblin', (200, 120, 0))
+        self.ambient_messages = [
+            "{name} sharpens a blade with slow, practiced strokes...",
+            "{name} barks an order at no one in particular...",
+            "{name} stands watch with disciplined menace...",
+        ]
+
+        self.hp = 11
+        self.max_hp = 11
+        self.attack_bonus = 3
+        self.armor_class = 16
+        self.kill_reputation = {"goblins": -1}
+        self.base_xp = 100
+        self.monster_die_type = 8
+        self.num_damage_dice = 1
+        self.damage_modifier = 1
+        self.detection_range = 6
+        self.is_intelligent = True
+        self.loot_table = [
+            (iron_short_sword, 0.4),
+            (round_shield, 0.2),
+        ]
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": False,
+            "CON": True,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+
+
+class GoblinBoss(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'GBS', 'Goblin Boss', (0, 200, 60))
+        self.ambient_messages = [
+            "{name} snarls at the nearest goblin to move faster...",
+            "{name} counts a pile of stolen coins, twice...",
+            "{name} shoves a smaller goblin out of the way...",
+        ]
+        self.dialogue_lines = [
+            "Mine! All mine!",
+            "Get 'em, you useless runts!",
+            "Warchief will hear of this!",
+        ]
+
+        self.hp = 21
+        self.max_hp = 21
+        self.attack_bonus = 4
+        self.armor_class = 15
+        self.kill_reputation = {"goblins": -2, "kingdom": 1}
+        self.base_xp = 200
+        self.monster_die_type = 6
+        self.num_damage_dice = 1
+        self.damage_modifier = 2
+        self.detection_range = 7
+        self.is_intelligent = True
+        self.monster_abilities = [
+            Multiattack(extra_attacks=1),
+            CallToArms(radius=10, cooldown=30),
+        ]
+        self.loot_table = [
+            (lesser_healing_potion, 0.4),
+            (iron_long_sword, 0.3),
+            (round_shield, 0.25),
+        ]
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": True,
+            "CON": False,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+
+
+class GoblinWarchief(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'GWC', 'Goblin Warchief', (0, 160, 40))
+        self.ambient_messages = [
+            "{name} bellows a war chant that echoes through the warren...",
+            "{name} hefts a notched axe and grins...",
+            "{name} kicks a wolf-skin rug into the fire...",
+        ]
+        self.dialogue_lines = [
+            "You come to MY warren? Bold. Dead, but bold.",
+            "Wolves! Dinner has arrived!",
+            "Nobody leaves the Warchief's hall!",
+        ]
+
+        self.hp = 65
+        self.max_hp = 65
+        self.attack_bonus = 5
+        self.armor_class = 16
+        self.kill_reputation = {"goblins": -10, "kingdom": 5}
+        self.world_scar_on_death = "goblin_hideout_cleared"
+        self.base_xp = 700
+        self.monster_die_type = 8
+        self.num_damage_dice = 2
+        self.damage_modifier = 3
+        self.detection_range = 8
+        self.is_intelligent = True
+        self.monster_abilities = [
+            SummonReinforcements("Wolf", count=2, max_alive=2, cooldown=10),
+            CallToArms(radius=12, cooldown=30),
+        ]
+        self.loot_table = [
+            (greater_healing_potion, 0.75),
+            (steel_battle_axe, 0.6),
+            (kite_shield, 0.4),
+            (studded_leather_armor, 0.4),
+        ]
+
+        self.saving_throw_proficiencies = {
+            "STR": True,
+            "DEX": False,
+            "CON": True,
+            "INT": False,
+            "WIS": False,
+            "CHA": False,
+        }
+
+
+class Mummy(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'MUM', 'Mummy', (190, 170, 120))
+        self.ambient_messages = [
+            "{name} shuffles stiffly, trailing frayed linen...",
+            "{name} lets out a dry, rattling sigh...",
+            "A cloud of ancient dust rises around {name}...",
+        ]
+
+        self.hp = 45
+        self.max_hp = 45
+        self.attack_bonus = 5
+        self.armor_class = 11
+        self.base_xp = 700
+        self.monster_die_type = 6
+        self.num_damage_dice = 2
+        self.damage_modifier = 3
+        self.detection_range = 5
+        self.is_intelligent = False
+        self.loot_table = [
+            (robes, 0.2),
+        ]
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": False,
+            "CON": False,
+            "INT": False,
+            "WIS": True,
+            "CHA": False,
+        }
+
+
+class Lich(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'LCH', 'Lich', (120, 60, 200))
+        self.ambient_messages = [
+            "{name} whispers a name, and something below stirs...",
+            "The air around {name} turns bitterly cold...",
+            "{name} idly turns a bone between skeletal fingers...",
+        ]
+        self.dialogue_lines = [
+            "Another visitor. How rare. How... fresh.",
+            "I have outlasted kingdoms. You are nothing.",
+            "Rise, my servants. We have guests.",
+        ]
+
+        self.hp = 90
+        self.max_hp = 90
+        self.attack_bonus = 8
+        self.armor_class = 17
+        self.kill_reputation = {"necromancers": -10, "church": 5}
+        self.world_scar_on_death = "ancient_tomb_cleansed"
+        self.base_xp = 4000
+        self.monster_die_type = 6
+        self.num_damage_dice = 3
+        self.damage_modifier = 0
+        self.detection_range = 9
+        self.is_ranged = True
+        self.ranged_attack_bonus = 9
+        self.range = 5
+        self.ranged_die_type = 8
+        self.ranged_num_dice = 2
+        self.is_intelligent = True
+
+        self.can_kite = True
+        self.ideal_kiting_distance = 4
+        self.kiting_attack_threshold = 2
+
+        self.monster_abilities = [
+            SummonReinforcements("Skeleton", count=2, max_alive=4, cooldown=6),
+            DreadGaze(dc=15, duration=3, use_range=6, cooldown=12),
+        ]
+        self.loot_table = [
+            (greater_healing_potion, 1.0),
+            (apprentices_staff, 0.75),
+            (robes, 0.6),
+            (silver_dagger, 0.5),
+        ]
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": False,
+            "CON": True,
+            "INT": True,
+            "WIS": True,
+            "CHA": False,
+        }
+
+
+class Spiderling(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'SPL', 'Spiderling', (70, 40, 40))
+        self.ambient_messages = [
+            "{name} skitters along the wall...",
+            "A swarm of tiny legs rustles near {name}...",
+            "{name} spins a hasty strand of silk...",
+        ]
+
+        self.hp = 4
+        self.max_hp = 4
+        self.attack_bonus = 3
+        self.armor_class = 12
+        self.base_xp = 25
+        self.monster_die_type = 4
+        self.num_damage_dice = 1
+        self.damage_modifier = 0
+        self.detection_range = 8
+        self.can_poison = True
+        self.poison_dc = 9
+        self.poison_duration = 2
+        self.poison_damage_per_turn = 2
+        self.is_intelligent = False
+
+
+class BroodMother(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'BRM', 'Brood Mother', (90, 20, 60))
+        self.ambient_messages = [
+            "{name} rakes the silk with a bristling leg, and the walls tremble...",
+            "Hundreds of tiny eyes glitter around {name}...",
+            "{name} clicks her fangs in a slow, hungry rhythm...",
+        ]
+
+        self.hp = 85
+        self.max_hp = 85
+        self.attack_bonus = 6
+        self.armor_class = 15
+        self.kill_reputation = {"merchants": 5}
+        self.world_scar_on_death = "spider_nest_cleared"
+        self.base_xp = 1800
+        self.monster_die_type = 8
+        self.num_damage_dice = 2
+        self.damage_modifier = 3
+        self.detection_range = 12
+        self.can_poison = True
+        self.poison_dc = 13
+        self.poison_duration = 4
+        self.poison_damage_per_turn = 5
+        self.web_restrain = True
+        self.is_intelligent = False
+
+        self.monster_abilities = [
+            Webbed(dc=13, duration=3),
+            SummonReinforcements("Spiderling", count=3, max_alive=6, cooldown=7),
+        ]
+        self.loot_table = [
+            (greater_healing_potion, 0.75),
+            (steel_rapier, 0.6),
+        ]
+
+
+class OrcShaman(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'OSH', 'Orc Shaman', (170, 90, 30))
+        self.ambient_messages = [
+            "{name} gnaws on a charm of knucklebones and mutters...",
+            "{name} smears war paint across a fellow orc's brow...",
+            "{name} chants low and guttural, eyes rolling white...",
+        ]
+
+        self.hp = 22
+        self.max_hp = 22
+        self.attack_bonus = 3
+        self.armor_class = 12
+        self.kill_reputation = {"orcs": -2, "kingdom": 1}
+        self.base_xp = 450
+        self.monster_die_type = 6
+        self.num_damage_dice = 1
+        self.damage_modifier = 1
+        self.detection_range = 6
+        self.is_ranged = True
+        self.ranged_attack_bonus = 5
+        self.range = 4
+        self.ranged_die_type = 6
+        self.ranged_num_dice = 2
+        self.is_intelligent = True
+
+        self.can_kite = True
+        self.ideal_kiting_distance = 3
+        self.kiting_attack_threshold = 2
+
+        self.monster_abilities = [MendAlly(heal_dice=8, bonus=2, radius=4, threshold=0.5, cooldown=3)]
+        self.loot_table = [
+            (lesser_healing_potion, 0.35),
+            (apprentices_staff, 0.15),
+        ]
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": False,
+            "CON": False,
+            "INT": False,
+            "WIS": True,
+            "CHA": False,
+        }
+
+
+class OrcWarlord(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'OWL', 'Orc Warlord', (150, 40, 20))
+        self.ambient_messages = [
+            "{name} drives a notched axe into the floor and bares his tusks...",
+            "{name} drums a slow war-beat against his shield...",
+            "{name} sniffs the air and grins at the smell of fear...",
+        ]
+        self.dialogue_lines = [
+            "Another fool wanders into my hall!",
+            "Warband! TO ME!",
+            "I will hang your bones from my gate!",
+        ]
+
+        self.hp = 105
+        self.max_hp = 105
+        self.attack_bonus = 7
+        self.armor_class = 16
+        self.kill_reputation = {"orcs": -10, "kingdom": 5}
+        self.world_scar_on_death = "orc_stronghold_cleared"
+        self.base_xp = 2900
+        self.monster_die_type = 12
+        self.num_damage_dice = 1
+        self.damage_modifier = 4
+        self.detection_range = 9
+        self.is_intelligent = True
+
+        self.monster_abilities = [
+            Multiattack(extra_attacks=1),
+            SummonReinforcements("Orc", count=2, max_alive=4, cooldown=9),
+            CallToArms(radius=12, cooldown=30),
+        ]
+        self.loot_table = [
+            (greater_healing_potion, 0.75),
+            (steel_battle_axe, 0.7),
+            (kite_shield, 0.4),
+            (studded_leather_armor, 0.4),
+        ]
+
+        self.saving_throw_proficiencies = {
+            "STR": True,
+            "DEX": False,
+            "CON": True,
+            "INT": False,
+            "WIS": True,
+            "CHA": False,
+        }
+
+
+class Crocodile(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'CRC', 'Crocodile', (60, 110, 60))
+        self.ambient_messages = [
+            "{name} slides silently beneath the surface...",
+            "{name} watches with half-lidded, patient eyes...",
+            "{name} snaps its jaws at a passing insect...",
+        ]
+
+        self.hp = 19
+        self.max_hp = 19
+        self.attack_bonus = 4
+        self.armor_class = 12
+        self.base_xp = 100
+        self.monster_die_type = 10
+        self.num_damage_dice = 1
+        self.damage_modifier = 2
+        self.detection_range = 5
+        self.can_swim = True
+        self.is_intelligent = False
+
+
+class LizardfolkShaman(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'LSH', 'Lizardfolk Shaman', (40, 150, 110))
+        self.ambient_messages = [
+            "{name} hisses a slow prayer to the dark water...",
+            "{name} sprinkles river-mud across a bone totem...",
+            "{name} tastes the air, tongue flickering...",
+        ]
+
+        self.hp = 27
+        self.max_hp = 27
+        self.attack_bonus = 4
+        self.armor_class = 13
+        self.base_xp = 450
+        self.monster_die_type = 6
+        self.num_damage_dice = 1
+        self.damage_modifier = 1
+        self.detection_range = 6
+        self.is_ranged = True
+        self.ranged_attack_bonus = 5
+        self.range = 4
+        self.ranged_die_type = 6
+        self.ranged_num_dice = 2
+        self.can_swim = True
+        self.is_intelligent = True
+
+        self.can_kite = True
+        self.ideal_kiting_distance = 3
+        self.kiting_attack_threshold = 2
+
+        self.monster_abilities = [SummonReinforcements("Crocodile", count=1, max_alive=2, cooldown=10)]
+        self.loot_table = [
+            (lesser_healing_potion, 0.35),
+        ]
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": False,
+            "CON": False,
+            "INT": False,
+            "WIS": True,
+            "CHA": False,
+        }
+
+
+class LizardfolkChieftain(Monster):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'LCF', 'Lizardfolk Chieftain', (20, 130, 90))
+        self.ambient_messages = [
+            "{name} coils on the temple steps, scales gleaming wet...",
+            "{name} rattles a necklace of old trophies and hisses...",
+            "{name} slaps a thick tail against the flagstones...",
+        ]
+        self.dialogue_lines = [
+            "The water remembers every thief.",
+            "Crocodiles! Feed!",
+            "This temple is ours. You are just the next offering.",
+        ]
+
+        self.hp = 78
+        self.max_hp = 78
+        self.attack_bonus = 6
+        self.armor_class = 16
+        self.kill_reputation = {"kingdom": 3}
+        self.world_scar_on_death = "sunken_temple_cleared"
+        self.base_xp = 1100
+        self.monster_die_type = 6
+        self.num_damage_dice = 2
+        self.damage_modifier = 3
+        self.detection_range = 8
+        self.can_swim = True
+        self.can_poison = True
+        self.poison_dc = 13
+        self.poison_duration = 3
+        self.poison_damage_per_turn = 3
+        self.is_intelligent = True
+
+        self.monster_abilities = [
+            Multiattack(extra_attacks=1),
+            Sweep(cooldown=3),
+            SummonReinforcements("Crocodile", count=2, max_alive=3, cooldown=8),
+        ]
+        self.loot_table = [
+            (greater_healing_potion, 0.75),
+            (pole_arm, 0.75),
+            (round_shield, 0.4),
+        ]
+
+        self.saving_throw_proficiencies = {
+            "STR": False,
+            "DEX": False,
+            "CON": True,
+            "INT": False,
+            "WIS": True,
             "CHA": False,
         }

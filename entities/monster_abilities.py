@@ -566,6 +566,7 @@ class SummonReinforcements(MonsterAbility):
         for x, y in tiles[:to_spawn]:
             ally = summon_class(x, y)
             ally.base_xp = 0
+            ally.loot_table = []
             ally.disposition = Disposition.AGGRESSIVE
             ally.is_active = True
             ally.ai_state = AI_State.CHASING
@@ -578,4 +579,21 @@ class SummonReinforcements(MonsterAbility):
 
         game._resort_turn_order_preserving_current()
         game.message_log.add_message(f"The {monster.name} calls for reinforcements! ({to_spawn} {ally.name})", (200, 80, 255))
+        return True
+
+
+class DreadGaze(Roar):
+    def __init__(self, dc=15, duration=3, use_range=6, cooldown=12):
+        super().__init__(dc=dc, duration=duration, use_range=use_range, cooldown=cooldown)
+        self.name = "Dread Gaze"
+        self.description = "Fixes a hollow stare that fills the target with dread."
+
+    def execute(self, monster, target, game):
+        game.message_log.add_message(f"The {monster.name}'s hollow gaze fills you with dread!", (150, 100, 255))
+
+        saved = hasattr(target, "make_saving_throw") and target.make_saving_throw("WIS", self.dc, game)
+        if saved:
+            game.message_log.add_message(f"{target.name} resists the fear!", (150, 150, 150))
+        else:
+            target.add_status_effect("Frightened", self.duration, game, source=monster)
         return True
